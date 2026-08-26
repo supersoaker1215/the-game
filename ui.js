@@ -22312,7 +22312,12 @@ const UI = {
   // Same four correctness properties as the name fit, for the same reasons:
   // double rAF, a fonts.ready re-run, batched reads before writes, and a
   // verification pass that corrects from what actually painted.
-  CD_FIT_MIN: 0.58,
+  // 0.45, not 0.58. The floor exists so copy never becomes unreadable, but a
+  // clipped rule is worse than a small one: a card whose last line is cut is a
+  // card you cannot play correctly. Seven faces reach this — the ones carrying
+  // both two rows of keyword chips and a wall of text — and they are legible at
+  // 5px on a 320px card in a full-screen read view, which is where this is.
+  CD_FIT_MIN: 0.45,
   // Aim a few pixels inside the box, not exactly at its edge — the same lesson
   // the name fit learned: text height is not linear in font size, so landing on
   // the boundary lands a pixel or two past it and costs another whole round.
@@ -22345,11 +22350,52 @@ const UI = {
     + ' .trick-card.trick-draft .trick-desc, .draft-card.trick-draft .trick-desc,'
     + ' .card-inspect-modal .trick-card .trick-desc, .trick-card.enc-trick .trick-desc,'
     + ' .rl-pick-cardslot .card .card-desc',
+  // THE BOX MOVES AFTER THE FIT RUNS. The rules column is a flex item that
+  // shrinks in proportion to the art, so its height is not settled at the
+  // moment the copy is measured — and a fit computed against the pre-shrink box
+  // is simply wrong. It showed up as 116 of 157 cards overflowing by 2-12px:
+  // not a bad calculation, a stale one.
+  // Same answer the name fit already needed, for the same reason: observe the
+  // box, and when it really changes, drop the memo and fit again. The memo key
+  // ends in the box height, which is what stops the observer looping on its own
+  // initial callback.
+  _cdFitRO: null,
+  _cdFitWatched: null,
+  _watchCardTextBox(el) {
+    if (typeof ResizeObserver !== 'function') return;
+    if (!this._cdFitRO) {
+      this._cdFitWatched = new Set();
+      this._cdFitRO = new ResizeObserver(entries => {
+        let dirty = false;
+        entries.forEach(e => {
+          const t = e.target;
+          const memo = t.dataset.cdFit;
+          if (memo && memo.endsWith('|' + Math.round(t.clientHeight))) return;
+          if (memo) delete t.dataset.cdFit;
+          dirty = true;
+        });
+        if (dirty) { this._cdFitPending = false; this._scheduleCardTextFit(); }
+      });
+    }
+    if (this._cdFitWatched.has(el)) return;
+    this._cdFitWatched.add(el);
+    this._cdFitRO.observe(el);
+  },
+  _pruneCardTextBoxes() {
+    if (!this._cdFitRO || !this._cdFitWatched) return;
+    this._cdFitWatched.forEach(el => {
+      if (el.isConnected) return;
+      this._cdFitRO.unobserve(el);
+      this._cdFitWatched.delete(el);
+    });
+  },
   fitCardText(root, _retry) {
+    this._pruneCardTextBoxes();
     const els = (root || document).querySelectorAll(this.CD_FIT_SELECTOR);
     if (!els.length) return;
     const jobs = [];
     els.forEach(el => {
+      this._watchCardTextBox(el);
       // clientHeight, not the max-height declaration: it is the box the element
       // ACTUALLY has, so this works the same whether the cap comes from a
       // max-height, from a fixed parent, or from the flow.

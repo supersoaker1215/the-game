@@ -23,7 +23,17 @@
      the lighter one. Setting both to #ffd24a (which the token table's single
      `frame-legendary` row implied) is what made the frame read washed out. */
   --gold-rgb: 245, 191, 28;        /* #f5bf1c — frame stroke, chrome, glow */
-  --gold-core-rgb: 255, 243, 200;  /* #fff3c8 — frame-core, the hot core inside the stroke */
+  --gold-core-rgb: 255, 243, 200;  /* #fff3c8 — kept for anything genuinely gold */
+  /* THE FRAME CORE IS NEUTRAL. Owner: "is there some orange or yellow on the
+     inside of the border? if so can we remove that."
+     Yes — two of them, and both were --gold-core-rgb, a CREAM. The design's own
+     note says what this line is for: "a near-white line inside the stroke is
+     what sells neon at read size". Near-white. It was cream because the
+     handout's card is gold and a warm core inside a gold stroke is invisible;
+     inside a green or a blue one it is the only warm thing on the card, which
+     is exactly the orange tint being reported.
+     White works inside every hue, which is the whole point of a core. */
+  --frame-core-rgb: 255, 255, 255;
   --gold-label-rgb: 255, 224, 122; /* #ffe07a — gold-label, ON PLAY + section labels */
 
   --ease-snap:  cubic-bezier(0.2, 0, 0, 1);      /* default: decisive arrival   */
@@ -43328,7 +43338,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card::before {
   border: 1px solid rgb(var(--frame-rgb)) !important;
   filter:
-    drop-shadow(0 0 1px  rgba(var(--gold-core-rgb), 0.80))
+    drop-shadow(0 0 1px  rgba(var(--frame-core-rgb), 0.80))
     drop-shadow(0 0 5px  rgba(var(--frame-rgb), 0.50))
     drop-shadow(0 0 12px rgba(var(--frame-rgb), 0.22));
 }
@@ -43426,7 +43436,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   position: absolute; inset: var(--cf-inset);
   pointer-events: none; z-index: 5;
   filter:
-    drop-shadow(0 0 1px  rgba(var(--gold-core-rgb), 0.85))
+    drop-shadow(0 0 1px  rgba(var(--frame-core-rgb), 0.85))
     drop-shadow(0 0 5px  rgba(var(--cf-rgb), 0.50))
     drop-shadow(0 0 12px rgba(var(--cf-rgb), 0.22));
 }
@@ -43556,7 +43566,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
     var(--cf-inset) calc(100% - var(--cf-inset)),
     var(--cf-inset) calc(var(--cf-inset) + var(--chamfer)));
   filter:
-    drop-shadow(0 0 1px  rgba(var(--gold-core-rgb), 0.75))
+    drop-shadow(0 0 1px  rgba(var(--frame-core-rgb), 0.75))
     drop-shadow(0 0 5px  rgba(var(--cf-rgb), 0.45))
     drop-shadow(0 0 14px rgba(var(--cf-rgb), 0.20));
 }
@@ -43860,7 +43870,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   --band-mid:  calc(var(--card-w) * 0.1218);
   /* the read state's own glow stops, 2 / 13 / 48 */
   filter:
-    drop-shadow(0 0 calc(var(--card-w) * 0.0036) rgba(var(--gold-core-rgb), 0.85))
+    drop-shadow(0 0 calc(var(--card-w) * 0.0036) rgba(var(--frame-core-rgb), 0.85))
     drop-shadow(0 0 calc(var(--card-w) * 0.0236) rgba(var(--cf-rgb), 0.50))
     drop-shadow(0 0 calc(var(--card-w) * 0.0873) rgba(var(--cf-rgb), 0.20)) !important;
 }
@@ -43871,7 +43881,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card.card.enc-card   .cf-edge,
 .card-inspect-modal .card.card .cf-edge,
 .fp-trick-preview   .card.card .cf-edge {
-  box-shadow: inset 0 0 0 var(--cf-core) rgba(var(--gold-core-rgb), 0.9);
+  box-shadow: inset 0 0 0 var(--cf-core) rgba(var(--frame-core-rgb), 0.9);
 }
 /* the legendary inner hairline, inset 26px — dropped on hand and board
    because "at 1px on a 175px card it reads as a smudge" */
@@ -44750,12 +44760,21 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
          141px, p90 214, max 423 at this width), so most cards never touch it
          and only the genuine walls of text compress. */
   --read-art-h:   calc(var(--read-card-w) * 0.70);
-  --read-desc-h:  calc(var(--read-card-w) * 0.78);
+  /* THE CAP IS DERIVED, NOT PICKED. The column has to hold, in the worst case:
+     the art at its floor (1.00w), two rows of keyword chips (~44px), and the
+     rules. The card gives it 1.95w less the .291w readout reserve. So
+       cap <= 1.95w - 0.291w - 1.00w - 44px  ~=  0.52w
+     and measured down to 0.49w, because the chip row runs a few pixels taller
+     than 44 on the cards that carry two of them — the arithmetic gets you to
+     the right neighbourhood and the corpus tells you the number.
+     Anything larger and a wordy card with two chip rows runs its copy through
+     its own ATK/HP readouts, which is what 0.78 did on 48 of 157 faces. */
+  --read-desc-h:  calc(var(--read-card-w) * 0.49);
   /* and the card itself is a fixed rectangle, so a two-word card and a wall of
      text are the same object. Without this the row stretches every card to the
      tallest one in it — which is why a card with one line of rules was being
      drawn 670px tall next to Art the Clown. */
-  --read-card-h:  calc(var(--read-card-w) * 1.90);
+  --read-card-h:  calc(var(--read-card-w) * 1.95);
 }
 
 /* The art window is a fixed height on the read surfaces, and the card carries a
@@ -45071,4 +45090,148 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   /* the digit keeps the same share of its plate it had at the old size — 32px
      box, 22px digit, so ~0.66 — rather than shrinking inside a bigger box. */
   font-size: calc(var(--card-w) * 0.096) !important;
+}
+
+/* ============================================================
+   THE CUT EDGE IS THE SAME LINE AS THE STRAIGHT EDGE (2026-08-26)
+   ============================================================
+   Owner: "the corner should be the same as the border, right now its plain
+   green bottom right and looks different, it should look seamless."
+
+   Measured, and he is describing a real difference in construction rather than
+   a colour that drifted. The straight edges are `.cf-edge`, a BORDER of
+   --cf-stroke plus an inset core hairline — two tones, a line with a lit
+   centre. The diagonals are `.cf-cut`, a rotated div with a single flat
+   `background: rgb(var(--cf-rgb))` and no core at all. Same colour, different
+   object: a lit line meeting a painted bar, which is exactly what reads as a
+   seam at the corner.
+
+   The bar gets the same two tones, as a gradient across its own thickness. The
+   core sits on the INNER side for each corner — which is a different local
+   direction for the top-left cut than for the bottom-right one, because they
+   are the same div rotated to face opposite ways — so the two are written
+   separately rather than shared. */
+.card .cf-cut,
+.trick-card .cf-cut,
+.card .cf-cut-tl,
+.trick-card .cf-cut-tl {
+  height: calc(var(--cf-stroke) + var(--cf-core, 0px)) !important;
+}
+.card .cf-cut-tl,
+.trick-card .cf-cut-tl {
+  background: linear-gradient(to top,
+    rgb(var(--cf-rgb)) 0, rgb(var(--cf-rgb)) var(--cf-stroke),
+    rgba(var(--frame-core-rgb), 0.9) var(--cf-stroke),
+    rgba(var(--frame-core-rgb), 0.9) 100%) !important;
+}
+.card .cf-cut-br,
+.trick-card .cf-cut-br {
+  background: linear-gradient(to bottom,
+    rgb(var(--cf-rgb)) 0, rgb(var(--cf-rgb)) var(--cf-stroke),
+    rgba(var(--frame-core-rgb), 0.9) var(--cf-stroke),
+    rgba(var(--frame-core-rgb), 0.9) 100%) !important;
+}
+
+/* ============================================================
+   HEADS STAY IN FRAME (2026-08-26)
+   ============================================================
+   Owner: "some cards are cut which is fine but they need to be re-cropped to
+   have their full head in the frame."
+
+   Two causes, and the first is mine from an hour ago. `flex: 1 1 auto` let the
+   art window SHRINK below its own aspect ratio, so on a card with two lines of
+   rules Harley Quinn's window measured 327x319 — an aspect of 1.02 against the
+   art's natural 0.76, a third of the height gone. Growing into the slack was
+   the intent; shrinking past the aspect was not. `1 0 auto` with a floor keeps
+   the window in a range the art can survive, and the rules column yields
+   instead — it already has a fit routine that scales the copy to whatever box
+   it is given.
+
+   Second, the default focal was `center 30%`, which was chosen when the window
+   was taller and cropped less. On a shorter window 30% still cuts the top of a
+   standing figure, and a head is the one thing a card portrait cannot lose.
+   20% keeps it. Per-card overrides from the Gallery Audit still win — this is
+   only the default for the ~120 cards that have never been hand-cropped. */
+.card.card.draft-card .card-portrait,
+.card.card.enc-card   .card-portrait,
+.card-inspect-modal .card.card .card-portrait,
+.trick-card.trick-draft .card-portrait,
+.draft-card.trick-draft .card-portrait,
+.card-inspect-modal .trick-card .card-portrait,
+.rl-pick-cardslot .card.card .card-portrait {
+  /* GROW AND SHRINK, but never past the floor. `1 0 auto` (no shrink) swung it
+     the other way: the art held its full 429px and left a 52px sliver for the
+     rules, which the text fit then had to crush. The floor is what was missing
+     all along — with one, shrinking is safe, and the art gives ground to a
+     wordy card down to a 0.95 window and no further. */
+  flex: 1 1 auto !important;
+  min-height: calc(var(--card-w) * 1.00) !important;
+  background-position: var(--portrait-pos, center 20%), 0% 0% !important;
+}
+/* the rules column is what gives, and its own fit routine takes care of the
+   copy once the box is smaller */
+.card.card.draft-card .card-desc,
+.card.card.enc-card   .card-desc,
+.card-inspect-modal .card.card .card-desc,
+.draft-card.trick-draft .trick-desc,
+.trick-card.trick-draft .trick-desc,
+.rl-pick-cardslot .card.card .card-desc {
+  /* NOT `0 1 auto`. Letting the rules column shrink turned the layout into a
+     tug of war with the art — both could grow, the art won the free space, and
+     116 of 126 cards ended up with their copy crushed into a sliver. The order
+     of precedence is: the TEXT takes what it needs up to its cap, the ART takes
+     whatever is left down to its floor. That is `0 0 auto` here and
+     `1 1 auto` + a min-height there, and the cap below is sized so the two can
+     always both be satisfied inside a fixed card. */
+  /* `0 0 auto` — natural height, capped, and it neither grows nor shrinks.
+     Letting it shrink looked right and was unstable: the fit routine shrinks
+     the copy, the box's natural basis drops, flex hands the slack to the art,
+     the box shrinks again, and the two chase each other. 120 of 157 faces ended
+     up a few pixels over, not from a bad calculation but from a moving target.
+     A fixed rule is worth more here than a clever one: the text takes what it
+     needs up to its cap, the ART is the only flexible thing in the column, and
+     the cap below is DERIVED so that the worst case still fits. */
+  /* A FIXED BOX, and that is the point. Every version where this height came
+     from the CONTENT chased its own tail: the fit routine shrinks the copy, the
+     natural basis drops, flex hands the slack to the art, the box shrinks, the
+     fit runs again. Four rounds of tuning got it from 116 faces overflowing to
+     5, and the last 5 were never going to close, because the target was moving.
+     Given a fixed height the fit has something to aim at, the art gets exactly
+     the remainder, and NOTHING is left to negotiate at layout time. A card with
+     two words of rules now shows an empty rules box under its divider, which is
+     what a vanilla card looks like in every printed game — and is not the
+     complaint: the gap being reported was BELOW the text, between the copy and
+     the bottom of the card, and that is now exactly the readout reserve. */
+  /* `0 1 auto` WITH an explicit height. Shrink is allowed — a card with two
+     rows of keyword chips (Dormammu carries 56px of them plus 20px of margins,
+     not the 44 the arithmetic assumed) simply has less room, and something has
+     to give. What makes it stable this time is that the basis is the HEIGHT,
+     not the content: scaling the copy no longer changes what flex is dividing
+     up, so the fit routine and the layout stop chasing each other. */
+  flex: 0 1 auto !important;
+  height: var(--read-desc-h) !important;
+  max-height: var(--read-desc-h) !important;
+  min-height: 0 !important;
+  /* Scrollable, not clipped. Three cards in the set — Art the Clown, Anakin,
+     Trigon — carry both two rows of keyword chips and a wall of rules, and even
+     at the fit's floor their copy is taller than the box the column can spare.
+     A clipped rule is a card you cannot play correctly, so the tail stays
+     reachable instead of being cut off. The other 154 never scroll. */
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  scrollbar-width: thin;
+}
+
+/* The readout reserve, sized from the readouts. The card's bottom padding is
+   what keeps in-flow content off the absolutely-positioned ATK/HP squares, and
+   it was .261w — a number from when those squares were 32px. They are .145w
+   now, sitting .091w off the bottom, so they occupy .236w and the old reserve
+   cleared them by a hair that the art's flex-grow then ate. Derived from the
+   readout's own geometry instead: its height, its offset, and a gap. */
+.card.card.draft-card, .card.card.enc-card,
+.card-inspect-modal .card.card,
+.draft-card.trick-draft, .trick-card.trick-draft,
+.rl-pick-cardslot .card.card {
+  padding-bottom: calc(var(--card-w) * 0.145 + var(--card-w) * 0.091
+                       + var(--card-w) * 0.055) !important;
 }
