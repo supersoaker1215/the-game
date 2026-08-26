@@ -31838,6 +31838,18 @@ const UI = {
       if (e.pointerType !== 'mouse') { main.classList.add('hidden'); return; }
       main.style.setProperty('--cx', e.clientX + 'px');
       main.style.setProperty('--cy', e.clientY + 'px');
+      // THE RING TAKES THE FRAME COLOUR OF WHAT IT IS OVER. It is fixed and
+      // mounted on <html>, so CSS alone cannot know what is underneath it —
+      // the class has to be set from the pointer position. Owner: the blue ring
+      // over a purple trick "should match the border color so it should be
+      // purple". Cheap: one closest() on a target we already have, and only
+      // when the answer changes.
+      const overTrick = !!(e.target && e.target.closest &&
+                           e.target.closest('.trick-card, .draft-card.trick-draft'));
+      if (overTrick !== this._cursorOverTrick) {
+        this._cursorOverTrick = overTrick;
+        main.classList.toggle('over-trick', overTrick);
+      }
       if (main.classList.contains('hidden')) main.classList.remove('hidden');
       // One cursor style everywhere — no context-specific swell. Users found
       // the board's spinning disc + the interactive "hand" swell distracting;

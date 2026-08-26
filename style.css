@@ -43915,3 +43915,18 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   font-size: calc(var(--card-w) * 0.0982) !important;
   letter-spacing: 0.02em !important;
 }
+
+/* Owner: the cursor ring reads blue over a purple trick — "if anything it
+   should match the border color so it should be purple".
+   The ring is --theme-accent-bright, i.e. the player's theme, which is right
+   over the board and wrong over a trick. It is position:fixed on <html>, so
+   CSS cannot see what is beneath it; ui.js sets .over-trick from the pointer's
+   own target and this recolours it to the trick purple. */
+.custom-cursor.over-trick {
+  border-color: rgba(187,143,206,0.95);
+  background: radial-gradient(circle, rgba(155,89,182,0.10) 0%, rgba(0,0,0,0) 55%);
+  box-shadow:
+    0 0 10px rgba(155,89,182,0.95),
+    0 0 22px rgba(155,89,182,0.45),
+    inset 0 0 8px rgba(155,89,182,0.45);
+}
