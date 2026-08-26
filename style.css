@@ -45271,24 +45271,6 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
     rgba(var(--frame-core-rgb), 0.9) 100%) !important;
 }
 
-/* ============================================================
-   ONE LINE IN THE RIBBON CORNER (2026-08-26)
-   ============================================================
-   Owner, circling the very top-left corner: "there is still a faint line where
-   i circled on the cards, remove it."
-
-   It is `.cf-cut-tl`, the stroke along the chamfer. It exists because a
-   clip-path does not paint a border along a clipped diagonal, so every OTHER
-   cut corner needs a rotated div to draw its edge — and the bottom-right one
-   still does.
-
-   The top-left corner is the exception, and the design already said so: the
-   band paints over the frame, "which is why that corner has exactly one line
-   in it: the band's own diagonal". The ribbon is an opaque black plate whose
-   own corner IS the chamfer, so the card's edge there is the plate's edge —
-   black meeting the page, no stroke wanted. Drawing one put a second line in a
-   corner the design gives one.
-
-   `.cf-cut-br` is untouched: no ribbon covers that corner, so it is the only
-   thing drawing the card's edge there. */
-.card .cf-cut-tl, .trick-card .cf-cut-tl { display: none !important; }
+/* (A block hiding `.cf-cut-tl` stood here and is reverted — owner's call. The
+   top-left chamfer keeps its stroke, so both cut corners are drawn the same
+   way.) */
