@@ -12009,6 +12009,15 @@ const Game = {
           && !this._2v2SeatIsAI(_abilitySeat)) {
         _actor = _abilitySeat;
       }
+      // GENERAL AI-STALL SAFETY NET — see the matching block in promptCardChoice.
+      // A lane choice raised on the driving AI's own side is answered by that AI
+      // (auto-picks the first open lane below) so no card can freeze the table.
+      const _drivingAILane = this._2v2AIDriving;
+      if (_drivingAILane && this._2v2SeatIsAI(_drivingAILane)
+          && (!this._2v2IsAIAuthority || this._2v2IsAIAuthority())
+          && this._2v2SeatOnSide(_drivingAILane, owner) && !this._2v2SeatIsAI(_actor)) {
+        _actor = _drivingAILane;
+      }
       if (this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online) {
         if (!_actor) _actor = 'p1';   // never unowned — see promptCardChoice
         // An AI filler seat has no remote client to answer — the driving
@@ -12247,6 +12256,21 @@ const Game = {
       if (!_seatOpt && _abilitySeat && this._2v2SeatOnSide(_abilitySeat, owner)
           && !this._2v2SeatIsAI(_abilitySeat)) {
         _actor = _abilitySeat;
+      }
+      // GENERAL AI-STALL SAFETY NET. While an AI seat is driving its own turn,
+      // any prompt raised on THAT SEAT'S SIDE must be answered by the driving AI
+      // so it auto-picks below — never left for a human teammate (who would be
+      // stranded on a choice for a card they did not play) or for the host.
+      // This is the card-agnostic form of the per-card seat-capture fixes
+      // (Symbiote Spider-Man, Human Torch): it catches EVERY card, so a new or
+      // reworked card can never reintroduce the "AI played X and the table froze"
+      // stall. Gated to the driving seat's OWN side, so a prompt the AI's card
+      // deliberately aims at a human OPPONENT still routes to that opponent.
+      const _drivingAI = this._2v2AIDriving;
+      if (_drivingAI && this._2v2SeatIsAI(_drivingAI)
+          && (!this._2v2IsAIAuthority || this._2v2IsAIAuthority())
+          && this._2v2SeatOnSide(_drivingAI, owner) && !this._2v2SeatIsAI(_actor)) {
+        _actor = _drivingAI;
       }
       // A localOnly prompt is a question this client asks ITSELF before it
       // commits an action (the Invisible Woman face-up/face-down choice). It
