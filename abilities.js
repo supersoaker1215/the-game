@@ -5512,9 +5512,17 @@ const CARD_ABILITIES = {
       G.addToTrickHand(self.owner, trick);
       G.log(`Darth Maul draws ${trick.name} (cost ${trick.cost} after -1 discount).`);
     },
-    onAnyTrickPlayed(G, self, owner, trick) {
+    onAnyTrickPlayed(G, self, owner, trick, trickSeat) {
       if (self.currentHealth <= 0) return;
       if (owner !== self.owner) return;
+      // 2v2: ONLY the seat that played Maul fuels him — not a teammate sharing
+      // the same side. (Owner: "he should only grow 2/0 when the person who
+      // played him plays a trick not the other ally.") In 1v1 there are no seats,
+      // so the side check above is the whole rule and this is skipped.
+      if (G.is2v2 && G.is2v2() && self._2v2PlayedBy) {
+        const seat = trickSeat || G._2v2CurrentActingPlayer || (G._2v2ActivePlayer && G._2v2ActivePlayer());
+        if (seat && seat !== self._2v2PlayedBy) return;
+      }
       G.buffCard(self, 2, 0);
       G.log(`Darth Maul fuels his rage with ${trick.name} — +2/+0! (now ${self.attack}/${self.currentHealth})`);
     }

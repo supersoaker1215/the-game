@@ -6161,7 +6161,10 @@ const Game = {
     // by either player) and any future "react to tricks" passive.
     // Fired AFTER cleanupDead so we only buff survivors, and after
     // checkJumpConditions so jumps stay event-ordered consistently.
-    this.broadcastHook('onAnyTrickPlayed', null, [owner, trick]);
+    // Pass the SEAT that played the trick too (2v2), so a reactor can tell
+    // teammates apart — Darth Maul only fuels off the seat that played HIM.
+    const _trickSeat = this._2v2CurrentActingPlayer || (this._2v2ActivePlayer && this._2v2ActivePlayer()) || null;
+    this.broadcastHook('onAnyTrickPlayed', null, [owner, trick, _trickSeat]);
     return true;
   },
 
