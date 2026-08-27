@@ -34465,7 +34465,11 @@ function twov2OnlineJoin() {
     const mySlot = Game.state.twoVTwo && Game.state.twoVTwo.you;
     // Fire card play/death SFX from the board diff BEFORE swapping in the new
     // state (guests don't run the engine that would play them live).
-    UI._relay2v2CardSounds(Game.state, state);
+    // GUARDED: this runs BEFORE the state is applied, so a throw in here used to
+    // abort the whole handler and the guest never received the state at all —
+    // which looks exactly like "my screen never updated". Sound is not worth a
+    // dropped state.
+    try { UI._relay2v2CardSounds(Game.state, state); } catch (e) { console.error('[2v2 sound relay]', e); }
     Game.state = state;
     // Keep the engine's lane count in lockstep with the received board —
     // 2v2 runs 8 lanes and any joiner whose local LANE_COUNT still says 6
@@ -34478,16 +34482,40 @@ function twov2OnlineJoin() {
     // A team pick that landed while mine was half-made would leave my
     // highlight pointing at a player who has since moved. Drop it.
     UI._2v2TeamSel = null;
-    // REMATCH: fresh 2v2 match (draft/lobby, or the round reset) — clear any
-    // leftover round-summary / game-over overlay so a guest isn't stuck behind
-    // the last recap and unable to play.
+    // A LIVE MATCH AND A MATCH-END OVERLAY CANNOT BOTH BE TRUE.
+    //
+    // This used to try to RECOGNISE a rematch — phase looks like a draft, or the
+    // round number went backwards — and close the overlays when it saw one. That
+    // is a guess about the shape of the incoming state, and it misses whenever
+    // the rematch does not look the way the guess expects. Ryan, as the guest:
+    // "we played a match and clicked rematch and i still had the last round
+    // summary screen on my end so i couldnt play."
+    //
+    // The condition is now the INVARIANT instead of the trigger: if the state
+    // says the match is live and an end-of-match overlay is on screen, that
+    // overlay is stale by definition — whoever pressed rematch, whatever the
+    // phase is called, however the round numbers moved. It cannot miss, because
+    // it does not have to identify the cause.
+    //
+    // The gameOver true -> false transition is kept as a second signal so the
+    // overlays also close on the frame the new match arrives, before a paint
+    // could show the old one over a live board.
     try {
       const _p = state && state.phase;
       const _r = (state && state.twoVTwo && state.twoVTwo.round) || 0;
-      if ((_p && /draft|lobby|tournament-start/.test(_p)) || _r < (UI._2v2LastRound || 0)) {
+      const _isOver = !!(state && state.gameOver);
+      const _wasOver = !!UI._2v2LastGameOver;
+      const _overlayOpen = ['game-over-overlay', 'round-summary-overlay'].some(id => {
+        const e = document.getElementById(id);
+        return !!(e && e.style.display !== 'none' && getComputedStyle(e).display !== 'none');
+      });
+      if (!_isOver && (_overlayOpen || _wasOver
+                       || (_p && /draft|lobby|tournament-start/.test(_p))
+                       || _r < (UI._2v2LastRound || 0))) {
         UI.closeMatchOverlays();
       }
       UI._2v2LastRound = _r;
+      UI._2v2LastGameOver = _isOver;
     } catch (e) {}
     UI.renderFromNetwork();
     // TOURNAMENT: (re)render the synced series UI from the freshly-applied state.
