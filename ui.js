@@ -33937,6 +33937,11 @@ function twov2OnlineJoin() {
     // highlight pointing at a player who has since moved. Drop it.
     UI._2v2TeamSel = null;
     UI.renderFromNetwork();
+    // TOURNAMENT: (re)render the synced series UI from the freshly-applied state.
+    if (Game.state && Game.state._tournament && Game.state._tournament.online
+        && typeof Tournament !== 'undefined' && Tournament._2v2OnlineRender) {
+      try { Tournament._2v2OnlineRender(); } catch (e) { console.error('[tourney 2v2 render]', e); }
+    }
   });
 
   Multiplayer4.on('playerJoined', ({ playerKey, name: pname }) => {

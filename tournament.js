@@ -174,7 +174,7 @@ const Tournament = {
         <div class="tourney-choices">
           ${opt("Tournament.pickMode('solo')", 'Solo vs AI', 'Play the whole series against the computer', true)}
           ${opt("Tournament._goOnline('1v1')", '1v1 Online', 'Play a friend online — create or join a room', true)}
-          ${opt('', '2v2 Online', 'Four players online · coming soon', false)}
+          ${opt("Tournament._goOnline('2v2')", '2v2 Online', 'Four players online — team series', true)}
         </div>
         <button class="tourney-textbtn" onclick="Tournament._renderSetup()">← Series length</button>
       </div>`);
@@ -580,7 +580,11 @@ const Tournament = {
     this._online = { mode: mode, length: this.T.length, threshold: this.T.threshold };
     this.active = false;                 // hand off to the online lobby
     if (this.el) this.el.style.display = 'none';
-    if (typeof UI !== 'undefined' && UI.openMultiplayer) UI.openMultiplayer();
+    if (mode === '2v2') {
+      if (typeof Game !== 'undefined' && Game.goTo2v2OnlineLobby) Game.goTo2v2OnlineLobby();
+    } else {
+      if (typeof UI !== 'undefined' && UI.openMultiplayer) UI.openMultiplayer();
+    }
   },
 
   _isHost() { return !!(typeof Game !== 'undefined' && Game.mp && Game.mp.role === 'host'); },
@@ -788,6 +792,206 @@ const Tournament = {
       <div class="th-scoreline"><span class="th-name th-you">YOU</span>
         <span class="th-vs">${this._myWins()}–${this._oppWins()}</span>
         <span class="th-name th-ai">RIVAL</span></div>
+      <div class="th-divider"></div>
+      <div class="th-row"><span class="th-label">Game ${t.gameNumber}</span><span class="th-sub">Bo${t.length}</span></div>
+      <div class="th-modrow"><span class="th-modicon">${mod.icon}</span><span class="th-modname">${mod.name}</span></div>`;
+    document.body.appendChild(hud);
+  },
+
+  // ════════════════════════════════════════════════════════════════════════
+  // ONLINE 2v2 TOURNAMENT  (team A = p1,p3 · team B = p2,p4 · captains p1 / p2)
+  // Same host-authoritative pattern as 1v1: series lives in state._tournament
+  // (synced via _2v2OnlineBroadcast), guests forward picks over Multiplayer4,
+  // p1 is the authority. A team's number/modifier is chosen by its CAPTAIN
+  // (p1 for A, p2 for B); an AI captain is auto-picked by the host.
+  // ════════════════════════════════════════════════════════════════════════
+  _2v2tt() { return (typeof Game !== 'undefined' && Game.state) ? Game.state.twoVTwo : null; },
+  _2v2Me() { const tt = this._2v2tt(); return tt ? tt.you : null; },
+  _2v2AmAuth() { return this._2v2Me() === 'p1'; },
+  _2v2MyTeam() { const tt = this._2v2tt(), me = this._2v2Me(); return (tt && me && tt.players[me]) ? tt.players[me].team : null; },
+  _2v2CaptainSeat(team) { return team === 'A' ? 'p1' : 'p2'; },
+  _2v2TeamOfSeat(pk) { const tt = this._2v2tt(); return (tt && tt.players[pk]) ? tt.players[pk].team : null; },
+  _2v2IAmCaptain() { const me = this._2v2Me(), team = this._2v2MyTeam(); return me && team && me === this._2v2CaptainSeat(team); },
+  _2v2MyWins() { const t = this._t(); const team = this._2v2MyTeam(); return t ? (team === 'A' ? t.aWins : t.bWins) : 0; },
+  _2v2OppWins() { const t = this._t(); const team = this._2v2MyTeam(); return t ? (team === 'A' ? t.bWins : t.aWins) : 0; },
+
+  // Host: seats are all filled — build the series and start the number game.
+  _2v2HostBegin() {
+    const cfg = this._online; if (!cfg) return;
+    Game.state._tournament = {
+      online: true, mode: '2v2',
+      length: cfg.length, threshold: cfg.threshold,
+      aWins: 0, bWins: 0, phase: 'number', gameNumber: 1,
+      aNum: null, bNum: null, roll: null, numberWinner: null,
+      usedMods: [], currentMod: null, firstTeam: null, chooser: null,
+    };
+    this._2v2MaybeAutoNumber();
+    Game._2v2OnlineBroadcast();
+    this._2v2OnlineRender();
+  },
+
+  _2v2OnlineRender() {
+    const t = this._t();
+    if (!t || !t.online || t.mode !== '2v2') { this._hideOverlay && this._hideOverlay(); return; }
+    this._ensureOverlay();
+    if (t.phase === 'playing' && !Game.state.gameOver) { this._hideOverlay(); this._show2v2Hud(); return; }
+    this._removeHud();
+    this._showOverlay();
+    if (t.phase === 'number')      return this._render2v2Number(t);
+    if (t.phase === 'modifier')    return this._render2v2Modifier(t);
+    if (t.phase === 'series-over') return this._render2v2Over(t);
+  },
+
+  _2v2ScoreHTML() {
+    const t = this._t(); if (!t) return '';
+    return `<div class="tourney-score">
+      <span class="ts-side ts-you">YOUR TEAM <b>${this._2v2MyWins()}</b></span>
+      <span class="ts-vs">Best of ${t.length}</span>
+      <span class="ts-side ts-ai"><b>${this._2v2OppWins()}</b> RIVALS</span>
+    </div>`;
+  },
+
+  // ---- number game ----
+  _render2v2Number(t) {
+    const myTeam = this._2v2MyTeam();
+    const myNum = myTeam === 'A' ? t.aNum : t.bNum;
+    if (!this._2v2IAmCaptain()) {
+      this._set(`<div class="tourney-card">${this._2v2ScoreHTML()}
+        <div class="tourney-kicker">The Draw</div><h1 class="tourney-h1">Number Game</h1>
+        <p class="tourney-lead">Your team captain is picking a number for the draw…</p></div>`);
+      return;
+    }
+    if (myNum != null) {
+      this._set(`<div class="tourney-card">${this._2v2ScoreHTML()}
+        <div class="tourney-kicker">The Draw</div><h1 class="tourney-h1">Number Game</h1>
+        <p class="tourney-lead">You picked <b>${myNum}</b>. Waiting for the other captain…</p></div>`);
+      return;
+    }
+    const nums = Array.from({ length: 20 }, (_, i) => i + 1)
+      .map(n => `<button class="tourney-num" onclick="Tournament._2v2PickNumber(${n})">${n}</button>`).join('');
+    this._set(`<div class="tourney-card">${this._2v2ScoreHTML()}
+      <div class="tourney-kicker">The Draw · You are captain</div><h1 class="tourney-h1">Number Game</h1>
+      <p class="tourney-lead">Pick <b>1–20</b> for your team. Closest to the roll wins first pick. Ties reroll.</p>
+      <div class="tourney-numgrid">${nums}</div></div>`);
+  },
+  _2v2PickNumber(n) {
+    const team = this._2v2MyTeam();
+    if (this._2v2AmAuth()) this._2v2HostReceiveNumber(this._2v2Me(), n);
+    else if (typeof Multiplayer4 !== 'undefined') Multiplayer4.send({ t: 'tourneyNum', playerKey: this._2v2Me(), num: n });
+    const t = this._t(); if (t) { if (team === 'A') t.aNum = n; else t.bNum = n; this._2v2OnlineRender(); }
+  },
+  _2v2HostReceiveNumber(pk, n) {
+    const t = this._t(); if (!t || t.phase !== 'number') return;
+    const team = this._2v2TeamOfSeat(pk); if (team === 'A') t.aNum = n; else if (team === 'B') t.bNum = n; else return;
+    this._2v2MaybeAutoNumber();
+    if (t.aNum != null && t.bNum != null) this._2v2HostRoll();
+    Game._2v2OnlineBroadcast(); this._2v2OnlineRender();
+  },
+  // Host auto-picks for any AI captain.
+  _2v2MaybeAutoNumber() {
+    const t = this._t(); const tt = this._2v2tt(); if (!t || !tt) return;
+    if (t.aNum == null && tt.players.p1 && tt.players.p1.isAI) t.aNum = 1 + Math.floor(Math.random() * 20);
+    if (t.bNum == null && tt.players.p2 && tt.players.p2.isAI) t.bNum = 1 + Math.floor(Math.random() * 20);
+  },
+  _2v2HostRoll() {
+    const t = this._t();
+    do { t.roll = 1 + Math.floor(Math.random() * 20); }
+    while (Math.abs(t.aNum - t.roll) === Math.abs(t.bNum - t.roll));
+    t.numberWinner = Math.abs(t.aNum - t.roll) < Math.abs(t.bNum - t.roll) ? 'A' : 'B';
+    t.phase = 'modifier'; t.chooser = t.numberWinner; t.gameNumber = 1;
+    this._2v2MaybeAutoMod();
+  },
+
+  // ---- modifier pick ----
+  _render2v2Modifier(t) {
+    const amChooserCaptain = this._2v2IAmCaptain() && this._2v2MyTeam() === t.chooser;
+    const chooserIsMyTeam = this._2v2MyTeam() === t.chooser;
+    if (!amChooserCaptain) {
+      this._set(`<div class="tourney-card">${this._2v2ScoreHTML()}
+        <div class="tourney-kicker">Game ${t.gameNumber}</div>
+        <h1 class="tourney-h1">${chooserIsMyTeam ? 'Your captain is choosing…' : 'Rivals are choosing…'}</h1>
+        <p class="tourney-lead">Team ${t.chooser} ${t.gameNumber === 1 ? 'won the draw' : 'lost the last game'} — they pick the modifier.</p></div>`);
+      return;
+    }
+    const avail = this.MODIFIERS.filter(m => t.usedMods.indexOf(m.id) < 0);
+    const tiles = avail.map(m => `<button class="tourney-modtile" id="t2mod-${m.id}" onclick="Tournament._2v2SelMod('${m.id}')">
+        <span class="tmt-icon">${m.icon}</span><span class="tmt-name">${m.name}</span><span class="tmt-desc">${m.desc}</span></button>`).join('');
+    const used = t.usedMods.map(id => { const m = this.MODIFIERS.find(x => x.id === id); return `<span class="tourney-usedchip">${m.icon} ${m.name}</span>`; }).join('');
+    this._set(`<div class="tourney-card tourney-modpick">${this._2v2ScoreHTML()}
+      <div class="tourney-kicker">Game ${t.gameNumber} · You choose for Team ${t.chooser}</div>
+      <h1 class="tourney-h1">Choose a Modifier</h1>
+      <p class="tourney-lead">No modifier repeats in the series.</p>
+      ${used ? `<div class="tourney-used">Already played: ${used}</div>` : ''}
+      <div class="tourney-modgrid">${tiles}</div></div>`);
+  },
+  _2v2SelMod(id) {
+    document.querySelectorAll('.tourney-modtile').forEach(b => b.classList.remove('sel'));
+    const b = document.getElementById('t2mod-' + id); if (b) b.classList.add('sel');
+    this._2v2PickMod(id);
+  },
+  _2v2PickMod(id) {
+    if (this._2v2AmAuth()) this._2v2HostReceiveMod(this._2v2Me(), id);
+    else if (typeof Multiplayer4 !== 'undefined') Multiplayer4.send({ t: 'tourneyMod', playerKey: this._2v2Me(), mod: id });
+  },
+  _2v2HostReceiveMod(pk, id) {
+    const t = this._t(); if (!t || t.phase !== 'modifier') return;
+    if (this._2v2TeamOfSeat(pk) !== t.chooser) return;   // only the chooser team's captain
+    if (t.usedMods.indexOf(id) < 0) t.usedMods.push(id);
+    t.currentMod = id; t.phase = 'playing'; t._gameCounted = false;
+    // Apply the modifier to the CURRENT match state (mode._mods rides the sync).
+    if (Game.state.mode) Game.state.mode._mods = (id && id !== 'classic') ? { [id]: true } : null;
+    Game._2v2OnlineBroadcast();
+    // Start the game: first game drafts from the lobby, later games rematch.
+    if (t.gameNumber === 1 && !t._started) { t._started = true; Game._2v2StartDraft(); }
+    else Game._2v2Rematch();
+  },
+  // Host auto-picks a modifier when the chooser team's captain is an AI.
+  _2v2MaybeAutoMod() {
+    const t = this._t(); const tt = this._2v2tt(); if (!t || !tt || t.phase !== 'modifier') return;
+    const cap = this._2v2CaptainSeat(t.chooser);
+    if (tt.players[cap] && tt.players[cap].isAI) {
+      const avail = this.MODIFIERS.filter(m => t.usedMods.indexOf(m.id) < 0);
+      const pick = avail[Math.floor(Math.random() * avail.length)];
+      if (pick) this._2v2HostReceiveMod(cap, pick.id);
+    }
+  },
+
+  // ---- game end (host only) ----
+  _2v2HostOnGameEnd(winnerTeam) {
+    const t = this._t(); if (!t || !t.online) return;
+    if (winnerTeam === 'A') t.aWins++; else t.bWins++;
+    if (t.aWins >= t.threshold || t.bWins >= t.threshold) { t.phase = 'series-over'; }
+    else {
+      t.gameNumber++;
+      t.chooser = (winnerTeam === 'A') ? 'B' : 'A';   // losing team picks next
+      t.currentMod = null;
+      t.phase = 'modifier';
+      this._2v2MaybeAutoMod();
+    }
+    Game._2v2OnlineBroadcast();
+    this._2v2OnlineRender();
+  },
+
+  _render2v2Over(t) {
+    const won = this._2v2MyWins() > this._2v2OppWins();
+    this._set(`<div class="tourney-card tourney-final">
+      <div class="tourney-kicker">Best of ${t.length} · Complete</div>
+      <div class="tourney-trophy">${won ? '🏆' : '🥈'}</div>
+      <h1 class="tourney-h1 ${won ? 'win' : 'lose'}">${won ? 'Series Won!' : 'Series Lost'}</h1>
+      <p class="tourney-lead">Final: <b>Your team ${this._2v2MyWins()}</b> — <b>${this._2v2OppWins()} Rivals</b>.</p>
+      <button class="tourney-bigbtn" onclick="Tournament.exit()">Main Menu</button></div>`);
+  },
+
+  _show2v2Hud() {
+    this._removeHud();
+    const t = this._t(); if (!t) return;
+    const mod = this.MODIFIERS.find(m => m.id === t.currentMod) || { icon: '🎴', name: 'Classic' };
+    const hud = document.createElement('div');
+    hud.id = 'tourney-hud'; hud.className = 'tourney-hud';
+    hud.innerHTML = `<div class="th-head">🏆 TEAM SERIES</div>
+      <div class="th-scoreline"><span class="th-name th-you">YOU</span>
+        <span class="th-vs">${this._2v2MyWins()}–${this._2v2OppWins()}</span>
+        <span class="th-name th-ai">RIVALS</span></div>
       <div class="th-divider"></div>
       <div class="th-row"><span class="th-label">Game ${t.gameNumber}</span><span class="th-sub">Bo${t.length}</span></div>
       <div class="th-modrow"><span class="th-modicon">${mod.icon}</span><span class="th-modname">${mod.name}</span></div>`;

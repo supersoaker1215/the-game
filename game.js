@@ -6768,13 +6768,20 @@ const Game = {
     // bypasses postCombat).
     if (this.state.gameOver) this._pinFinalHpHistory();
     if (this.state.gameOver) this.finalizeStats();
-    // TOURNAMENT (online) — host records the game result into the synced series
-    // once, then drives the next modifier pick (or the series-over screen).
-    if (this.state.gameOver && this.state._tournament && this.state._tournament.online
-        && this.isMultiplayer && this.isMultiplayer() && this.mp && this.mp.role === 'host'
-        && !this.state._tournament._gameCounted) {
-      this.state._tournament._gameCounted = true;
-      try { if (typeof Tournament !== 'undefined' && Tournament._hostOnGameEnd) Tournament._hostOnGameEnd(this.state.winner); } catch (e) { console.error('[tourney online end]', e); }
+    // TOURNAMENT (online) — the authority records the game result into the
+    // synced series once, then drives the next modifier pick (or series-over).
+    const _tt = this.state._tournament;
+    if (this.state.gameOver && _tt && _tt.online && !_tt._gameCounted) {
+      const is1v1Host = this.isMultiplayer && this.isMultiplayer() && this.mp && this.mp.role === 'host';
+      const is2v2Auth = this.is2v2 && this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.you === 'p1';
+      if (is1v1Host && typeof Tournament !== 'undefined' && Tournament._hostOnGameEnd) {
+        _tt._gameCounted = true;
+        try { Tournament._hostOnGameEnd(this.state.winner); } catch (e) { console.error('[tourney 1v1 end]', e); }
+      } else if (is2v2Auth && typeof Tournament !== 'undefined' && Tournament._2v2HostOnGameEnd) {
+        _tt._gameCounted = true;
+        // 2v2 winner: state.winner 'player' = team A, 'ai' = team B.
+        try { Tournament._2v2HostOnGameEnd(this.state.winner === 'player' ? 'A' : 'B'); } catch (e) { console.error('[tourney 2v2 end]', e); }
+      }
     }
 
     if (!this.state.gameOver) {
@@ -17727,6 +17734,11 @@ const Game = {
     // isAI flag is what actually routes control to the host.
     this._2v2SLOTS.forEach(pk => { if (tt.players[pk] && tt.players[pk].isAI) tt.joinedPlayers[pk] = true; });
     this._2v2OnlineError = null;
+    // TOURNAMENT: run the series pre-game (number game → modifier pick) before
+    // the first draft. The tournament calls _2v2StartDraft when it's ready.
+    if (typeof Tournament !== 'undefined' && Tournament._online && Tournament._online.mode === '2v2' && Tournament._2v2HostBegin) {
+      try { Tournament._2v2HostBegin(); return; } catch (e) { console.error('[tourney 2v2 begin]', e); }
+    }
     this._2v2StartDraft();
   },
 
@@ -17761,6 +17773,9 @@ const Game = {
     });
     const you = old.you;
     const joined = Object.assign({}, old.joinedPlayers);
+    // TOURNAMENT: the series survives the init wipe — captured here, restored
+    // after the rebuild, with the next game's modifier re-applied to mode._mods.
+    const _tourney = (this.state && this.state._tournament && this.state._tournament.online) ? this.state._tournament : null;
     // init() rebuilds a clean state and drops LANE_COUNT to 6 — re-expand to 8.
     this.init();
     this.LANE_COUNT = this.LANE_COUNT_2V2;
@@ -17791,6 +17806,12 @@ const Game = {
     s.ai.health     = s.ai.maxHealth     = 30;
     s.player.isHuman = true;
     s.ai.isHuman     = true;
+    // TOURNAMENT: restore the series + re-apply the next game's modifier.
+    if (_tourney) {
+      s._tournament = _tourney;
+      s._tournament._gameCounted = false;
+      if (_tourney.currentMod && _tourney.currentMod !== 'classic') s.mode._mods = { [_tourney.currentMod]: true };
+    }
     // Straight into the draft — occupancy is already satisfied (same seats).
     this._2v2StartDraft();
     this._2v2OnlineBroadcast();
@@ -17996,6 +18017,9 @@ const Game = {
     if (!pk) return;
     // A seat asked for a rematch — p1 rebuilds the match and broadcasts.
     if (msg.t === 'rematch') { this._2v2Rematch(); return; }
+    // TOURNAMENT — a team captain's number / modifier pick.
+    if (msg.t === 'tourneyNum') { if (typeof Tournament !== 'undefined' && Tournament._2v2HostReceiveNumber) Tournament._2v2HostReceiveNumber(pk, msg.num); return; }
+    if (msg.t === 'tourneyMod') { if (typeof Tournament !== 'undefined' && Tournament._2v2HostReceiveMod)    Tournament._2v2HostReceiveMod(pk, msg.mod, msg.first); return; }
     const activeKey = this._2v2ActivePlayer();
     const draftActive = !!(this.state.twoVTwo && this.state.twoVTwo.draft);
     switch (msg.t) {
