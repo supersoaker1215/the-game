@@ -7093,7 +7093,15 @@ const CARD_ABILITIES = {
             if (_ally.onMoved) _ally.onMoved(G, _ally, targetLane);
             CARD_ABILITIES['Game Over']._finishRise(G, self, _riser, laneIdx);
           },
-          null, null, null, { forced: openLanes.length <= 1 }
+          // ASK THE PERSON WHOSE ROOM IT IS. Without a seat the derivation
+          // falls through _2v2AbilityOwner — which on a death cascade names the
+          // seat of the card that just DIED, i.e. an opponent — is rejected by
+          // the cross-team guard, and lands on "lowest-numbered human on the
+          // team". So the wrong teammate was asked to move their own ally out
+          // of a lane. The room knows who played it; _2v2SeatOwning reads that
+          // stamp (and re-checks it against the side the card is on now).
+          null, null, null,
+          { forced: openLanes.length <= 1, seat: (G._2v2SeatOwning && G._2v2SeatOwning(self)) || null }
         );
         return;
       }

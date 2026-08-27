@@ -1946,6 +1946,7 @@ const Game = {
       if (typeof prompt.onDecline === 'function') prompt.onDecline();
       this.cleanupDead();
       this.resumeCombatIfWaiting();
+      this._pushResolvedPrompt();   // a decline is a resolution — see below
       return true;
     }
     let arg;
@@ -1969,6 +1970,7 @@ const Game = {
           this.state[slotKey] = null;
           this.cleanupDead();
           this.resumeCombatIfWaiting();
+          this._pushResolvedPrompt();   // the prompt is gone; say so
           return true;
         }
         return false;
@@ -2012,11 +2014,46 @@ const Game = {
     }
     this.cleanupDead();
     this.resumeCombatIfWaiting();
+    this._pushResolvedPrompt();
     // Chain over once nothing else is waiting — later prompts get their own
     // undo points again.
     if (this.state && this.state._abilityChainCard && !this._anyPromptArmed())
       this.state._abilityChainCard = null;
     return true;
+  },
+  // THE OTHER THREE SEATS HAVE TO BE TOLD.
+  //
+  // This door and the wire message '2v2LaneChoiceResult' are the same act — one
+  // seat answering a prompt — but only one of them was broadcasting. A GUEST's
+  // answer arrives as a message and falls out of _apply2v2OnlineAction into its
+  // trailing _2v2OnlineBroadcast(). The HOST's answer comes through here, which
+  // ran the callback, cleaned up the dead and resumed combat, and then simply
+  // returned. Nothing on this path ever touched the wire.
+  //
+  // It was masked for years because most prompt callbacks broadcast for
+  // themselves — a lane pick for a card play ends in _2v2OnlinePlayCard, which
+  // pushes. The callbacks that DON'T are the ones that mutate the board
+  // directly: Game Over moves your ally out of the lane and summons the risen
+  // body through summonCard, and summonCard contains no broadcast at all. So
+  // the host's board moved the card and raised it, and the other three kept the
+  // old board AND the prompt that was delivered when it was armed — which locks
+  // them, because _2v2ActionsLocked is true while any prompt is pending, the
+  // End-phase button is hidden, and the prompt is stamped to a seat that is not
+  // theirs so they cannot answer it either. (Owner: "he moved doc ock to his
+  // side but my side never got it and freezed out the game.")
+  //
+  // Nothing rescued them: every recovery in the engine — the 30s prompt timer,
+  // the AI stall watchdog, _pushOnlineState itself — is gated on being the
+  // authority, and a guest never is. Guests do not run combat either, so the
+  // combat watchdog never arms on their client. Permanent, until somebody quits.
+  //
+  // Fixed HERE rather than in Game Over, because the hole is not Game Over's:
+  // every ability whose callback happens not to broadcast for itself has it.
+  // One door, every caller inherits it. _pushOnlineState is already guarded for
+  // silent sims, for non-hosts and for solo, so this is inert everywhere it
+  // should be.
+  _pushResolvedPrompt() {
+    if (this._pushOnlineState) { try { this._pushOnlineState(); } catch (e) { console.error('[prompt resolve] push threw', e); } }
   },
 
   // Apply an action message arriving from the wire. `actor` is the
@@ -18095,6 +18132,15 @@ const Game = {
     if (msg.t === 'tourneyMod') { if (typeof Tournament !== 'undefined' && Tournament._2v2HostReceiveMod)    Tournament._2v2HostReceiveMod(pk, msg.mod, msg.first); return; }
     const activeKey = this._2v2ActivePlayer();
     const draftActive = !!(this.state.twoVTwo && this.state.twoVTwo.draft);
+    // A THROW MUST NOT COST THE ACKNOWLEDGEMENT. Everything below ends at the
+    // trailing _2v2OnlineBroadcast(), which is the only thing that tells the
+    // other three seats their action landed — so any card effect that threw
+    // mid-apply took the broadcast down with it and left the guest who acted
+    // staring at a board that never moved, with the prompt they just answered
+    // still on screen. Same freeze as the missing host-side push, arrived at
+    // from the other direction. try/finally so the wire is told whatever
+    // happens; the error is still logged and still surfaces in the reporter.
+    try {
     switch (msg.t) {
       case 'play2v2Card':
         if (pk !== activeKey) break;
@@ -18262,11 +18308,18 @@ const Game = {
         break;
       }
     }
-    // Clear acting-player flag now (any chained pending choice has been annotated)
-    if (!this.state.pendingLaneChoice && !this.state.pendingCardChoice) {
-      this._2v2CurrentActingPlayer = null;
+    } catch (err) {
+      console.error('[2v2] applying', msg && msg.t, 'threw — broadcasting anyway so the table is not stranded:', err);
+      if (typeof window !== 'undefined' && window.__clbErrors) {
+        try { window.__clbErrors.report('2v2-apply-' + (msg && msg.t), err); } catch (e2) {}
+      }
+    } finally {
+      // Clear acting-player flag now (any chained pending choice has been annotated)
+      if (!this.state.pendingLaneChoice && !this.state.pendingCardChoice) {
+        this._2v2CurrentActingPlayer = null;
+      }
+      this._2v2OnlineBroadcast();
     }
-    this._2v2OnlineBroadcast();
   },
 
   // A player clicked a card in hand and needs to pick a lane for it. This is
