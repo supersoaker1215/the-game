@@ -673,16 +673,54 @@ const UI = {
   // Every number is DERIVED from the real picks — there is nothing here a
   // player could read and be misled by.
 
+  // ONE MULLIGAN CONTROL, BOTH DRAFTS. Owner: "i like the mulligan button in the
+  // reference photo can you add that and replace the current one."
+  //
+  // It was the fourth of four identical text links in the header row — Menu,
+  // Back, Hide Sounds, Mulligan — which is the wrong company: the other three
+  // are navigation and chrome, and this one REPLACES THE CARDS IN FRONT OF YOU.
+  // It reads as what it is now: its own chamfered control, under the offers it
+  // acts on, carrying the charge it has left so you do not have to remember.
+  _draftMulliganHTML(used, onclick) {
+    const spent = !!used;
+    return `<div class="draft-mulligan-row">
+      <button type="button" class="draft-mulligan${spent ? ' is-spent' : ''}"
+        ${spent ? 'disabled' : ''} onclick="${onclick}"
+        title="One mulligan per phase — redraws your two offers">
+        <span class="dm-ic">&#x21BB;</span>
+        <span class="dm-label">Mulligan</span>
+        <span class="dm-count">${spent ? 'Used' : '1 left'}</span>
+      </button>
+    </div>`;
+  },
+
   // The left rail: one slot per pick, filled ones showing the card, the current
   // one marked, the rest waiting. It answers "what have I built so far" without
   // making you remember it.
-  _draftPicksRailHTML(picks, total, opts) {
+  // BOTH GROUPS, ALWAYS. The rail used to be built for whichever phase was
+  // running — five slots during cards, two during tricks — so crossing the
+  // boundary changed its shape and the whole screen re-laid out under you.
+  // Owner: "instead of going to another screen wipe for the tricks just have
+  // them be all on the same draft screen ... the screen stays exactly the same,
+  // just the tricks pop up next." Card slots and trick slots are both here from
+  // the first pick, so the boundary costs nothing but which row is lit.
+  // `active` says which group is being picked right now; the other group's
+  // empty slots stay quiet rather than showing a "choosing" marker in a phase
+  // that is not running.
+  _draftPicksRailHTML(groups, _legacyTotal, opts) {
     const o = opts || {};
     const esc = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    // Back-compat: an array of picks + a total still works.
+    const gs = Array.isArray(groups) && groups.length && groups[0] && groups[0].items !== undefined
+      ? groups
+      : [{ label: 'Pick', items: (groups || []), total: _legacyTotal || 0, active: true }];
     const rows = [];
-    for (let i = 0; i < total; i++) {
+    gs.forEach(g => {
+      const picks = g.items || [];
+      const total = g.total || 0;
+      for (let i = 0; i < total; i++) {
       const c = picks[i];
-      const state = c ? 'is-filled' : (i === picks.length ? 'is-current' : 'is-empty');
+      const state = c ? 'is-filled' : ((g.active && i === picks.length) ? 'is-current' : 'is-empty');
       let face;
       if (c) {
         const art = this.getCardArtPath ? this.getCardArtPath(c.name) : '';
@@ -697,14 +735,15 @@ const UI = {
       }
       const stats = c && c.attack != null && c.health != null
         ? `<span class="dpr-stats"><b>${c.attack}</b> / <i>${c.health}</i></span>` : '';
-      rows.push(`<div class="dpr-slot ${state}">
+      rows.push(`<div class="dpr-slot ${state}${g.kind ? ' dpr-' + g.kind : ''}">
         <div class="dpr-tile">${face}</div>
         <div class="dpr-meta">
-          <span class="dpr-label">Pick ${i + 1}</span>
+          <span class="dpr-label">${esc(g.label || 'Pick')} ${i + 1}</span>
           ${c ? stats : (state === 'is-current' ? '<span class="dpr-choosing">Choosing</span>' : '')}
         </div>
       </div>`);
-    }
+      }
+    });
     return `<aside class="draft-rail draft-rail-left">
       <div class="mp-rule"><span class="mp-rule-label">${esc(o.title || 'Your picks')}</span><span class="mp-rule-line"></span></div>
       <div class="dpr-list">${rows.join('')}</div>
@@ -12580,7 +12619,13 @@ const UI = {
       pips.push(`<span class="draft-pip ${cls}"></span>`);
     }
 
-    let html = `<div class="draft-panel ${isCards ? 'draft-cards' : 'draft-tricks'}">`;
+    // ONE FRAME FOR BOTH PHASES. `draft-tricks` on the panel re-themes the label,
+    // the sub-line, the pips, the counter and both edge glows — 30 rules, and not
+    // one of them styles a trick CARD (those carry their own trick-draft classes
+    // from makeTrickEl). So the class only ever repainted the chrome, which is
+    // precisely the screen-change the owner asked to be rid of. The phase goes
+    // on a data attribute instead, for anything that genuinely needs it.
+    let html = `<div class="draft-panel draft-cards" data-draft-phase="${isCards ? 'cards' : 'tricks'}">`;
     html += `<div class="draft-hud">`;
     html +=   `<div class="draft-hud-row">`;
     html +=     `<span class="draft-hud-label" style="color:${teamColor}">${isMyPick ? 'Your Pick' : (sim ? 'Locked In' : picker.name + "’s Pick")}</span>`;
@@ -12651,12 +12696,7 @@ const UI = {
     // The mulligan button is shown whether or not it is still yours to spend —
     // hiding it once locked in (the old `if (isMyPick)`) meant the row silently
     // changed shape mid-draft and you could not see that you still had one.
-    html +=     `<button type="button" class="draft-mulligan-btn${mulliganDisabled}"`;
-    html +=       ` onclick="twov2OnlineDraftMulligan()"${(mulliganAttr || (!isMyPick ? ' disabled' : ''))}`;
-    html +=       ` title="One mulligan per player, per phase — redraws your own two offers">`;
-    html +=       `<span class="mulligan-icon">&#x21BB;</span>`;
-    html +=       `<span class="mulligan-label">${mulliganLabel}</span>`;
-    html +=     `</button>`;
+    // Mulligan moved below the offers — see renderDraft.
     html +=   `</div>`;
     html += `</div>`;
     // Same two rails as the 1v1 draft — one implementation, called from both,
@@ -12668,7 +12708,10 @@ const UI = {
     const _oppNames = _oppSeats.map(k => tt.players[k].name).join(' · ');
     const _oppIn = _oppSeats.filter(k => d.picked && d.picked[k]).length;
     html += `<div class="draft-stage">`;
-    html +=   this._draftPicksRailHTML(_railPicks2, total, { title: 'Your picks' });
+    html +=   this._draftPicksRailHTML([
+                { label: 'Pick',  kind: 'card',  items: (ap && ap.hand) || [],      total: 4, active: isCards },
+                { label: 'Trick', kind: 'trick', items: (ap && ap.trickHand) || [], total: 2, active: !isCards },
+              ], 0, { title: 'Your picks' });
     html += `<div class="draft-choices">`;
 
     if (!isMyPick) {
@@ -12708,6 +12751,7 @@ const UI = {
 
     html +=   this._draftDeckRailHTML(_railPicks2, { title: 'Deck so far', oppName: _oppNames, oppPicked: _oppIn });
     html += `</div>`;   // /draft-stage
+    html += this._draftMulliganHTML(mulliganUsed || !isMyPick, 'twov2OnlineDraftMulligan()');
     html += `</div>`; // draft-panel
     this.draftEl.innerHTML = html;
     if (this.applyTronFx) this.applyTronFx();
@@ -20019,10 +20063,18 @@ const UI = {
     // one device, so the header must say who is picking right now.
     const hotName = (isHot && s._mpNames && s._mpNames.player) ? ` — ${s._mpNames.player}` : '';
 
-    let html = `<div class="draft-panel ${isCards ? 'draft-cards' : 'draft-tricks'}">`;
+    // ONE FRAME FOR BOTH PHASES. `draft-tricks` on the panel re-themes the label,
+    // the sub-line, the pips, the counter and both edge glows — 30 rules, and not
+    // one of them styles a trick CARD (those carry their own trick-draft classes
+    // from makeTrickEl). So the class only ever repainted the chrome, which is
+    // precisely the screen-change the owner asked to be rid of. The phase goes
+    // on a data attribute instead, for anything that genuinely needs it.
+    let html = `<div class="draft-panel draft-cards" data-draft-phase="${isCards ? 'cards' : 'tricks'}">`;
     html += `<div class="draft-hud">`;
     html +=   `<div class="draft-hud-row">`;
-    html +=     `<span class="draft-hud-label">${isCards ? 'Card' : 'Trick'} Draft${hotName}</span>`;
+    // The title stops changing too. The rail below says which group is live, and
+    // a heading that rewrites itself is one more thing moving at the boundary.
+    html +=     `<span class="draft-hud-label">Draft${hotName}</span>`;
     html +=     `<span class="draft-hud-pips">${pips.join('')}</span>`;
     html +=     `<span class="draft-hud-counter">Pick <em>${round}</em> / ${total}</span>`;
     html +=   `</div>`;
@@ -20076,10 +20128,9 @@ const UI = {
     html +=       `<span class="mulligan-icon">&#9834;</span>`;
     html +=       `<span class="mulligan-label">${_haOn ? 'Sounds Hidden' : 'Hide Sounds'}</span>`;
     html +=     `</button>`;
-    html +=     `<button type="button" class="draft-mulligan-btn${mulliganDisabled}" onclick="draftMulligan()"${mulliganAttr}>`;
-    html +=       `<span class="mulligan-icon">&#x21BB;</span>`;
-    html +=       `<span class="mulligan-label">${mulliganLabel}</span>`;
-    html +=     `</button>`;
+    // MULLIGAN LEFT THIS ROW — see the .draft-mulligan CSS. It is the only
+    // control here that changes the cards in front of you, and it read as the
+    // fourth of four identical text links.
     // (Settings button removed from the draft row per user — the settings cog
     // in the top-right corner is always available; the row stays lean.)
     html +=   `</div>`;
@@ -20095,7 +20146,10 @@ const UI = {
                    : (Game.isMultiplayer && Game.isMultiplayer() ? 'Opponent' : (Game.seatLabel ? Game.seatLabel('ai') : 'AI'));
     const _oppPicked = ((isCards ? d.aiDrafted : d.aiTrickDrafted) || []).length;
     html += `<div class="draft-stage">`;
-    html +=   this._draftPicksRailHTML(_railPicks, total, { title: 'Your picks' });
+    html +=   this._draftPicksRailHTML([
+                { label: 'Pick',  kind: 'card',  items: d.playerDrafted || [],      total: 5, active: isCards },
+                { label: 'Trick', kind: 'trick', items: d.playerTrickDrafted || [], total: 2, active: !isCards },
+              ], 0, { title: 'Your picks' });
     html += `<div class="draft-choices">`;
 
     // Multiplayer mid-round wait state — the local player has already
@@ -20140,6 +20194,7 @@ const UI = {
     html += `</div>`;
     html +=   this._draftDeckRailHTML(_railPicks, { title: 'Deck so far', oppName: _oppName, oppPicked: _oppPicked });
     html += `</div>`;   // /draft-stage
+    html += this._draftMulliganHTML(mulliganUsed, 'draftMulligan()');
     // Drafted summary — render card list whenever any cards have been drafted
     // (so during trick draft the earlier card picks are still visible), and
     // render trick list once any tricks have been drafted. Per-tag rarity tier

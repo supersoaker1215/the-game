@@ -4911,7 +4911,7 @@ body.hit-pause .ai-hand * {
      the first tall card. */
   display: flex; align-items: safe center; justify-content: center;
   overflow-y: auto; overscroll-behavior: contain;
-  padding: 16px 0;
+  padding: 8px 0;
   z-index: 200;
   background: #000000;
 }
@@ -46329,7 +46329,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    every badge, chamfer and type ramp on the card is already a ratio of it. */
 .draft-stage > .draft-choices {
   min-width: 0;
-  --read-card-w: clamp(168px, 19vw, 300px);
+  --read-card-w: clamp(160px, 18vw, 288px);
   gap: clamp(14px, 2.2vw, 44px);
   margin-bottom: 0;
   min-height: 0;
@@ -46338,11 +46338,15 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .draft-rail .mp-rule { margin: 0 0 14px; }
 
 /* ---- LEFT: YOUR PICKS ---- */
-.dpr-list { display: flex; flex-direction: column; gap: 10px; }
-.dpr-slot { display: flex; align-items: center; gap: 12px; }
+/* SEVEN SLOTS, NOT FIVE — the rail carries the trick group too now, and at the
+   old 58px tile that made it 728px tall and pushed the whole panel past the
+   window (995 in a 914 viewport). Sized so all seven fit inside the card
+   column's own height, which is what keeps the draft on one screen. */
+.dpr-list { display: flex; flex-direction: column; gap: 7px; }
+.dpr-slot { display: flex; align-items: center; gap: 10px; }
 .dpr-tile {
   position: relative; flex: 0 0 auto;
-  width: 58px; aspect-ratio: 92/140;
+  width: 44px; aspect-ratio: 92/140;
   background: #000;
   border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.28);
   clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
@@ -46361,20 +46365,20 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   background-position: var(--portrait-pos, center 22%);
 }
 .dpr-cost {
-  position: absolute; top: 2px; left: 4px; z-index: 2;
-  font: 700 11px/1 var(--font-mono, monospace);
+  position: absolute; top: 2px; left: 3px; z-index: 2;
+  font: 700 9px/1 var(--font-mono, monospace);
   color: #fff; text-shadow: 0 0 6px rgba(0,0,0,0.9);
 }
 .dpr-name {
-  position: relative; z-index: 2; width: 100%; padding: 3px 3px 4px;
+  position: relative; z-index: 2; width: 100%; padding: 2px 2px 3px;
   background: linear-gradient(to top, #000 55%, transparent);
-  font: 700 7px/1.1 'Rajdhani', sans-serif; letter-spacing: 0.05em; text-transform: uppercase;
+  font: 700 6px/1.1 'Rajdhani', sans-serif; letter-spacing: 0.03em; text-transform: uppercase;
   color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 30%, #ffffff);
   text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .dpr-q {
   position: relative; z-index: 2; margin: auto;
-  font: 700 22px/1 'Chakra Petch', sans-serif;
+  font: 700 17px/1 'Chakra Petch', sans-serif;
   color: rgb(var(--theme-rgb, 79,195,247));
   text-shadow: 0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.8);
 }
@@ -46493,3 +46497,58 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   .dpr-list { flex-direction: row; flex-wrap: wrap; }
   .dpr-slot { flex-direction: column; align-items: flex-start; gap: 5px; }
 }
+
+/* ---- TRICK SLOTS SHARE THE RAIL (2026-08-27) --------------------------------
+   Both groups are present from the first pick, so crossing the card→trick
+   boundary changes which row is LIT and nothing else. A small gap and a tinted
+   edge separate the two groups without a second heading. */
+.dpr-slot.dpr-trick .dpr-tile {
+  border-color: rgba(185,140,255,0.34);
+}
+.dpr-slot.dpr-trick.is-current .dpr-tile {
+  border-color: #b98cff;
+  box-shadow: 0 0 16px rgba(185,140,255,0.45);
+}
+.dpr-slot.dpr-trick .dpr-q,
+.dpr-slot.dpr-trick .dpr-choosing { color: #b98cff; text-shadow: 0 0 10px rgba(185,140,255,0.6); }
+.dpr-slot.dpr-trick .dpr-name { color: color-mix(in srgb, #b98cff 30%, #ffffff); }
+/* First trick slot opens the second group. */
+.dpr-slot.dpr-card + .dpr-slot.dpr-trick { margin-top: 9px; padding-top: 9px; border-top: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.14); }
+
+/* ---- MULLIGAN, THE REFERENCE ONE -------------------------------------------
+   It was the fourth of four identical text links in the header row, next to
+   Menu / Back / Hide Sounds — the wrong company, because those three are
+   navigation and this one REPLACES THE CARDS IN FRONT OF YOU. Its own control,
+   under the offers it acts on, carrying its remaining charge. */
+.draft-mulligan-row { display: flex; justify-content: center; margin-top: 12px; }
+.draft-mulligan {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 11px 22px; cursor: pointer;
+  background: #000;
+  border: 1px solid rgba(255,179,71,0.55);
+  clip-path: polygon(11px 0, 100% 0, 100% calc(100% - 11px), calc(100% - 11px) 100%, 0 100%, 0 11px);
+  box-shadow: 0 0 16px rgba(255,179,71,0.16), inset 0 0 26px rgba(255,179,71,0.05);
+  font: 700 12px/1 'Rajdhani', system-ui, sans-serif;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: color-mix(in srgb, #ffb347 32%, #ffffff);
+  transition: border-color .16s var(--ease-snap), box-shadow .16s var(--ease-snap), color .16s var(--ease-snap);
+}
+.draft-mulligan:hover:not(.is-spent), .draft-mulligan:focus-visible:not(.is-spent) {
+  border-color: #ffb347; color: #fff2dc;
+  box-shadow: 0 0 26px rgba(255,179,71,0.45), inset 0 0 30px rgba(255,179,71,0.10);
+}
+.draft-mulligan .dm-ic { font-size: 14px; line-height: 1; color: #ffb347; }
+.draft-mulligan .dm-count {
+  font-size: 9px; letter-spacing: 0.14em;
+  color: color-mix(in srgb, #ffb347 62%, #ffffff);
+}
+/* Spent stays LIT, just lower — the same rule the rest of this file follows:
+   dim in the colour, never by fading text toward the black behind it. */
+.draft-mulligan.is-spent {
+  cursor: default;
+  border-color: rgba(255,179,71,0.26);
+  box-shadow: none;
+  color: color-mix(in srgb, #ffb347 72%, #0d0a05);
+}
+.draft-mulligan.is-spent .dm-ic,
+.draft-mulligan.is-spent .dm-count { color: color-mix(in srgb, #ffb347 62%, #0d0a05); }
