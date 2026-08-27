@@ -779,15 +779,28 @@ const UI = {
     // Keywords actually held, de-duplicated, in pick order.
     const kw = [];
     picks.forEach(c => (c.abilities || []).forEach(a => { if (a && kw.indexOf(a) < 0) kw.push(a); }));
+    // THE CHIPS EXPLAIN THEMSELVES. Owner: "the keywords should have the
+    // definitions pop up." No new tooltip: the document already delegates on
+    // [data-kw] and renders UI.KEYWORD_DATA[kw].tip — the same explanation the
+    // badges on a card give — so these only have to OPT IN. Hover shows it,
+    // click pins it, exactly like everywhere else.
+    // data-kw wants the CANONICAL keyword, so the count is stripped: a chip
+    // reading "Evade 1" is data-kw="Evade". Anything with no entry is left
+    // plain rather than advertising a tooltip that would come up empty.
     const kwHtml = kw.length
-      ? kw.map(k => `<span class="dcr-kw">${esc(k)}</span>`).join('')
+      ? kw.map(k => {
+          const base = String(k).replace(/\s*\d+$/, '').trim();
+          const has  = !!(this.KEYWORD_DATA && this.KEYWORD_DATA[base]);
+          return `<span class="dcr-kw${has ? ' dcr-kw-has' : ''}"${has ? ` data-kw="${esc(base)}"` : ''}>${esc(k)}</span>`;
+        }).join('')
       : `<span class="dcr-kw dcr-kw-none">None yet</span>`;
-    const oppHtml = o.oppName ? `
-      <div class="mp-rule"><span class="mp-rule-label">Opponent</span><span class="mp-rule-line"></span></div>
-      <div class="dcr-opp">
-        <span class="dcr-opp-name">${esc(o.oppName)}</span>
-        <span class="dcr-opp-count">${o.oppPicked != null ? `${o.oppPicked} picked` : ''}</span>
-      </div>` : '';
+    // NO OPPONENT BLOCK. Struck out by the owner, and fairly: against the AI it
+    // said "AI — 3 picked", which is a count of picks you cannot see, of a deck
+    // you cannot read, made by someone who always keeps pace with you. It told
+    // you nothing you could act on and cost a rule and two lines to say it.
+    // opts.oppName / opts.oppPicked are still accepted and ignored, so the
+    // callers do not have to change if it ever earns its place back.
+    const oppHtml = '';
     // THE TRICKS LIVE HERE NOW. They were stacked under the card picks in the
     // left rail, which made that column the tallest thing on the screen and
     // squeezed the offers narrow enough to crop their art. This side had a

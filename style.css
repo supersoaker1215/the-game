@@ -46450,6 +46450,14 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   background: #000;
 }
 .dcr-kw-none { border-style: dashed; color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 68%, #ffffff); }
+/* A chip that CAN explain itself says so — the same affordance the badges on a
+   card carry, so nobody has to discover it twice. */
+.dcr-kw-has { cursor: help; }
+.dcr-kw-has:hover, .dcr-kw-has:focus-visible {
+  border-color: rgb(var(--theme-rgb, 79,195,247));
+  color: #ffffff;
+  box-shadow: 0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.35);
+}
 .dcr-opp { display: flex; flex-direction: column; gap: 4px; }
 .dcr-opp-name {
   font: 700 14px/1.2 'Chakra Petch', sans-serif;
