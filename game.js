@@ -815,9 +815,12 @@ const Game = {
   // round advances. (Owner: "make a timeout for like 3 secs if the AI ever gets
   // stuck.") Armed from _2v2DriveAISeat; self-clears when the match ends.
   _AI_STALL_MS: 3000,
+  _AI_GIVEUP_MS: 15000,     // tier-2 last-resort: force-recover a frozen table
   _ai2v2WatchTimer: null,
   _ai2v2StallSig: null,
   _ai2v2StallAt: 0,
+  _ai2v2GlobalSig: null,    // tier-2 whole-table freeze fingerprint
+  _ai2v2GlobalAt: 0,
   _arm2v2AIWatchdog() {
     if (this._syncMode) return;               // headless resolves synchronously
     if (typeof setInterval === 'undefined') return;
@@ -829,6 +832,8 @@ const Game = {
     const gen = this._matchGen;
     this._ai2v2StallSig = null;
     this._ai2v2StallAt = 0;
+    this._ai2v2GlobalSig = null;
+    this._ai2v2GlobalAt = 0;
     this._ai2v2WatchTimer = setInterval(() => {
       try { this._2v2AIWatchdogTick(gen); } catch (e) { console.error('[2v2 AI watchdog] tick threw', e); }
     }, 1000);
@@ -837,6 +842,8 @@ const Game = {
     if (this._ai2v2WatchTimer) { clearInterval(this._ai2v2WatchTimer); this._ai2v2WatchTimer = null; }
     this._ai2v2StallSig = null;
     this._ai2v2StallAt = 0;
+    this._ai2v2GlobalSig = null;
+    this._ai2v2GlobalAt = 0;
   },
   // A cheap fingerprint of everything a healthy AI turn changes. If it holds
   // still for 3s while an AI is on the clock, the turn is genuinely stuck — a
@@ -865,7 +872,46 @@ const Game = {
       return;
     }
     if (!this._2v2IsAIAuthority || !this._2v2IsAIAuthority()) return;   // only the authority recovers
-    if (typeof document !== 'undefined' && document.hidden) { this._ai2v2StallAt = Date.now(); return; }  // never judge a hidden tab
+    if (typeof document !== 'undefined' && document.hidden) { this._ai2v2StallAt = Date.now(); this._ai2v2GlobalAt = Date.now(); return; }  // never judge a hidden tab
+    // ═══ TIER 2 — LAST-RESORT GLOBAL FREEZE RECOVERY ═══
+    // The fast guards below deliberately step aside for human-owned prompts and
+    // for _resolving boundaries — correct in normal play. But a tangled
+    // multi-card chain (e.g. an AI's Anti-Venom move + a human's Iron Giant save
+    // + a Jigsaw discard reveal all firing together) can leave a stuck prompt or
+    // a _resolving flag that never clears, and then the table is frozen for good
+    // and "Cortex is stuck". So, INDEPENDENT of who owns what, track how long the
+    // WHOLE table has been unchanged; after a long timeout, force it forward.
+    // At this point (15s of zero change) it is a genuine break, and recovery
+    // always beats a permanent freeze. (Owner: "the game stalled and cortex is
+    // stuck FIX THIS.")
+    {
+      const gsig = this._2v2StallSignature() + '|' + (tt._resolving ? 'R' : '')
+        + '|' + (s.pendingKangChoice ? 'K' : '') + (s.pendingJumpOffer ? 'J' : '') + (s.pendingBlockTrick ? 'B' : '');
+      const gnow = Date.now();
+      if (gsig !== this._ai2v2GlobalSig) { this._ai2v2GlobalSig = gsig; this._ai2v2GlobalAt = gnow; }
+      else if (gnow - this._ai2v2GlobalAt >= this._AI_GIVEUP_MS) {
+        console.warn('[2v2 watchdog] table frozen for ' + (gnow - this._ai2v2GlobalAt) + 'ms — last-resort force-recovery. sig=' + gsig);
+        this.log('[2v2] Table stuck too long — force-recovering so play can continue.');
+        // Clear a stuck resolution boundary, then resolve any pending prompt, and
+        // if that leaves nothing to advance, force the current sub-phase to end.
+        tt._resolving = false; tt._resolvingAt = 0;
+        let acted = false;
+        try { acted = this._autoResolveStuckCombatPrompt(); } catch (e) { console.error('[2v2 watchdog] resolve threw', e); }
+        if (!acted) {
+          try {
+            this._2v2AIDriving = null; this._2v2AIDrivingAt = 0; this._2v2CurrentActingPlayer = null;
+            this.state.pendingKangChoice = null; this.state.pendingJumpOffer = null;
+            if (this._2v2DrainLockedActions) this._2v2DrainLockedActions();
+            this.end2v2Phase();
+            if (this._pushOnlineState) this._pushOnlineState({ silent: true });
+          } catch (e) { console.error('[2v2 watchdog] last-resort force-end threw', e); }
+        }
+        this._ai2v2GlobalSig = null; this._ai2v2GlobalAt = 0;
+        this._ai2v2StallSig = null; this._ai2v2StallAt = 0;
+        if (typeof UI !== 'undefined' && UI.render) UI.render();
+        return;
+      }
+    }
     // NEVER act during a resolution boundary. before-tricks / reveal / combat
     // handoffs run async and legitimately hold the same signature for a beat;
     // the watchdog force-ending here SKIPPED phases (Dormammu's before-tricks
