@@ -171,9 +171,10 @@ const Tournament = {
         <p class="tourney-lead">Who are you facing across the series?</p>
         <div class="tourney-choices">
           ${opt('solo', 'Solo vs AI', 'Play the whole series against the computer', true)}
-          ${opt('1v1',  '1v1 Local', 'Two players, pass one device', true)}
-          ${opt('2v2',  '2v2 Local', 'Four players — coming soon', false)}
+          ${opt('1v1',  '1v1 Online', 'Play a friend online · in the works', false)}
+          ${opt('2v2',  '2v2 Online', 'Four players online · in the works', false)}
         </div>
+        <p class="tourney-lead" style="font-size:0.82rem;margin-top:14px;opacity:0.8;">Online tournaments (with the modifiers synced across both players) are being built — they need live two-player testing, so they’ll land in a follow-up.</p>
         <button class="tourney-textbtn" onclick="Tournament._renderSetup()">← Series length</button>
       </div>`);
   },
