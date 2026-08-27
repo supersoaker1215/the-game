@@ -46861,3 +46861,86 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   font: 700 8px/1 'Rajdhani', sans-serif; letter-spacing: 0.16em; text-transform: uppercase;
   color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 62%, #ffffff);
 }
+
+/* ---------------------------------------------------------------
+   BOARD-STALE NOTICE. Raised only when renderBoard throws twice in
+   one frame: the board is showing the previous frame's cards and a
+   card the player just placed would be invisible. Silence there is
+   worse than an ugly banner — it reads as a game bug, not a render
+   fault. Removed automatically on the next successful render.
+   --------------------------------------------------------------- */
+#board-stale-notice {
+  position: fixed;
+  left: 50%;
+  top: 12px;
+  transform: translateX(-50%);
+  z-index: 99999;
+  padding: 8px 18px;
+  background: #000;
+  border: 1px solid var(--danger, #ff3b5c);
+  color: var(--danger, #ff3b5c);
+  font-family: var(--font-display, inherit);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-shadow: 0 0 8px currentColor;
+  box-shadow: 0 0 18px rgba(255, 59, 92, .45);
+  pointer-events: none;
+  animation: board-stale-pulse 1.4s ease-in-out infinite;
+}
+@keyframes board-stale-pulse { 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) {
+  #board-stale-notice { animation: none; }
+}
+
+/* ---------------------------------------------------------------
+   INSPECT MODAL — THE RULES ARE THE POINT.
+
+   Every read surface shares --read-desc-h (0.55w = 176px), and that
+   number is the DRAFT tile's arithmetic, where a row of cards must
+   stay uniform and the art holds a 304px floor. The inspect modal is
+   not that surface: there is exactly one card, you opened it to READ,
+   and the art is already shown full-resolution at 427px.
+
+   Art the Clown is the worst case in the corpus — 452 characters, the
+   next longest is Freddy at 394. He paints 383px at full size and
+   269px at the fit floor (0.78), against a 176px box with
+   `overflow: hidden`. So 207px of him was simply not on screen: every
+   word from "Sledgehammer:" down, which is three of his four weapons.
+
+   The card is a fixed 640px rectangle with a 93px readout reserve, so
+   the content box is 546.9px and the rules can only grow by taking it
+   from the portrait. Here that trade is right — 270 for the rules and
+   a 262 art floor still leaves a 314px portrait, and it only happens
+   on cards wordy enough to need it: the box hugs its text under the
+   cap, so a short card leaves the art at its full 427px.
+
+   Overriding the VARIABLE, not the rules. Five separate rules cap this
+   box, the winner being `.card-inspect-modal .card.card.inspect-card
+   .card-desc` at (0,5,0) !important — a plain (0,4,0) override loses
+   even with !important, which is exactly how the first attempt at this
+   failed. They all resolve var(--read-desc-h), so redefining it on the
+   modal makes every one of them agree instead of fighting them.
+
+   overflow-y is the backstop, not the mechanism: the whole corpus fits
+   in 270px, and it is here so a longer card added later degrades to a
+   scroll rather than silently losing its text the way Art did.
+   --------------------------------------------------------------- */
+.card-inspect-modal {
+  --read-desc-h: 270px;
+}
+.card-inspect-modal .card.card.inspect-card .card-portrait {
+  min-height: 262px !important;
+}
+.card-inspect-modal .card.card.inspect-card .card-desc,
+.card-inspect-modal .card.card.inspect-card .trick-desc {
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.card-inspect-modal .card.card.inspect-card .card-desc::-webkit-scrollbar { width: 4px; }
+.card-inspect-modal .card.card.inspect-card .card-desc::-webkit-scrollbar-track { background: transparent; }
+.card-inspect-modal .card.card.inspect-card .card-desc::-webkit-scrollbar-thumb {
+  background: var(--accent, #35e0ff);
+  border-radius: 2px;
+}

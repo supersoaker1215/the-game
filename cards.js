@@ -279,7 +279,7 @@ const CARD_DEFS = [
   { name: "Jason Voorhees", cost: 4, attack: 2, health: 2, type: "villain",
     abilities: ["Hunt", "Overdrive", "Revive 1"],
     desc: "Jump: When an ally is destroyed — into its lane. When Destroyed: Revive once per game as (3/4)." },
-  { name: "Art the Clown", cost: 4, attack: 3, health: 4, type: "horror",
+  { name: "Art the Clown", cost: 4, attack: 2, health: 2, type: "horror",
     abilities: [],
     _recurringBT: true,
     desc: "Jump: At the start of the Trick Phase, if the enemy has more cards on the field than you, play for free. When Played: Pull a weapon from the bag. Each round choose one — no weapon twice until all 4 are used, then Art is stats-only. Scissors: permanently strip a keyword from an enemy. Sledgehammer: deal double Art's ATK to an enemy. Scythe: permanently halve an enemy's ATK and HP. Hacksaw: an enemy bleeds 2 at the start of each of the next 2 rounds." },

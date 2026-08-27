@@ -529,6 +529,28 @@ const UI = {
     // rare / super-rare / legendary, in line with the rarity-pip
     // count on the live tile). Sits just below the card with a
     // small gap (see .card-inspect-modal { gap: 10px }).
+    // RUN THE TEXT FIT. It is scheduled by the renderers, and openCardInspect
+    // is not one of them — so the modal was showing long copy at full size and
+    // letting `overflow: hidden` cut it off. Art the Clown lost 207px of rules
+    // that way (the Sledgehammer / Scythe / Hacksaw lines simply were not
+    // there). Every card with copy past the cap had the same hole.
+    this._scheduleCardTextFit();
+    // AND AGAIN ONCE THE BOX HAS STOPPED MOVING. The first pass runs while the
+    // modal is still being laid out and the full-resolution portrait has not
+    // loaded, so it fits against a box that is not the final one and then
+    // MEMOISES that result — Art the Clown settled at 0.83 with 14px of his
+    // rules still cut off, and re-running the fit by hand converged him to
+    // exactly 0 clipped. Dropping the memo inside the modal and fitting once
+    // more against the settled box is the whole fix.
+    const _settleFit = () => {
+      const back = document.getElementById('card-inspect-backdrop');
+      if (!back) return;
+      back.querySelectorAll('[data-cd-fit]').forEach(el => { delete el.dataset.cdFit; });
+      this._cdFitPending = false;
+      this._scheduleCardTextFit();
+    };
+    requestAnimationFrame(() => requestAnimationFrame(_settleFit));
+    setTimeout(_settleFit, 260);
     const rarity = this._cardRarityLabel(card);
     const ribbon = document.createElement('div');
     ribbon.className = `card-inspect-rarity rarity-tier-${rarity.tier}`;
@@ -5949,9 +5971,30 @@ const UI = {
   // render pass for why this exists: without it, one throw ends the frame AND
   // every frame after it, because the same state throws again next time.
   // De-duplicates by name+message so a per-frame throw logs once, not 60x/sec.
+  // Tell the player the board is frozen. Only ever raised after renderBoard
+  // has thrown TWICE in one frame, so it cannot fire on a transient hiccup.
+  // Clears itself the moment a render succeeds.
+  _boardStaleNotice(on) {
+    if (!!this._boardStale === !!on) return;
+    this._boardStale = !!on;
+    let el = document.getElementById('board-stale-notice');
+    if (!on) { if (el) el.remove(); return; }
+    el = document.createElement('div');
+    el.id = 'board-stale-notice';
+    el.textContent = 'BOARD DISPLAY OUT OF SYNC \u2014 RELOAD TO RESYNC';
+    document.body.appendChild(el);
+  },
+
+  // Returns TRUE if the sub-renderer completed, FALSE if it threw. Most
+  // callers ignore it; renderBoard does not — see the board-fault recovery
+  // in render(). A thrown sub-renderer leaves its LAST GOOD DOM in place
+  // (the board is diff-rendered, not rebuilt), so a silent throw doesn't
+  // blank the board — it FREEZES it, and every card played afterwards is
+  // in state but invisible. That is why the boolean exists.
   _safe(name, fn) {
     try {
       fn();
+      return true;
     } catch (e) {
       const key = name + '|' + ((e && e.message) || String(e));
       this._safeSeen = this._safeSeen || new Set();
@@ -5964,6 +6007,7 @@ const UI = {
           }
         } catch (_) {}
       }
+      return false;
     }
   },
 
@@ -7472,7 +7516,7 @@ const UI = {
     // __clbErrors reporter so it is still diagnosable.
     this._safe('renderRoundTrack',        () => this.renderRoundTrack(s));
     this._safe('_updateDominanceVars',    () => this._updateDominanceVars(s));
-    this._safe('renderBoard',             () => this.renderBoard(s));
+    const _boardOk = this._safe('renderBoard',   () => this.renderBoard(s));
     // Stat pops run AFTER the board is rebuilt, so they decorate the orb node
     // that will actually survive to paint and read the NEW digit as their
     // target. (Comparison is against _lastCardStats — engine state, untouched by
@@ -7499,6 +7543,21 @@ const UI = {
     // as well means a transient fault earlier in the pass can't strand them.
     this._safe('renderButtons(retry)',    () => this.renderButtons(s));
     this._safe('renderPromptBanner(retry)', () => this.renderPromptBanner(s));
+
+    // BOARD FAULT RECOVERY. renderBoard is diff-rendered against the previous
+    // frame, so when it throws the old cards stay on screen and the new ones
+    // never appear — the board looks normal but is stale, and a card the
+    // player just placed is simply INVISIBLE. Retrying once here clears a
+    // transient fault (a half-updated lane caught mid-cascade). If the retry
+    // throws too the fault is persistent, and the player must be told the
+    // board is not showing the true state rather than left guessing.
+    if (!_boardOk) {
+      const _again = this._safe('renderBoard(retry)', () => this.renderBoard(s));
+      if (!_again) this._boardStaleNotice(true);
+      else this._boardStaleNotice(false);
+    } else if (this._boardStale) {
+      this._boardStaleNotice(false);
+    }
 
     // Apply the shared Tron interaction language (hover-fill, active
     // pulse, border breathing, click flash) to every interactive
@@ -22957,8 +23016,29 @@ const UI = {
       // takes the square root and the verification pass below settles the rest.
       const need = (j.natural > j.cap + 1)
         ? Math.sqrt(Math.max(0, j.cap - this.CD_FIT_PAD) / j.natural) : 1;
-      const fit = Math.max(this.CD_FIT_MIN, need);
+      let fit = Math.max(this.CD_FIT_MIN, need);
       this._applyCardTextScale(j.el, fit);
+      // SETTLE IT IN THIS FRAME, NOT ACROSS SIX. The sqrt estimate is
+      // systematically optimistic on copy that wraps a lot, so it usually
+      // lands a little over and _refineCardTextFit walks it down over the
+      // next frames. That walk cannot finish here: the box has height:auto
+      // under the cap, so the moment the copy shrinks past the cap the box
+      // hugs it, the ResizeObserver fires, the memo is dropped, and the fit
+      // restarts from scale 1 — straight back to the same optimistic
+      // estimate. Art the Clown oscillated there forever and stayed at
+      // scale 1 with 113px of rules hidden.
+      // Correcting synchronously means the observer only ever sees the
+      // final box, so there is nothing left to oscillate with. Bounded at
+      // three passes, and only for copy that actually overflows.
+      for (let pass = 0; pass < 3 && fit > this.CD_FIT_MIN; pass++) {
+        const over = j.el.scrollHeight;
+        if (over <= j.cap + 1) break;
+        const corrected = Math.max(this.CD_FIT_MIN,
+          fit * Math.sqrt(Math.max(0, j.cap - this.CD_FIT_PAD) / over));
+        if (corrected >= fit) break;
+        fit = corrected;
+        this._applyCardTextScale(j.el, fit);
+      }
       j.el.dataset.cdFit = j.key;
     });
     if (!_retry) this._refineCardTextFit(live.map(j => j.el), 0);
