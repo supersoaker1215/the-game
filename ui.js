@@ -17027,6 +17027,14 @@ const UI = {
       // immediately. No builder, no ready check. This is the path the ready-
       // check work had accidentally removed.
       if (this._mpState.mode !== 'deck') {
+        // TOURNAMENT: run the series pre-game (number game → modifier pick)
+        // before any match instead of drafting straight away.
+        if (typeof Tournament !== 'undefined' && Tournament._online && Tournament._hostConnected) {
+          this._mpReturnToLobby = false;
+          try { Tournament._hostConnected(); } catch (e) { console.error('[tourney online host]', e); }
+          this._mpApplyNames(Game.state);
+          return;
+        }
         if (typeof Game !== 'undefined' && Game.startMultiplayerHost) {
           this._mpReturnToLobby = false;
           Game.startMultiplayerHost({});
@@ -17101,6 +17109,12 @@ const UI = {
         Game.acceptMultiplayerState(m.state);
         // Apply real player names to the HUD name plates on every state update.
         this._mpApplyNames(Game.state);
+        // TOURNAMENT: (re)render the synced series UI from the freshly-applied
+        // state — number game, modifier pick, scoreboard, or series-over.
+        if (Game.state && Game.state._tournament && Game.state._tournament.online
+            && typeof Tournament !== 'undefined' && Tournament._onlineRender) {
+          try { Tournament._onlineRender(); } catch (e) { console.error('[tourney online render]', e); }
+        }
 
         if (this.sfx) {
           // ── Iron Giant sacrifice sting (see snapshot above) ────────────

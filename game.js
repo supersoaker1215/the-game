@@ -1031,7 +1031,7 @@ const Game = {
   // sits on the 'ai' seat from the host's perspective, so their deck maps onto
   // the existing mode.aiDeck hook and buildDecks() wires per-player piles with
   // no further changes.
-  startMultiplayerHost(opts) {
+  startMultiplayerHost(opts, skipMatch) {
     this.mp = { role: 'host', you: 'player', opp: 'ai' };
     // Remember how this match was started so a Rematch can spin up an identical
     // one (same deck mode / custom decks) over the SAME connection — no rejoin,
@@ -1095,6 +1095,19 @@ const Game = {
     // on the host. Re-asserted after startMatch too (idempotent).
     if (this.state.player) this.state.player.isHuman = true;
     if (this.state.ai)     this.state.ai.isHuman = true;
+    // TOURNAMENT: establish the connection + broadcast infrastructure WITHOUT
+    // starting a match. The Tournament module then sets state._tournament and
+    // drives the number game + modifier picks (synced), and calls this again
+    // without skipMatch to start each game's real draft/play.
+    if (skipMatch) {
+      if (typeof UI !== 'undefined') {
+        this.state._mpNames = {
+          player: UI._mpName ? UI._mpName() : 'Host',
+          ai: (UI._mpState && UI._mpState.opponent) || 'Opponent',
+        };
+      }
+      return;
+    }
     const _dbHost = opts && opts.customDeck;
     const _dbGuest = opts && opts.aiDeck;
     if (_dbHost || _dbGuest) {
@@ -1106,7 +1119,13 @@ const Game = {
         aiDeck: _dbGuest || null
       });
     } else {
-      this.startMatch({ players: '1v1', deck: 'classic' });
+      // TOURNAMENT: an online tournament game is a normal classic online match
+      // with the current series modifier injected via mode._mods (which rides
+      // the state broadcast, so it applies on BOTH clients). The draft/play/
+      // rematch flow is untouched — we only layer the modifier + series on top.
+      const _tmods = (this.state._tournament && this.state._tournament.currentMod && this.state._tournament.currentMod !== 'classic')
+        ? { [this.state._tournament.currentMod]: true } : null;
+      this.startMatch({ players: '1v1', deck: 'classic', _mods: _tmods });
     }
     if (this.state.player) this.state.player.isHuman = true;
     if (this.state.ai)     this.state.ai.isHuman = true;
@@ -1967,6 +1986,11 @@ const Game = {
     // match setup (fresh draft) and its broadcast carries the new state to the
     // guest, whose game-over overlay clears when the fresh state lands.
     if (msg.t === 'rematch') { this.rematchOnline(); return; }
+    // TOURNAMENT — the guest's number/modifier picks. The host applies them to
+    // the authoritative state._tournament and broadcasts; both clients render
+    // the series UI from that synced state. (Guest = the 'ai' seat.)
+    if (msg.t === 'tourneyNum')  { if (typeof Tournament !== 'undefined' && Tournament._hostReceiveNumber) Tournament._hostReceiveNumber('guest', msg.num); return; }
+    if (msg.t === 'tourneyMod')  { if (typeof Tournament !== 'undefined' && Tournament._hostReceiveMod)    Tournament._hostReceiveMod('guest', msg.mod, msg.first); return; }
     try {
       const findCardById = (id) => {
         const p = this.state[actor];
@@ -4125,6 +4149,12 @@ const Game = {
     this.state.player.trickHand = d.playerTrickDrafted.map(t => ({ ...t, id: nextCardId++ }));
     this.state.ai.trickHand = d.aiTrickDrafted.map(t => ({ ...t, id: nextCardId++ }));
     this.shuffle(pile);
+    // TOURNAMENT — Glass Cannon on the draft path (online tournament drafts
+    // normally rather than using preset hands): both sides open at half HP.
+    if (this.mod('glassCannon')) {
+      this.state.player.health = this.state.player.maxHealth = 15;
+      this.state.ai.health     = this.state.ai.maxHealth     = 15;
+    }
     this.log('[DRAFT] Draft complete! The battle begins.');
     this.startRound();
   },
@@ -6724,6 +6754,14 @@ const Game = {
     // bypasses postCombat).
     if (this.state.gameOver) this._pinFinalHpHistory();
     if (this.state.gameOver) this.finalizeStats();
+    // TOURNAMENT (online) — host records the game result into the synced series
+    // once, then drives the next modifier pick (or the series-over screen).
+    if (this.state.gameOver && this.state._tournament && this.state._tournament.online
+        && this.isMultiplayer && this.isMultiplayer() && this.mp && this.mp.role === 'host'
+        && !this.state._tournament._gameCounted) {
+      this.state._tournament._gameCounted = true;
+      try { if (typeof Tournament !== 'undefined' && Tournament._hostOnGameEnd) Tournament._hostOnGameEnd(this.state.winner); } catch (e) { console.error('[tourney online end]', e); }
+    }
 
     if (!this.state.gameOver) {
       // 2v2 owns its own post-combat sequence: read team health back from

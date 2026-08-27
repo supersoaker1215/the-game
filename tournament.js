@@ -66,8 +66,10 @@ const Tournament = {
 
   exit() {
     this.active = false;
+    this._online = null;
     this._restoreHooks();
     this._clearSpeedTimer();
+    this._removeHud();
     if (this.el) this.el.remove();
     this.el = null;
     this.T = null;
@@ -158,8 +160,8 @@ const Tournament = {
   _rivalName() { return this._isLocal() ? 'Player 2' : 'Rival'; },
   _renderModeSelect() {
     this.T.phase = 'mode';
-    const opt = (id, title, sub, enabled) => `
-      <button class="tourney-bigbtn ${enabled ? '' : 'tourney-soon'}" ${enabled ? `onclick="Tournament.pickMode('${id}')"` : 'disabled'}>
+    const opt = (onclick, title, sub, enabled) => `
+      <button class="tourney-bigbtn ${enabled ? '' : 'tourney-soon'}" ${enabled ? `onclick="${onclick}"` : 'disabled'}>
         <span class="tb-title">${title}</span>
         <span class="tb-sub">${sub}</span>
       </button>`;
@@ -170,11 +172,10 @@ const Tournament = {
         <h1 class="tourney-h1">Choose Your Opponent</h1>
         <p class="tourney-lead">Who are you facing across the series?</p>
         <div class="tourney-choices">
-          ${opt('solo', 'Solo vs AI', 'Play the whole series against the computer', true)}
-          ${opt('1v1',  '1v1 Online', 'Play a friend online · in the works', false)}
-          ${opt('2v2',  '2v2 Online', 'Four players online · in the works', false)}
+          ${opt("Tournament.pickMode('solo')", 'Solo vs AI', 'Play the whole series against the computer', true)}
+          ${opt("Tournament._goOnline('1v1')", '1v1 Online', 'Play a friend online — create or join a room', true)}
+          ${opt('', '2v2 Online', 'Four players online · coming soon', false)}
         </div>
-        <p class="tourney-lead" style="font-size:0.82rem;margin-top:14px;opacity:0.8;">Online tournaments (with the modifiers synced across both players) are being built — they need live two-player testing, so they’ll land in a follow-up.</p>
         <button class="tourney-textbtn" onclick="Tournament._renderSetup()">← Series length</button>
       </div>`);
   },
@@ -561,5 +562,235 @@ const Tournament = {
       ai:     a.won.ai.map(c => c),
     };
     this._startMatch(bonus);
+  },
+
+  // ════════════════════════════════════════════════════════════════════════
+  // ONLINE 1v1 TOURNAMENT
+  // Host-authoritative. The whole series lives in Game.state._tournament, which
+  // rides the existing state broadcast, so both clients render the same series
+  // UI for free. Each game is a normal online match (startMultiplayerHost →
+  // draft → play → rematch) with the modifier injected via state.mode._mods.
+  // Guests forward their picks to the host as { t:'tourneyNum' } /
+  // { t:'tourneyMod' } actions; the host mutates the series and re-broadcasts.
+  // ════════════════════════════════════════════════════════════════════════
+
+  // Entry from the mode-select. Opens the existing 1v1 online lobby; the
+  // pending config tells the opponentJoined handler to run the series flow.
+  _goOnline(mode) {
+    this._online = { mode: mode, length: this.T.length, threshold: this.T.threshold };
+    this.active = false;                 // hand off to the online lobby
+    if (this.el) this.el.style.display = 'none';
+    if (typeof UI !== 'undefined' && UI.openMultiplayer) UI.openMultiplayer();
+  },
+
+  _isHost() { return !!(typeof Game !== 'undefined' && Game.mp && Game.mp.role === 'host'); },
+  _t() { return (typeof Game !== 'undefined' && Game.state) ? Game.state._tournament : null; },
+  _mySide()  { return this._isHost() ? 'host' : 'guest'; },
+  _oppSide() { return this._isHost() ? 'guest' : 'host'; },
+  _myWins()  { const t = this._t(); return t ? (this._isHost() ? t.hostWins : t.guestWins) : 0; },
+  _oppWins() { const t = this._t(); return t ? (this._isHost() ? t.guestWins : t.hostWins) : 0; },
+
+  // Host: the opponent connected — build the series and start the number game.
+  _hostConnected() {
+    const cfg = this._online; if (!cfg) return;
+    Game.startMultiplayerHost({}, true);   // connection + broadcast only, no match
+    Game.state._tournament = {
+      online: true, mode: cfg.mode,
+      length: cfg.length, threshold: cfg.threshold,
+      hostWins: 0, guestWins: 0,
+      phase: 'number', gameNumber: 1,
+      hostNum: null, guestNum: null, roll: null, numberWinner: null,
+      usedMods: [], currentMod: null, firstPlayer: null, chooser: null,
+    };
+    Game._mpBroadcast();
+    this._onlineRender();
+  },
+
+  // Called on every state update (host after broadcast, guest on state arrival)
+  // and after any local pick. Renders the right series screen from the synced
+  // state, or steps aside while a game is being played.
+  _onlineRender() {
+    const t = this._t();
+    if (!t || !t.online) { this._hideOverlay && this._hideOverlay(); return; }
+    this._ensureOverlay();
+    // A game is in progress — show only the compact HUD, let the board play.
+    if (t.phase === 'playing' && !Game.state.gameOver) {
+      this._hideOverlay(); this._showOnlineHud(); return;
+    }
+    this._removeHud();
+    this._showOverlay();
+    if (t.phase === 'number')      return this._renderOnlineNumber(t);
+    if (t.phase === 'modifier')    return this._renderOnlineModifier(t);
+    if (t.phase === 'series-over') return this._renderOnlineOver(t);
+  },
+
+  _onlineScoreHTML() {
+    const t = this._t(); if (!t) return '';
+    return `<div class="tourney-score">
+      <span class="ts-side ts-you">YOU <b>${this._myWins()}</b></span>
+      <span class="ts-vs">Best of ${t.length}</span>
+      <span class="ts-side ts-ai"><b>${this._oppWins()}</b> RIVAL</span>
+    </div>`;
+  },
+
+  // ---- number game ----
+  _renderOnlineNumber(t) {
+    const myNum = this._isHost() ? t.hostNum : t.guestNum;
+    if (myNum != null) {
+      const oppNum = this._isHost() ? t.guestNum : t.hostNum;
+      this._set(`<div class="tourney-card">${this._onlineScoreHTML()}
+        <div class="tourney-kicker">The Draw</div>
+        <h1 class="tourney-h1">Number Game</h1>
+        <p class="tourney-lead">You picked <b>${myNum}</b>. ${oppNum != null ? 'Rolling…' : 'Waiting for your opponent to pick…'}</p>
+        ${t.roll != null ? `<div class="tn-roll">Rolled <b>${t.roll}</b></div>` : ''}
+      </div>`);
+      return;
+    }
+    const nums = Array.from({ length: 20 }, (_, i) => i + 1)
+      .map(n => `<button class="tourney-num" onclick="Tournament.onlinePickNumber(${n})">${n}</button>`).join('');
+    this._set(`<div class="tourney-card">${this._onlineScoreHTML()}
+      <div class="tourney-kicker">The Draw</div>
+      <h1 class="tourney-h1">Number Game</h1>
+      <p class="tourney-lead">Secretly pick <b>1–20</b>. Closest to the roll wins first pick. Ties reroll.</p>
+      <div class="tourney-numgrid">${nums}</div>
+    </div>`);
+  },
+  onlinePickNumber(n) {
+    if (this._isHost()) this._hostReceiveNumber('host', n);
+    else if (typeof Multiplayer !== 'undefined') { Multiplayer.send({ t: 'tourneyNum', num: n }); }
+    // optimistic: reflect our own pick immediately
+    const t = this._t(); if (t) { if (this._isHost()) t.hostNum = n; else t.guestNum = n; this._onlineRender(); }
+  },
+  _hostReceiveNumber(who, n) {
+    const t = this._t(); if (!t || t.phase !== 'number') return;
+    if (who === 'host') t.hostNum = n; else t.guestNum = n;
+    if (t.hostNum != null && t.guestNum != null) this._hostRollNumbers();
+    Game._mpBroadcast(); this._onlineRender();
+  },
+  _hostRollNumbers() {
+    const t = this._t();
+    do { t.roll = 1 + Math.floor(Math.random() * 20); }
+    while (Math.abs(t.hostNum - t.roll) === Math.abs(t.guestNum - t.roll));
+    t.numberWinner = Math.abs(t.hostNum - t.roll) < Math.abs(t.guestNum - t.roll) ? 'host' : 'guest';
+    t.phase = 'modifier';
+    t.chooser = t.numberWinner;
+    t.gameNumber = 1;
+  },
+
+  // ---- modifier pick ----
+  _renderOnlineModifier(t) {
+    const amChooser = t.chooser === this._mySide();
+    const avail = this.MODIFIERS.filter(m => t.usedMods.indexOf(m.id) < 0);
+    if (!amChooser) {
+      this._set(`<div class="tourney-card">${this._onlineScoreHTML()}
+        <div class="tourney-kicker">Game ${t.gameNumber}</div>
+        <h1 class="tourney-h1">Rival is choosing…</h1>
+        <p class="tourney-lead">${t.gameNumber === 1 ? 'They won the draw.' : 'They lost the last game.'} Waiting for their modifier + first/second pick.</p>
+      </div>`);
+      return;
+    }
+    const tiles = avail.map(m => `
+      <button class="tourney-modtile" id="tomod-${m.id}" onclick="Tournament._onlineSelMod('${m.id}')">
+        <span class="tmt-icon">${m.icon}</span><span class="tmt-name">${m.name}</span>
+        <span class="tmt-desc">${m.desc}</span>
+      </button>`).join('');
+    const used = t.usedMods.map(id => { const m = this.MODIFIERS.find(x => x.id === id); return `<span class="tourney-usedchip">${m.icon} ${m.name}</span>`; }).join('');
+    this._set(`<div class="tourney-card tourney-modpick">${this._onlineScoreHTML()}
+      <div class="tourney-kicker">Game ${t.gameNumber} · Your pick</div>
+      <h1 class="tourney-h1">Choose a Modifier</h1>
+      <p class="tourney-lead">${t.gameNumber === 1 ? 'You won the draw.' : 'You lost the last game, so you choose.'} No modifier repeats.</p>
+      ${used ? `<div class="tourney-used">Already played: ${used}</div>` : ''}
+      <div class="tourney-modgrid">${tiles}</div>
+      <div id="tourney-oorder" class="tourney-order" style="display:none"></div>
+    </div>`);
+  },
+  _onlineSelMod(id) {
+    this._oPendingMod = id;
+    document.querySelectorAll('.tourney-modtile').forEach(b => b.classList.remove('sel'));
+    const b = document.getElementById('tomod-' + id); if (b) b.classList.add('sel');
+    const m = this.MODIFIERS.find(x => x.id === id);
+    const o = document.getElementById('tourney-oorder');
+    if (o) { o.style.display = ''; o.innerHTML =
+      `<div class="tourney-order-q">Selected <b>${m.icon} ${m.name}</b> — go first or second?</div>
+       <div class="tourney-order-btns">
+         <button class="tourney-bigbtn" onclick="Tournament.onlinePickMod('${id}','first')">Go First</button>
+         <button class="tourney-bigbtn" onclick="Tournament.onlinePickMod('${id}','second')">Go Second</button>
+       </div>`; }
+  },
+  onlinePickMod(id, first) {
+    if (this._isHost()) this._hostReceiveMod('host', id, first);
+    else if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'tourneyMod', mod: id, first: first });
+  },
+  _hostReceiveMod(who, id, first) {
+    const t = this._t(); if (!t || t.phase !== 'modifier' || who !== t.chooser) return;
+    if (t.usedMods.indexOf(id) < 0) t.usedMods.push(id);
+    t.currentMod = id;
+    // Translate the chooser's first/second into which SIDE goes first.
+    const chooserGoesFirst = (first === 'first');
+    const chooserSide = t.chooser;   // 'host' | 'guest'
+    t.firstPlayer = chooserGoesFirst ? chooserSide : (chooserSide === 'host' ? 'guest' : 'host');
+    t.phase = 'playing';
+    t._gameCounted = false;
+    Game._mpBroadcast();
+    this._onlineStartGame();
+  },
+  _onlineStartGame() {
+    // Reuse the real online match: fresh draft + play, modifier injected from
+    // state._tournament.currentMod inside startMultiplayerHost.
+    Game.startMultiplayerHost({});
+    // Honor first/second: round 1's first player = oddPlayer. Host='player'.
+    const t = this._t();
+    if (t && (t.firstPlayer === 'host' || t.firstPlayer === 'guest')) {
+      Game.state.oddPlayer = (t.firstPlayer === 'host') ? 'player' : 'ai';
+    }
+    // Re-attach the series to the fresh match state so it keeps syncing.
+    if (t) { Game.state._tournament = t; Game.state._tournament._gameCounted = false; }
+    Game._mpBroadcast();
+    this._onlineRender();
+  },
+
+  // ---- game end (host only) ----
+  _hostOnGameEnd(winner) {
+    const t = this._t(); if (!t || !t.online) return;
+    // winner is 'player' (host) or 'ai' (guest).
+    if (winner === 'player') t.hostWins++; else t.guestWins++;
+    if (t.hostWins >= t.threshold || t.guestWins >= t.threshold) {
+      t.phase = 'series-over';
+    } else {
+      t.gameNumber++;
+      t.chooser = (winner === 'player') ? 'guest' : 'host';   // loser picks next
+      t.currentMod = null; t.firstPlayer = null;
+      t.phase = 'modifier';
+    }
+    Game._mpBroadcast();
+    this._onlineRender();
+  },
+
+  _renderOnlineOver(t) {
+    const won = this._myWins() > this._oppWins();
+    this._set(`<div class="tourney-card tourney-final">
+      <div class="tourney-kicker">Best of ${t.length} · Complete</div>
+      <div class="tourney-trophy">${won ? '🏆' : '🥈'}</div>
+      <h1 class="tourney-h1 ${won ? 'win' : 'lose'}">${won ? 'Series Won!' : 'Series Lost'}</h1>
+      <p class="tourney-lead">Final: <b>You ${this._myWins()}</b> — <b>${this._oppWins()} Rival</b>.</p>
+      <button class="tourney-bigbtn" onclick="Tournament.exit()">Main Menu</button>
+    </div>`);
+  },
+
+  _showOnlineHud() {
+    this._removeHud();
+    const t = this._t(); if (!t) return;
+    const mod = this.MODIFIERS.find(m => m.id === t.currentMod) || { icon: '🎴', name: 'Classic' };
+    const hud = document.createElement('div');
+    hud.id = 'tourney-hud'; hud.className = 'tourney-hud';
+    hud.innerHTML = `
+      <div class="th-head">🏆 TOURNAMENT</div>
+      <div class="th-scoreline"><span class="th-name th-you">YOU</span>
+        <span class="th-vs">${this._myWins()}–${this._oppWins()}</span>
+        <span class="th-name th-ai">RIVAL</span></div>
+      <div class="th-divider"></div>
+      <div class="th-row"><span class="th-label">Game ${t.gameNumber}</span><span class="th-sub">Bo${t.length}</span></div>
+      <div class="th-modrow"><span class="th-modicon">${mod.icon}</span><span class="th-modname">${mod.name}</span></div>`;
+    document.body.appendChild(hud);
   },
 };
