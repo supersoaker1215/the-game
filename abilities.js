@@ -2591,10 +2591,15 @@ const CARD_ABILITIES = {
             G.promptLaneChoice(self.owner, lanes, `Anti-Venom — Move ${target.name}`,
               `Choose a new lane for ${target.name}`, (to) => settle(target, to),
               target.owner, null, 0,
-              { declineLabel: 'LEAVE THEM', onDecline: () => G.log(`${target.name} holds position.`) });
+              { declineLabel: 'LEAVE THEM', onDecline: () => G.log(`${target.name} holds position.`), seat: self._2v2PlayedBy || null });
           },
           aiPickCard,
-          { declineLabel: 'MOVE NO ONE', onDecline: () => G.log('Anti-Venom moves no one.') });
+          // NAME THE SEAT (2v2). self.owner is the team SIDE, and isHuman(side) is
+          // true for any team holding a human — so a bot's Anti-Venom took this
+          // prompt path but, unstamped, the bot couldn't answer and it wasn't
+          // routed for auto-pick → "Cortex played Anti-Venom and the game stalled".
+          // Same cure as Symbiote / Human Torch: the card knows who played it.
+          { declineLabel: 'MOVE NO ONE', onDecline: () => G.log('Anti-Venom moves no one.'), seat: self._2v2PlayedBy || null });
       } else {
         const target = aiPickCard(pool);
         const to = target ? aiLaneFor(target) : -1;
