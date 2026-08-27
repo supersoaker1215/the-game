@@ -576,6 +576,32 @@ const Tutorial = {
       this._positionCenter();
       this._hideArrow();
     }
+    // ALWAYS keep the whole callout — and its Next button — on screen. A tall
+    // box positioned near a low target used to run off the bottom, leaving Next
+    // unclickable until you minimized it (which recentres it). Measured after
+    // layout, on the next frame.
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => this._clampOnScreen());
+    else this._clampOnScreen();
+  },
+
+  // Nudge the callout so it sits fully inside the viewport (max-height + scroll
+  // in CSS handles anything still taller than the screen).
+  _clampOnScreen() {
+    const c = this._callout;
+    if (!c || this._minimized) return;
+    // Skip when centred via transform (already on-screen by construction).
+    if (c.style.transform && c.style.transform.indexOf('translate') >= 0) return;
+    const GAP = 12;
+    const r = c.getBoundingClientRect();
+    const vw = window.innerWidth, vh = window.innerHeight;
+    let left = r.left, top = r.top;
+    if (r.right > vw - GAP) left = Math.max(GAP, vw - r.width - GAP);
+    if (left < GAP) left = GAP;
+    if (r.bottom > vh - GAP) top = Math.max(GAP, vh - r.height - GAP);
+    if (top < GAP) top = GAP;
+    c.style.left = left + 'px';
+    c.style.top = top + 'px';
+    c.style.bottom = 'auto';
   },
 
   // Play a named trick from the tutorial callout button — the reliable path when

@@ -150,22 +150,54 @@ const Tournament = {
   pickLength(len) {
     this.T.length = len;
     this.T.threshold = Math.ceil((len + 1) / 2);
+    this._renderModeSelect();
+  },
+
+  // ── 1b) OPPONENT / MODE ──────────────────────────────────────────────────
+  _isLocal() { return this.T.mode === '1v1'; },
+  _rivalName() { return this._isLocal() ? 'Player 2' : 'Rival'; },
+  _renderModeSelect() {
+    this.T.phase = 'mode';
+    const opt = (id, title, sub, enabled) => `
+      <button class="tourney-bigbtn ${enabled ? '' : 'tourney-soon'}" ${enabled ? `onclick="Tournament.pickMode('${id}')"` : 'disabled'}>
+        <span class="tb-title">${title}</span>
+        <span class="tb-sub">${sub}</span>
+      </button>`;
+    this._set(`
+      <div class="tourney-card">
+        ${this._scoreHTML()}
+        <div class="tourney-kicker">Tournament · Best of ${this.T.length}</div>
+        <h1 class="tourney-h1">Choose Your Opponent</h1>
+        <p class="tourney-lead">Who are you facing across the series?</p>
+        <div class="tourney-choices">
+          ${opt('solo', 'Solo vs AI', 'Play the whole series against the computer', true)}
+          ${opt('1v1',  '1v1 Local', 'Two players, pass one device', true)}
+          ${opt('2v2',  '2v2 Local', 'Four players — coming soon', false)}
+        </div>
+        <button class="tourney-textbtn" onclick="Tournament._renderSetup()">← Series length</button>
+      </div>`);
+  },
+  pickMode(m) {
+    this.T.mode = m;
     this._renderNumberGame();
   },
 
   // ── 2) NUMBER GAME ───────────────────────────────────────────────────────
+  _numGridHTML(handler) {
+    return Array.from({ length: 20 }, (_, i) => i + 1)
+      .map(n => `<button class="tourney-num" onclick="Tournament.${handler}(${n})">${n}</button>`).join('');
+  },
   _renderNumberGame() {
     this.T.phase = 'number';
-    this.T.playerNum = null;
-    const nums = Array.from({ length: 20 }, (_, i) => i + 1)
-      .map(n => `<button class="tourney-num" id="tnum-${n}" onclick="Tournament.pickNumber(${n})">${n}</button>`).join('');
+    this.T.playerNum = null; this.T.aiNum = null;
+    const who = this._isLocal() ? 'Player 1' : 'You';
     this._set(`
       <div class="tourney-card">
         ${this._scoreHTML()}
         <div class="tourney-kicker">Round 0 · The Draw</div>
         <h1 class="tourney-h1">Number Game</h1>
-        <p class="tourney-lead">Secretly pick a number from <b>1–20</b>. A number is rolled — whoever is closest wins <b>first pick</b> of the series. Ties reroll.</p>
-        <div class="tourney-numgrid">${nums}</div>
+        <p class="tourney-lead"><b>${who}</b>, secretly pick a number from <b>1–20</b>. Closest to the roll wins <b>first pick</b> of the series. Ties reroll.</p>
+        <div class="tourney-numgrid">${this._numGridHTML('pickNumber')}</div>
         <div id="tourney-numresult" class="tourney-numresult"></div>
       </div>`);
   },
@@ -173,11 +205,29 @@ const Tournament = {
     const t = this.T;
     if (t.playerNum != null) return;
     t.playerNum = n;
-    const btn = document.getElementById('tnum-' + n);
-    if (btn) btn.classList.add('picked');
+    if (this._isLocal()) { this._renderP2Number(); return; }
+    // Solo: AI picks secretly.
     document.querySelectorAll('.tourney-num').forEach(b => { b.disabled = true; });
-    // AI picks secretly.
     t.aiNum = 1 + Math.floor(Math.random() * 20);
+    this._rollNumber();
+  },
+  // 1v1 Local — pass the device, Player 2 picks their own number.
+  _renderP2Number() {
+    this._set(`
+      <div class="tourney-card">
+        ${this._scoreHTML()}
+        <div class="tourney-kicker">Round 0 · The Draw</div>
+        <h1 class="tourney-h1">Pass to Player 2</h1>
+        <p class="tourney-lead"><b>Player 2</b>, pick your number from <b>1–20</b>. (Player 1's pick is hidden.)</p>
+        <div class="tourney-numgrid">${this._numGridHTML('pickNumberP2')}</div>
+        <div id="tourney-numresult" class="tourney-numresult"></div>
+      </div>`);
+  },
+  pickNumberP2(n) {
+    const t = this.T;
+    if (t.aiNum != null) return;
+    t.aiNum = n;
+    document.querySelectorAll('.tourney-num').forEach(b => { b.disabled = true; });
     this._rollNumber();
   },
   _rollNumber() {
@@ -186,16 +236,19 @@ const Tournament = {
     const dp = Math.abs(t.playerNum - t.roll);
     const da = Math.abs(t.aiNum - t.roll);
     const res = document.getElementById('tourney-numresult');
+    const nameW = this._isLocal() ? 'Player 1' : 'You';
+    const nameL = this._isLocal() ? 'Player 2' : 'Rival';
     if (dp === da) {
-      if (res) res.innerHTML = `<div class="tn-roll">Rolled <b>${t.roll}</b> — you ${t.playerNum}, rival ${t.aiNum}. <span class="tn-tie">Tie! Rerolling…</span></div>`;
+      if (res) res.innerHTML = `<div class="tn-roll">Rolled <b>${t.roll}</b> — ${nameW} ${t.playerNum}, ${nameL} ${t.aiNum}. <span class="tn-tie">Tie! Rerolling…</span></div>`;
       setTimeout(() => this._rollNumber(), 1100);
       return;
     }
     t.numberWinner = (dp < da) ? 'player' : 'ai';
+    const winnerName = t.numberWinner === 'player' ? nameW : nameL;
     const won = t.numberWinner === 'player';
     if (res) res.innerHTML = `
-      <div class="tn-roll">Rolled <b>${t.roll}</b> &nbsp;·&nbsp; You picked <b>${t.playerNum}</b> &nbsp;·&nbsp; Rival picked <b>${t.aiNum}</b></div>
-      <div class="tn-winner ${won ? 'win' : 'lose'}">${won ? 'You win the draw — you get first pick!' : 'Rival wins the draw — they pick first.'}</div>
+      <div class="tn-roll">Rolled <b>${t.roll}</b> &nbsp;·&nbsp; ${nameW}: <b>${t.playerNum}</b> &nbsp;·&nbsp; ${nameL}: <b>${t.aiNum}</b></div>
+      <div class="tn-winner ${won ? 'win' : 'lose'}">${winnerName} win${winnerName === 'You' ? '' : 's'} the draw — first pick!</div>
       <button class="tourney-bigbtn tourney-continue" onclick="Tournament.startDraft()">Continue to Draft →</button>`;
   },
 
@@ -204,7 +257,8 @@ const Tournament = {
     this.T.phase = 'draft';
     this._hideOverlay();
     // Run the real classic draft. Our patched finishTrickDraft captures it.
-    Game.startMatch({ players: '1v1', deck: 'classic' });
+    // 1v1 Local drafts pass-and-play so each player picks their own deck.
+    Game.startMatch({ players: '1v1', deck: 'classic', hotseat: this._isLocal() });
   },
   _captureDraft() {
     const d = Game.state.draft;
@@ -224,10 +278,15 @@ const Tournament = {
     this.T.phase = 'modifier';
     const t = this.T;
     this._showOverlay();
-    const youChoose = t.chooser === 'player';
+    // The chooser is a human unless it's the AI in Solo mode. In 1v1 Local the
+    // "rival" is Player 2 (human), so they pick their own modifier + order.
+    const humanChoose = (t.chooser === 'player') || this._isLocal();
+    const chooserName = t.chooser === 'player'
+      ? (this._isLocal() ? 'Player 1' : 'You')
+      : (this._isLocal() ? 'Player 2' : 'Rival');
     const avail = this.MODIFIERS.filter(m => t.usedMods.indexOf(m.id) < 0);
-    if (!youChoose) {
-      // AI chooses — auto-pick, show what it chose, then continue.
+    if (!humanChoose) {
+      // Solo AI chooses — auto-pick, show what it chose, then continue.
       const mod = avail[Math.floor(Math.random() * avail.length)];
       // AI tends to take first, but sometimes second for variety.
       const first = Math.random() < 0.75 ? 'ai' : 'player';
@@ -257,12 +316,15 @@ const Tournament = {
       const m = this.MODIFIERS.find(x => x.id === id);
       return `<span class="tourney-usedchip" title="${m.desc}">${m.icon} ${m.name}</span>`;
     }).join('');
+    const reason = t.gameNumber === 1
+      ? `${chooserName} won the draw.`
+      : `${chooserName} lost the last match, so ${chooserName === 'You' ? 'you' : 'they'} choose.`;
     this._set(`
       <div class="tourney-card tourney-modpick">
         ${this._scoreHTML()}
-        <div class="tourney-kicker">Game ${t.gameNumber} · Your pick</div>
+        <div class="tourney-kicker">Game ${t.gameNumber} · ${chooserName === 'You' ? 'Your' : chooserName + '’s'} pick</div>
         <h1 class="tourney-h1">Choose a Modifier</h1>
-        <p class="tourney-lead">${t.gameNumber === 1 ? 'You won the draw.' : 'You lost the last match, so you choose.'} Pick a modifier and whether to go first. No modifier repeats in a series.</p>
+        <p class="tourney-lead">${reason} Pick a modifier and whether to go first. No modifier repeats in a series.</p>
         ${usedTiles ? `<div class="tourney-used">Already played: ${usedTiles}</div>` : ''}
         <div class="tourney-modgrid">${tiles}</div>
         <div id="tourney-order" class="tourney-order" style="display:none"></div>
@@ -276,12 +338,16 @@ const Tournament = {
     const mod = this.MODIFIERS.find(m => m.id === id);
     const order = document.getElementById('tourney-order');
     if (order) {
+      // First/second is from the CHOOSER's seat: "Go First" means the chooser
+      // takes the first turn (chooser === 'ai' when the loser / Player 2 picks).
+      const me = this.T.chooser;
+      const them = me === 'player' ? 'ai' : 'player';
       order.style.display = '';
       order.innerHTML = `
         <div class="tourney-order-q">Selected <b>${mod.icon} ${mod.name}</b> — go first or second?</div>
         <div class="tourney-order-btns">
-          <button class="tourney-bigbtn" onclick="Tournament.confirmModifier('${id}','player')">Go First</button>
-          <button class="tourney-bigbtn" onclick="Tournament.confirmModifier('${id}','ai')">Go Second</button>
+          <button class="tourney-bigbtn" onclick="Tournament.confirmModifier('${id}','${me}')">Go First</button>
+          <button class="tourney-bigbtn" onclick="Tournament.confirmModifier('${id}','${them}')">Go Second</button>
         </div>`;
       order.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
@@ -300,6 +366,7 @@ const Tournament = {
   _startMatch(bonusHands) {
     const t = this.T;
     t.phase = 'playing';
+    this._matchResolved = false;   // arm this match's single result
     this._hideOverlay();
     const decks = t.decks;
     // Fresh instances each match; add any auction-won bonus cards to hand.
@@ -311,6 +378,7 @@ const Tournament = {
     Game.startMatch({
       players: '1v1', deck: 'classic',
       _presetHands: preset, _mods: mods, _firstPlayer: t.firstPlayer, _tournament: true,
+      hotseat: this._isLocal(),   // 1v1 Local runs its matches pass-and-play
     });
     this._showHud();
     if (t.currentMod === 'speed') this._armSpeedTimer();
@@ -318,6 +386,12 @@ const Tournament = {
 
   _onMatchEnd(winner) {
     const t = this.T;
+    // ONE RESULT PER MATCH. showGameOverScreen fires more than once per game
+    // over (damagePlayer's immediate hook + the next render both call it), so
+    // without this guard a single win counted twice and a Bo3 ended 2–0 after
+    // one game.
+    if (this._matchResolved) return;
+    this._matchResolved = true;
     this._clearSpeedTimer();
     this._removeHud();
     if (winner === 'player') t.playerWins++; else t.aiWins++;
@@ -364,14 +438,26 @@ const Tournament = {
     this._removeHud();
     const t = this.T;
     const mod = this.MODIFIERS.find(m => m.id === t.currentMod);
+    // Win pips so the series score reads at a glance.
+    const pip = (filled, cls) => `<span class="th-pip ${filled ? cls : ''}"></span>`;
+    const pips = (n, cls) => Array.from({ length: t.threshold }, (_, i) => pip(i < n, cls)).join('');
     const hud = document.createElement('div');
     hud.id = 'tourney-hud';
     hud.className = 'tourney-hud';
     hud.innerHTML = `
-      <span class="th-series">SERIES <b>${t.playerWins}</b>–<b>${t.aiWins}</b> · Bo${t.length}</span>
-      <span class="th-game">Game ${t.gameNumber}</span>
-      <span class="th-mod">${mod.icon} ${mod.name}</span>
-      <span id="th-timer" class="th-timer" style="display:none"></span>`;
+      <div class="th-head">🏆 TOURNAMENT</div>
+      <div class="th-row"><span class="th-label">Series</span><span class="th-sub">Best of ${t.length}</span></div>
+      <div class="th-scoreline">
+        <span class="th-name th-you">YOU</span>
+        <span class="th-pips">${pips(t.playerWins, 'you')}</span>
+        <span class="th-vs">${t.playerWins}–${t.aiWins}</span>
+        <span class="th-pips th-pips-r">${pips(t.aiWins, 'ai')}</span>
+        <span class="th-name th-ai">RIVAL</span>
+      </div>
+      <div class="th-divider"></div>
+      <div class="th-row"><span class="th-label">Game ${t.gameNumber}</span><span id="th-timer" class="th-timer" style="display:none"></span></div>
+      <div class="th-modrow"><span class="th-modicon">${mod.icon}</span><span class="th-modname">${mod.name}</span></div>
+      <div class="th-moddesc">${mod.desc}</div>`;
     document.body.appendChild(hud);
   },
   _removeHud() { const h = document.getElementById('tourney-hud'); if (h) h.remove(); },

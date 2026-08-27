@@ -33567,10 +33567,20 @@ body.round-tick .board::after {
   z-index: 1;
   min-width: 260px;
   max-width: 340px;
+  /* Never let a callout run past the screen — the Next button must always be
+     reachable. Tall content scrolls inside the box. */
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
   font-size: 0.9rem;
   line-height: 1.55;
   color: #e6eef6;
 }
+/* While the player is dragging a card or trick, the callout must not eat the
+   drop — the game stamps these classes on <body> for the duration of a drag,
+   so the box goes click-through and the drop lands on the lane underneath.
+   (Its buttons don't matter mid-drag.) */
+body.dragging-card .tut-callout,
+body.dragging-trick .tut-callout { pointer-events: none; }
 .tut-callout-body { color: #e6eef6; }
 .tut-callout-body strong { color: #ffffff; }
 .tut-callout-body em { color: var(--theme-accent-bright, #4fc3f7); font-style: normal; font-weight: 600; }
@@ -45802,6 +45812,8 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
 }
 .tourney-bigbtn:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(79,195,247,0.3); background: linear-gradient(180deg, rgba(79,195,247,0.28), rgba(79,195,247,0.1)); }
+.tourney-bigbtn.tourney-soon { opacity: 0.42; cursor: not-allowed; border-style: dashed; }
+.tourney-bigbtn.tourney-soon:hover { transform: none; box-shadow: none; background: linear-gradient(180deg, rgba(79,195,247,0.16), rgba(79,195,247,0.06)); }
 .tourney-bigbtn .tb-title { font-size: 1.15rem; }
 .tourney-bigbtn .tb-sub { font-size: 0.78rem; color: #9fb2c4; font-weight: 600; }
 .tourney-continue { margin-top: 18px; }
@@ -45866,26 +45878,48 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 /* Final */
 .tourney-final .tourney-trophy { font-size: 4rem; margin: 6px 0; }
 
-/* In-match HUD (persistent series scoreboard) */
+/* In-match HUD — a panel in the empty space at top-right, out of the way of
+   the ROUND indicator and the board (mirrors the 1v1/2v2 turn-order panel). */
 .tourney-hud {
-  position: fixed; top: 8px; left: 50%; transform: translateX(-50%); z-index: 8500;
-  display: flex; align-items: center; gap: 14px;
-  padding: 6px 16px; border-radius: 22px;
-  background: rgba(6,12,20,0.92); border: 1px solid rgba(79,195,247,0.35);
-  box-shadow: 0 4px 20px rgba(0,0,0,0.6);
-  font-family: 'Chakra Petch','Rajdhani',sans-serif; font-size: 0.82rem; letter-spacing: 0.05em;
-  color: #cfe0ee; white-space: nowrap; pointer-events: none;
+  position: fixed; top: 340px; right: 14px; z-index: 8500;
+  width: 208px; padding: 12px 14px; border-radius: 12px;
+  background: rgba(6,12,20,0.94);
+  border: 1px solid rgba(79,195,247,0.35);
+  box-shadow: 0 6px 26px rgba(0,0,0,0.65), inset 0 0 30px rgba(79,195,247,0.04);
+  font-family: 'Chakra Petch','Rajdhani',sans-serif; letter-spacing: 0.04em;
+  color: #cfe0ee; pointer-events: none;
 }
-.tourney-hud .th-series b { color: #48e08a; }
-.tourney-hud .th-series b + b { color: #ff6b6b; }
-.tourney-hud .th-game { color: #7f93a6; }
-.tourney-hud .th-mod { color: var(--theme-accent-bright,#4fc3f7); font-weight: 700; }
-.tourney-hud .th-timer { color: #ffcf5c; font-weight: 700; }
+.tourney-hud .th-head {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.18em;
+  color: var(--theme-accent-bright,#4fc3f7); margin-bottom: 8px; text-align: center;
+}
+.tourney-hud .th-row { display: flex; align-items: center; justify-content: space-between; margin: 2px 0; }
+.tourney-hud .th-label { font-weight: 700; color: #e6eef6; font-size: 0.86rem; }
+.tourney-hud .th-sub { font-size: 0.7rem; color: #7f93a6; text-transform: uppercase; letter-spacing: 0.1em; }
+.tourney-hud .th-scoreline { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 6px 0 2px; }
+.tourney-hud .th-name { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em; }
+.tourney-hud .th-you { color: #48e08a; } .tourney-hud .th-ai { color: #ff6b6b; }
+.tourney-hud .th-vs { font-size: 1.05rem; font-weight: 700; color: #f0f6fb; }
+.tourney-hud .th-pips { display: inline-flex; gap: 3px; }
+.tourney-hud .th-pip { width: 8px; height: 8px; border-radius: 50%; border: 1px solid rgba(127,147,166,0.5); }
+.tourney-hud .th-pip.you { background: #48e08a; border-color: #48e08a; box-shadow: 0 0 6px rgba(72,224,138,0.6); }
+.tourney-hud .th-pip.ai  { background: #ff6b6b; border-color: #ff6b6b; box-shadow: 0 0 6px rgba(255,107,107,0.6); }
+.tourney-hud .th-divider { height: 1px; background: rgba(79,195,247,0.18); margin: 8px 0; }
+.tourney-hud .th-modrow { display: flex; align-items: center; gap: 8px; }
+.tourney-hud .th-modicon { font-size: 1.15rem; }
+.tourney-hud .th-modname { font-weight: 700; color: var(--theme-accent-bright,#4fc3f7); font-size: 0.95rem; }
+.tourney-hud .th-moddesc { font-size: 0.72rem; color: #9fb2c4; line-height: 1.35; margin-top: 4px; }
+.tourney-hud .th-timer { color: #ffcf5c; font-weight: 700; font-size: 0.9rem; }
 .tourney-hud .th-timer.th-urgent { color: #ff6b6b; animation: th-pulse 0.6s ease-in-out infinite; }
-@keyframes th-pulse { 0%,100%{opacity:1;} 50%{opacity:0.5;} }
+@keyframes th-pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
 
+@media (max-width: 900px) {
+  /* On narrow screens the board fills the width — dock the HUD compactly at
+     the very top-right instead of over the board. */
+  .tourney-hud { top: 6px; right: 6px; width: 170px; padding: 8px 10px; }
+  .tourney-hud .th-moddesc { display: none; }
+}
 @media (max-width: 560px) {
   .tourney-numgrid { grid-template-columns: repeat(5, 1fr); }
   .tourney-h1 { font-size: 1.5rem; }
-  .tourney-hud { font-size: 0.72rem; gap: 8px; padding: 5px 10px; }
 }

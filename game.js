@@ -3351,12 +3351,21 @@ const Game = {
     if (mode._presetHands) {
       this.state.phase = 'tournament-start';
       this.state.draft = null;
+      // 1v1 Local tournament runs its matches hotseat (both seats human).
+      if (mode.hotseat) { this.state.hotseat = true; this.state.ai.isHuman = true; }
       this.buildDecks();   // classic branch fills the shared draw/trick pools
       const ph = mode._presetHands;
       this.state.player.hand = (ph.player.cards || []).map(def => this.createCardInstance(def, 'player'));
       this.state.ai.hand     = (ph.ai.cards     || []).map(def => this.createCardInstance(def, 'ai'));
       this.state.player.trickHand = (ph.player.tricks || []).map(t => ({ ...t, id: nextCardId++ }));
       this.state.ai.trickHand     = (ph.ai.tricks     || []).map(t => ({ ...t, id: nextCardId++ }));
+      // NO DUPLICATES. The shared pool holds one of every card; the drafted
+      // cards are now in hand, so they must LEAVE the pool — exactly as a normal
+      // classic draft removes them. Without this, a drafted Dr. Doom sits in
+      // hand AND in the draw pile, so the player could draw a second one.
+      const _removeOne = (pile, name) => { const i = (pile || []).findIndex(c => c && c.name === name); if (i >= 0) pile.splice(i, 1); };
+      [].concat(this.state.player.hand, this.state.ai.hand).forEach(c => _removeOne(this.state.drawPile, c.name));
+      [].concat(this.state.player.trickHand, this.state.ai.trickHand).forEach(t => _removeOne(this.state.trickDrawPile, t.name));
       // Glass Cannon — both sides open at half HP.
       if (this.mod('glassCannon')) {
         this.state.player.health = this.state.player.maxHealth = 15;
@@ -7656,7 +7665,8 @@ const Game = {
     let target = this.getAttackTarget(card.owner, laneIdx);
     if (!target || target.currentHealth <= 0) target = this.state.lanes[laneIdx][defOwner];
     if (!target || target.currentHealth <= 0) {
-      const overdriveDmg = this._cardEffectiveAtk(card);
+      let overdriveDmg = this._cardEffectiveAtk(card);
+      if (this.mod('bloodBath')) overdriveDmg *= 2;   // cards deal double damage
       this.log(`  [OVERDRIVE] ${card.name} hits health bar for ${overdriveDmg}!`);
       this.damagePlayer(defOwner, overdriveDmg, card.isBullseye, card);
       return;
@@ -9062,7 +9072,8 @@ const Game = {
         // normal attacks correctly omit it. Now bonus attacks deal
         // pure ATK to the HP bar, and splash fires separately to
         // adjacent lanes via applySplash.
-        const dmg = c.attack;
+        let dmg = c.attack;
+        if (this.mod('bloodBath')) dmg *= 2;   // cards deal double damage
         // Log BEFORE the damagePlayer call so that if Mr Freeze negates the
         // hit (damagePlayer logs [FROZEN HP] and returns early), the
         // transcript reads "attempt then outcome" instead of showing a
