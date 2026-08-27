@@ -7492,7 +7492,6 @@ const UI = {
     this._safe('voice',                   () => { if (typeof Voice !== 'undefined') Voice.mount(); });
     this._safe('renderLog',               () => this.renderLog(s));
     this._safe('renderBoardAside',        () => this.renderBoardAside(s));
-    this._safe('applySeatChips',          () => this._applySeatChips(s));
     this._safe('showDamageFloats',        () => this.showDamageFloats());
     // RETRY the two that decide whether the player can still ACT. If one of
     // them was the thing that threw, the player is staring at a board with no
@@ -26874,36 +26873,6 @@ const UI = {
     return [s.phase, lanes, s.player && s.player.health, s.ai && s.ai.health,
             (s.log || []).length].join('~');
   },
-  // SEAT CHIPS AND NAMES, from the board reference. The strip identified each
-  // side by an avatar glyph and nothing else; in multiplayer the one thing you
-  // want spelled out is who you are looking at. Reads the same name sources the
-  // rest of the UI does (seatLabel / _mpNames), so it cannot disagree with the
-  // log or the turn tracker.
-  //
-  // The two-letter chip is derived from the NAME, not stored — a name and its
-  // badge that can drift apart is two things to keep in step.
-  _seatInitials(name) {
-    const parts = String(name || '').trim().split(/[\s_-]+/).filter(Boolean);
-    if (!parts.length) return '??';
-    // A single short word keeps its letters — "You" reading as "YO" and "AI" as
-    // "AI" is the badge looking broken on the two most common names there are.
-    if (parts.length === 1) return parts[0].slice(0, parts[0].length <= 3 ? 3 : 2).toUpperCase();
-    return (parts[0][0] + parts[1][0]).toUpperCase();
-  },
-  _applySeatChips(s) {
-    const set = (id, txt) => { const e = document.getElementById(id); if (e && e.textContent !== txt) e.textContent = txt; };
-    const mine = (s._mpNames && s._mpNames.player) || (Game.seatLabel ? Game.seatLabel('player') : 'You');
-    const theirs = (s._mpNames && s._mpNames.ai) || (Game.seatLabel ? Game.seatLabel('ai') : 'AI');
-    set('player-seat-name', mine);
-    set('ai-seat-name', theirs);
-    set('player-seat-chip', this._seatInitials(mine));
-    set('ai-seat-chip', this._seatInitials(theirs));
-    // The opponent's hand SIZE is public information — the card backs were
-    // already on screen, they just did not say how many.
-    const n = document.getElementById('ai-hand-count');
-    if (n) { const c = String((s.ai && s.ai.hand ? s.ai.hand.length : 0)); if (n.textContent !== c) n.textContent = c; }
-  },
-
   renderBoardAside(s) {
     const el = document.getElementById('board-aside');
     if (!el) return;
