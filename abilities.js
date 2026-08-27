@@ -2324,7 +2324,31 @@ const CARD_ABILITIES = {
             onDone && onDone();
           };
           const lowest = (cards) => cards.slice().sort((a, b) => (a.cost || 0) - (b.cost || 0))[0];
-          if (sp.isAI || hand.length <= 2) {
+          // A BOT'S TURN DOES NOT GET TO STOP FOUR PEOPLE TO ASK A QUESTION.
+          //
+          // Owner: "SSM its been a huge issue with the AI ... they should redraw
+          // the 2 lowest cost cards easy thats all they do ... if they are coded
+          // to always redraw the 2 lowest cards then it would be smooth."
+          //
+          // The AI seats always did take their two lowest — traced:
+          //   [SSM] → p2 (Vega, AI) shuffles → "Vega shuffles 2 cards back"
+          //   [SSM] → p1 (I luv Sy, human) shuffles → [PROMPT] … and it stops.
+          // The card asks all four hands in turn, so a BOT casting it parked the
+          // entire table on a human's pick — mid-bot-turn, with that seat's own
+          // AI drive still on the clock. Every recovery in the engine then piles
+          // in on top of it: the 3s stall watchdog, the 12s drive watchdog, and
+          // this card's own 8s nudge / 20s force-complete, all racing one prompt.
+          // If the prompt failed to reach that client for any reason, the table
+          // simply stopped — which is what the owner keeps seeing.
+          //
+          // A bot's cast now resolves entirely on its own: every seat takes its
+          // two lowest and play continues. Cast by a HUMAN it is unchanged —
+          // every human still picks their own two, which is the version the
+          // owner asked for earlier and which is not the one that stalls,
+          // because a human casting it is already the seat everyone is waiting on.
+          const castByBot = !!(self._2v2PlayedBy && tt.players[self._2v2PlayedBy]
+                               && tt.players[self._2v2PlayedBy].isAI);
+          if (sp.isAI || hand.length <= 2 || castByBot) {
             // AI seat, or a hand small enough that the pick is forced: auto-cycle
             // its 2 lowest. Every HUMAN seat — including when a bot cast the card —
             // falls through to the pick prompt below and chooses for themselves.

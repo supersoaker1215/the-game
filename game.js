@@ -16978,6 +16978,26 @@ const Game = {
     // active one after the timeout.
     this._schedule(() => {
       if (!finished && this._2v2AIDriving === activeKey && this._2v2AIWatchGen === watchGen) {
+        // NOT WHILE A PERSON IS BEING ASKED SOMETHING. A bot's card can put a
+        // prompt on a HUMAN — Symbiote Spider-Man asks every seat to cycle two
+        // cards, The Grinch asks the victim which trick to give up — and that
+        // person is entitled to think for longer than twelve seconds. Ending the
+        // phase underneath them abandons the ability chain half-resolved, which
+        // is a worse outcome than waiting. The prompt has its own 30s clock and
+        // the stall watchdog covers the rest, so this can afford to stand down
+        // and re-arm rather than fire blind.
+        if (this._2v2PromptOnLiveHuman
+            && (this._2v2PromptOnLiveHuman(this.state.pendingCardChoice)
+             || this._2v2PromptOnLiveHuman(this.state.pendingLaneChoice))) {
+          console.warn('[2v2 AI] drive watchdog held — a human still owes an answer to', activeKey + "'s card");
+          this._schedule(() => {
+            if (!finished && this._2v2AIDriving === activeKey && this._2v2AIWatchGen === watchGen) {
+              console.warn('[2v2 AI] watchdog forced phase end for', activeKey);
+              finish();
+            }
+          }, 12000);
+          return;
+        }
         console.warn('[2v2 AI] watchdog forced phase end for', activeKey);
         finish();
       }
