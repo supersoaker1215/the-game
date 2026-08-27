@@ -661,128 +661,6 @@ const UI = {
   // the on-board rarity pips (1 pip = cost ≤3, 2 = ≤6, 3 = ≤8, 4 = 9+).
   // Same tier number → same ribbon color, so a 9-cost classic card
   // and a roguelite legendary read identically.
-  // ===================== DRAFT RAILS (2026-08-27) =====================
-  // Owner: "also this design for the draft in 1v1 and 2v2."
-  //
-  // ONE implementation, called by BOTH draft renderers. The two screens have
-  // drifted apart before (the 2v2 one is a separate function that reuses only
-  // the card face), and a rail built twice is a rail that disagrees with itself
-  // by the second change. Everything here reads from the picks array it is
-  // handed, so neither renderer has to know how the other stores them.
-  //
-  // Every number is DERIVED from the real picks — there is nothing here a
-  // player could read and be misled by.
-
-  // The left rail: one slot per pick, filled ones showing the card, the current
-  // one marked, the rest waiting. It answers "what have I built so far" without
-  // making you remember it.
-  _draftPicksRailHTML(picks, total, opts) {
-    const o = opts || {};
-    const esc = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
-    const rows = [];
-    for (let i = 0; i < total; i++) {
-      const c = picks[i];
-      const state = c ? 'is-filled' : (i === picks.length ? 'is-current' : 'is-empty');
-      let face;
-      if (c) {
-        const art = this.getCardArtPath ? this.getCardArtPath(c.name) : '';
-        const bg = art ? `--portrait-bg:url('${art.replace(/'/g, '%27')}')${this._artFocalCard ? this._artFocalCard(c.name) : ''}` : '';
-        face = `<span class="dpr-cost">${c.baseCost != null ? c.baseCost : (c.cost || 0)}</span>
-                <span class="dpr-art" style="${bg}"></span>
-                <span class="dpr-name">${esc(c.name)}</span>`;
-      } else if (state === 'is-current') {
-        face = `<span class="dpr-q">?</span>`;
-      } else {
-        face = '';
-      }
-      const stats = c && c.attack != null && c.health != null
-        ? `<span class="dpr-stats"><b>${c.attack}</b> / <i>${c.health}</i></span>` : '';
-      rows.push(`<div class="dpr-slot ${state}">
-        <div class="dpr-tile">${face}</div>
-        <div class="dpr-meta">
-          <span class="dpr-label">Pick ${i + 1}</span>
-          ${c ? stats : (state === 'is-current' ? '<span class="dpr-choosing">Choosing</span>' : '')}
-        </div>
-      </div>`);
-    }
-    return `<aside class="draft-rail draft-rail-left">
-      <div class="mp-rule"><span class="mp-rule-label">${esc(o.title || 'Your picks')}</span><span class="mp-rule-line"></span></div>
-      <div class="dpr-list">${rows.join('')}</div>
-    </aside>`;
-  },
-
-  // The right rail: what the picks ADD UP TO. Card count, average cost and
-  // total attack, the cost curve as a shape rather than a list, the keywords
-  // you are holding, and what the opponent has done. All computed here.
-  _draftDeckRailHTML(picks, opts) {
-    const o = opts || {};
-    const esc = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
-    const n = picks.length;
-    const costOf = (c) => (c.baseCost != null ? c.baseCost : (c.cost || 0));
-    const totalCost = picks.reduce((a, c) => a + costOf(c), 0);
-    const totalAtk  = picks.reduce((a, c) => a + (c.attack || 0), 0);
-    const avg = n ? (totalCost / n) : 0;
-    // Buckets 1..5 then 6+, which is where this game's curve actually lives.
-    const buckets = [0, 0, 0, 0, 0, 0];
-    picks.forEach(c => { const k = Math.min(6, Math.max(1, costOf(c))); buckets[k - 1]++; });
-    const peak = Math.max(1, ...buckets);
-    const bars = buckets.map((v, i) => {
-      const h = Math.round((v / peak) * 100);
-      return `<div class="dcr-bar${v ? '' : ' is-zero'}" style="--h:${h}%" title="${v} card${v === 1 ? '' : 's'} at cost ${i === 5 ? '6+' : i + 1}">
-        <span class="dcr-bar-fill"></span><span class="dcr-bar-tick">${i === 5 ? '6+' : i + 1}</span></div>`;
-    }).join('');
-    // Keywords actually held, de-duplicated, in pick order.
-    const kw = [];
-    picks.forEach(c => (c.abilities || []).forEach(a => { if (a && kw.indexOf(a) < 0) kw.push(a); }));
-    const kwHtml = kw.length
-      ? kw.map(k => `<span class="dcr-kw">${esc(k)}</span>`).join('')
-      : `<span class="dcr-kw dcr-kw-none">None yet</span>`;
-    const oppHtml = o.oppName ? `
-      <div class="mp-rule"><span class="mp-rule-label">Opponent</span><span class="mp-rule-line"></span></div>
-      <div class="dcr-opp">
-        <span class="dcr-opp-name">${esc(o.oppName)}</span>
-        <span class="dcr-opp-count">${o.oppPicked != null ? `${o.oppPicked} picked` : ''}</span>
-      </div>` : '';
-    return `<aside class="draft-rail draft-rail-right">
-      <div class="mp-rule"><span class="mp-rule-label">${esc(o.title || 'Deck so far')}</span><span class="mp-rule-line"></span></div>
-      <div class="dcr-stats">
-        <div class="dcr-stat"><b class="dcr-num">${n}</b><span class="dcr-cap">Cards</span></div>
-        <div class="dcr-stat"><b class="dcr-num">${n ? avg.toFixed(1) : '—'}</b><span class="dcr-cap">Avg cost</span></div>
-        <div class="dcr-stat"><b class="dcr-num dcr-atk">${totalAtk}</b><span class="dcr-cap">Total ATK</span></div>
-      </div>
-      <div class="dcr-sub">Cost curve</div>
-      <div class="dcr-curve">${bars}</div>
-      <div class="dcr-sub">Keywords held</div>
-      <div class="dcr-kws">${kwHtml}</div>
-      ${oppHtml}
-    </aside>`;
-  },
-
-  // The line under each offer: what it IS on the left, and how it sits against
-  // the curve you have actually built on the right. The advice is computed from
-  // the picks, not asserted — with fewer than two picks there is no curve to
-  // speak of yet, so it says nothing rather than inventing a judgement.
-  _draftCardFootHTML(card, picks) {
-    if (!card) return '';
-    const r = this._cardRarityLabel(card);
-    const costOf = (c) => (c.baseCost != null ? c.baseCost : (c.cost || 0));
-    const cost = costOf(card);
-    let note = '';
-    if (picks && picks.length >= 2) {
-      const avg = picks.reduce((a, c) => a + costOf(c), 0) / picks.length;
-      const has = picks.some(c => costOf(c) === cost);
-      if (cost >= avg + 2)      note = 'Top of curve';
-      else if (cost <= avg - 2) note = 'Low drop';
-      else if (!has)            note = 'Fits your curve';
-      else                      note = 'Doubles up';
-    }
-    return `<div class="draft-foot">
-      <span class="draft-foot-rarity rarity-tier-${r.tier}">${r.label}</span>
-      <span class="draft-foot-line"></span>
-      ${note ? `<span class="draft-foot-note">${note}</span>` : ''}
-    </div>`;
-  },
-
   _cardRarityLabel(card) {
     if (card._runRarity) {
       const map = { common: 1, rare: 2, special: 3, legendary: 4 };
@@ -12659,16 +12537,6 @@ const UI = {
     html +=     `</button>`;
     html +=   `</div>`;
     html += `</div>`;
-    // Same two rails as the 1v1 draft — one implementation, called from both,
-    // so the screens cannot drift. In 2v2 a seat's picks ARE its hand, and the
-    // 'opponent' is the other TEAM, so the readout names both of them and how
-    // many have locked in this round rather than pretending there is one rival.
-    const _railPicks2 = ((isCards ? (ap && ap.hand) : (ap && ap.trickHand)) || []).slice();
-    const _oppSeats = ['p1','p2','p3','p4'].filter(k => tt.players[k] && ap && tt.players[k].team !== ap.team);
-    const _oppNames = _oppSeats.map(k => tt.players[k].name).join(' · ');
-    const _oppIn = _oppSeats.filter(k => d.picked && d.picked[k]).length;
-    html += `<div class="draft-stage">`;
-    html +=   this._draftPicksRailHTML(_railPicks2, total, { title: 'Your picks' });
     html += `<div class="draft-choices">`;
 
     if (!isMyPick) {
@@ -12685,12 +12553,9 @@ const UI = {
       this._draftOfferOrder(myChoices).forEach(({ c, i }) => {
         if (isCards) {
           // Same one renderer as classic draft — only the pick fn differs.
-          html += `<div class="draft-offer">` + this._draftCardHTML(c, i, 'twov2OnlineDraftPick')
-                + this._draftCardFootHTML(c, _railPicks2) + `</div>`;
+          html += this._draftCardHTML(c, i, 'twov2OnlineDraftPick');
         } else {
-          html += `<div class="draft-offer">`
-                + this.makeTrickEl(c, { extraClass: 'draft-card trick-draft', onclick: 'twov2OnlineDraftPick(' + i + ')' })
-                + this._draftCardFootHTML(c, _railPicks2) + `</div>`;
+          html += this.makeTrickEl(c, { extraClass: 'draft-card trick-draft', onclick: 'twov2OnlineDraftPick(' + i + ')' });
         }
       });
     }
@@ -12698,16 +12563,13 @@ const UI = {
     html += `</div>`; // draft-choices
 
     if (ap) {
-      // Cards live in the left rail now — see the note in renderDraft. Only the
-      // trick phase still needs the earlier card row printed.
       const renderDraftedRow = (list, isTrick) => this._draftedRowHTML(list, isTrick);
+      html += renderDraftedRow(ap.hand.map(c => ({ name: c.name, cost: c.cost })), false);
       if (!isCards) {
-        html += renderDraftedRow(ap.hand.map(c => ({ name: c.name, cost: c.cost })), false);
+        html += renderDraftedRow(ap.trickHand.map(t => ({ name: t.name, cost: t.cost })), true);
       }
     }
 
-    html +=   this._draftDeckRailHTML(_railPicks2, { title: 'Deck so far', oppName: _oppNames, oppPicked: _oppIn });
-    html += `</div>`;   // /draft-stage
     html += `</div>`; // draft-panel
     this.draftEl.innerHTML = html;
     if (this.applyTronFx) this.applyTronFx();
@@ -20084,18 +19946,6 @@ const UI = {
     // in the top-right corner is always available; the row stays lean.)
     html +=   `</div>`;
     html += `</div>`;
-    // THREE COLUMNS: what you have built, what you are choosing, what it adds
-    // up to. The picks and the totals were a list UNDER the offers, so weighing
-    // an offer against your own curve meant scrolling away from the offer. Both
-    // rails read from the picks array they are handed (_draftPicksRailHTML /
-    // _draftDeckRailHTML) and the 2v2 draft calls the same two, so the screens
-    // cannot drift apart the way they have before.
-    const _railPicks = (drafted || []).slice();
-    const _oppName = (s._mpNames && s._mpNames.ai) ? s._mpNames.ai
-                   : (Game.isMultiplayer && Game.isMultiplayer() ? 'Opponent' : (Game.seatLabel ? Game.seatLabel('ai') : 'AI'));
-    const _oppPicked = ((isCards ? d.aiDrafted : d.aiTrickDrafted) || []).length;
-    html += `<div class="draft-stage">`;
-    html +=   this._draftPicksRailHTML(_railPicks, total, { title: 'Your picks' });
     html += `<div class="draft-choices">`;
 
     // Multiplayer mid-round wait state — the local player has already
@@ -20127,31 +19977,23 @@ const UI = {
         // ONE renderer — draft face is byte-identical to hand/board via
         // makeCardEl (the '?'-hiding, rarity pips, badges, orbs all live
         // there now). Shared with the 2v2 draft (only the pick fn differs).
-        html += `<div class="draft-offer">` + this._draftCardHTML(c, i, 'draftPick')
-              + this._draftCardFootHTML(c, _railPicks) + `</div>`;
+        html += this._draftCardHTML(c, i, 'draftPick');
       } else {
         // Same one trick renderer — draft-card carries the picker footprint.
-        html += `<div class="draft-offer">`
-              + this.makeTrickEl(c, { extraClass: 'draft-card trick-draft', onclick: 'draftPick(' + i + ')' })
-              + this._draftCardFootHTML(c, _railPicks) + `</div>`;
+        html += this.makeTrickEl(c, { extraClass: 'draft-card trick-draft', onclick: 'draftPick(' + i + ')' });
       }
     });
 
     html += `</div>`;
-    html +=   this._draftDeckRailHTML(_railPicks, { title: 'Deck so far', oppName: _oppName, oppPicked: _oppPicked });
-    html += `</div>`;   // /draft-stage
     // Drafted summary — render card list whenever any cards have been drafted
     // (so during trick draft the earlier card picks are still visible), and
     // render trick list once any tricks have been drafted. Per-tag rarity tier
     // class mirrors the card rarity-pip palette (green/cyan/silver/gold for
     // cards, purple/silver/gold for tricks) so the drafted list reads the same
     // rarity signal as the in-game pip strip.
-    // The CARD list moved into the left rail (_draftPicksRailHTML), which shows
-    // the same picks with their art and stats — printing both is the same
-    // information twice on one screen. During the TRICK phase the rail is
-    // showing tricks, so the earlier card picks still get their row.
     const renderDraftedRow = (list, isTrick) => this._draftedRowHTML(list, isTrick);
-    if (!isCards) html += renderDraftedRow(d.playerDrafted, false);
+    html += renderDraftedRow(d.playerDrafted, false);
+    if (!isCards) html += renderDraftedRow(d.playerTrickDrafted, true);
     html += `</div>`;
     this.draftEl.innerHTML = html;
     // Decorate the two pick cards + the chrome buttons (MENU /
