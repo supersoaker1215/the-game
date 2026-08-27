@@ -359,6 +359,30 @@ const Game = {
     return !!card && (card.name === name || card._copiedFrom === name);
   },
 
+  // DOES THIS CARD HAVE A BODY? Five cards in the corpus are printed 0/0
+  // because they never stand in a lane: Mr. Fantastic, Jigsaw, Brainiac and
+  // Professor X fire from the discard, and Iron Giant is sacrificed straight
+  // out of hand to save an ally. For all of them a "0 / 0" readout is not
+  // information, it is noise that reads as a terrible body.
+  //
+  // The first four already suppress it, because `isDiscardEffect` is declared
+  // on their CARD_ABILITIES entry and merged onto the def. Iron Giant has no
+  // abilities entry at all — his logic lives in _ironGiantIntercept — so he
+  // was the one bodyless card in the game still printing 0/0.
+  //
+  // Keyed on _neverPlayable rather than giving him isDiscardEffect: that flag
+  // is load-bearing in the engine (playCard and summonCard refuse it, and
+  // game.js:2174 auto-plays a discard effect at lane 0), and he already has
+  // six gates built on _neverPlayable. This is a display question; it should
+  // not move him onto a different engine path to answer it.
+  //
+  // Lives here, not in ui.js, because "has a body" is a fact about the card,
+  // not about one renderer — every surface that prints stats reads it.
+  cardHasBody(card) {
+    if (!card) return false;
+    return !(card.isDiscardEffect || card.isEnvironment || card._neverPlayable);
+  },
+
   // Public drain entry — safe to call anywhere; no-ops while a drain owns
   // the loop or when the queue is empty.
   resolveStack() {

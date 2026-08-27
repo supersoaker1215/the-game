@@ -7657,67 +7657,71 @@ body.hit-pause .ai-hand * {
    A mask-image composes with clip-path instead of fighting it, and the
    bottom-up wipe is identical: the gradient's hard stop is the same edge the
    inset() was drawing, travelling the same distance on the same curve. */
-@keyframes cardBuildIn {
-  0%   { -webkit-mask-position: 0 100%; mask-position: 0 100%; opacity: 0; filter: brightness(1.6) saturate(1.3); }
-  8%   { -webkit-mask-position: 0 100%; mask-position: 0 100%; opacity: 1; filter: brightness(1.6) saturate(1.3); }
-  100% { -webkit-mask-position: 0 0;    mask-position: 0 0;    opacity: 1; filter: brightness(1)   saturate(1);   }
+/* SLOW APPEAR, NOT A BUILD. (User, 2026-08-27: "the card play animation is
+   not it i want the card to sloly appear not come out of nowhere.")
+
+   What was here: a 1s reveal whose opacity keyframes went 0% -> 0, 8% -> 1.
+   Eight percent of a second is 80ms, so the card snapped to FULL opacity
+   almost instantly and the rest of the second was a hard-edged mask wipe
+   (linear-gradient(to top, #000 50%, transparent 50%) — a hard stop, no
+   feather) chased by a bright 3px scan line with three stacked glows. The
+   card did not appear, it arrived, and then a line ran up it. That is the
+   "out of nowhere" — the appearing part was over in 80ms.
+
+   What it does now: opacity rises across the WHOLE duration on its own
+   ease-in-out timeline, so the card genuinely fades up. The mask is still
+   there and still travels bottom-to-top, but its edge is FEATHERED over
+   ~28% of the card instead of being a hard stop, so it reads as the card
+   materialising upward rather than a wipe uncovering something already
+   there. The scan line is gone — it was the hard edge, and a hard edge is
+   the opposite of slowly appearing.
+
+   Two timelines on purpose, same as before and for the same reason: the
+   mask keeps the soft ease-out so it decelerates into place, while opacity
+   runs ease-in-out so there is no sudden pop at either end.
+
+   1.0s is unchanged and must stay in sync with the two 1100ms removal
+   timers (ui.js — grep card-enter) and with the ~8 vibe loops gated on
+   :not(.card-enter), which hold off until the entrance finishes. */
+@keyframes cardBuildInMask {
+  0%   { -webkit-mask-position: 0 100%; mask-position: 0 100%; }
+  100% { -webkit-mask-position: 0 0;    mask-position: 0 0;    }
+}
+@keyframes cardBuildInFade {
+  0%   { opacity: 0; filter: brightness(1.18) saturate(1.06); }
+  100% { opacity: 1; filter: none; }
 }
 .card.card-enter {
-  -webkit-mask-image: linear-gradient(to top, #000 50%, transparent 50%);
-          mask-image: linear-gradient(to top, #000 50%, transparent 50%);
-  -webkit-mask-size: 100% 200%; mask-size: 100% 200%;
+  /* Feathered, not a hard stop — this is what turns a wipe into a fade-up. */
+  -webkit-mask-image: linear-gradient(to top,
+    #000 30%, rgba(0,0,0,0.82) 40%, rgba(0,0,0,0.45) 50%, rgba(0,0,0,0.12) 58%, transparent 66%);
+          mask-image: linear-gradient(to top,
+    #000 30%, rgba(0,0,0,0.82) 40%, rgba(0,0,0,0.45) 50%, rgba(0,0,0,0.12) 58%, transparent 66%);
+  -webkit-mask-size: 100% 220%; mask-size: 100% 220%;
   -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
-}
-/* Scan line uses TWO independent animations on the same
-   element — `top` movement uses the IDENTICAL cubic-bezier as
-   the parent's clip-path, while opacity is on its own LINEAR
-   timeline that holds at 1 until the very end then fades.
-   Earlier the line had a 92% keyframe with `top: 8%` that
-   created a subtle slowdown right before the line reached the
-   top — user reported "it kind of stops, like, at the last
-   end of it." Splitting the animations decouples the curves so
-   the line tracks the clip-edge precisely all the way up and
-   only fades in the last 2% when it's at the top. */
-@keyframes cardBuildInLineTop {
-  0%   { top: 100%; }
-  8%   { top: 100%; }
-  100% { top: 0%; }
-}
-@keyframes cardBuildInLineOpacity {
-  0%   { opacity: 0; }
-  8%   { opacity: 1; }
-  98%  { opacity: 1; }
-  100% { opacity: 0; }
-}
-.card.card-enter {
-  animation: cardBuildIn 1.0s var(--ease-out-soft) both;
+  /* BOTH on the same curve, deliberately. The old pair used a soft ease-out
+     for the travel and a separate timeline for opacity, which was right when
+     a scan line had to sit exactly on the reveal edge. With the line gone,
+     ease-out made the mask 77% done by 250ms (measured) — the card finished
+     materialising almost immediately and the remaining 750ms was a flat fade
+     on an already-complete card. Sharing ease-in-out keeps the rise and the
+     fade locked together so the card comes up slowly for the whole second,
+     which is the actual ask. */
+  animation:
+    cardBuildInMask 1.0s ease-in-out both,
+    cardBuildInFade 1.0s ease-in-out both;
   transform-origin: 50% 100%;
 }
-.card.card-enter::before {
-  content: '';
-  position: absolute;
-  left: -4px; right: -4px;
-  height: 3px;
-  --build-color: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 1);
-  background: var(--build-color);
-  box-shadow:
-    0 0 10px var(--build-color),
-    0 0 22px var(--build-color),
-    0 0 40px color-mix(in srgb, var(--build-color) 60%, transparent);
-  pointer-events: none;
-  z-index: 50;
-  /* Two animations: the position animation matches the parent's
-     cubic-bezier, the opacity animation is a separate linear
-     timeline. */
-  animation:
-    cardBuildInLineTop 1.0s var(--ease-out-soft) both,
-    cardBuildInLineOpacity 1.0s linear both;
-}
-.card.card-enter.ally-card::before {
-  --build-color: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 1);
-}
-.card.card-enter.enemy-card::before {
-  --build-color: rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 1);
+/* No scan line. .card::before goes back to being the inert shim it is
+   everywhere else — see the .cf-edge note above. */
+
+/* Reduced motion: no travel, no flash — just a short, honest fade. The card
+   must still APPEAR rather than blink into place, which is the whole ask. */
+@media (prefers-reduced-motion: reduce) {
+  .card.card-enter {
+    -webkit-mask-image: none; mask-image: none;
+    animation: cardBuildInFade 0.32s ease-out both;
+  }
 }
 
 /* Landing ring ripple — a thin concentric ring that expands outward

@@ -745,7 +745,7 @@ const UI = {
     } else {
       face = '';
     }
-    const stats = c && c.attack != null && c.health != null
+    const stats = c && c.attack != null && c.health != null && this._hasBody(c)
       ? `<span class="dpr-stats"><b>${c.attack}</b> / <i>${c.health}</i></span>` : '';
     return `<div class="dpr-slot ${state}${kind ? ' dpr-' + kind : ''}">
       <div class="dpr-tile">${face}</div>
@@ -5991,6 +5991,19 @@ const UI = {
   // (the board is diff-rendered, not rebuilt), so a silent throw doesn't
   // blank the board — it FREEZES it, and every card played afterwards is
   // in state but invisible. That is why the boolean exists.
+  // One predicate for every surface that prints ATK/HP. Delegates to
+  // Game.cardHasBody — the fact lives with the card, not with a renderer —
+  // and falls back to the same test inline so a stale cached game.js during a
+  // deploy degrades to correct rather than throwing mid-render.
+  // See Game.cardHasBody for why Iron Giant is keyed on _neverPlayable.
+  _hasBody(card) {
+    if (!card) return false;
+    if (typeof Game !== 'undefined' && Game && typeof Game.cardHasBody === 'function') {
+      return Game.cardHasBody(card);
+    }
+    return !(card.isDiscardEffect || card.isEnvironment || card._neverPlayable);
+  },
+
   _safe(name, fn) {
     try {
       fn();
@@ -7875,7 +7888,7 @@ const UI = {
   // immediately for non-flight placements (summons, environments), and on
   // the landing frame by _animateFly for cards that flew from the hand.
   //   flown=true  → quick spring "thud" settle (the flight already revealed)
-  //   flown=false → the full 1s cardBuildIn scan-in
+  //   flown=false → the full 1s fade-up entrance (cardBuildInMask/Fade)
   _spawnPlayerLandFx(cardEl, laneEl, slotEl, flown) {
     if (!cardEl) return;
     if (flown) {
@@ -12301,10 +12314,10 @@ const UI = {
           + pickBtn(idx, null) + `</div>`;
       }
       const costClass = this.getCostClass(card.baseCost || card.cost || 0);
-      const typeSigil = card.isDiscardEffect
+      const typeSigil = !this._hasBody(card)
         ? `<span class="card-type-sigil discard-sigil">&#9670;</span>`
         : (card.attack !== undefined ? `<span class="card-type-sigil char-sigil">&#9733;</span>` : '');
-      const stats = card.attack !== undefined
+      const stats = (card.attack !== undefined && this._hasBody(card))
         ? `<span class="stat-circle stat-atk">${card.attack}</span><span class="stat-circle stat-hp">${card.currentHealth != null ? card.currentHealth : (card.health != null ? card.health : 0)}</span>`
         : '';
       // REAL CARD FACE — if the option is an actual card (Dr. Strange foresee,
@@ -14159,7 +14172,7 @@ const UI = {
                data-card-idx="${idx}" id="twov2-hcard-${idx}">
         <div class="twov2-hcard-cost">${card.cost}</div>
         <div class="twov2-hcard-name">${card.name}</div>
-        <div class="twov2-hcard-stats">${card.attack}<span style="opacity:.55">atk</span> ${card.currentHealth}<span style="opacity:.55">hp</span></div>
+        ${this._hasBody(card) ? `<div class="twov2-hcard-stats">${card.attack}<span style="opacity:.55">atk</span> ${card.currentHealth}<span style="opacity:.55">hp</span></div>` : ''}
       </div>`;
     }).join('') || '<div class="twov2-hand-empty">No cards in hand</div>';
 
@@ -18804,7 +18817,7 @@ const UI = {
         mvpPlusCell = `<span class="${mvpClass}">${r.mvpPlus}</span>`;
       }
       const def = CARD_DEFS.find(d => d.name === r.name);
-      const statsInline = def
+      const statsInline = (def && this._hasBody(def))
         ? `<span class="stats-atkhp"><span class="stats-atk">${def.attack}</span><span class="stats-slash">/</span><span class="stats-hp">${def.health}</span></span>`
         : '';
       return `
@@ -19070,7 +19083,7 @@ const UI = {
     const r = rows.find(x => x.name === cardName);
     if (!r) return '';
     const def = CARD_DEFS.find(d => d.name === cardName);
-    const stats = def ? `${def.attack}/${def.health}` : '—';
+    const stats = (def && this._hasBody(def)) ? `${def.attack}/${def.health}` : '—';
     const ciLo = r.ci.lo * 100, ciHi = r.ci.hi * 100;
     const row = (label, value) => `
       <div class="stats-detail-row">
@@ -19268,7 +19281,7 @@ const UI = {
         ? CARD_DEFS.find(d => d.name === name)
         : TRICK_DEFS.find(d => d.name === name);
       const cost = def ? (def.cost || 0) : 0;
-      const stats = section === 'cards' && def
+      const stats = section === 'cards' && def && this._hasBody(def)
         ? `<span class="db-deck-stats"><span class="db-deck-atk">${def.attack}</span><span class="db-deck-slash">/</span><span class="db-deck-hp">${def.health}</span></span>`
         : '';
       return `
@@ -23656,7 +23669,7 @@ const UI = {
     const atkOverTip = atkBoosted
       ? ` title="${rawAtk} ATK, boosted to ${effAtk} this round"`
       : '';
-    const statOrbs = (card.isDiscardEffect || card.isEnvironment) ? '' : `
+    const statOrbs = !this._hasBody(card) ? '' : `
       <span class="stat-circle stat-atk${atkCls}${atkOverCls}"${atkOverTip || atkTip}>${atkCell}</span>
       <span class="stat-circle stat-hp${hpCls}"${hpTip}>${hpCell}</span>`;
 
@@ -24015,7 +24028,8 @@ const UI = {
       const cost = (c.cost != null ? c.cost : (c.baseCost != null ? c.baseCost : ''));
       // Show the REDUCED stats the card arrived with (−1/−1 under the scan), so
       // the caster sees exactly what they'll be facing, not the printed values.
-      const hasStats = (typeof c.attack === 'number' && typeof c.currentHealth === 'number');
+      const hasStats = (typeof c.attack === 'number' && typeof c.currentHealth === 'number')
+        && this._hasBody(c);
       return `<div class="brainiac-reveal-card" style="--i:${idx}">`
         + `<span class="brainiac-reveal-order">${idx + 1}</span>`
         + (cost !== '' ? `<span class="brainiac-reveal-cost">${esc(cost)}</span>` : '')
@@ -27816,7 +27830,7 @@ const UI = {
     const sideLabel = starSide === 'player' ? 'YOU' : 'OPPONENT';
     const sideClass = starSide === 'player' ? 'sotm-side-player' : 'sotm-side-ai';
     const cost = def && def.cost != null ? def.cost : '';
-    const stats = (def && def.attack != null && def.health != null)
+    const stats = (def && def.attack != null && def.health != null && this._hasBody(def))
       ? `<span class="stat-circle stat-atk">${def.attack}</span><span class="stat-circle stat-hp">${def.health}</span>`
       : '';
     const abilities = (def && def.abilities && def.abilities.length)
@@ -33147,7 +33161,7 @@ const UI = {
       tip.innerHTML = `
         <div class="dvp-name">${def.name}</div>
         <div class="dvp-row"><span>Cost</span><span class="dvp-stat">${def.cost}</span></div>
-        <div class="dvp-row"><span>ATK / HP</span><span><span class="dvp-stat dvp-stat-atk">${def.attack}</span> / <span class="dvp-stat dvp-stat-hp">${def.health}</span></span></div>
+        ${this._hasBody(def) ? `<div class="dvp-row"><span>ATK / HP</span><span><span class="dvp-stat dvp-stat-atk">${def.attack}</span> / <span class="dvp-stat dvp-stat-hp">${def.health}</span></span></div>` : ''}
         <div class="dvp-row"><span>Tier</span><span class="dvp-tier-${tier}">${tier.toUpperCase()}</span></div>`;
       const r = chip.getBoundingClientRect();
       tip.style.left = `${r.right + 8}px`;
