@@ -39,6 +39,11 @@ const Voice = {
   _speaking: {},          // peerId -> bool
   _rafId: null,
   _guardId: null,         // audibility guard (see _startAudibilityGuard)
+  _iceState: {},          // peerId -> RTCPeerConnection.iceConnectionState (diagnostics)
+
+  // Console breadcrumb — every step of joining/dialing/connecting is logged so a
+  // "voice doesn't work" report can be traced to the exact stage that failed.
+  _log(m) { try { console.log('[VOICE] ' + m); } catch (e) {} },
 
   // ---- capability ----
   supported() {
@@ -114,12 +119,14 @@ const Voice = {
       );
       return;
     }
+    this._log('mic captured OK · my peer id = ' + (peer && peer.id));
     this._joining = false;
     this._active = true;
     this._muted = false;
     this._meter('me', this._stream);
     this._listen(peer);
     this._announce();
+    this._log('announced; roster now = ' + JSON.stringify(this._roster));
     this._dialAll();
     this._startLevels();
     this._paint();
@@ -155,7 +162,26 @@ const Voice = {
     this._paint();
   },
 
-  _fail(msg) { this._error = msg; this._paint(); },
+  _fail(msg) { this._log('FAIL: ' + msg); this._error = msg; this._paint(); },
+
+  // One-line human-readable status for the panel: who we've found and where each
+  // audio link stands. Turns "it doesn't work" into a precise picture.
+  _diagLine() {
+    if (this._joining) return 'Connecting…';
+    const mine = (this._peer() || {}).id;
+    const others = Object.keys(this._roster).map(s => this._roster[s]).filter(id => id && id !== mine);
+    if (!others.length) return 'You\'re in. Waiting for someone else to press Join…';
+    const parts = others.map(id => {
+      const nm = (this._names[id] || 'peer').slice(0, 10);
+      const connected = !!this._audio[id];
+      const ice = this._iceState[id];
+      if (connected && (ice === 'connected' || ice === 'completed' || !ice)) return nm + ': ✓';
+      if (ice === 'failed') return nm + ': ✗ relay';
+      if (ice) return nm + ': ' + ice;
+      return nm + ': …';
+    });
+    return parts.join(' · ');
+  },
 
   // ---- signalling over the game's own data channel ----
   // Every client announces its peer id; the host collects them and publishes
@@ -183,6 +209,7 @@ const Voice = {
   // Called by the transports when a {t:'voice'} message arrives.
   onMessage(msg) {
     if (!msg || msg.t !== 'voice') return;
+    this._log('signal in: ' + msg.kind + (msg.seat ? ' from ' + msg.seat : '') + (msg.kind === 'roster' ? ' (' + Object.keys(msg.roster || {}).length + ' seats)' : ''));
     if (msg.kind === 'hello') {
       if (msg.seat && msg.peerId) this._roster[msg.seat] = msg.peerId;
       if (msg.peerId && msg.name) this._names[msg.peerId] = msg.name;
@@ -230,17 +257,20 @@ const Voice = {
   },
   _dialAll() {
     const peer = this._peer();
-    if (!peer || !this._stream) return;
-    this._remoteIds().forEach(id => {
+    if (!peer || !this._stream) { this._log('dialAll skipped — ' + (!peer ? 'no peer' : 'no mic stream')); return; }
+    const remotes = this._remoteIds();
+    this._log('dialAll — ' + remotes.length + ' remote id(s): ' + remotes.join(', ') + (remotes.length ? '' : ' (roster has no other peers yet — waiting on hello/roster sync)'));
+    remotes.forEach(id => {
       if (this._calls[id]) return;                 // already connected
       // GLARE GUARD — only the lower id dials, the higher id answers. Without
       // it both sides call simultaneously and each ends up with two half-open
       // calls, which sounds like an echo of yourself.
-      if (String(peer.id) > String(id)) return;
+      if (String(peer.id) > String(id)) { this._log('waiting for ' + id + ' to dial me (glare guard)'); return; }
       try {
+        this._log('calling ' + id + '…');
         const call = peer.call(id, this._stream, { metadata: { name: this._myName() } });
         this._bindCall(id, call);
-      } catch (e) {}
+      } catch (e) { this._log('call to ' + id + ' threw: ' + (e && e.message)); }
     });
   },
   _listen(peer) {
@@ -248,10 +278,11 @@ const Voice = {
     this._peerBound = peer;
     try {
       peer.on('call', (call) => {
+        this._log('incoming call from ' + (call && call.peer));
         // Answer with our mic. If we have not joined voice we do not answer at
         // all — a one-way call would make us audible without consent.
-        if (!this._active || !this._stream) { try { call.close(); } catch (e) {} return; }
-        try { call.answer(this._stream); } catch (e) { return; }
+        if (!this._active || !this._stream) { this._log('not on voice — declining incoming call'); try { call.close(); } catch (e) {} return; }
+        try { call.answer(this._stream); this._log('answered ' + call.peer); } catch (e) { this._log('answer threw: ' + (e && e.message)); return; }
         const nm = call.metadata && call.metadata.name;
         if (nm) this._names[call.peer] = nm;
         this._bindCall(call.peer, call);
@@ -261,7 +292,31 @@ const Voice = {
   _bindCall(id, call) {
     if (!call) return;
     this._calls[id] = call;
+    this._log('call bound to ' + id + ' — negotiating…');
+    // ICE diagnostics — the single most useful signal for "no audio": whether
+    // the media path actually connected, or failed (NAT/relay). PeerJS exposes
+    // the underlying RTCPeerConnection; watch its ICE state.
+    const _watchIce = () => {
+      try {
+        const pc = call.peerConnection;
+        if (!pc || pc.__voiceWatched) return;
+        pc.__voiceWatched = true;
+        const report = () => {
+          const st = pc.iceConnectionState;
+          this._iceState[id] = st;
+          this._log('call ' + id + ' ICE → ' + st);
+          if (st === 'failed') this._error = 'Audio couldn\'t connect (network/NAT blocked the relay). Try a different Wi-Fi/network, or a hotspot.';
+          else if ((st === 'connected' || st === 'completed') && this._error && /couldn.t connect/.test(this._error)) this._error = null;
+          this._paint();
+        };
+        pc.addEventListener ? pc.addEventListener('iceconnectionstatechange', report) : (pc.oniceconnectionstatechange = report);
+        report();
+      } catch (e) {}
+    };
+    _watchIce();
+    setTimeout(_watchIce, 400);   // peerConnection may attach a beat after the call object
     call.on('stream', (remote) => {
+      this._log('receiving audio stream from ' + id);
       let a = this._audio[id];
       if (!a) {
         a = document.createElement('audio');
@@ -472,6 +527,7 @@ const Voice = {
       `<button type="button" class="vp-head" data-act="toggle">${head}</button>
        <div class="vp-body">
          ${this._error ? `<div class="vp-err">${String(this._error).replace(/</g, '&lt;')}</div>` : ''}
+         ${(this._active || this._joining) ? `<div class="vp-diag">${this._diagLine()}</div>` : ''}
          ${body}
        </div>`;
     el.querySelectorAll('[data-act]').forEach(b => {

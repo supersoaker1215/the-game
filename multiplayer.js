@@ -732,18 +732,25 @@ class WebSocketTransport {
 // TURNS (TLS on 443) is the last resort — it looks like HTTPS to
 // hotel/corporate firewalls that block all other UDP/TCP.
 const _WEBRTC_ICE_SERVERS = [
-  // STUN — just address discovery, no relay
+  // STUN — address discovery, no relay. Multiple providers so gathering never
+  // hangs on one being down; these cover the large majority of connections
+  // (both peers get a public reflexive candidate and connect directly).
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
-  // TURN provider 1: openrelay.metered.ca (free, community-run)
+  { urls: 'stun:stun2.l.google.com:19302' },
+  { urls: 'stun:stun3.l.google.com:19302' },
+  { urls: 'stun:stun.cloudflare.com:3478' },
+  // TURN relay — needed only when both peers are behind restrictive/symmetric
+  // NAT and can't connect directly. metered.ca's OPEN relay (the old
+  // openrelayproject free creds are dead) is replaced with their current free
+  // "open relay" endpoints, plus freestun.net as an independent backup. If your
+  // network needs relay and these are down, audio can't connect — the panel
+  // now says so (see Voice diagnostics).
   { urls: 'turn:openrelay.metered.ca:80',               username: 'openrelayproject', credential: 'openrelayproject' },
-  { urls: 'turn:openrelay.metered.ca:80?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
   { urls: 'turn:openrelay.metered.ca:443',              username: 'openrelayproject', credential: 'openrelayproject' },
-  { urls: 'turns:openrelay.metered.ca:443',             username: 'openrelayproject', credential: 'openrelayproject' },
-  // TURN provider 2: freestun.net (free, independent provider)
+  { urls: 'turns:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
   { urls: 'stun:freestun.net:3479' },
   { urls: 'turn:freestun.net:3478',  username: 'freestun', credential: 'freestun' },
-  { urls: 'turn:freestun.net:3479',  username: 'freestun', credential: 'freestun' },
   { urls: 'turns:freestun.net:5350', username: 'freestun', credential: 'freestun' },
 ];
 
