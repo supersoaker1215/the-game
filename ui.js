@@ -17202,6 +17202,20 @@ const UI = {
           n + (((st && st[side] && st[side].discardPile) || []).filter(c => c && c.name === 'Iron Giant').length), 0);
         const prevIgDiscards = _igDiscards(Game.state);
         Game.acceptMultiplayerState(m.state);
+        // REMATCH: a fresh match (draft/deckbuilder/lobby phase, or the round
+        // counter reset from what we last showed) means any round-summary or
+        // game-over overlay left over from the previous game must come down —
+        // otherwise the guest is stuck behind the last recap and can't play.
+        // (Owner: "clicked rematch and i still had the last round summary screen
+        // on my end as the guest so i couldnt play.")
+        try {
+          const _np = Game.state && Game.state.phase;
+          const _nr = (Game.state && Game.state.round) || 0;
+          if ((_np && /draft|deckbuilder|lobby|tournament-start/.test(_np)) || _nr < (this._mpLastRound || 0)) {
+            this.closeMatchOverlays();
+          }
+          this._mpLastRound = _nr;
+        } catch (e) {}
         // Apply real player names to the HUD name plates on every state update.
         this._mpApplyNames(Game.state);
         // TOURNAMENT: (re)render the synced series UI from the freshly-applied
@@ -34042,6 +34056,17 @@ function twov2OnlineJoin() {
     // A team pick that landed while mine was half-made would leave my
     // highlight pointing at a player who has since moved. Drop it.
     UI._2v2TeamSel = null;
+    // REMATCH: fresh 2v2 match (draft/lobby, or the round reset) — clear any
+    // leftover round-summary / game-over overlay so a guest isn't stuck behind
+    // the last recap and unable to play.
+    try {
+      const _p = state && state.phase;
+      const _r = (state && state.twoVTwo && state.twoVTwo.round) || 0;
+      if ((_p && /draft|lobby|tournament-start/.test(_p)) || _r < (UI._2v2LastRound || 0)) {
+        UI.closeMatchOverlays();
+      }
+      UI._2v2LastRound = _r;
+    } catch (e) {}
     UI.renderFromNetwork();
     // TOURNAMENT: (re)render the synced series UI from the freshly-applied state.
     if (Game.state && Game.state._tournament && Game.state._tournament.online
