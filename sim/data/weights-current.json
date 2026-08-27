@@ -19,7 +19,7 @@
   "blockCostDeltaMult": 0.525091231374677,
   "blockExpensiveOverKillPenalty": -3.3686078613111254,
   "defensiveThresholdNormal": 5.096005940719811,
-  "defensiveThresholdHard": 3.135206818013928,
+  "defensiveThresholdHard": 12,
   "defensiveThresholdEasy": 17.27393866484732,
   "trickRemovalHigh": 8.38539557466496,
   "trickRemovalMid": 2.185736862563836,

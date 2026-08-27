@@ -31,8 +31,32 @@ const AI = {
     blockCostDeltaMult: 0.525,
     blockExpensiveOverKillPenalty: -3.369,
     defensiveThresholdNormal: 5.096,
-    defensiveThresholdHard: 3.135,
+    // Hard is the PRESSURE tier — see the note in playCards. Was 3.135, the
+    // LOWEST of the three, which made hard the most defensive AI in the game.
+    // Swept hard-vs-normal, seats swapped, 1600 games a point:
+    //     thr    defensive turns    hard win%
+    //     3.135      54.5%            49.3    <- a coin flip. "Hard" meant nothing.
+    //     9          23.5%            50.9
+    //     12         14.3%            54.3    <- 3.4 sigma above even (SE 1.25pp)
+    // So pressing is not a trade against strength here, it IS the strength:
+    // the same change that makes hard 3.8x less defensive also makes it the
+    // first version of hard that actually beats normal. 12 rather than 16
+    // because it still answers a genuinely big swing — an AI that never blocks
+    // reads as broken, not brave.
+    // !! TWO PLACES !! sim/data/weights-current.json is fetched at startup in
+    // the BROWSER and overwrites every key it shares with this object — and the
+    // headless sim does NOT load it. So the value here is what every sim
+    // measurement uses, and the value in that file is what the game actually
+    // plays. Changing only this one measures a change nobody ever gets.
+    defensiveThresholdHard: 12,
     defensiveThresholdEasy: 17.274,
+    // Hard does not turtle when it is far behind. Costs win rate or does not —
+    // measured in the sweep; either way a losing opponent that hunkers down is
+    // the least threatening thing on the board.
+    hardPressesWhenBehind: true,
+    // Lethal awareness (posture + lane choice). 1 = on. Behind a weight so it
+    // can be A/B'd against itself rather than argued about.
+    lethalPush: 1,
     // Trick evaluation — CEM-tuned
     trickRemovalHigh: 8.385,
     trickRemovalMid: 2.186,
@@ -555,6 +579,37 @@ const AI = {
     step();
   },
 
+  // ---- WHY DID IT DO THAT? ----
+  // The user plays this game and reports the plays that look stupid. Without a
+  // record, every such report is a re-derivation from memory: which card, which
+  // lane, what else was affordable, what posture the AI was in. This keeps the
+  // last few decisions so a report can be answered from what actually happened.
+  //
+  // Deliberately NOT in Game.state: state rides every multiplayer broadcast and
+  // gets snapshotted for undo, and a debug buffer belongs in neither. It is a
+  // plain ring buffer on the AI object, dropped on reload, costing one small
+  // object per play.
+  //
+  // Read it from the console with AI.why() after a play that looked wrong.
+  _trace: [],
+  _TRACE_MAX: 30,
+  _note(entry) {
+    try {
+      this._trace.push(entry);
+      if (this._trace.length > this._TRACE_MAX) this._trace.shift();
+    } catch (e) {}
+  },
+  // Human-readable dump of the recent decisions, newest last.
+  why(n) {
+    const rows = this._trace.slice(-(n || 10));
+    if (!rows.length) return 'no AI decisions recorded yet';
+    return rows.map(r =>
+      `r${r.round} ${r.owner} ${r.posture}  played ${r.card} (${r.cost}e ${r.atk}/${r.hp}) -> lane ${r.lane}`
+      + `\n      their HP ${r.oppHp}, my unblocked ${r.myFace}, incoming ${r.incoming}, energy ${r.energyBefore}->${r.energyAfter}`
+      + (r.alsoAffordable ? `\n      also affordable: ${r.alsoAffordable}` : '')
+    ).join('\n');
+  },
+
   playCards(owner = 'ai', onComplete) {
     if (Game.isMultiplayer && Game.isMultiplayer()) { if (onComplete) onComplete(); return; }
     const s = Game.state;
@@ -594,7 +649,56 @@ const AI = {
     const incoming = this.unblockedIncoming(owner);
     const diff = this.difficulty(owner);
     const defensiveThreshold = diff === 'easy' ? this.WEIGHTS.defensiveThresholdEasy : diff === 'hard' ? this.WEIGHTS.defensiveThresholdHard : this.WEIGHTS.defensiveThresholdNormal;
-    const defensive = incoming >= defensiveThreshold || farBehind;
+    // PRESSURE, NOT DEPTH. Measured over 120 games a tier, the share of turns
+    // the AI spent blocking rather than pressing was:
+    //     hard 54.4%   normal 41.4%   easy 14.7%
+    // Hard was the most passive opponent in the game. Someone who picks HARD
+    // and then watches it spend every other turn holding the line is not
+    // playing something that feels hard, whatever its win rate says — and its
+    // win rate says nothing either: chooseLane's own note records hard vs
+    // normal at 150/150, a coin flip, because a 3.1-vs-5.1 threshold is flat
+    // in that range. "Hard" was a label on nothing.
+    //
+    // So hard's threshold is now the HIGHEST of the three: it eats chip damage
+    // and keeps developing instead of answering every threat. Easy still plays
+    // its own way (17.3) — it barely blocks because it barely plans, which is
+    // a different thing from choosing to press.
+    //
+    // TURTLING WHILE LOSING IS THE WORST OF IT. `farBehind` forced the
+    // defensive posture no matter what, so the further behind the AI got the
+    // more it hunkered down — the exact moment a human piles on. You cannot
+    // win from 10 HP down by blocking. On hard that clause is dropped: behind
+    // means race, not retreat.
+    const _turtleWhenFarBehind = !(diff === 'hard' && this.WEIGHTS.hardPressesWhenBehind);
+    // GOING FOR THE KILL. The AI had no concept of lethal — nowhere in this
+    // file did it ask "can I finish them this turn?". It would hold a winning
+    // board, answer a threat that no longer mattered, and give the player
+    // another turn to find an out. Nothing reads as mercy like an opponent
+    // that does not take the kill.
+    //
+    // unblockedIncoming(opp) is the damage MY uncontested bodies will do to
+    // THEM next combat — the function is already parameterised both ways, so
+    // this costs one call. The kill is in reach when that plus the best body I
+    // could still place this turn covers their remaining health.
+    const _bestBody = s[owner].hand.reduce((m, c) =>
+      (c && !c._neverPlayable && Game.getCardCost(owner, c) <= s[owner].currency)
+        ? Math.max(m, c.attack || 0) : m, 0);
+    // ONLY WHEN THEY CANNOT ANSWER IT. First cut of this pushed for lethal
+    // whenever the arithmetic worked, and measured 1.7pp WORSE (49.2 vs 50.9,
+    // 2500 games a side). The reason is turn order: firstPlayer alternates, so
+    // when WE move first an "uncontested" lane is only a lane they have not
+    // filled YET. The AI was spending its best body chasing a kill the player
+    // then simply blocked, instead of using it where it mattered.
+    // When they have already taken their card step, the board they left is the
+    // board combat resolves on, and the same arithmetic is real.
+    // Reads firstPlayer only — public information. The opponent's HAND is not
+    // consulted anywhere here; an AI that peeks is a different complaint.
+    const _theyAlreadyMoved = s.firstPlayer !== owner;
+    const killInReach = this.WEIGHTS.lethalPush > 0 && _theyAlreadyMoved
+      && s[opp].health > 0
+      && s[opp].health <= this.unblockedIncoming(opp) + _bestBody;
+    const defensive = !killInReach
+      && (incoming >= defensiveThreshold || (farBehind && _turtleWhenFarBehind));
 
     // ---- ENERGY RESERVED FOR A TRICK (2v2) ----
     // The card loop below spends down to zero, and the trick phase runs after
@@ -753,6 +857,25 @@ const AI = {
         if (s[owner].faceDownAvailable && (card.cost || 0) >= 6 && card.onPlay && !card.isFaceDown) {
           card._playFaceDown = true;
         }
+        this._note({
+          round: s.round,
+          owner,
+          posture: killInReach ? 'GOING FOR THE KILL' : (defensive ? 'defensive' : 'pressing'),
+          card: card.name,
+          cost,
+          atk: card.attack,
+          hp: card.currentHealth != null ? card.currentHealth : card.health,
+          lane,
+          oppHp: s[opp].health,
+          myFace: this.unblockedIncoming(opp),
+          incoming,
+          energyBefore: s[owner].currency,
+          energyAfter: s[owner].currency - cost,
+          alsoAffordable: s[owner].hand
+            .filter(c => c.id !== card.id && !c._neverPlayable
+                      && Game.getCardCost(owner, c) <= spendable())
+            .map(c => c.name).join(', '),
+        });
         Game.playCard(owner, card, lane);
       });
     }
@@ -1095,6 +1218,21 @@ const AI = {
         } else {
           score += (card.attack || 0) * 0.8 + (card.splashRange || 0) * 0.6;
         }
+        // LETHAL BEATS EVERY OTHER CONSIDERATION. If dropping this body in this
+        // open lane takes their last health, no amount of blocking value,
+        // adjacency or splash hazard is worth comparing against it. Gated on
+        // the same taunter test as the damage above — a taunter eats the swing,
+        // so it is not lethal at all unless we can bypass it.
+        {
+          const _tauntBlocks = hasTaunter && (card.splashRange || 0) <= 0 && !card.isBullseye;
+          // Same gate as the posture check — see the note there. A lethal we
+          // hand the opponent a turn to answer is not a lethal.
+          if (!_tauntBlocks && this.WEIGHTS.lethalPush > 0 && s.firstPlayer !== owner) {
+            const _theirHp = s[opp].health;
+            const _already = this.unblockedIncoming(opp);
+            if (_theirHp > 0 && _already + (card.attack || 0) >= _theirHp) score += 100;
+          }
+        }
         // Bullseye bodies shine in OPEN lanes — they keep dealing face damage
         // every combat and can't be blocked. Committing a Bullseye card
         // against a threat wastes its recurring face-damage value on a single
@@ -1256,7 +1394,22 @@ const AI = {
     });
 
     scores.sort((a, b) => b.score - a.score);
-    return scores[0].lane;
+    // TIES GO TO A COIN, NOT TO THE LEFT. Array.prototype.sort is stable, so
+    // every tie used to resolve to whichever lane came first in `open` —
+    // always the lowest index. Measured over 200 games / 1898 placements the
+    // AI put 26.4% of its cards in lane 0 and 8.2% in lane 5, a monotonic
+    // left-slide, and it compounds: lane 0 fills, the "cluster near an ally"
+    // bonus then favours lane 1, and so on across the board. It reads as a
+    // script running left to right rather than an opponent making a choice.
+    //
+    // Only EXACT ties are shuffled, so this cannot cost a single point of
+    // strength — the lanes it picks between scored identically. Uses the
+    // seeded RNG (never Math.random) so replays, goldens and the fuzz harness
+    // stay reproducible.
+    const _top = scores[0].score;
+    let _tied = 1;
+    while (_tied < scores.length && scores[_tied].score === _top) _tied++;
+    return _tied > 1 ? scores[Game.rngInt(_tied)].lane : scores[0].lane;
   },
 
   playTrickPhaseCards(owner = 'ai', onComplete) {
