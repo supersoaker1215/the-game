@@ -62,6 +62,9 @@ const AI = {
     // only confirmed it. Left at 0 with the wiring intact so the next person
     // does not have to rediscover this — sim/difficulty.js re-runs it.
     hardLookahead: 0,
+    // Simulated play evaluation. 0 = off; see the measurement table on
+    // AI._simEnabled before turning it on.
+    simEval: 0,
     lookaheadHpWeight: 3,
     // ---- 2v2 TEAMPLAY (tunable like everything else) ----
     // How hard to leave an open lane alone when a teammate still has a card
@@ -703,14 +706,41 @@ const AI = {
         // Recheck the card is still in hand (another play in this turn
         // may have triggered a Batman intercept etc.) and re-evaluate
         // affordability + lane since the board moves between plays.
-        const card = s[owner].hand.find(c => c.id === cardRef.id);
+        let card = s[owner].hand.find(c => c.id === cardRef.id);
         if (!card) return;
         if (spendable() <= 0) return;
-        const cost = Game.getCardCost(owner, card);
+        let cost = Game.getCardCost(owner, card);
         if (cost > spendable()) return;
         if (card.isDiscardEffect) { Game.playCard(owner, card, 0); return; }
-        const lane = this.chooseLane(card, owner);
+        let lane = this.chooseLane(card, owner);
         if (lane < 0) return;
+        // SIMULATED RE-RANK (hard only). The heuristic queued these in its own
+        // order; before committing THIS one, ask what actually happens if each
+        // of the top few affordable cards is played, and take the best real
+        // outcome. Reconsidered at play time rather than when the queue was
+        // built, because the board moves between plays. Falls straight back to
+        // the heuristic when simulation is off or could not run.
+        // ONLY WHEN COMBAT ACTUALLY FOLLOWS. previewPlay plays the card and
+        // resolves combat IMMEDIATELY — but mid-turn the fight is still several
+        // plays away, so scoring by post-combat health answers a question that
+        // is not being asked and rewards overextending into a board the
+        // opponent has not finished building. Measured that way it came out at
+        // 46.5%, WORSE than the heuristic. The forecast is only honest on the
+        // last play of the turn, when nothing else will change the board first.
+        const _spendAfter = spendable() - cost;
+        const _isLastPlay = !s[owner].hand.some(c =>
+          c.id !== card.id && !c.isDiscardEffect && Game.getCardCost(owner, c) <= _spendAfter);
+        if (_isLastPlay && this._simEnabled(owner)) {
+          const _afford = s[owner].hand.filter(c =>
+            !c.isDiscardEffect && Game.getCardCost(owner, c) <= spendable());
+          const _pick = this.simBestPlay(owner, _afford);
+          if (_pick && _pick.card && _pick.card.id !== card.id) {
+            const _c = Game.getCardCost(owner, _pick.card);
+            if (_c <= spendable()) { card = _pick.card; lane = _pick.lane; cost = _c; }
+          } else if (_pick && _pick.lane >= 0) {
+            lane = _pick.lane;
+          }
+        }
         const targetLane = s.lanes[lane];
         const uncontestedHere = !targetLane[opp];
         if (uncontestedHere && this.opponentHasTaunter(owner) && (card.splashRange || 0) <= 0 && !card.isBullseye) {
@@ -884,6 +914,98 @@ const AI = {
   //   -   placing a fragile high-cost card where it'll die for nothing
   //   +   empty-lane uncontested damage, weighted by adjacency / taunter
   //   +   lookahead bonus — weighted post-combat board-state swing (skipped on easy)
+  // ===================== SIMULATED PLAY EVALUATION =====================
+  // Owner: build the thing that evaluates a candidate play against the ACTUAL
+  // combat outcome instead of a hand-tuned heuristic.
+  //
+  // WHY THIS AND NOT A BIGGER HEURISTIC. Measured with sim/difficulty.js: the
+  // CEM-tuned weights sit on a plateau. Hard vs normal was 150/150; giving hard
+  // the lookahead was 50.5%; sweeping its defensive threshold across 1.5-12 was
+  // flat. No dial moves it. What the AI lacks is not a better guess — it is
+  // ground truth, and Game.previewPlay already produces it: clone the state,
+  // play the card, run the REAL resolver, and report the health swing.
+  //
+  // WHAT IT COSTS. One clone plus one full combat per candidate. So the
+  // heuristic stays as the PREFILTER — it ranks every legal play, and only the
+  // top few get simulated. That keeps the cost bounded and uses each part for
+  // what it is good at: the heuristic to discard the obviously bad, simulation
+  // to separate the plausible.
+  //
+  // NEVER NESTED. previewPlay stamps the clone _silentSim; if the AI is somehow
+  // reached inside one, this returns null and the caller falls back to the
+  // heuristic rather than cloning a clone.
+  // OFF, AND HERE IS WHY. Measured with sim/difficulty.js, seats swapped:
+  //
+  //     ungated, top-5 shortlist        200 games   46.5%
+  //     gated to the last play          300 games   52.0%
+  //     gated, top-12 shortlist         800 games   51.6%
+  //     gated, top-5 shortlist         1200 games   50.7%
+  //     gated, top-5 shortlist         6000 games   48.6%   <-- 2.2 sigma BELOW 50
+  //
+  // Read that column downwards. The encouraging 52% was noise at n=300 (SE
+  // 2.9pp); at n=6000 (SE 0.65pp) the sign FLIPS and the simulating AI is
+  // significantly worse than the heuristic it replaced. Shipping on the 52%
+  // reading would have made the AI weaker while announcing it was smarter.
+  //
+  // Why it loses, most likely: previewPlay resolves combat one ply deep and
+  // models none of the opponent's reply, so it is not more informed than the
+  // heuristic — just differently approximate, and it trades a CEM-tuned
+  // estimator for an untuned one. Gating it to the last play recovered most of
+  // the loss (46.5 -> ~50), which is consistent with the myopia being the
+  // problem rather than the simulation being wrong.
+  //
+  // The machinery is left wired and disabled, exactly as lookaheadMult is, so
+  // the next attempt starts from this evidence instead of rediscovering it.
+  // Set simEval to 1 and re-run: jsc sim/difficulty.js -- --games 6000
+  SIM_CANDIDATES: 5,      // how many heuristic-ranked plays get simulated
+  SIM_WIN_BONUS: 1000,    // a line that ends the game dominates any HP swing
+
+  _simEnabled(owner) {
+    if (!this.WEIGHTS.simEval) return false;                 // measured: off
+    if (this.difficulty(owner) !== 'hard') return false;
+    if (typeof Game === 'undefined' || !Game.previewPlay) return false;
+    if (Game.state && Game.state._silentSim) return false;   // no nested sims
+    return true;
+  },
+
+  // Net health swing from ONE candidate, from `owner`'s point of view.
+  // Returns null when the simulation could not run, so callers can tell
+  // "no opinion" apart from "scored zero".
+  _simScore(owner, card, laneIdx) {
+    let r = null;
+    try { r = Game.previewPlay({ side: owner, cardId: card.id, laneIdx: laneIdx }); }
+    catch (e) { return null; }
+    if (!r) return null;
+    const opp = owner === 'ai' ? 'player' : 'ai';
+    // deltas are negative when health was lost, so a good play makes the
+    // OPPONENT's delta very negative and mine near zero.
+    const myDelta   = owner === 'ai' ? r.aiHpDelta : r.playerHpDelta;
+    const theirDelta = opp === 'ai' ? r.aiHpDelta : r.playerHpDelta;
+    let score = (-theirDelta) - (-myDelta);       // damage dealt minus damage taken
+    if (r.gameOver) {
+      if (r.winner === owner) score += this.SIM_WIN_BONUS;
+      else if (r.winner === opp) score -= this.SIM_WIN_BONUS;
+    }
+    return score;
+  },
+
+  // Re-rank the heuristic's top candidates by what actually happens. Returns
+  // {card, lane} or null to mean "use the heuristic's answer".
+  simBestPlay(owner, affordable) {
+    if (!this._simEnabled(owner) || !affordable || !affordable.length) return null;
+    // PREFILTER: the heuristic's own ordering, capped.
+    const shortlist = affordable.slice(0, this.SIM_CANDIDATES);
+    let best = null;
+    for (const card of shortlist) {
+      const lane = this.chooseLane(card, owner);
+      if (lane < 0) continue;
+      const sc = this._simScore(owner, card, lane);
+      if (sc == null) continue;                 // simulation unavailable — skip it
+      if (!best || sc > best.score) best = { card: card, lane: lane, score: sc };
+    }
+    return best;
+  },
+
   chooseLane(card, owner = 'ai') {
     const s = Game.state;
     const opp = Game.opponent(owner);
