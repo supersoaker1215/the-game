@@ -16072,6 +16072,120 @@ const Game = {
   // Implementation strategy: deep-clone state, swap UI for a no-op stub,
   // override setTimeout for the contained window so combat resolves
   // synchronously, run the play + combat, capture results, restore.
+  // ===================== "IF COMBAT RESOLVES NOW" =====================
+  // Owner, from the board reference: a standing readout of what THIS board does
+  // if the round ended on it — what you deal, what you take, and the net.
+  //
+  // Not a heuristic and not a sum of attack values: it clones the state and runs
+  // the REAL resolveCombat on the copy, so blocks, Evade, Armor, Overdrive,
+  // Taunt, lane traps and every on-death cascade are all accounted for by the
+  // only thing that knows the rules — the resolver itself. A number derived any
+  // other way would drift from the game the first time a keyword changed.
+  //
+  // Same containment as previewPlay, for the same reason: the clone is stamped
+  // _silentSim, has its room and role stripped so no wire door can leak a
+  // hypothetical future to the other seats, and UI/setTimeout are stubbed for
+  // the duration so nothing animates or schedules off a simulation.
+  //
+  // Returns null rather than guessing whenever it cannot run — mid-combat, game
+  // over, or a resolver throw — and every caller treats null as "say nothing".
+  previewCombatNow() {
+    const s = this.state;
+    if (!s || s.gameOver || s._silentSim) return null;
+    if (!this.cloneStateDeep || !this.resolveCombat) return null;
+    // Never inside a live combat: the resolver is already walking this state.
+    if (s._inCombat || s.phase === 'combat' || s.phase === '2v2-combat') return null;
+    const origState = s;
+    const _savedActor = this._2v2CurrentActingPlayer;
+    const _savedDriving = this._2v2AIDriving;
+    const origSetTimeout = (typeof window !== 'undefined') ? window.setTimeout : null;
+    let out = null;
+    try {
+      const clone = this.cloneStateDeep(origState);
+      clone._silentSim = true;
+      if (clone.twoVTwo) clone.twoVTwo.online = false;
+      clone.mp = null;
+      const beforeP = (origState.player && origState.player.health) || 0;
+      const beforeA = (origState.ai && origState.ai.health) || 0;
+      const laneBefore = (origState.lanes || []).map(l => ({
+        p: l && l.player ? (l.player.currentHealth || 0) : null,
+        a: l && l.ai ? (l.ai.currentHealth || 0) : null,
+      }));
+      this.state = clone;
+      // UI IS A TOP-LEVEL `const` — see previewPlay's own note. Replacing the
+      // binding throws, and the throw would be swallowed by the catch below, so
+      // this would have silently returned null forever while looking correct.
+      // Use previewPlay's stub, which owns the key list; a second copy of that
+      // list is a list that drifts.
+      this._simStubUI();
+      if (typeof window !== 'undefined' && origSetTimeout) {
+        window.setTimeout = (fn) => { try { if (typeof fn === 'function') fn(); } catch (e) {} return 0; };
+      }
+      this.resolveCombat();
+      const afterP = (clone.player && clone.player.health) || 0;
+      const afterA = (clone.ai && clone.ai.health) || 0;
+      // From the local player's seat: what the OPPONENT loses is what you deal.
+      out = {
+        youDeal: Math.max(0, beforeA - afterA),
+        youTake: Math.max(0, beforeP - afterP),
+        lanes: (clone.lanes || []).map((l, i) => {
+          const b = laneBefore[i] || {};
+          const pAfter = l && l.player ? (l.player.currentHealth || 0) : null;
+          const aAfter = l && l.ai ? (l.ai.currentHealth || 0) : null;
+          return {
+            youDeal: (b.a != null && aAfter != null) ? Math.max(0, b.a - aAfter) : (b.a != null ? b.a : 0),
+            youTake: (b.p != null && pAfter != null) ? Math.max(0, b.p - pAfter) : (b.p != null ? b.p : 0),
+            allyDies: b.p != null && (pAfter == null || pAfter <= 0),
+            enemyDies: b.a != null && (aAfter == null || aAfter <= 0),
+          };
+        }),
+      };
+      out.net = out.youDeal - out.youTake;
+    } catch (e) {
+      out = null;
+    } finally {
+      this.state = origState;
+      this._2v2CurrentActingPlayer = _savedActor;
+      this._2v2AIDriving = _savedDriving;
+      if (typeof window !== 'undefined' && origSetTimeout) window.setTimeout = origSetTimeout;
+      this._simRestoreUI();
+    }
+    return out;
+  },
+
+  // The UI stub previewPlay has always done inline, lifted out so the combat
+  // preview above can use the same one. One list of methods to silence.
+  _simStubUI() {
+    this._simSavedUI = {};
+    if (typeof UI === 'undefined') return;
+    const noop = () => {};
+    const STUB_KEYS = [
+      'render', 'showPhaseBanner', 'showLaneRecap', 'showRoundSummary',
+      'showGameOverScreen', 'animateStatChanges', 'flashLanes',
+      'flashUnaffordable', 'showFloatingPrompt', 'showCardChoice',
+      'showLaneChoice', 'launchVictoryConfetti', 'stopVictoryConfetti',
+      'startPromptCountdown', 'stopPromptCountdown', 'spawnLandingBurst',
+      'pulseHpEdge', 'killingBlowCinema', 'hitPause', 'showFearPrompt',
+      'showMindControlPrompt', 'showBlockTrickPrompt', 'closeAllPrompts'
+    ];
+    STUB_KEYS.forEach(k => { if (k in UI) { this._simSavedUI[k] = UI[k]; UI[k] = noop; } });
+    const silence = (obj) => new Proxy(obj, {
+      get(t, pr) { const v = t[pr]; return (typeof v === 'function') ? () => null : v; }
+    });
+    if (UI.sfx)   { this._simSavedUI._sfx = UI.sfx;     UI.sfx = silence(UI.sfx); }
+    if (UI.audio) { this._simSavedUI._audio = UI.audio; UI.audio = silence(UI.audio); }
+  },
+  _simRestoreUI() {
+    if (this._simSavedUI && typeof UI !== 'undefined') {
+      for (const k in this._simSavedUI) {
+        if (k === '_sfx') UI.sfx = this._simSavedUI[k];
+        else if (k === '_audio') UI.audio = this._simSavedUI[k];
+        else UI[k] = this._simSavedUI[k];
+      }
+    }
+    this._simSavedUI = null;
+  },
+
   previewPlay(hypothesis) {
     if (!this.state || !hypothesis) return null;
     if (this.state.gameOver) return null;

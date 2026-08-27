@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=1292">
+  <link rel="stylesheet" href="style.css?v=1293">
 
   <script>
     // Lightweight error reporter (pre-Sentry) — capture runtime JS
@@ -686,6 +686,11 @@
        reason: it is position:fixed with viewport-intent coordinates
        (top:80px; right:0; bottom:80px), which the camera transform was
        resolving against the board instead. -->
+  <!-- BOARD ASIDE — the "if combat resolves now" readout and the last few log
+       lines, from the board reference. Body level for the same reason the log
+       drawer is: #game-area carries a perspective transform, which would become
+       the containing block for anything position:fixed inside it. -->
+  <div id="board-aside" class="board-aside" hidden></div>
   <div id="log-section" class="log-section log-drawer collapsed">
     <div class="section-label">Battle Log <button class="log-close" onclick="UI.toggleLogDrawer()" title="Close">&#10005;</button></div>
     <div id="game-log" class="game-log"></div>
@@ -869,7 +874,7 @@
   <script src="engine/combat.js?v=4"></script>
   <!-- (game.js / ui.js / roguelite.js cache bumps follow) -->
   <script src="decks.js?v=6"></script>
-  <script src="game.js?v=651"></script>
+  <script src="game.js?v=652"></script>
   <script src="ai.js?v=53"></script>
   <script src="roguelite.js?v=128"></script>
   <!-- PeerJS for WebRTC peer-to-peer multiplayer. Uses the public
@@ -885,7 +890,7 @@
        shared). Loaded BEFORE leaderboard.js so the client sees it on boot. -->
   <script>window.CLB_STATS_URL = "https://card-lane-battle-stats.ryanvtagle.workers.dev";</script>
   <script src="leaderboard.js?v=3"></script>
-  <script src="ui.js?v=1446"></script>
+  <script src="ui.js?v=1447"></script>
   <!-- Party voice chat. Loads after ui.js because it paints its own panel and
        reads Game/Multiplayer state; it asks for nothing until you press Join. -->
   <script src="voice.js?v=6"></script>
