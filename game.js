@@ -4387,7 +4387,21 @@ const Game = {
     let side = null;
     if (p && !a) side = 'player';
     else if (a && !p) side = 'ai';
-    if (side && this.state[side]) {
+    if (!side) return;
+    // 2v2 tracks HP on the team, mirrored to the side proxy. Award to the team
+    // and keep the proxy in step so the HUD updates.
+    const tt = this.state.twoVTwo;
+    if (tt && this.is2v2()) {
+      const teamKey = side === 'player' ? 'A' : 'B';
+      const tm = tt.teams[teamKey];
+      if (tm) {
+        tm.health = Math.min(tm.maxHealth || 30, (tm.health || 0) + 2);
+        if (this.state[side]) this.state[side].health = tm.health;
+        this.log(`  [KING OF THE HILL] Team ${teamKey} holds Lane ${hl + 1} — +2 HP.`);
+      }
+      return;
+    }
+    if (this.state[side]) {
       this.state[side].health = Math.min(this.state[side].maxHealth || 30, (this.state[side].health || 0) + 2);
       this.log(`  [KING OF THE HILL] ${this.seatLabel(side)} holds Lane ${hl + 1} — +2 HP.`);
     }
@@ -16463,13 +16477,25 @@ const Game = {
     // next-turn energy that seat banked (Power Battery, Green Lantern) — per
     // SEAT, so a bonus one player earned never leaks to their teammate. The
     // bucket is consumed here so it can't stack across rounds.
-    const energy = tt.round;
+    // Power Surge (tournament) doubles the per-round energy grant.
+    const energy = tt.round * (this.mod('powerSurge') ? 2 : 1);
     Object.values(tt.players).forEach(p => {
       const bonus = p.nextTurnCurrency || 0;
       p.energy = energy + bonus;
       p.usedEnergy = 0;
       p.nextTurnCurrency = 0;
     });
+    // TOURNAMENT modifiers that fire at the top of every round (Shuffle,
+    // King of the Hill) — the shared hook operates on state.lanes[i].player/ai,
+    // which is exactly the 2v2 board, so it works unchanged.
+    this._tournamentStartOfRound();
+    // Glass Cannon (tournament) — both teams open at half HP. Applied on round 1
+    // (2v2 has no preset-hands branch; teams were dealt 30 by start2v2Match).
+    if (tt.round === 1 && this.mod('glassCannon')) {
+      ['A', 'B'].forEach(k => { if (tt.teams[k]) { tt.teams[k].health = tt.teams[k].maxHealth = 15; } });
+      if (s.player) { s.player.health = s.player.maxHealth = tt.teams.A.health; }
+      if (s.ai)     { s.ai.health     = s.ai.maxHealth     = tt.teams.B.health; }
+    }
 
     // ---- PER-ROUND ENERGY PASSIVES ----------------------------------------
     // "Each Turn: Add N Energy" — Dr. Manhattan (+2), Power Battery (+1), the
@@ -17060,6 +17086,9 @@ const Game = {
     tt.teams.B.health     = s.ai.health;
     tt.teams.B.blockMeter = s.ai.blockMeter;
     tt.teams.B.deadPile   = s.ai.deadPile;
+    // TOURNAMENT — King of the Hill payout (adds to team HP, after the read-back
+    // above so it isn't overwritten, before the broadcast so both sides see it).
+    this._tournamentEndOfRound();
     if (tt.online) this._2v2OnlineBroadcast();
     this._2v2DrawPhase();
   },
