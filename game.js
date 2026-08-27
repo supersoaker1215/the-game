@@ -4346,8 +4346,8 @@ const Game = {
     if (p && !a) side = 'player';
     else if (a && !p) side = 'ai';
     if (side && this.state[side]) {
-      this.state[side].health = Math.min(this.state[side].maxHealth || 30, (this.state[side].health || 0) + 1);
-      this.log(`  [KING OF THE HILL] ${this.seatLabel(side)} holds Lane ${hl + 1} — +1 HP.`);
+      this.state[side].health = Math.min(this.state[side].maxHealth || 30, (this.state[side].health || 0) + 2);
+      this.log(`  [KING OF THE HILL] ${this.seatLabel(side)} holds Lane ${hl + 1} — +2 HP.`);
     }
   },
 

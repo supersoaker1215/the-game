@@ -21291,6 +21291,11 @@ const UI = {
       if (lane.trap) statusRow.push(`<span class="lane-glyph glyph-trap glyph-${lane.trap.placedBy}" title="Bear Trap by ${lane.trap.placedBy}">&#x26A0;</span>`);
       if (forcedAi === i) statusRow.push(`<span class="lane-glyph glyph-forced glyph-forced-ai" title="AI's next card forced here">&#x21E3; AI</span>`);
       if (forcedPlayer === i) statusRow.push(`<span class="lane-glyph glyph-forced glyph-forced-player" title="Your next card forced here">&#x21E3; YOU</span>`);
+      // TOURNAMENT — King of the Hill: mark the Hill lane so the player knows
+      // which lane to hold at round end for +2 HP.
+      const _isHill = !!(Game.mod && Game.mod('kingOfHill') && Game.state._hillLane === i);
+      el.classList.toggle('lane-hill', _isHill);
+      if (_isHill) statusRow.push(`<span class="lane-glyph glyph-hill" title="King of the Hill — hold this lane alone at round's end for +2 HP">&#x1F451; HILL</span>`);
       if (statusRow.length) {
         const row = document.createElement('div');
         row.className = 'lane-status-row';

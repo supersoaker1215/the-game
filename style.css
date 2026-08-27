@@ -12736,6 +12736,18 @@ body.turn-combat .board .lane.lane-active {
   cursor: help;
 }
 .lane-glyph.glyph-destroyed { color: #e74c3c; }
+.lane-glyph.glyph-hill { color: #ffcf5c; font-weight: 700; letter-spacing: 0.06em; background: rgba(40,30,6,0.85); }
+/* King of the Hill — a gold glow so the contested lane is unmistakable. */
+.lane.lane-hill {
+  box-shadow: inset 0 0 0 2px rgba(255,207,92,0.55), 0 0 22px rgba(255,207,92,0.28);
+  border-radius: 8px;
+}
+.lane.lane-hill::before {
+  content: ""; position: absolute; inset: 0; border-radius: 8px; pointer-events: none;
+  background: linear-gradient(180deg, rgba(255,207,92,0.10), rgba(255,207,92,0) 40%);
+  animation: hill-pulse 2.4s ease-in-out infinite;
+}
+@keyframes hill-pulse { 0%,100%{opacity:0.5;} 50%{opacity:1;} }
 .lane-glyph.glyph-protected.glyph-player { color: var(--theme-accent-bright, #4fc3f7); }
 .lane-glyph.glyph-protected.glyph-ai { color: #e74c3c; }
 .lane-glyph.glyph-trap.glyph-player { color: var(--theme-accent-bright, #4fc3f7); }
