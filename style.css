@@ -46791,3 +46791,73 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   box-shadow: none;
   color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 74%, #0b1a26);
 }
+
+/* ============================================================
+   ROGUELITE MAP — NODE TYPES RAIL (2026-08-27)
+   ============================================================
+   From the reference. The legend was a row of pills under the map naming the
+   seven node types and saying nothing about any of them — a key that needs its
+   own key. It is a rail beside the ladder now, with a line each, and it reads
+   from ONE glyph source (Roguelite.nodeIconSvg) instead of the hand-copied
+   duplicate the pills carried. */
+.rl-map-stage {
+  display: grid; grid-template-columns: minmax(0, 1fr);
+  gap: clamp(16px, 2vw, 40px); align-items: start; width: 100%;
+}
+@media (min-width: 1180px) {
+  .rl-map-stage { grid-template-columns: minmax(0, 1fr) 224px; }
+  .rl-panel.rl-map-panel { max-width: min(1420px, 96vw); }
+}
+.rl-map-aside { min-width: 0; }
+.rl-map-aside .mp-rule { margin: 0 0 14px; }
+.rl-map-aside .mp-rule + .rl-nt-list { margin-bottom: 26px; }
+
+.rl-nt-list { display: flex; flex-direction: column; gap: 13px; }
+.rl-nt { display: flex; align-items: center; gap: 12px; }
+.rl-nt-ic {
+  flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: #000; border: 1px solid currentColor;
+  box-shadow: 0 0 12px color-mix(in srgb, currentColor 40%, transparent);
+}
+.rl-nt-ic svg { width: 17px; height: 17px; }
+.rl-nt-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rl-nt-name {
+  font: 700 11px/1 'Rajdhani', sans-serif; letter-spacing: 0.14em; text-transform: uppercase;
+  color: currentColor;
+}
+.rl-nt-sub {
+  font: 400 9px/1.3 var(--font-mono, 'JetBrains Mono', monospace);
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 62%, #ffffff);
+}
+/* Each row wears its own node's colour — the same hues the nodes use, so the
+   legend and the ladder are read as one thing. */
+.rl-nt.rl-nt { color: inherit; }
+.rl-nt .rl-legend-combat   { color: #cfe2ef; }
+.rl-nt .rl-legend-elite    { color: #b98cff; }
+.rl-nt .rl-legend-event    { color: #2ecc71; }
+.rl-nt .rl-legend-shop     { color: #ffb347; }
+.rl-nt .rl-legend-rest     { color: #4fc3f7; }
+.rl-nt .rl-legend-treasure { color: #e8eef5; }
+.rl-nt .rl-legend-boss     { color: #ff6b6b; }
+.rl-nt:has(.rl-legend-combat)   .rl-nt-name { color: #cfe2ef; }
+.rl-nt:has(.rl-legend-elite)    .rl-nt-name { color: #b98cff; }
+.rl-nt:has(.rl-legend-event)    .rl-nt-name { color: #2ecc71; }
+.rl-nt:has(.rl-legend-shop)     .rl-nt-name { color: #ffb347; }
+.rl-nt:has(.rl-legend-rest)     .rl-nt-name { color: #4fc3f7; }
+.rl-nt:has(.rl-legend-treasure) .rl-nt-name { color: #e8eef5; }
+.rl-nt:has(.rl-legend-boss)     .rl-nt-name { color: #ff6b6b; }
+
+/* What this act actually rolled — counted off the map on screen. */
+.rl-act-stats { display: flex; gap: 20px; }
+.rl-as { display: flex; flex-direction: column; gap: 3px; }
+.rl-as-n {
+  font: 700 22px/1 'Chakra Petch', sans-serif; font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 24%, #ffffff);
+}
+.rl-as-elite { color: #b98cff; text-shadow: 0 0 10px rgba(185,140,255,0.45); }
+.rl-as-shop  { color: #ffb347; text-shadow: 0 0 10px rgba(255,179,71,0.45); }
+.rl-as-cap {
+  font: 700 8px/1 'Rajdhani', sans-serif; letter-spacing: 0.16em; text-transform: uppercase;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 62%, #ffffff);
+}

@@ -6294,6 +6294,70 @@ const Roguelite = {
       </div>`;
   },
 
+  nodeIconSvg(type) {
+    switch (type) {
+      case 'combat': return '<path d="M5 5 L19 19 M19 5 L5 19"/>';
+      case 'event':  return '<path d="M12 4 L14 10 L20 12 L14 14 L12 20 L10 14 L4 12 L10 10 Z"/>';
+      case 'shop':   return '<circle cx="12" cy="12" r="7"/><path d="M9 9 h6 M9 12 h6 M9 15 h6 M12 7 v10"/>';
+      case 'rest':   return '<path d="M16 6 a8 8 0 1 0 2 9 a6 6 0 0 1 -2 -9 z"/>';
+      case 'elite':  return '<path d="M5 5 L19 19 M19 5 L5 19 M12 3 v3 M12 18 v3 M3 12 h3 M18 12 h3"/>';
+      case 'treasure': return '<path d="M4 9 h16 v10 h-16 z M4 9 v-2 a2 2 0 0 1 2 -2 h12 a2 2 0 0 1 2 2 v2"/><path d="M11 13 h2 v3 h-2 z"/>';
+      case 'boss':   return '<path d="M7 5 a5 5 0 0 1 10 0 v6 a5 5 0 0 1 -10 0 z M9 9 v1 M15 9 v1 M9 13 v3 M12 13 v4 M15 13 v3"/>';
+      case 'final-boss': return '<path d="M12 3 L14.5 10 L22 11 L16 16 L18 22 L12 18 L6 22 L8 16 L2 11 L9.5 10 Z"/>';
+      default:       return '<circle cx="12" cy="12" r="6"/>';
+    }
+  },
+  // WHAT EACH NODE ACTUALLY IS. The legend was a row of pills naming the seven
+  // types without saying what any of them does — a key that needs its own key.
+  NODE_LEGEND: [
+    { t: 'combat',   label: 'Combat',   sub: 'a standard fight' },
+    { t: 'elite',    label: 'Elite',    sub: 'harder fight, better reward' },
+    { t: 'event',    label: 'Event',    sub: 'a choice, outcome unknown' },
+    { t: 'shop',     label: 'Shop',     sub: 'spend gold' },
+    { t: 'rest',     label: 'Rest',     sub: 'heal or upgrade' },
+    { t: 'treasure', label: 'Treasure', sub: 'a free relic' },
+    { t: 'boss',     label: 'Boss',     sub: 'every path ends here' },
+  ],
+  _renderMapAside(run) {
+    const rows = this.NODE_LEGEND.map(n => `
+      <div class="rl-nt">
+        <span class="rl-nt-ic rl-legend-${n.t}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${this.nodeIconSvg(n.t)}</svg></span>
+        <span class="rl-nt-txt"><b class="rl-nt-name">${n.label}</b><span class="rl-nt-sub">${n.sub}</span></span>
+      </div>`).join('');
+    // COUNTED OFF THE MAP THAT IS ACTUALLY ON SCREEN, not off the generator's
+    // intent — this act is whatever the roll produced.
+    let flat = [];
+    const m = run && run.map;
+    if (m) {
+      if (Array.isArray(m.nodes)) flat = m.nodes.slice();
+      else if (m.nodes) flat = Object.keys(m.nodes).map(k => m.nodes[k]);
+      else if (Array.isArray(m.rowNodes)) flat = [].concat.apply([], m.rowNodes);
+    }
+    // THIS ACT MEANS THIS ACT. map.rows is 24 — the WHOLE RUN, all three acts
+    // (three boss nodes, at rows 7/15/23) — so printing it under a "This act"
+    // heading would have said 24 floors / 5 elites / 7 shops for a ladder that
+    // actually holds 8 / 2 / 2. Every node carries the tier it belongs to, and
+    // run.act says which one you are in, so the slice is exact rather than row
+    // arithmetic that would break the moment an act changed length.
+    const act = (run && run.act) || 1;
+    const mine = flat.filter(n => n && (n.tier == null || n.tier === act));
+    const count = (t) => mine.filter(n => n.type === t).length;
+    const floors = new Set(mine.map(n => n.row)).size;
+    const stats = floors ? `
+      <div class="mp-rule"><span class="mp-rule-label">This act</span><span class="mp-rule-line"></span></div>
+      <div class="rl-act-stats">
+        <div class="rl-as"><b class="rl-as-n">${floors}</b><span class="rl-as-cap">Floors</span></div>
+        <div class="rl-as"><b class="rl-as-n rl-as-elite">${count('elite')}</b><span class="rl-as-cap">Elites</span></div>
+        <div class="rl-as"><b class="rl-as-n rl-as-shop">${count('shop')}</b><span class="rl-as-cap">Shops</span></div>
+      </div>` : '';
+    return `<aside class="rl-map-aside">
+      <div class="mp-rule"><span class="mp-rule-label">Node types</span><span class="mp-rule-line"></span></div>
+      <div class="rl-nt-list">${rows}</div>
+      ${stats}
+    </aside>`;
+  },
+
   _renderMap() {
     const run = Game.state.roguelite;
     if (!run) return '';
@@ -6345,19 +6409,11 @@ const Roguelite = {
     // from the main menu. State drives a class on the <g>; the CSS
     // (.rl-mapnode-current, .rl-mapnode-legal, etc.) handles the neon
     // pulse, the active-theme tint, and the dimmed-done state.
-    const nodeIconSvg = (type) => {
-      switch (type) {
-        case 'combat': return '<path d="M5 5 L19 19 M19 5 L5 19"/>';   // X / crossed swords
-        case 'event':  return '<path d="M12 4 L14 10 L20 12 L14 14 L12 20 L10 14 L4 12 L10 10 Z"/>';  // 4-point star
-        case 'shop':   return '<circle cx="12" cy="12" r="7"/><path d="M9 9 h6 M9 12 h6 M9 15 h6 M12 7 v10"/>';  // coin
-        case 'rest':   return '<path d="M16 6 a8 8 0 1 0 2 9 a6 6 0 0 1 -2 -9 z"/>';  // crescent
-        case 'elite':  return '<path d="M5 5 L19 19 M19 5 L5 19 M12 3 v3 M12 18 v3 M3 12 h3 M18 12 h3"/>';  // X with rays
-        case 'treasure': return '<path d="M4 9 h16 v10 h-16 z M4 9 v-2 a2 2 0 0 1 2 -2 h12 a2 2 0 0 1 2 2 v2"/><path d="M11 13 h2 v3 h-2 z"/>'; // chest with keyhole
-        case 'boss':   return '<path d="M7 5 a5 5 0 0 1 10 0 v6 a5 5 0 0 1 -10 0 z M9 9 v1 M15 9 v1 M9 13 v3 M12 13 v4 M15 13 v3"/>';  // skull
-        case 'final-boss': return '<path d="M12 3 L14.5 10 L22 11 L16 16 L18 22 L12 18 L6 22 L8 16 L2 11 L9.5 10 Z"/>';  // crown star
-        default:       return '<circle cx="12" cy="12" r="6"/>';
-      }
-    };
+    // ONE GLYPH SOURCE — see Roguelite.nodeIconSvg. This used to be the only
+    // copy, while the legend below carried a hand-written duplicate of all
+    // seven paths, so a node and its own legend entry could disagree and did
+    // not have to be edited together.
+    const nodeIconSvg = (type) => this.nodeIconSvg(type);
     // Tooltip text per node type — surfaced on hover via SVG <title>
     // (which the browser renders as a native tooltip). Concise: type +
     // tier/HP range + a one-line description. User direction: "map node
@@ -6467,6 +6523,10 @@ const Roguelite = {
         ${this._renderBossPreview(run)}
         ${lastNote}
         ${startHint}
+        <!-- Two columns: the ladder, and what its symbols mean. The legend
+             was a pill row under the map naming the types without saying what
+             any of them does. -->
+        <div class="rl-map-stage">
         <div class="rl-map-svg-wrap" id="rl-map-scroll">
           <svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" style="height:${H}px;">
             ${dividerSvg}
@@ -6474,14 +6534,7 @@ const Roguelite = {
             ${nodeSvg}
           </svg>
         </div>
-        <div class="rl-map-legend rl-map-legend-tron">
-          <span class="rl-legend-pill rl-legend-combat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5 L19 19 M19 5 L5 19"/></svg>Combat</span>
-          <span class="rl-legend-pill rl-legend-event"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 L14 10 L20 12 L14 14 L12 20 L10 14 L4 12 L10 10 Z"/></svg>Event</span>
-          <span class="rl-legend-pill rl-legend-shop"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="7"/><path d="M9 9 h6 M9 12 h6 M9 15 h6 M12 7 v10"/></svg>Shop</span>
-          <span class="rl-legend-pill rl-legend-rest"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 6 a8 8 0 1 0 2 9 a6 6 0 0 1 -2 -9 z"/></svg>Rest</span>
-          <span class="rl-legend-pill rl-legend-elite"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5 L19 19 M19 5 L5 19 M12 3 v3 M12 18 v3 M3 12 h3 M18 12 h3"/></svg>Elite</span>
-          <span class="rl-legend-pill rl-legend-treasure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9 h16 v10 h-16 z M4 9 v-2 a2 2 0 0 1 2 -2 h12 a2 2 0 0 1 2 2 v2"/><path d="M11 13 h2 v3 h-2 z"/></svg>Treasure</span>
-          <span class="rl-legend-pill rl-legend-boss"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 5 a5 5 0 0 1 10 0 v6 a5 5 0 0 1 -10 0 z M9 9 v1 M15 9 v1 M9 13 v3 M12 13 v4 M15 13 v3"/></svg>Boss</span>
+        ${this._renderMapAside(run)}
         </div>
       </div>`;
   },
