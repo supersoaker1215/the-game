@@ -4369,8 +4369,12 @@ const Roguelite = {
     const shuffled = pool.slice().sort(() => Math.random() - 0.5);
     return shuffled.slice(0, 3).map(d => ({ name: d.name, cost: d.cost, attack: d.attack, health: d.health, abilities: d.abilities, desc: d.desc }));
   },
+  // -1 means nothing is selected — the footer button is disabled in that state,
+  // so this is only reachable by a hand-made call. Refuse rather than index the
+  // pool with -1 and start a run with an undefined relic.
   pickStarterRelic(idx) {
     const pool = Game.state._starterRelicPool || [];
+    if (idx == null || idx < 0 || !pool[idx]) return;   // nothing selected
     Game.state._starterPicks = Game.state._starterPicks || {};
     Game.state._starterPicks.relic = pool[idx] && pool[idx].id;
     Game.state.phase = 'roguelite-pick-card';
@@ -6136,14 +6140,57 @@ const Roguelite = {
   // Reusable progress strip — renders the 3-step Tron progress pills
   // matching the active step. Uses the .mm-option theme system so the
   // colors auto-flip to whatever neon theme the user has selected.
+  // NUMBERED, AND THE NUMBER IS THE CHIP. Three words in a row do not say they
+  // are a sequence; "1 RELIC — 2 CARD — 3 BOON" does, and the connector between
+  // them carries how far along you are.
   _renderProgressStrip(active) {
     const steps = ['RELIC', 'CARD', 'BOON'];
     const idx = steps.indexOf(active);
     return `<div class="rl-pick-progress">${steps.map((s, i) => {
       const cls = i < idx ? 'rl-pick-step-done'
                 : i === idx ? 'rl-pick-step-active' : '';
-      return `<span class="rl-pick-step ${cls}">${s}</span>`;
+      const link = i > 0 ? `<span class="rl-step-link${i <= idx ? ' is-done' : ''}"></span>` : '';
+      return `${link}<span class="rl-pick-step ${cls}"><b class="rl-step-n">${i + 1}</b><span class="rl-step-w">${s}</span></span>`;
     }).join('')}</div>`;
+  },
+
+  // THE RUN'S OPENING NUMBERS, and they are the REAL ones. The reference sheet
+  // showed "0 GOLD / 12 DECK"; this game starts you on 50 gold with a nine-card
+  // starter deck, so those are what it says. A stat line that is decorative is
+  // worse than no stat line — you would plan around it.
+  //
+  // Before step 3 there is no run object yet (initRun is what creates it), so
+  // these are read from the run when it exists and from the same constants
+  // initRun itself uses when it does not.
+  _renderRunStats() {
+    const run = Game.state.roguelite;
+    const deckN = run ? (run.deck || []).length : 9;      // 3 Goon + 3 Thug + 3 Brute
+    const hp    = run ? run.hp : 30;
+    const maxHp = run ? run.maxHp : 30;
+    const gold  = run ? run.gold : 50;                    // initRun's default
+    const floor = run ? (run.floor || 1) : 1;
+    return `<div class="rl-runstats">
+      <div class="rl-rs"><b class="rl-rs-n rl-rs-hp">${hp}</b><span class="rl-rs-sub">/ ${maxHp}</span><span class="rl-rs-cap">HP</span></div>
+      <div class="rl-rs"><b class="rl-rs-n">${gold}</b><span class="rl-rs-cap">Gold</span></div>
+      <div class="rl-rs"><b class="rl-rs-n">${deckN}</b><span class="rl-rs-cap">Deck</span></div>
+      <div class="rl-rs"><b class="rl-rs-n">${floor}</b><span class="rl-rs-cap">Floor</span></div>
+    </div>`;
+  },
+
+  // One tile, for any pick that is a name + a description + an icon: the relics
+  // here and the boons on step 3. Selected state is carried on the tile so the
+  // choice is visible BEFORE it is committed — see selectStarter.
+  _renderPickTile(o) {
+    const esc = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    const rar = o.rarity ? this.displayRarity(o.rarity).toUpperCase() : '';
+    return `<button type="button" class="rl-tile${o.selected ? ' is-selected' : ''} rl-tile-r-${esc(o.rarity || 'common')}"
+        onclick="${o.onclick}" aria-pressed="${o.selected ? 'true' : 'false'}">
+      ${rar ? `<span class="rl-tile-rar">${esc(rar)}</span>` : ''}
+      ${o.selected ? '<span class="rl-tile-check" aria-hidden="true">&#10003;</span>' : ''}
+      <span class="rl-tile-icon">${o.icon || ''}</span>
+      <span class="rl-tile-name">${esc(o.name)}</span>
+      <span class="rl-tile-desc">${esc(o.desc)}</span>
+    </button>`;
   },
 
   // Step 1 of 3: pick 1 of 3 common relics. Buttons centered as a
@@ -6151,24 +6198,49 @@ const Roguelite = {
   // buttons are all left-centered. Just center them."
   _renderPickRelic() {
     const pool = Game.state._starterRelicPool || [];
-    const buttons = pool.map((r, i) => `
-      <button type="button" class="mm-option mm-option-rl tron-fx tron-fx-breathe" onclick="Roguelite.pickStarterRelic(${i})">
-        <div class="mm-option-icon"><span class="rl-mm-glyph">${this._relicIcon(r)}</span></div>
-        <div class="mm-option-text">
-          <div class="mm-option-label">${r.name}</div>
-          <div class="mm-option-sub">${r.desc}</div>
-        </div>
-        <span class="tron-sweep" aria-hidden="true"></span>
-      </button>
-    `).join('');
+    const sel = Game.state._starterRelicSel;
+    const tiles = pool.map((r, i) => this._renderPickTile({
+      name: r.name, desc: r.desc, rarity: r.rarity, icon: this._relicIcon(r),
+      selected: sel === i, onclick: `Roguelite.selectStarter('relic', ${i})`,
+    })).join('');
+    const chosen = (sel != null && pool[sel]) ? pool[sel].name : null;
     return `
       <div class="rl-panel rl-pick-panel">
-        <button type="button" class="md-back tron-fx tron-fx-breathe" onclick="Roguelite.abandonRun()" title="Back to main menu">&larr; Menu<span class="tron-sweep" aria-hidden="true"></span></button>
+        ${this._rlCrumb()}
         <h1 class="rl-title mm-title">A New Run</h1>
-        <p class="rl-subtitle mm-subtitle">Step 1 of 3 — Choose a starting Relic</p>
+        <p class="rl-subtitle mm-subtitle">Choose a starting Relic</p>
         ${this._renderProgressStrip('RELIC')}
-        <div class="mm-options rl-mm-options-2col">${buttons}</div>
+        <div class="rl-tiles">${tiles}</div>
+        ${this._renderRunStats()}
+        ${this._renderPickFoot(chosen, 'Next — choose a card', `Roguelite.pickStarterRelic(${sel == null ? -1 : sel})`)}
       </div>`;
+  },
+
+  // Breadcrumb, matching the multiplayer screen — where you can get back to and
+  // where you are, on one line instead of a floating Back button.
+  _rlCrumb() {
+    return `<nav class="mp-crumb" aria-label="Breadcrumb">
+      <button type="button" class="mp-crumb-back" onclick="Roguelite.abandonRun()">&larr; Menu</button>
+      <span class="mp-crumb-sep">/</span><span class="mp-crumb-here">Roguelite</span>
+    </nav>`;
+  },
+  // SELECT, THEN COMMIT. Every one of these picks is permanent for the run, and
+  // the old tiles fired on the first click — one stray tap and your relic was
+  // chosen. The tile now shows the choice and this button takes it.
+  _renderPickFoot(chosenName, label, onclick) {
+    const ready = !!chosenName;
+    return `<div class="rl-pick-foot">
+      <span class="rl-pick-chosen">${ready ? chosenName.toUpperCase() + ' selected' : 'Choose one to continue'}</span>
+      <button type="button" class="rl-next${ready ? '' : ' is-off'}" ${ready ? '' : 'disabled'} onclick="${onclick}">
+        ${label} &rarr;
+      </button>
+    </div>`;
+  },
+  // Hold a pick without committing it. Same door for every step, so the
+  // select-then-confirm behaviour cannot differ between them.
+  selectStarter(kind, i) {
+    Game.state['_starter' + (kind === 'relic' ? 'Relic' : 'Boon') + 'Sel'] = i;
+    if (typeof UI !== 'undefined' && UI.render) UI.render();
   },
 
   // Step 2 of 3: pick 1 of 3 random Common cards (cost 1-3, real cards).
@@ -6183,11 +6255,12 @@ const Roguelite = {
       </div>`).join('');
     return `
       <div class="rl-panel rl-pick-panel rl-pick-panel-cards">
-        <button type="button" class="md-back tron-fx tron-fx-breathe" onclick="Roguelite.abandonRun()" title="Back to main menu">&larr; Menu<span class="tron-sweep" aria-hidden="true"></span></button>
+        ${this._rlCrumb()}
         <h1 class="rl-title mm-title">A New Run</h1>
-        <p class="rl-subtitle mm-subtitle">Step 2 of 3 — Choose a starting Card</p>
+        <p class="rl-subtitle mm-subtitle">Choose a starting Card</p>
         ${this._renderProgressStrip('CARD')}
         <div class="rl-pick-cards-row">${cards}</div>
+        ${this._renderRunStats()}
       </div>`;
   },
 
@@ -6199,23 +6272,25 @@ const Roguelite = {
       const shuffled = [...this.BOONS].sort(() => Math.random() - 0.5);
       Game.state._boonRoll = shuffled.slice(0, 4);
     }
-    const buttons = Game.state._boonRoll.map(b => `
-      <button type="button" class="mm-option mm-option-rl tron-fx tron-fx-breathe" onclick="Roguelite.startWithBoon('${b.id}')">
-        <div class="mm-option-icon"><span class="rl-mm-glyph">✦</span></div>
-        <div class="mm-option-text">
-          <div class="mm-option-label">${b.name}</div>
-          <div class="mm-option-sub">${b.desc}</div>
-        </div>
-        <span class="tron-sweep" aria-hidden="true"></span>
-      </button>
-    `).join('');
+    // Same tile as the relic step — a boon is the same shape of choice (a name,
+    // a sentence, an icon), so it gets the same object rather than a second one.
+    const roll = Game.state._boonRoll;
+    const sel = Game.state._starterBoonSel;
+    const tiles = roll.map((b, i) => this._renderPickTile({
+      name: b.name, desc: b.desc, rarity: b.rarity || '', icon: '&#10022;',
+      selected: sel === i, onclick: `Roguelite.selectStarter('boon', ${i})`,
+    })).join('');
+    const chosen = (sel != null && roll[sel]) ? roll[sel].name : null;
+    const go = (sel != null && roll[sel]) ? `Roguelite.startWithBoon('${roll[sel].id}')` : '';
     return `
       <div class="rl-panel rl-pick-panel">
-        <button type="button" class="md-back tron-fx tron-fx-breathe" onclick="Roguelite.abandonRun()" title="Back to main menu">&larr; Menu<span class="tron-sweep" aria-hidden="true"></span></button>
+        ${this._rlCrumb()}
         <h1 class="rl-title mm-title">A New Run</h1>
-        <p class="rl-subtitle mm-subtitle">Step 3 of 3 — Choose your Boon</p>
+        <p class="rl-subtitle mm-subtitle">Choose your Boon</p>
         ${this._renderProgressStrip('BOON')}
-        <div class="mm-options rl-mm-options-2col">${buttons}</div>
+        <div class="rl-tiles">${tiles}</div>
+        ${this._renderRunStats()}
+        ${this._renderPickFoot(chosen, 'Begin the run', go)}
       </div>`;
   },
 

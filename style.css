@@ -46647,3 +46647,147 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .ba-log-more:hover, .ba-log-more:focus-visible {
   color: #ffffff; text-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.9);
 }
+
+/* ============================================================
+   ROGUELITE — A NEW RUN (2026-08-27)
+   ============================================================
+   From the reference. The three starting picks were menu ROWS, which read as
+   navigation; a relic is a thing you acquire, so it gets a face.
+
+   NOTE ON THE NUMBERS: the reference sheet showed "0 GOLD / 12 DECK". This game
+   starts you on 50 gold with a nine-card starter deck, and _renderRunStats
+   reads the real run (or the same constants initRun uses, before the run
+   exists). A decorative stat line is worse than none — you would plan on it. */
+
+/* Numbered chips, joined by a connector that fills as you go. */
+.rl-pick-progress { display: flex; align-items: center; justify-content: center; gap: 0; margin: 6px 0 30px; }
+.rl-pick-step {
+  display: inline-flex; align-items: center; gap: 8px; padding: 0 10px;
+  font: 700 11px/1 'Rajdhani', sans-serif; letter-spacing: 0.18em; text-transform: uppercase;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 66%, #ffffff);
+}
+.rl-step-n {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; font: 700 10px/1 var(--font-mono, monospace);
+  background: #000; border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.42);
+  clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px);
+}
+.rl-pick-step-active { color: #ffffff; text-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.8); }
+.rl-pick-step-active .rl-step-n {
+  border-color: rgb(var(--theme-rgb, 79,195,247));
+  color: rgb(var(--theme-rgb, 79,195,247));
+  box-shadow: 0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.45);
+}
+.rl-pick-step-done .rl-step-n { border-color: rgba(var(--theme-rgb, 79,195,247), 0.7); }
+.rl-step-link { width: 54px; height: 1px; background: rgba(var(--theme-rgb, 79,195,247), 0.20); }
+.rl-step-link.is-done { background: rgba(var(--theme-rgb, 79,195,247), 0.6); }
+
+/* THE TILES. Chamfered bottom-right like every other card face in this game. */
+/* FOUR ACROSS, WHICH THE PANEL HAS TO BE WIDE ENOUGH FOR. .rl-panel is capped at
+   880px — right for a column of menu rows, fatal for four tiles: it leaves 798px
+   of grid for four cards that need 826 at their minimum, so auto-fit dropped one
+   onto a second row. Exactly the ceiling that caught the draft stage. The cap
+   lifts on the pick screens only. */
+.rl-tiles {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: clamp(12px, 1.6vw, 26px); width: 100%; margin: 0 auto;
+}
+@media (min-width: 1080px) {
+  .rl-panel.rl-pick-panel { max-width: min(1240px, 94vw); }
+  .rl-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+.rl-tile {
+  position: relative; display: flex; flex-direction: column; align-items: flex-start;
+  min-height: 300px; padding: 34px 22px 24px; cursor: pointer; text-align: left;
+  background: #000;
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.42);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%);
+  box-shadow: inset 0 0 60px rgba(var(--theme-rgb, 79,195,247), 0.05);
+  transition: border-color .16s var(--ease-snap), box-shadow .16s var(--ease-snap), transform .16s var(--ease-snap);
+}
+.rl-tile:hover, .rl-tile:focus-visible {
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.9);
+  box-shadow: 0 0 26px rgba(var(--theme-rgb, 79,195,247), 0.28), inset 0 0 60px rgba(var(--theme-rgb, 79,195,247), 0.08);
+  transform: translateY(-3px);
+}
+/* Selected reads as CHOSEN, not merely hovered — brighter edge, a tick, and it
+   stays put when the pointer leaves. */
+.rl-tile.is-selected {
+  border-color: #ffffff;
+  box-shadow: 0 0 34px rgba(var(--theme-rgb, 79,195,247), 0.5), inset 0 0 70px rgba(var(--theme-rgb, 79,195,247), 0.10);
+}
+.rl-tile-rar {
+  position: absolute; top: 0; left: 0; padding: 4px 12px 4px 10px;
+  font: 700 8px/1 'Rajdhani', sans-serif; letter-spacing: 0.16em; text-transform: uppercase;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 40%, #ffffff);
+  background: rgba(var(--theme-rgb, 79,195,247), 0.10);
+  clip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+}
+.rl-tile-check {
+  position: absolute; top: 6px; right: 10px; font-size: 15px; line-height: 1;
+  color: #ffffff; text-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.9);
+}
+.rl-tile-icon {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; flex: 1 1 auto; min-height: 96px;
+  font-size: 44px; line-height: 1;
+  color: rgb(var(--theme-rgb, 79,195,247));
+  text-shadow: 0 0 18px rgba(var(--theme-rgb, 79,195,247), 0.55);
+}
+.rl-tile-icon svg { width: 52px; height: 52px; }
+.rl-tile-name {
+  font: 700 19px/1.15 'Chakra Petch', 'Rajdhani', sans-serif;
+  letter-spacing: 0.03em; text-transform: uppercase;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 26%, #ffffff);
+  padding-bottom: 9px; margin-bottom: 11px; width: 100%;
+  border-bottom: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.22);
+}
+.rl-tile-desc {
+  font: 400 12px/1.45 var(--font-mono, 'JetBrains Mono', monospace);
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 56%, #ffffff);
+}
+
+/* The run's opening numbers, hairline-separated. */
+.rl-runstats { display: flex; justify-content: center; align-items: flex-end; gap: 0; margin: 30px 0 4px; }
+.rl-rs {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 0 26px; border-left: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.16);
+}
+.rl-rs:first-child { border-left: 0; }
+.rl-rs-n {
+  font: 700 26px/1 'Chakra Petch', sans-serif; font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 24%, #ffffff);
+}
+.rl-rs-hp { color: rgb(var(--theme-rgb, 79,195,247)); text-shadow: 0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.5); }
+.rl-rs-sub { font: 600 10px/1 var(--font-mono, monospace); color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 62%, #ffffff); }
+.rl-rs-cap {
+  font: 700 8px/1 'Rajdhani', sans-serif; letter-spacing: 0.16em; text-transform: uppercase;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 62%, #ffffff);
+}
+
+/* Footer: what you picked, and the one control that commits it. */
+.rl-pick-foot { display: flex; align-items: center; justify-content: center; gap: 22px; margin-top: 26px; flex-wrap: wrap; }
+.rl-pick-chosen {
+  font: 700 10px/1 'Rajdhani', sans-serif; letter-spacing: 0.16em; text-transform: uppercase;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 62%, #ffffff);
+}
+.rl-next {
+  padding: 13px 30px; cursor: pointer; background: #000;
+  border: 1px solid rgb(var(--theme-rgb, 79,195,247));
+  clip-path: polygon(13px 0, 100% 0, 100% calc(100% - 13px), calc(100% - 13px) 100%, 0 100%, 0 13px);
+  box-shadow: 0 0 22px rgba(var(--theme-rgb, 79,195,247), 0.30), inset 0 0 34px rgba(var(--theme-rgb, 79,195,247), 0.07);
+  font: 700 13px/1 'Rajdhani', sans-serif; letter-spacing: 0.16em; text-transform: uppercase;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 22%, #ffffff);
+  transition: box-shadow .16s var(--ease-snap), color .16s var(--ease-snap);
+}
+.rl-next:hover:not(.is-off), .rl-next:focus-visible:not(.is-off) {
+  color: #ffffff; box-shadow: 0 0 34px rgba(var(--theme-rgb, 79,195,247), 0.55), inset 0 0 40px rgba(var(--theme-rgb, 79,195,247), 0.12);
+}
+/* Not yet available stays LIT and dims in the colour — the rule this file
+   follows everywhere, never a fade toward the black behind it. */
+.rl-next.is-off {
+  cursor: default;
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.30);
+  box-shadow: none;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 74%, #0b1a26);
+}
