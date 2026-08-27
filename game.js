@@ -12519,6 +12519,7 @@ const Game = {
       // A lane choice raised on the driving AI's own side is answered by that AI
       // (auto-picks the first open lane below) so no card can freeze the table.
       let _drivingAILane = this._2v2AIDriving;
+      if (!_drivingAILane) { const _c = this._2v2CurrentActingPlayer; if (_c && this._2v2SeatIsAI(_c)) _drivingAILane = _c; }
       if (!_drivingAILane) { const _a = this._2v2ActivePlayer && this._2v2ActivePlayer(); if (_a && this._2v2SeatIsAI(_a)) _drivingAILane = _a; }
       if (!_drivingAILane) { const _o = this._2v2AbilityOwner && this._2v2AbilityOwner(); if (_o && this._2v2SeatIsAI(_o)) _drivingAILane = _o; }
       if (_drivingAILane && this._2v2SeatIsAI(_drivingAILane)
@@ -12789,6 +12790,11 @@ const Game = {
       // (Owner: "when an AI plays a card and needs a choice, the choice goes to
       // that AI and it auto-picks — never to me.")
       let _drivingAI = this._2v2AIDriving;
+      // The seat currently mid-action is the most direct signal — it is set for
+      // every card AND trick play (a trick like Fear Toxin has no card `self` to
+      // stamp, so this is what catches its prompt). Then the drive flag, the
+      // whose-turn-it-is seat, and the running ability's owner, in that order.
+      if (!_drivingAI) { const _c = this._2v2CurrentActingPlayer; if (_c && this._2v2SeatIsAI(_c)) _drivingAI = _c; }
       if (!_drivingAI) { const _a = this._2v2ActivePlayer && this._2v2ActivePlayer(); if (_a && this._2v2SeatIsAI(_a)) _drivingAI = _a; }
       if (!_drivingAI) { const _o = this._2v2AbilityOwner && this._2v2AbilityOwner(); if (_o && this._2v2SeatIsAI(_o)) _drivingAI = _o; }
       if (_drivingAI && this._2v2SeatIsAI(_drivingAI)
