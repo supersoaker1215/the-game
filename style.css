@@ -41653,6 +41653,73 @@ body.low-fx .badge-asleep { animation: none; }
   0%, 100% { filter: brightness(1); }
   50%      { filter: brightness(1.18); }
 }
+
+/* ---- HAND IT TO SOMEBODY: THE NEON VERSION ------------------------------
+   Owner, on the Dr. Strange foresight screen: "screen looks terrible i want it
+   neon with a button that has their name and you drag the card to the person."
+
+   It was reading as a flat slab because the recipient tile inherits the CARD
+   skeleton — a washed panel fill and a hairline border, which is a container.
+   The rest of this game says a lit edge around pure black, so it says that
+   here: #000 interior, a glowing edge, and the name doing the work. */
+.choice-card.choice-player {
+  background: #000 !important;
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55) !important;
+  box-shadow:
+    0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.22),
+    inset 0 0 26px rgba(var(--theme-rgb, 79,195,247), 0.06) !important;
+  transition: border-color .16s var(--ease-snap), box-shadow .16s var(--ease-snap),
+              transform .16s var(--ease-snap);
+  cursor: pointer;
+}
+.choice-card.choice-player:hover {
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.95) !important;
+  box-shadow:
+    0 0 22px rgba(var(--theme-rgb, 79,195,247), 0.45),
+    inset 0 0 30px rgba(var(--theme-rgb, 79,195,247), 0.10) !important;
+}
+/* The team line under the name — tinted, never the grey it inherited. */
+.choice-card.choice-player .card-desc {
+  opacity: 1 !important;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 62%, #ffffff) !important;
+  text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.30) !important;
+}
+/* The button IS the decision (see UI.pickBtn) — give the named one the room and
+   the weight to read as the thing you press. */
+.choice-tray .choice-pick-btn.choice-pick-who {
+  font-size: 12px; letter-spacing: 0.10em; padding: 9px 14px;
+}
+
+/* ---- DRAGGING THE CARD ONTO A NAME -------------------------------------- */
+/* The card being handed out advertises itself as draggable. */
+.peek-chip[data-peek-drag] { cursor: grab; touch-action: none; }
+.choice-tray.give-dragging .peek-chip[data-peek-drag] { cursor: grabbing; opacity: 0.35; }
+/* The ghost that follows the pointer. Centred on the finger, and pointer-events
+   off so hit-testing reads the tile UNDER it rather than the ghost itself. */
+.peek-chip.give-ghost {
+  position: fixed; z-index: 9999; margin: 0;
+  transform: translate(-50%, -50%) scale(0.92);
+  pointer-events: none; opacity: 0.95;
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.95);
+  box-shadow: 0 0 20px rgba(var(--theme-rgb, 79,195,247), 0.55);
+}
+/* While a drag is live every seat shows it can take the card, and the one under
+   the pointer says so louder — a drop target you cannot see is a guess. */
+.choice-tray.give-dragging .choice-card.choice-player {
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.75) !important;
+  border-style: dashed !important;
+}
+.choice-card.choice-player.give-drop-over {
+  border-style: solid !important;
+  border-color: rgb(var(--theme-rgb, 79,195,247)) !important;
+  box-shadow:
+    0 0 30px rgba(var(--theme-rgb, 79,195,247), 0.65),
+    inset 0 0 34px rgba(var(--theme-rgb, 79,195,247), 0.16) !important;
+  transform: translateY(-3px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .choice-card.choice-player, .choice-card.choice-player.give-drop-over { transition: none; transform: none; }
+}
 @media (prefers-reduced-motion: reduce) {
   .choice-player-name { animation: none; }
 }
@@ -43986,6 +44053,24 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   --band-box:  calc(var(--card-w) * 0.2109);
   --band-out:  calc(var(--card-w) * 0.1818);
   --band-mid:  calc(var(--card-w) * 0.1218);
+  /* THE GLOW BELONGS TO THE FRAME, NOT THE CARD.
+     This filter used to sit HERE, on the card element — and `filter:
+     drop-shadow` halos everything the element renders, which includes every
+     glyph of the name and the rules text. On a draft tile that reads as neon;
+     in the inspect modal, which magnifies the card with `zoom: 1.7`, the outer
+     stop became a ~47px green halo around each letter. Owner: "if the hover is
+     outside the card the text glows crazy, and when i hover the text returns to
+     normal, it should always be like normal."
+     The reason hovering "fixed" it was the giveaway: the modal's hover rule
+     kills `filter` outright, so the hovered state was the UNGLOWED one. A hover
+     that REMOVES an effect is backwards, and the effect was in the wrong place.
+     Moved onto .cf-edge — the ring — where the drop-shadow traces the clipped
+     silhouette and produces the same bent-neon edge with no text in the blast
+     radius. Every read surface inherits it, so the draft and codex tiles stop
+     haloing their text too. */
+}
+.card.card.draft-card .cf-edge, .card.card.enc-card .cf-edge,
+.card-inspect-modal .card.card .cf-edge, .fp-trick-preview .card.card .cf-edge {
   /* the read state's own glow stops, 2 / 13 / 48 */
   filter:
     drop-shadow(0 0 calc(var(--card-w) * 0.0036) rgba(var(--frame-core-rgb), 0.85))

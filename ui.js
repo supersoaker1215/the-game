@@ -12023,8 +12023,18 @@ const UI = {
     // button "Pick" implies a decision that does not exist. One option reads as
     // an acknowledgement; two or more is a real choice.
     const pickLabel = (cc.pickLabel) || (unmatched.length === 1 ? 'Continue' : 'Pick');
-    const pickBtn = (idx) =>
-      `<button type="button" class="choice-pick-btn" data-pick="${idx}">${pickLabel}</button>`;
+    // A RECIPIENT'S BUTTON SAYS WHO. On the "which player?" prompts (Dr.
+    // Strange's foresight, the Eye, Dormammu, Deadpool, The Grinch) every
+    // button read the same generic word, so the only thing distinguishing two
+    // otherwise identical controls was a name printed somewhere ABOVE them —
+    // which is a caption, not a control. Owner: "i want it neon with a button
+    // that has their name." The button is the decision, so it carries it.
+    const pickBtn = (idx, card) => {
+      const who = (card && card._isPlayerTile) ? (card.name || '').trim() : '';
+      const label = who ? `Give to ${who}` : pickLabel;
+      return `<button type="button" class="choice-pick-btn${who ? ' choice-pick-who' : ''}"`
+        + ` data-pick="${idx}">${label}</button>`;
+    };
     const cardsHtml = unmatched.map((card) => {
       const idx = cc.cards.indexOf(card);
       if (cc.faceDown) {
@@ -12032,7 +12042,7 @@ const UI = {
         // same commit affordance so the tray has one consistent grammar.
         return `<div class="choice-opt">`
           + `<div class="choice-card choice-facedown" data-idx="${idx}">?</div>`
-          + pickBtn(idx) + `</div>`;
+          + pickBtn(idx, null) + `</div>`;
       }
       const costClass = this.getCostClass(card.baseCost || card.cost || 0);
       const typeSigil = card.isDiscardEffect
@@ -12062,7 +12072,7 @@ const UI = {
           el.setAttribute('data-idx', idx);
           // Strip live-board-only states — this is a picker, not the lane.
           el.classList.remove('card-enter', 'lane-landed', 'card-hp-critical', 'target-highlight', 'card-damaged');
-          return `<div class="choice-opt">${el.outerHTML}${pickBtn(idx)}</div>`;
+          return `<div class="choice-opt">${el.outerHTML}${pickBtn(idx, card)}</div>`;
         } catch (e) { /* fall through to the labeled tile */ }
       }
       // Synthetic option tiles (Grinch keep-or-discard etc.) can point at a
@@ -12113,11 +12123,12 @@ const UI = {
       // glowing instead of buried in a small portrait overlay. (User: "make it
       // larger and, like, glow so I can see the name easier.")
       const playerClass = card._isPlayerTile ? ' choice-player' : '';
+      const dropAttr = card._isPlayerTile ? ' data-drop-seat="1"' : '';
       const playerNameHtml = card._isPlayerTile
         ? `<div class="choice-player-name">${card.name || 'Player'}</div>` : '';
       return `
         <div class="choice-opt">
-          <div class="choice-card card ${isActionTile ? 'choice-action' : 'flip-host'} ${costClass}${isTrickFace ? ' choice-trick' : ''}${curseClass}${weaponClass}${playerClass}" data-idx="${idx}">
+          <div class="choice-card card ${isActionTile ? 'choice-action' : 'flip-host'} ${costClass}${isTrickFace ? ' choice-trick' : ''}${curseClass}${weaponClass}${playerClass}" data-idx="${idx}"${dropAttr}>
             ${curseBolt}
             ${weaponIcon}
             ${costHtml}
@@ -12126,7 +12137,7 @@ const UI = {
             <div class="card-desc">${this.formatDesc(card.desc)}</div>
             ${stats}
           </div>
-          ${pickBtn(idx)}
+          ${pickBtn(idx, card)}
         </div>`;
     }).join('');
     // PEEK STRIP — for the 2v2 foresight prompts (Dr. Strange / Eye of Agamotto /
@@ -12148,7 +12159,7 @@ const UI = {
         const bg = safe ? `--portrait-bg:url('${safe}')${this._artFocalCard(d.name)}` : '';
         const tag = to ? `<span class="peek-chip-to">→ ${to}</span>`
           : (active ? `<span class="peek-chip-to peek-chip-now">handing out now</span>` : '');
-        return `<div class="peek-chip ${costC}${active ? ' peek-chip-active' : ''}${to ? ' peek-chip-done' : ''}">
+        return `<div class="peek-chip ${costC}${active ? ' peek-chip-active' : ''}${to ? ' peek-chip-done' : ''}"${active ? ' draggable="true" data-peek-drag="1"' : ''}>
             ${d.cost != null ? `<span class="card-cost">${d.cost}</span>` : ''}
             <div class="peek-chip-art" style="${bg}"></div>
             <div class="peek-chip-name">${d.name}</div>
@@ -12188,6 +12199,90 @@ const UI = {
       const idx = +el.getAttribute('data-idx');
       el.addEventListener('click', (ev) => { ev.stopPropagation(); cardChoicePick(idx); });
     });
+    this._wireGiveDrag(tray, cardChoicePick);
+  },
+
+  // ===================== DRAG THE CARD TO THE PERSON =====================
+  // Owner, on the Dr. Strange foresight screen: "you drag the card to the
+  // person you want to have the card."
+  //
+  // The prompt is literally "hand this card to somebody", and a row of buttons
+  // makes you translate that into a click on the right one. Dragging the card
+  // onto a name IS the sentence, so it is the primary gesture now — the buttons
+  // stay, because a gesture with no fallback is a trap on a trackpad, and
+  // because keyboard users need a control they can reach.
+  //
+  // POINTER events, not HTML5 drag-and-drop: dragstart/drop never fire for
+  // touch, and this screen is played on phones. One code path for mouse, pen
+  // and finger, and `setPointerCapture` means a fast drag that outruns the
+  // cursor still lands.
+  _wireGiveDrag(tray, pick) {
+    const handle = tray.querySelector('[data-peek-drag]');
+    const targets = [...tray.querySelectorAll('[data-drop-seat]')];
+    if (!handle || !targets.length) return;
+    let ghost = null, active = false, over = null;
+
+    const seatUnder = (x, y) => targets.find(t => {
+      const r = t.getBoundingClientRect();
+      return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+    }) || null;
+
+    const paint = (t) => {
+      if (over === t) return;
+      if (over) over.classList.remove('give-drop-over');
+      over = t;
+      if (over) over.classList.add('give-drop-over');
+    };
+
+    const end = (ev, dropped) => {
+      if (!active) return;
+      active = false;
+      try { handle.releasePointerCapture(ev.pointerId); } catch (e) {}
+      if (ghost) { ghost.remove(); ghost = null; }
+      tray.classList.remove('give-dragging');
+      const t = dropped ? over : null;
+      paint(null);
+      if (t) {
+        const idx = +t.getAttribute('data-idx');
+        if (!isNaN(idx)) { try { pick(idx); } catch (e) { console.error(e); } }
+      }
+    };
+
+    handle.addEventListener('pointerdown', (ev) => {
+      if (ev.button != null && ev.button !== 0) return;
+      ev.preventDefault();
+      active = true;
+      try { handle.setPointerCapture(ev.pointerId); } catch (e) {}
+      tray.classList.add('give-dragging');
+      ghost = handle.cloneNode(true);
+      ghost.className = 'peek-chip give-ghost ' + handle.className.replace('peek-chip', '').trim();
+      ghost.removeAttribute('draggable');
+      document.body.appendChild(ghost);
+      const move = (e2) => {
+        if (!active) return;
+        ghost.style.left = e2.clientX + 'px';
+        ghost.style.top  = e2.clientY + 'px';
+        paint(seatUnder(e2.clientX, e2.clientY));
+      };
+      move(ev);
+      handle.addEventListener('pointermove', move);
+      const done = (e2) => {
+        handle.removeEventListener('pointermove', move);
+        handle.removeEventListener('pointerup', done);
+        handle.removeEventListener('pointercancel', cancel);
+        end(e2, true);
+      };
+      const cancel = (e2) => {
+        handle.removeEventListener('pointermove', move);
+        handle.removeEventListener('pointerup', done);
+        handle.removeEventListener('pointercancel', cancel);
+        end(e2, false);
+      };
+      handle.addEventListener('pointerup', done);
+      handle.addEventListener('pointercancel', cancel);
+    });
+    // The browser's own image drag would otherwise fight the pointer gesture.
+    handle.addEventListener('dragstart', (ev) => ev.preventDefault());
   },
 
   // ===================== MODE SELECT =====================
