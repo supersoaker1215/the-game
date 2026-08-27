@@ -866,8 +866,28 @@ const Game = {
     }
     if (!this._2v2IsAIAuthority || !this._2v2IsAIAuthority()) return;   // only the authority recovers
     if (typeof document !== 'undefined' && document.hidden) { this._ai2v2StallAt = Date.now(); return; }  // never judge a hidden tab
+    // NEVER act during a resolution boundary. before-tricks / reveal / combat
+    // handoffs run async and legitimately hold the same signature for a beat;
+    // the watchdog force-ending here SKIPPED phases (Dormammu's before-tricks
+    // never firing, turns lost). The 12s drive watchdog already covers a truly
+    // hung drive — this fast guard only exists to auto-answer an AI's own prompt.
+    if (tt._resolving) { this._ai2v2StallAt = Date.now(); return; }
     const active = (this._2v2ActivePlayer && this._2v2ActivePlayer()) || null;
     const activeIsAI = !!(active && tt.players[active] && tt.players[active].isAI);
+    // A HUMAN'S DECISION IS SACRED. If ANY pending prompt/offer is owned by a
+    // human seat, the watchdog must never touch it or force the turn — the human
+    // is simply deciding, and this can happen mid an AI seat's turn (a card the
+    // AI played that targets a human, a human's block-trick draw, a jump offer).
+    // Auto-resolving those was skipping human turns and picking their targets
+    // for them. (Owner: "make sure the human players arent getting their turn
+    // skipped … the choices … dont let the AI answer for me.")
+    const _humanOwns = (seat) => !!(seat && tt.players[seat] && !tt.players[seat].isAI);
+    const anyHumanPrompt =
+      _humanOwns(s.pendingCardChoice && s.pendingCardChoice._2v2ActingPlayer) ||
+      _humanOwns(s.pendingLaneChoice && s.pendingLaneChoice._2v2ActingPlayer) ||
+      _humanOwns(s.pendingBlockTrick && s.pendingBlockTrick._2v2Seat) ||
+      _humanOwns(s.pendingJumpOffer && s.pendingJumpOffer.owner);
+    if (anyHumanPrompt) { this._ai2v2StallSig = null; this._ai2v2StallAt = 0; return; }
     // A pending prompt stamped to an AI seat covers deferred prompts that fire
     // outside a live drive (Dr. Strange's Foresee at the draw phase).
     const pc = s.pendingCardChoice || s.pendingLaneChoice;
@@ -880,22 +900,14 @@ const Game = {
     const now = Date.now();
     if (sig !== this._ai2v2StallSig) { this._ai2v2StallSig = sig; this._ai2v2StallAt = now; return; }
     if (now - this._ai2v2StallAt < this._AI_STALL_MS) return;   // not stuck long enough yet
-    // STUCK — recover.
-    console.warn('[2v2 AI watchdog] no progress for ' + (now - this._ai2v2StallAt) + 'ms — forcing recovery. sig=' + sig);
-    this.log('[2v2] AI turn stalled — auto-recovering so the table can continue.');
+    // STUCK — but ONLY ever auto-answer an AI seat's own pending prompt. We do
+    // NOT force-end phases here: that skipped legitimate work (turns, before-
+    // tricks). A genuinely hung drive with no prompt is left to the 12s drive
+    // watchdog, which ends the sub-phase the same way a human's Done would.
     let acted = false;
-    try { acted = this._autoResolveStuckCombatPrompt(); } catch (e) { console.error('[2v2 AI watchdog] resolve threw', e); }
-    if (!acted && activeIsAI) {
-      // No prompt to resolve — the drive itself hung. Force the AI's sub-phase to
-      // end exactly as the 12s drive watchdog would, so the round advances.
-      try {
-        this._2v2AIDriving = null;
-        this._2v2AIDrivingAt = 0;
-        this._2v2CurrentActingPlayer = null;
-        this.end2v2Phase();
-        if (this._pushOnlineState) this._pushOnlineState({ silent: true });
-        acted = true;
-      } catch (e) { console.error('[2v2 AI watchdog] force-end threw', e); }
+    if (pc || s.pendingBlockTrick) {
+      console.warn('[2v2 AI watchdog] auto-answering a stuck AI prompt. sig=' + sig);
+      try { acted = this._autoResolveStuckCombatPrompt(); } catch (e) { console.error('[2v2 AI watchdog] resolve threw', e); }
     }
     this._ai2v2StallSig = null;
     this._ai2v2StallAt = 0;
@@ -12401,7 +12413,9 @@ const Game = {
       // GENERAL AI-STALL SAFETY NET — see the matching block in promptCardChoice.
       // A lane choice raised on the driving AI's own side is answered by that AI
       // (auto-picks the first open lane below) so no card can freeze the table.
-      const _drivingAILane = this._2v2AIDriving;
+      let _drivingAILane = this._2v2AIDriving;
+      if (!_drivingAILane) { const _a = this._2v2ActivePlayer && this._2v2ActivePlayer(); if (_a && this._2v2SeatIsAI(_a)) _drivingAILane = _a; }
+      if (!_drivingAILane) { const _o = this._2v2AbilityOwner && this._2v2AbilityOwner(); if (_o && this._2v2SeatIsAI(_o)) _drivingAILane = _o; }
       if (_drivingAILane && this._2v2SeatIsAI(_drivingAILane)
           && (!this._2v2IsAIAuthority || this._2v2IsAIAuthority())
           && this._2v2SeatOnSide(_drivingAILane, owner) && !this._2v2SeatIsAI(_actor)) {
@@ -12663,7 +12677,15 @@ const Game = {
       // reworked card can never reintroduce the "AI played X and the table froze"
       // stall. Gated to the driving seat's OWN side, so a prompt the AI's card
       // deliberately aims at a human OPPONENT still routes to that opponent.
-      const _drivingAI = this._2v2AIDriving;
+      // The AI that is responsible for this prompt: the seat actively driving,
+      // OR — for a deferred/queued prompt whose drive flag has cleared — the
+      // seat whose TURN it is, OR the seat that owns the running ability's card.
+      // Any of these being an AI means a human must never be handed the choice.
+      // (Owner: "when an AI plays a card and needs a choice, the choice goes to
+      // that AI and it auto-picks — never to me.")
+      let _drivingAI = this._2v2AIDriving;
+      if (!_drivingAI) { const _a = this._2v2ActivePlayer && this._2v2ActivePlayer(); if (_a && this._2v2SeatIsAI(_a)) _drivingAI = _a; }
+      if (!_drivingAI) { const _o = this._2v2AbilityOwner && this._2v2AbilityOwner(); if (_o && this._2v2SeatIsAI(_o)) _drivingAI = _o; }
       if (_drivingAI && this._2v2SeatIsAI(_drivingAI)
           && (!this._2v2IsAIAuthority || this._2v2IsAIAuthority())
           && this._2v2SeatOnSide(_drivingAI, owner) && !this._2v2SeatIsAI(_actor)) {
