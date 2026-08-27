@@ -2294,19 +2294,12 @@ const CARD_ABILITIES = {
         // seat's REAL hand, routed to that seat (humans get the pick prompt on
         // their own client; AI seats auto-cycle their 2 lowest-cost cards).
         const tt = G.state.twoVTwo;
-        // WHO PLAYED IT — and is it a bot? When an AI seat plays Symbiote, its
-        // turn is driven synchronously by the authority; raising an interactive
-        // pick-prompt for a HUMAN seat's hand mid-AI-turn suspends that turn on a
-        // choice the drive loop cannot cleanly resume from, and the table freezes
-        // (user: "the AI keeps playing symbiote spiderman and it always stalls
-        // out because the AI's ... get stuck on the choice"). So when the CASTER
-        // is a bot, every seat auto-cycles its 2 lowest — the AI's turn never
-        // parks on a human prompt. A HUMAN-played Symbiote is unchanged: humans
-        // still pick which cards to shuffle back (that path drains fine — it runs
-        // during a human turn, and the 2v2 audit exercises it).
-        const casterSeat = self._2v2PlayedBy || G._2v2CurrentActingPlayer
-          || (G._2v2ActivePlayer && G._2v2ActivePlayer()) || null;
-        const casterIsAI = !!(casterSeat && tt.players[casterSeat] && tt.players[casterSeat].isAI);
+        // EVERY HUMAN CHOOSES. In 2v2 (local or online, human- OR bot-cast)
+        // Symbiote asks each of the four seats to shuffle 2 of its own cards
+        // back and draw 2: AI seats auto-take their lowest, and every HUMAN seat
+        // picks for themselves. The chain hops one seat at a time (single prompt
+        // slot) and is protected by the watchdog below so a lost network answer
+        // can never freeze the table.
         const seatShuffle = (seatKey, onDone) => {
           const sp = tt.players[seatKey];
           if (!sp) { onDone && onDone(); return; }
@@ -2326,8 +2319,12 @@ const CARD_ABILITIES = {
             onDone && onDone();
           };
           const lowest = (cards) => cards.slice().sort((a, b) => (a.cost || 0) - (b.cost || 0))[0];
-          if (sp.isAI || hand.length <= 2 || casterIsAI) {
-            // AI seat, or a hand small enough that the pick is forced: auto-cycle.
+          if (sp.isAI || hand.length <= 2) {
+            // AI seat, or a hand small enough that the pick is forced: auto-cycle
+            // its 2 lowest. Every HUMAN seat — including when a bot cast the card —
+            // falls through to the pick prompt below and chooses for themselves.
+            // The watchdog above guarantees the chain can't hang if a client goes
+            // quiet, so prompting humans during a bot's turn is safe now.
             for (let i = 0; i < back; i++) {
               const c = lowest(hand); if (!c) break;
               const idx = hand.findIndex(x => x.id === c.id);
@@ -2358,20 +2355,81 @@ const CARD_ABILITIES = {
           }
         };
         // Owner first, then the rest — chained so human pick prompts never
-        // collide (one seat resolves before the next is offered).
+        // collide (one seat resolves before the next is offered, since there is
+        // only one prompt slot). HUMANS STILL CHOOSE which two cards to shuffle
+        // back; AI seats auto-take their two lowest.
         const order = [self._2v2PlayedBy, 'p1', 'p2', 'p3', 'p4']
           .filter((k, i, a) => k && tt.players[k] && a.indexOf(k) === i);
+        G.log(`[SSM] Symbiote cycle order: ${order.join(' → ')}`);
+        let done = false;
+        let idx = 0;
+        // KEEP-ALIVE + LAST-RESORT WATCHDOG. Humans always choose; this never
+        // auto-picks for a responsive player. It exists only so a network hiccup
+        // (a lost pick answer, or a prompt that never rendered on one client)
+        // can't freeze the table forever ("WAITING FOR I LUV SY…"). On a stall it
+        // FIRST re-broadcasts the pending prompt — nudging a client that missed
+        // it, so the human still gets to pick — and only if it is STILL stuck a
+        // second time does it force the remaining seats through, as an absolute
+        // last resort. (Owner: humans choose, no auto, no stall.)
+        const NUDGE_MS = 8000, GIVEUP_MS = 20000;
+        let timer = null, stallStartAt = 0, nudged = false;
+        const clearTimer = () => { if (timer && typeof clearTimeout !== 'undefined') { clearTimeout(timer); timer = null; } };
+        const finishOnce = () => { if (done) return; done = true; clearTimer(); G.log('[SSM] cycle complete — healing caster.'); try { finish(); } catch (e) { console.error('[SSM] finish threw', e); } };
+        const forceComplete = (fromIndex) => {
+          console.warn('[SSM] chain still stuck after nudge — force-completing from index', fromIndex);
+          G.log('[SSM] a client never answered — completing the remaining shuffle so the table can continue.');
+          const pc = G.state.pendingCardChoice;
+          if (pc && /Symbiote Spider-Man/.test(pc.title || '')) { G.state.pendingCardChoice = null; if (G._clearPromptTimeout) G._clearPromptTimeout(); }
+          for (let i = fromIndex; i < order.length; i++) {
+            const seatKey = order[i]; const sp2 = tt.players[seatKey]; if (!sp2) continue;
+            const seatSide2 = G._2v2TeamSide[sp2.team];
+            const hand2 = sp2.hand || [];
+            const back2 = Math.min(2, hand2.length);
+            G._2v2CurrentActingPlayer = seatKey;
+            for (let j = 0; j < back2; j++) {
+              const c = hand2.slice().sort((a, b) => (a.cost || 0) - (b.cost || 0))[0]; if (!c) break;
+              const k = hand2.findIndex(x => x.id === c.id);
+              if (k >= 0) { shuffleBack(hand2[k], seatSide2); hand2.splice(k, 1); }
+            }
+            if (back2 > 0) { G._2v2CurrentActingPlayer = seatKey; cycleDraw(seatSide2, back2, () => sp2.hand); }
+          }
+          finishOnce();
+          if (G.state.twoVTwo && G.state.twoVTwo.online) { try { G._2v2OnlineBroadcast(); } catch (e) {} }
+          if (typeof UI !== 'undefined' && UI.render) UI.render();
+        };
+        const tick = () => {
+          if (done) return;
+          const stuckFor = Date.now() - stallStartAt;
+          if (!nudged && stuckFor >= NUDGE_MS) {
+            // NUDGE: re-broadcast the stuck prompt so the seat that owns it sees
+            // it again and can still make their own choice.
+            nudged = true;
+            console.warn('[SSM] no progress for', stuckFor, 'ms — re-broadcasting the pending pick to the stuck seat.');
+            G.log('[SSM] nudging the current seat — re-sending their shuffle pick.');
+            if (G.state.twoVTwo && G.state.twoVTwo.online) { try { G._2v2OnlineBroadcast(); } catch (e) {} }
+            if (typeof UI !== 'undefined' && UI.render) UI.render();
+            timer = setTimeout(tick, GIVEUP_MS - NUDGE_MS);
+            return;
+          }
+          if (stuckFor >= GIVEUP_MS) { forceComplete(idx); return; }
+          timer = setTimeout(tick, 1000);
+        };
+        const armTimer = () => {
+          if (G._syncMode || typeof setTimeout === 'undefined') return;   // headless is synchronous
+          clearTimer(); stallStartAt = Date.now(); nudged = false;
+          timer = setTimeout(tick, NUDGE_MS);
+        };
         const run = (i) => {
-          if (i >= order.length) { finish(); return; }
+          idx = i;
+          if (i >= order.length) { finishOnce(); return; }
+          const sk = order[i]; const spk = tt.players[sk];
+          G.log(`[SSM] → ${sk} (${spk ? spk.name : '?'}${spk && spk.isAI ? ', AI' : ', human'}) shuffles`);
+          armTimer();                       // reset the stall clock on every hop
           const next = () => {
+            if (done) return;
             if (G.hasPendingPrompt && G.hasPendingPrompt()) G.whenPromptCleared(() => run(i + 1));
             else run(i + 1);
           };
-          // ONE SEAT'S FAILURE MUST NOT END THE TABLE'S TURN. The chain is
-          // sequential so human pick prompts never collide, which also means a
-          // throw part-way through silently strands every seat that had not gone
-          // yet — the shape of "the enemy played Symbiote and only my teammate
-          // redrew". Caught per seat so the cycle always reaches all four.
           try { seatShuffle(order[i], next); }
           catch (e) { console.error('[SSM] seat', order[i], 'failed to cycle', e); next(); }
         };
