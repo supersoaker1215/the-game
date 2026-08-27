@@ -16706,6 +16706,20 @@ const Game = {
       console.warn('[2v2 AI] stale drive lock from', this._2v2AIDriving, '— releasing');
       this._2v2AIDriving = null;
     }
+    // THE GATE ABOVE IS EVALUATED ONCE. The chain below is not instantaneous:
+    // _schedule(run, 500) -> AI.playCards -> doTricks -> AI.playTrickPhaseCards
+    // -> AI.playTricks -> _schedule(finish, 250), several seconds of prompts and
+    // pacing delays. A seat can stop being a bot at ANY point in that span — a
+    // dropped player reconnects and _2v2SeatRejoined clears isAI/_dropped — and
+    // nothing downstream re-checked, so the bot went right on playing a human's
+    // hand and then ended their turn. ai.js has no idea seats can be human at
+    // all (zero references to _realHuman or _dropped in the whole file), so the
+    // re-check has to live here, at every hop.
+    const stillOurs = () => {
+      const _tt = this.state && this.state.twoVTwo;
+      const _p = _tt && _tt.players[activeKey];
+      return !!(_p && _p.isAI && (!_p._realHuman || _p._dropped));
+    };
     this._2v2AIDriving = activeKey;
     this._2v2AIDrivingAt = Date.now();
     // The turn this drive is FOR. Captured now, checked at finish: if anything
@@ -16729,6 +16743,19 @@ const Game = {
       // token anyway; this is about the three lines above it.
       if (this._2v2TurnToken !== turnToken) {
         console.warn('[2v2 AI] drive for', activeKey, 'came back after its turn ended — ignoring');
+        return;
+      }
+      // THEIR SEAT IS THEIRS AGAIN. Release the drive but do NOT advance: the
+      // player is back and this is still their turn to take. Ending it here is
+      // the difference between "you reconnected" and "you reconnected and your
+      // turn was already over".
+      if (!stillOurs()) {
+        console.warn('[2v2 AI] seat', activeKey, 'is human again — releasing the drive without ending their turn');
+        this.log(`  [2v2] ${this._2v2SeatName(activeKey)} reconnected — their turn is still theirs.`);
+        this._2v2AIDriving = null;
+        this._2v2AIDrivingAt = 0;
+        this._2v2CurrentActingPlayer = null;
+        if (typeof UI !== 'undefined' && UI.render) UI.render();
         return;
       }
       this._2v2AIDriving = null;
@@ -16755,11 +16782,13 @@ const Game = {
     const run = () => {
       try {
         if (typeof AI === 'undefined') { finish(); return; }
+        if (!stillOurs()) { finish(); return; }   // reconnected before we played
         // A sub-phase can allow cards, tricks, or BOTH (the middle 'cards-tricks'
         // seats). The old if/else-if let a cards-tricks seat play cards and then
         // skip its whole trick phase. Chain them: cards first (if allowed), then
         // the trick phase (deploys + tricks), then finish.
         const doTricks = () => {
+          if (!stillOurs()) { finish(); return; }  // reconnected between the two halves
           if (this._2v2CanPlayTricks(subPhase)) {
             const deployThenTricks = () => {
               if (AI.playTricks) AI.playTricks(side, () => this._schedule(finish, 250));
@@ -17731,21 +17760,48 @@ const Game = {
       this._2v2OnlineBroadcast();
       return;
     }
-    p._dropped = true;
-    p.isAI = true;
-    this.log(`[2v2] ${p.name} disconnected — a bot is covering their seat so the match can continue.`);
+    // A CLOSED CHANNEL IS NOT PROOF SOMEBODY LEFT.
+    //
+    // This fired on ANY close — a backgrounded phone, a Wi-Fi handoff, a few
+    // seconds of packet loss — and immediately handed the seat to a bot, which
+    // then played that person's hand and ended their turn. There was no grace
+    // period and no confirmation of any kind: PeerJS closes the socket, and one
+    // frame later a human's cards are being spent. That is the everyday version
+    // of "it's skipping player turns", and it needs no exotic race at all.
+    //
+    // Hold the seat first. If they are back inside the grace window, nothing
+    // ever happened: the pending flip is cancelled by _2v2SeatRejoined and no
+    // bot is armed. The cost is that three people may wait a few seconds on a
+    // seat that really is gone, which is plainly the better trade against
+    // playing somebody's turn for them because their train went into a tunnel.
+    p._dropPending = true;
+    this.log(`[2v2] ${p.name} lost connection — holding their seat for ${Math.round(this._2v2_DROP_GRACE_MS / 1000)}s.`);
     this._2v2OnlineBroadcast();
-    // If the table is waiting on THEM right now, get it moving. Deferred a beat
-    // so the broadcast lands first and the other clients see why.
-    if (this._2v2ActivePlayer() === pk) {
-      const sub = this._2v2SubPhase();
-      this._schedule(() => {
-        if (this._2v2ActivePlayer() === pk && tt.players[pk] && tt.players[pk]._dropped) {
-          this._2v2DriveAISeat(pk, sub);
-        }
-      }, 600);
-    }
+    if (typeof UI !== 'undefined' && UI.render) UI.render();
+    this._schedule(() => {
+      const p2 = tt.players[pk];
+      if (!p2 || !p2._dropPending) return;     // they came back — nothing to do
+      if (p2._dropped) return;                 // already covered
+      delete p2._dropPending;
+      p2._dropped = true;
+      p2.isAI = true;
+      this.log(`[2v2] ${p2.name} did not come back — a bot is covering their seat so the match can continue.`);
+      this._2v2OnlineBroadcast();
+      // If the table is waiting on THEM right now, get it moving. Deferred a
+      // beat so the broadcast lands first and the other clients see why.
+      if (this._2v2ActivePlayer() === pk) {
+        const sub = this._2v2SubPhase();
+        this._schedule(() => {
+          if (this._2v2ActivePlayer() === pk && tt.players[pk] && tt.players[pk]._dropped) {
+            this._2v2DriveAISeat(pk, sub);
+          }
+        }, 600);
+      }
+    }, this._2v2_DROP_GRACE_MS);
   },
+  // Long enough to ride out a tab switch, a Wi-Fi handoff or a tunnel; short
+  // enough that a table is not held hostage by somebody who really has gone.
+  _2v2_DROP_GRACE_MS: 8000,
 
   // They came back. Hand the seat over exactly as it was — the bot stops, the
   // hand is untouched (it lived on the seat the whole time), and play resumes.
@@ -17753,6 +17809,13 @@ const Game = {
     const tt = this.state && this.state.twoVTwo;
     const p = tt && pk && tt.players[pk];
     if (!p) return;
+    // Cancels a flip that has not happened yet (the grace window above), as well
+    // as one that has. Without this the timer would still fire and hand the seat
+    // to a bot AFTER they were already back at the table.
+    if (p._dropPending) {
+      delete p._dropPending;
+      this.log(`[2v2] ${p.name} is back — seat held, nothing missed.`);
+    }
     if (p._dropped) this.log(`[2v2] ${p.name} reconnected — taking their seat back.`);
     delete p._dropped;
     p.isAI = false;
