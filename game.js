@@ -12151,14 +12151,32 @@ const Game = {
         || this._2v2SeatForSide(owner);
       if (caster && tt.players[caster]) {
         tt.players[caster]._brainiacSpy = { seat: victimSeat, rounds: n };
-        tt.players[caster]._brainiacHarvest = (tt.players[caster]._brainiacHarvest || 0) + n;
         return caster;
       }
     }
     if (this.state[owner]) {
       this.state[owner]._brainiacSpy = { rounds: n };
-      this.state[owner]._brainiacHarvest = (this.state[owner]._brainiacHarvest || 0) + n;
     }
+    return null;
+  },
+
+  // Bank the caster's +1/+1 HARVEST charges. Split out of setBrainiacSpy and
+  // called FROM onDiscard BEFORE Brainiac's own draw, so the very card he draws
+  // when played arrives charged — that draw used to happen before the bank, so
+  // it slipped through un-buffed and read as "Brainiac isn't giving the +1/+1".
+  // (User: "Brainiac is still not giving the players card the 1/1 buff.")
+  _brainiacBankHarvest(owner, sourceCard) {
+    const n = this.BRAINIAC_SPY_ROUNDS;
+    const tt = this.state && this.state.twoVTwo;
+    if (tt && tt.online) {
+      const caster = (sourceCard && sourceCard._2v2PlayedBy)
+        || this._2v2CurrentActingPlayer || this._2v2SeatForSide(owner);
+      if (caster && tt.players[caster]) {
+        tt.players[caster]._brainiacHarvest = (tt.players[caster]._brainiacHarvest || 0) + n;
+        return caster;
+      }
+    }
+    if (this.state[owner]) this.state[owner]._brainiacHarvest = (this.state[owner]._brainiacHarvest || 0) + n;
     return null;
   },
 

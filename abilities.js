@@ -1555,6 +1555,11 @@ const CARD_ABILITIES = {
     // because it has to survive the round loop, gate the redaction on the wire,
     // and shave every card that lands in the watched hand.
     onDiscard(G, owner, self) {
+      // Bank the caster's +1/+1 harvest BEFORE he draws, so the card he draws
+      // right now arrives charged (it used to be banked after this draw, so the
+      // one card that plays immediately never got the buff — "still not giving
+      // the players card the 1/1 buff").
+      try { G._brainiacBankHarvest(owner, self); } catch (e) {}
       // He draws for himself on top of the scan.
       try { G.drawCards(owner, 1); G.log('[BRAINIAC] Brainiac draws a card.'); } catch (e) {}
       const tt = G.state && G.state.twoVTwo;
