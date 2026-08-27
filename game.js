@@ -12227,7 +12227,12 @@ const Game = {
   // it slipped through un-buffed and read as "Brainiac isn't giving the +1/+1".
   // (User: "Brainiac is still not giving the players card the 1/1 buff.")
   _brainiacBankHarvest(owner, sourceCard) {
-    const n = this.BRAINIAC_SPY_ROUNDS;
+    // The immediate draw in onDiscard now consumes one charge, so bank ONE MORE
+    // than the spy's round count: the card he draws on play AND his next
+    // BRAINIAC_SPY_ROUNDS round-draws all arrive +1/+1. (User: "the second draw
+    // for brainiac didn't give me the 1/1 buff but the first draw did" — the
+    // immediate draw had eaten the charge meant for the second round draw.)
+    const n = this.BRAINIAC_SPY_ROUNDS + 1;
     const tt = this.state && this.state.twoVTwo;
     if (tt && tt.online) {
       const caster = (sourceCard && sourceCard._2v2PlayedBy)
