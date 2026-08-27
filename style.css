@@ -45890,6 +45890,25 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 /* Final */
 .tourney-final .tourney-trophy { font-size: 4rem; margin: 6px 0; }
 
+/* Tournament banner on the multiplayer lobby */
+.mp-tourney-banner {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 12px 14px; margin: 8px 0 14px; border-radius: 10px;
+  background: rgba(72,224,138,0.06);
+  border: 1px solid rgba(72,224,138,0.45);
+  box-shadow: inset 0 0 24px rgba(72,224,138,0.05);
+}
+.mp-tourney-banner .mtb-badge {
+  align-self: flex-start; font-weight: 700; letter-spacing: 0.14em; font-size: 0.72rem;
+  color: #48e08a; padding: 3px 10px; border: 1px solid rgba(72,224,138,0.5); border-radius: 20px;
+}
+.mp-tourney-banner .mtb-text { font-size: 0.82rem; line-height: 1.45; color: #cfe0ee; }
+.mp-tourney-banner .mtb-cancel {
+  align-self: flex-start; background: none; border: none; cursor: pointer;
+  color: #7f93a6; font-size: 0.74rem; text-decoration: underline; padding: 2px 0;
+}
+.mp-tourney-banner .mtb-cancel:hover { color: #ff6b6b; }
+
 /* In-match HUD — a panel in the empty space at top-right, out of the way of
    the ROUND indicator and the board (mirrors the 1v1/2v2 turn-order panel). */
 .tourney-hud {

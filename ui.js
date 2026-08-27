@@ -13641,8 +13641,8 @@ const UI = {
           <div class="twov2-mm-content">
             <button type="button" class="twov2-mm-back" onclick="Game.goToMainMenu()">&larr; Menu</button>
             <h1 class="twov2-mm-title">the game</h1>
-            <div class="twov2-mm-label">Online 2v2</div>
-            <div class="twov2-mm-sub">4 players · 2 teams · 8 lanes</div>
+            <div class="twov2-mm-label">${(typeof Tournament !== 'undefined' && Tournament._online && Tournament._online.mode === '2v2') ? '🏆 Tournament · Online 2v2' : 'Online 2v2'}</div>
+            <div class="twov2-mm-sub">${(typeof Tournament !== 'undefined' && Tournament._online && Tournament._online.mode === '2v2') ? `Best of ${Tournament._online.length} team series · fill all 4 seats, then the host starts the number game` : '4 players · 2 teams · 8 lanes'}</div>
             ${errorHtml}
             <div class="twov2-mm-namerow">
               <label class="twov2-mm-namelabel" for="2v2-online-name">Name</label>
@@ -17664,11 +17664,22 @@ const UI = {
                value="${this._mpName().replace(/"/g, '&quot;')}" oninput="UI._mpSaveName(this.value)" />
       </div>` : '';
 
+    // TOURNAMENT banner — when a series is queued, make it unmistakable that
+    // this lobby is setting up a Tournament (not a normal match), and that the
+    // series begins the moment an opponent connects.
+    const _tq = (typeof Tournament !== 'undefined') ? Tournament._online : null;
+    const tourneyBanner = (_tq && _tq.mode === '1v1') ? `
+      <div class="mp-tourney-banner">
+        <span class="mtb-badge">🏆 TOURNAMENT</span>
+        <span class="mtb-text">Best of ${_tq.length}. Create a room and share the code — the series (number game → modifiers) begins the instant your opponent joins. To join a friend's tournament, use their code below.</span>
+        <button type="button" class="mtb-cancel" onclick="Tournament._cancelOnline && Tournament._cancelOnline()">Cancel tournament</button>
+      </div>` : '';
     return `
       <div class="mm-header"><h1 class="mm-title">the game</h1></div>
       <button type="button" class="mm-subback" onclick="UI._mpBack()" aria-label="Back to main menu">&larr; Menu</button>
       <div class="mm-section mp-section">
-        <div class="mm-section-label">Multiplayer</div>
+        <div class="mm-section-label">${_tq ? 'Tournament · Multiplayer' : 'Multiplayer'}</div>
+        ${tourneyBanner}
         ${nameRow}
         ${body}
         ${(st.status === 'idle') ? transportLine : ''}

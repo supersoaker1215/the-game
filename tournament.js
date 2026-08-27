@@ -576,6 +576,11 @@ const Tournament = {
 
   // Entry from the mode-select. Opens the existing 1v1 online lobby; the
   // pending config tells the opponentJoined handler to run the series flow.
+  _cancelOnline() {
+    this._online = null;
+    if (typeof UI !== 'undefined' && UI._mpRender) UI._mpRender();
+    if (typeof UI !== 'undefined' && UI.render) UI.render();
+  },
   _goOnline(mode) {
     this._online = { mode: mode, length: this.T.length, threshold: this.T.threshold };
     this.active = false;                 // hand off to the online lobby
