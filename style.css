@@ -46103,3 +46103,183 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   .tourney-numgrid { grid-template-columns: repeat(5, 1fr); }
   .tourney-h1 { font-size: 1.5rem; }
 }
+
+/* ============================================================
+   MULTIPLAYER LOBBY — THE OWNER'S LAYOUT (2026-08-27)
+   ============================================================
+   Built to the mockup, reusing the menu's own parts rather than inventing a
+   second vocabulary for one screen: the same chamfered container, the same
+   section rule with its diagonal tick, the same boxless glow-text action.
+
+   NOT BUILT: the mockup carried "1,284 ONLINE", "AVG WAIT 40S" and
+   "NA-WEST 24MS". None of those exist — this is peer-to-peer over room codes
+   with no matchmaking service, no lobby census and no latency probe, so every
+   one of those numbers would have to be invented and shown to real players as
+   fact. The layout keeps their slots; the words are true ones. */
+
+/* One line: where you can go back to, and where you are. */
+.mp-crumb {
+  display: flex; align-items: center; gap: 10px;
+  font: 700 11px/1 'Rajdhani', system-ui, sans-serif;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  margin: 0 0 6px;
+}
+.mp-crumb-back {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font: inherit; letter-spacing: inherit;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 55%, #ffffff);
+  transition: color .15s var(--ease-snap), text-shadow .15s var(--ease-snap);
+}
+.mp-crumb-back:hover, .mp-crumb-back:focus-visible {
+  color: #ffffff; text-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.9);
+}
+.mp-crumb-sep  { color: rgba(var(--theme-rgb, 79,195,247), 0.45); }
+.mp-crumb-here {
+  color: rgb(var(--theme-rgb, 79,195,247));
+  text-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.55);
+}
+
+/* THE PROMOTED PANEL. 2v2 is the only one-tap action on this screen —
+   everything else needs a follow-up step — so it is the only thing that gets
+   a container. The chamfer is the menu's, at panel scale. */
+.mp-hero { margin: 4px 0 22px; }
+.mp-hero-btn {
+  width: 100%; display: flex; align-items: center; gap: 16px;
+  padding: 18px 22px; cursor: pointer;
+  background: #000;
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.75);
+  clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+  box-shadow: 0 0 20px rgba(var(--theme-rgb, 79,195,247), 0.20),
+              inset 0 0 40px rgba(var(--theme-rgb, 79,195,247), 0.06);
+  transition: border-color .16s var(--ease-snap), box-shadow .16s var(--ease-snap);
+  text-align: left;
+}
+.mp-hero-btn:hover, .mp-hero-btn:focus-visible {
+  border-color: rgb(var(--theme-rgb, 79,195,247));
+  box-shadow: 0 0 30px rgba(var(--theme-rgb, 79,195,247), 0.42),
+              inset 0 0 46px rgba(var(--theme-rgb, 79,195,247), 0.10);
+}
+.mp-hero-ic { flex: 0 0 auto; line-height: 0; color: rgb(var(--theme-rgb, 79,195,247)); }
+.mp-hero-ic svg { width: 30px; height: 30px; }
+.mp-hero-text { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.mp-hero-title {
+  font: 700 27px/1 'Chakra Petch', 'Rajdhani', sans-serif;
+  letter-spacing: 0.03em; text-transform: uppercase;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 28%, #ffffff);
+  text-shadow: 0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.7);
+}
+.mp-hero-sub {
+  font: 600 10px/1 'Rajdhani', sans-serif; letter-spacing: 0.14em; text-transform: uppercase;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 62%, #ffffff);
+}
+
+/* SECTION RULE — label, then the line, with the menu's diagonal tick. */
+.mp-rule { display: flex; align-items: center; gap: 12px; margin: 26px 0 12px; }
+.mp-rule-label {
+  font: 700 11px/1 'Rajdhani', sans-serif; letter-spacing: 0.20em; text-transform: uppercase;
+  color: rgb(var(--theme-rgb, 79,195,247));
+  text-shadow: 0 0 9px rgba(var(--theme-rgb, 79,195,247), 0.5);
+  flex: 0 0 auto;
+}
+.mp-rule-line {
+  flex: 1 1 auto; height: 1px; min-width: 0;
+  background: linear-gradient(to right,
+    rgba(var(--theme-rgb, 79,195,247), 0.55), rgba(var(--theme-rgb, 79,195,247), 0.10));
+  /* the tick: the line starts one notch in, cut on the diagonal */
+  clip-path: polygon(7px 0, 100% 0, 100% 100%, 0 100%);
+}
+
+/* One line each: the name, and what it means on the right. */
+.mp-rows { display: flex; flex-direction: column; }
+.mp-row {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+  width: 100%; padding: 11px 2px; cursor: pointer;
+  background: none; border: 0; border-bottom: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.12);
+  text-align: left;
+  transition: border-color .15s var(--ease-snap);
+}
+.mp-row:last-child { border-bottom: 0; }
+.mp-row-name {
+  font: 700 19px/1.1 'Chakra Petch', 'Rajdhani', sans-serif;
+  letter-spacing: 0.05em; text-transform: uppercase;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 30%, #ffffff);
+  transition: color .15s var(--ease-snap), text-shadow .15s var(--ease-snap), transform .15s var(--ease-snap);
+}
+.mp-row-meta {
+  font: 600 10px/1 'Rajdhani', sans-serif; letter-spacing: 0.14em; text-transform: uppercase;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 62%, #ffffff);
+  flex: 0 0 auto;
+}
+.mp-row:hover .mp-row-name, .mp-row:focus-visible .mp-row-name {
+  color: #ffffff; text-shadow: 0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.95);
+  transform: translateX(3px);
+}
+.mp-row:hover, .mp-row:focus-visible { border-bottom-color: rgba(var(--theme-rgb, 79,195,247), 0.45); }
+
+/* FOUR SLOTS. The join flow was a button that revealed an input — one click
+   further away than the two create flows beside it, for no reason. */
+.mp-join-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.mp-code-slots { display: flex; gap: 9px; }
+.mp-code-slot {
+  width: 46px; height: 52px; text-align: center;
+  background: #000; color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 22%, #ffffff);
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.40);
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  font: 700 22px/1 var(--font-mono, 'JetBrains Mono', monospace);
+  caret-color: rgb(var(--theme-rgb, 79,195,247));
+  transition: border-color .14s var(--ease-snap), box-shadow .14s var(--ease-snap);
+}
+.mp-code-slot:focus {
+  outline: none;
+  border-color: rgb(var(--theme-rgb, 79,195,247));
+  box-shadow: 0 0 16px rgba(var(--theme-rgb, 79,195,247), 0.45),
+              inset 0 0 18px rgba(var(--theme-rgb, 79,195,247), 0.10);
+}
+.mp-code-go {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font: 700 11px/1 'Rajdhani', sans-serif; letter-spacing: 0.16em; text-transform: uppercase;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 55%, #ffffff);
+  transition: color .15s var(--ease-snap), text-shadow .15s var(--ease-snap);
+}
+.mp-code-go:hover, .mp-code-go:focus-visible {
+  color: #ffffff; text-shadow: 0 0 11px rgba(var(--theme-rgb, 79,195,247), 0.9);
+}
+
+/* FOOTER — state, not an action. The deck sat next to a BUILD A DECK button
+   looking like a fifth option; it is a readout with one link now. */
+.mp-foot {
+  display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+  margin-top: 30px; padding-top: 14px;
+  border-top: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.14);
+  font: 700 11px/1 'Rajdhani', sans-serif; letter-spacing: 0.16em; text-transform: uppercase;
+}
+.mp-foot-label { color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 62%, #ffffff); }
+.mp-foot-value {
+  font-size: 15px;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 26%, #ffffff);
+  text-shadow: 0 0 9px rgba(var(--theme-rgb, 79,195,247), 0.45);
+  flex: 1 1 auto;
+}
+.mp-foot-act {
+  background: none; border: 0; padding: 0; cursor: pointer; font: inherit; letter-spacing: inherit;
+  color: var(--currency, #ffb347);
+  transition: text-shadow .15s var(--ease-snap), color .15s var(--ease-snap);
+}
+.mp-foot-act:hover, .mp-foot-act:focus-visible {
+  color: #ffd79a; text-shadow: 0 0 11px rgba(255,179,71,0.85);
+}
+
+/* NO BUILD LINE HERE. The mockup shows one at the foot of this screen and it is
+   already on screen — #clb-build-badge, bottom-left, which is a live control
+   (tap to force-clear the cache and hard-reload), not a caption. A second copy
+   would be the same string twice, and the inert one would be the one people
+   tapped. */
+
+@media (max-width: 620px) {
+  .mp-hero-title { font-size: 22px; }
+  .mp-row-name   { font-size: 16px; }
+  .mp-code-slot  { width: 40px; height: 46px; font-size: 19px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mp-row:hover .mp-row-name { transform: none; }
+}

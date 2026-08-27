@@ -17042,6 +17042,7 @@ const UI = {
   // via _mpRender().
   openMultiplayer() {
     this._mpInit();
+    try { this._wireCodeSlots(); } catch (e) {}   // delegated, so once is enough
     this.mmShowSub('mp');
   },
   // Legacy no-op kept so any stray caller can't throw; the old #multiplayer-
@@ -17354,10 +17355,13 @@ const UI = {
     Multiplayer.init(transport);
     Multiplayer.createRoom({ name: this._mpName(), deck: this._mpDeckPayload() });
   },
-  _mpJoinRoom() {
+  // The code can be PASSED now (the four-slot field hands it straight over)
+  // and still falls back to the old single input, so both entry points work
+  // and neither has to know which layout is on screen.
+  _mpJoinRoom(codeIn) {
     if (typeof Multiplayer === 'undefined') { UI.alertModal('Multiplayer module not loaded.'); return; }
     const input = document.getElementById('mp-join-code');
-    const code = (input && input.value || '').trim().toUpperCase();
+    const code = (codeIn || (input && input.value) || '').trim().toUpperCase();
     if (code.length !== 4) { UI.alertModal('Enter the 4-letter room code your friend shared.'); return; }
     const transport = this._mpPickTransport();
     if (!transport) { UI.alertModal('No multiplayer transport available.'); return; }
@@ -17706,15 +17710,60 @@ const UI = {
           <input id="mp-join-code" class="mp-code-min" maxlength="4" placeholder="CODE" autocapitalize="characters" autocomplete="off" spellcheck="false" oninput="this.value=this.value.toUpperCase()" />
           <button type="button" class="mp-glow-go" onclick="UI._mpJoinRoom()">Join &rarr;</button>
         </div>` : '';
+      // THE LOBBY, REBUILT TO THE OWNER'S LAYOUT.
+      //
+      // "CREATE ROOM ·" used to be a PREFIX repeated on two rows, which wrapped
+      // both onto two lines — four lines of near-identical text where the only
+      // difference was the last two words. It is a section HEADER now, with
+      // CLASSIC DRAFT and CUSTOM DECKS one line each under it.
+      //
+      // 2V2 ONLINE is promoted, because it is the only one-tap action on this
+      // screen — everything else needs a follow-up (a code to share, a code to
+      // type, a deck to pick).
+      //
+      // JOIN ROOM gets a real code FIELD. It was a button that revealed an
+      // input, so the actual join flow was one click further away than the two
+      // create flows it sits beside, for no reason.
+      const _savedDecks = (() => { try { return Object.keys(this._dbGetSavedDecks() || {}).length; } catch (e) { return 0; } })();
+      const _deckKey = (typeof this._mpDeckKey === 'function') ? (this._mpDeckKey() || '') : '';
+      const _activeDeck = _deckKey || 'Classic Draft';
+      const _slots = [0,1,2,3].map(i =>
+        `<input class="mp-code-slot" data-cs="${i}" maxlength="1" inputmode="latin" autocapitalize="characters"`
+        + ` autocomplete="off" spellcheck="false" aria-label="Room code letter ${i+1}" />`).join('');
       body = `
-        <div class="mm-grid mm-grid-section mp-opts">
-          ${_mmOpt('mp-opt-create', 'Create Room · Classic Draft', 'Shared 95-card pool — straight into the draft', IC.play, "UI._mpCreateRoom('classic')")}
-          ${_mmOpt('mp-opt-create-deck', 'Create Room · Custom Decks', `Both build a ${UI.DECK_CARD_MAX}-card deck, then ready up`, IC.decks, "UI._mpCreateRoom('deck')")}
-          ${_mmOpt('mp-opt-join', 'Join Room', "Enter a friend's code — the host picks the mode", IC.play, "UI._mpSetTab('join')")}
-          ${joinInline}
-          ${_mmOpt('mp-opt-2v2', '2v2 Online', '4 players · own devices', IC.multi, 'Game.goTo2v2OnlineLobby()')}
+        <div class="mp-hero">
+          <button type="button" class="mp-hero-btn" onclick="Game.goTo2v2OnlineLobby()">
+            <span class="mp-hero-ic">${IC.multi || ''}</span>
+            <span class="mp-hero-text">
+              <span class="mp-hero-title">2v2 Online</span>
+              <span class="mp-hero-sub">4 players · own devices · one tap</span>
+            </span>
+          </button>
         </div>
-        ${this._mpDeckPickerHTML()}`;
+
+        <div class="mp-rule"><span class="mp-rule-label">Create Room</span><span class="mp-rule-line"></span></div>
+        <div class="mp-rows">
+          <button type="button" class="mp-row" onclick="UI._mpCreateRoom('classic')">
+            <span class="mp-row-name">Classic Draft</span>
+            <span class="mp-row-meta">Shared pool</span>
+          </button>
+          <button type="button" class="mp-row" onclick="UI._mpCreateRoom('deck')">
+            <span class="mp-row-name">Custom Decks</span>
+            <span class="mp-row-meta">${_savedDecks ? `Your ${_savedDecks} deck${_savedDecks === 1 ? '' : 's'}` : 'Build one first'}</span>
+          </button>
+        </div>
+
+        <div class="mp-rule"><span class="mp-rule-label">Join Room</span><span class="mp-rule-line"></span></div>
+        <div class="mp-join-row">
+          <div class="mp-code-slots" id="mp-code-slots">${_slots}</div>
+          <button type="button" class="mp-code-go" onclick="UI._mpJoinFromSlots()">Enter code &rarr;</button>
+        </div>
+
+        <div class="mp-foot">
+          <span class="mp-foot-label">Active deck</span>
+          <span class="mp-foot-value">${String(_activeDeck).replace(/&/g,'&amp;').replace(/</g,'&lt;')}</span>
+          <button type="button" class="mp-foot-act" onclick="UI._mpOpenDeckBuilder()">Build a deck &rarr;</button>
+        </div>`;
     } else if (st.status === 'waiting') {
       // Dots sit inline next to the label; the code is boxless glow-text (tap
       // to copy). No "Leave Room" — the "← Menu" back already drops the room.
@@ -17783,16 +17832,82 @@ const UI = {
         <span class="mtb-text">Best of ${_tq.length}. Create a room and share the code — the series (number game → modifiers) begins the instant your opponent joins. To join a friend's tournament, use their code below.</span>
         <button type="button" class="mtb-cancel" onclick="Tournament._cancelOnline && Tournament._cancelOnline()">Cancel tournament</button>
       </div>` : '';
+    // BREADCRUMB ON ONE LINE. The back control and the "where am I" label were
+    // two separate elements saying two halves of the same thing on two rows.
+    const crumb = `
+      <nav class="mp-crumb" aria-label="Breadcrumb">
+        <button type="button" class="mp-crumb-back" onclick="UI._mpBack()">&larr; Menu</button>
+        <span class="mp-crumb-sep">/</span>
+        <span class="mp-crumb-here">${_tq ? 'Tournament' : 'Multiplayer'}</span>
+      </nav>`;
     return `
-      <div class="mm-header"><h1 class="mm-title">the game</h1></div>
-      <button type="button" class="mm-subback" onclick="UI._mpBack()" aria-label="Back to main menu">&larr; Menu</button>
+      ${crumb}
+      <div class="mm-header mp-header"><h1 class="mm-title">the game</h1></div>
       <div class="mm-section mp-section">
-        <div class="mm-section-label">${_tq ? 'Tournament · Multiplayer' : 'Multiplayer'}</div>
         ${tourneyBanner}
         ${nameRow}
         ${body}
         ${(st.status === 'idle') ? transportLine : ''}
       </div>`;
+  },
+
+  // FOUR SLOTS, ONE CODE. Typing advances, backspace on an empty slot steps
+  // back, and a pasted code fills the row — the things people do with a code
+  // field without being told to.
+  _mpJoinFromSlots() {
+    const slots = [...document.querySelectorAll('#mp-code-slots .mp-code-slot')];
+    const code = slots.map(i => (i.value || '').trim().toUpperCase()).join('');
+    if (code.length < 4) {
+      const first = slots.find(i => !i.value) || slots[0];
+      if (first) first.focus();
+      return;
+    }
+    this._mpState.pendingCode = code;
+    const input = document.getElementById('mp-join-code');
+    if (input) input.value = code;
+    this._mpJoinRoom(code);
+  },
+  // DELEGATED, INSTALLED ONCE. Wiring these per render meant the handlers only
+  // existed if the panel happened to be built by the path that called the
+  // wiring — and the first open does not go through that path, so the field
+  // was inert exactly when someone first tried to use it. A document-level
+  // listener cannot be out of step with a re-render.
+  _wireCodeSlots() {
+    if (this._codeSlotsWired) return;
+    this._codeSlotsWired = true;
+    const slotsIn = (el) => [...(el.closest('.mp-code-slots') || document).querySelectorAll('.mp-code-slot')];
+    document.addEventListener('input', (ev) => {
+      const el = ev.target;
+      if (!el || !el.classList || !el.classList.contains('mp-code-slot')) return;
+      const slots = slotsIn(el);
+      const i = slots.indexOf(el);
+      el.value = (el.value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 1);
+      if (el.value && slots[i + 1]) slots[i + 1].focus();
+      if (slots.length === 4 && slots.every(x => x.value)) this._mpJoinFromSlots();
+    });
+    document.addEventListener('keydown', (ev) => {
+      const el = ev.target;
+      if (!el || !el.classList || !el.classList.contains('mp-code-slot')) return;
+      const slots = slotsIn(el);
+      const i = slots.indexOf(el);
+      if (ev.key === 'Backspace' && !el.value && slots[i - 1]) {
+        slots[i - 1].focus(); slots[i - 1].value = ''; ev.preventDefault();
+      }
+      if (ev.key === 'Enter') this._mpJoinFromSlots();
+    });
+    document.addEventListener('paste', (ev) => {
+      const el = ev.target;
+      if (!el || !el.classList || !el.classList.contains('mp-code-slot')) return;
+      const t = (((ev.clipboardData || window.clipboardData) || {}).getData
+        ? (ev.clipboardData || window.clipboardData).getData('text') : '') || '';
+      const code = t.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 4);
+      if (!code) return;
+      ev.preventDefault();
+      const slots = slotsIn(el);
+      slots.forEach((x, j) => { x.value = code[j] || ''; });
+      if (code.length === 4) this._mpJoinFromSlots();
+      else (slots[code.length] || slots[slots.length - 1]).focus();
+    });
   },
 
   // ===================== MY DECKS (phase 4b) =====================
