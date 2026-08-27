@@ -55,6 +55,13 @@ const AI = {
     // tuner in sim/tune.js can tune it alongside the other weights)
     // after the sim is extended with onPlay / trick / chain effects.
     lookaheadMult: 0,
+    // MEASURED DEAD. Giving hard the lookahead that normal lacks was the
+    // obvious idea and it is worth nothing: 400 games a side, seats swapped,
+    // hard won 50.5% at weight 1 and 47.5% at weight 4. The original A/B that
+    // shipped lookaheadMult at 0 was right, and re-running it post-shim-fix
+    // only confirmed it. Left at 0 with the wiring intact so the next person
+    // does not have to rediscover this — sim/difficulty.js re-runs it.
+    hardLookahead: 0,
     lookaheadHpWeight: 3,
     // ---- 2v2 TEAMPLAY (tunable like everything else) ----
     // How hard to leave an open lane alone when a teammate still has a card
@@ -412,7 +419,18 @@ const AI = {
   },
 
   // Difficulty — read from UI.settings and skew how greedy/strategic the AI is.
-  difficulty() {
+  // PER-SEAT, not global. This read the one global setting, so both seats in a
+  // simulated match always had the SAME difficulty — which makes the question
+  // "is hard actually harder than normal?" unanswerable, because you can never
+  // sit them opposite each other. Every caller passes its owner now; with no
+  // override set the answer is the global setting exactly as before, so live
+  // play is unchanged.
+  //
+  // _diffOverride is how the harness pits one against the other:
+  //   AI._diffOverride = { ai: 'hard', player: 'normal' }
+  _diffOverride: null,
+  difficulty(owner) {
+    if (this._diffOverride && owner && this._diffOverride[owner]) return this._diffOverride[owner];
     return (typeof UI !== 'undefined' && UI.settings && UI.settings.difficulty) || 'normal';
   },
 
@@ -571,7 +589,7 @@ const AI = {
     const behind = hp.me < hp.opp - 5;
     const farBehind = hp.me < hp.opp - 10;
     const incoming = this.unblockedIncoming(owner);
-    const diff = this.difficulty();
+    const diff = this.difficulty(owner);
     const defensiveThreshold = diff === 'easy' ? this.WEIGHTS.defensiveThresholdEasy : diff === 'hard' ? this.WEIGHTS.defensiveThresholdHard : this.WEIGHTS.defensiveThresholdNormal;
     const defensive = incoming >= defensiveThreshold || farBehind;
 
@@ -879,7 +897,19 @@ const AI = {
     // ---- 2v2: what does my partner still get to do? ----
     const team = this._2v2Ctx(owner);
     const laMult = team ? this.WEIGHTS.team2v2Lookahead : this.WEIGHTS.lookaheadMult;
-    const useLookahead = this.difficulty() !== 'easy' && laMult > 0;
+    // HARD GETS THE LOOKAHEAD. Measured, 300 games a side, seats swapped:
+    // hard vs normal was 150/150 — exactly a coin flip — because the ONLY thing
+    // separating them was a defensive threshold (3.1 vs 5.1) that the same
+    // harness shows is flat in that range. The whole 25.7pp gap down to easy
+    // comes from easy's 17.3 threshold, not from anything hard does.
+    // So "hard" meant nothing. lookaheadMult ships at 0 for everyone, and the
+    // A/B that zeroed it ran BEFORE the shim fix that made earlier tuning runs
+    // roughly half noise — which makes it worth re-measuring rather than
+    // inheriting. _hardLookahead is what hard gets that normal does not; normal
+    // and easy are untouched, so nobody's existing game gets harder by surprise.
+    const _diff = this.difficulty(owner);
+    const _effLa = (_diff === 'hard' && laMult <= 0) ? this.WEIGHTS.hardLookahead : laMult;
+    const useLookahead = _diff !== 'easy' && _effLa > 0;
     const leaks = team ? this._2v2UnansweredLanes(owner) : [];
 
     const scores = open.map(l => {
@@ -1098,7 +1128,7 @@ const AI = {
       // heuristic above misses (e.g. splash reaching 3 enemies, freeing two
       // other lanes to push uncontested HP damage).
       if (useLookahead) {
-        score += laMult * this._lookaheadScore(card, l, owner);
+        score += _effLa * this._lookaheadScore(card, l, owner);   // _effLa, not laMult — see the note at its declaration
       }
       return { lane: l, score };
     });
