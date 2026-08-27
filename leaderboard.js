@@ -97,6 +97,7 @@ const Leaderboard = {
   // ---- connection ----------------------------------------------------
   connect() {
     this._wantOpen = true;
+    if (!this._pendingLoaded) { this._pendingLoaded = true; this._loadPending(); }
     if (!this.isConfigured()) return;          // local-only until deployed
     if (typeof WebSocket === 'undefined') return;
     if (this._socket && (this._socket.readyState === 0 || this._socket.readyState === 1)) return;
@@ -116,6 +117,8 @@ const Leaderboard = {
       // the board, even if they have a local name.
       if (this.hasJoined()) { this._sendRaw({ t: 'join', id: this.deviceId(), name: this.name() }); }
       this._sendRaw({ t: 'getBoard' });
+      // Deliver any results that were reported while the socket was closed.
+      this._flushPending();
     };
     sock.onmessage = (ev) => {
       let msg = null;
@@ -175,11 +178,36 @@ const Leaderboard = {
   // ---- internals -----------------------------------------------------
   _send(msg) {
     if (this._socket && this._socket.readyState === 1) { this._sendRaw(msg); return; }
-    // Not open yet — a hello/favorite will be re-sent on the next open();
-    // reports are best-effort and already mirrored locally.
-    if (this._wantOpen) this.connect();
+    // Socket not open. A REPORT must not be dropped: an online match can easily
+    // outlast an idle-closed leaderboard socket, and a lost report means the
+    // server never sees the win+loss pair — so NEITHER player's row moves (the
+    // exact "I won and nothing happened to the leaderboard" bug). Queue it,
+    // persist it across a reload, and flush on the next open. Hellos/getBoard
+    // are re-sent on open anyway, so only reports need queuing.
+    if (msg && msg.t === 'report') {
+      this._pendingReports = (this._pendingReports || []).filter(m => m.matchId !== msg.matchId);
+      this._pendingReports.push(msg);
+      while (this._pendingReports.length > 20) this._pendingReports.shift();
+      this._persistPending();
+    }
+    this._wantOpen = true;
+    this.connect();
   },
   _sendRaw(msg) { try { this._socket.send(JSON.stringify(msg)); } catch (e) {} },
+  _pendingReports: [],
+  _PENDING_KEY: 'clb_pending_reports',
+  _persistPending() { try { this._lsSet(this._PENDING_KEY, JSON.stringify(this._pendingReports || [])); } catch (e) {} },
+  _loadPending() {
+    try { const raw = this._ls(this._PENDING_KEY); if (raw) this._pendingReports = JSON.parse(raw) || []; } catch (e) { this._pendingReports = []; }
+  },
+  // Re-send every queued report once the socket is live, then clear the queue.
+  _flushPending() {
+    if (!this._pendingReports || !this._pendingReports.length) return;
+    const q = this._pendingReports.slice();
+    this._pendingReports = [];
+    this._persistPending();
+    q.forEach(m => this._sendRaw(m));
+  },
 
   _ls(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
   _lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
