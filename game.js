@@ -684,12 +684,87 @@ const Game = {
   // combat CONTINUES instead of the whole phase being skipped. Authority only
   // (host/solo); a guest never owns the authoritative resolution. Returns true
   // if it resolved something.
+  // ===================== 2v2 PROMPT TIMEOUT =====================
+  // THE 30 SECONDS 2v2 NEVER HAD. (Owner: "there should be a 30 second auto
+  // timeout for AI in 2v2 if they get stuck it should auto play and move on.")
+  //
+  // Solo and 1v1 arm _startPromptTimeout, so an unanswered prompt auto-picks
+  // after 30s and play continues. 2v2 online never reached it: both prompt
+  // functions `return` out of their 2v2 branch (the deliver-to-the-seat path)
+  // BEFORE the timer line further down. So a 2v2 prompt had NO clock. If the
+  // seat that owed the answer was AFK, on a closed tab, or disconnected, it sat
+  // there forever — and because end2v2Phase refuses to advance while any prompt
+  // is pending, both AI watchdogs' force-end became silent no-ops. The table
+  // was held by one unanswered question with no way out.
+  //
+  // Worth stating plainly: the 45s combat watchdog's own comment justifies its
+  // number with "the prompt auto-pick timeout is 30s, so a real prompt always
+  // resolves well before the 45s limit". That premise was simply false in 2v2.
+  //
+  // AUTHORITY ONLY. Four clients each running their own timer would race and
+  // answer the same prompt four times; the host owns the resolution exactly as
+  // it owns every other authoritative decision.
+  //
+  // IDENTITY-CHECKED. The timer captures the prompt OBJECT it was armed for and
+  // does nothing if that is no longer the live prompt. A stale timer answering
+  // a NEWER prompt is the documented root cause of the old "guest's card always
+  // goes to the lowest lane" bug; it must not come back through this door.
+  _2v2ArmPromptTimeout(kind, armed, resolve) {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt || !tt.online) return;
+    if (!this._2v2IsAIAuthority || !this._2v2IsAIAuthority()) return;
+    if (this._syncMode) return;                 // headless resolves synchronously
+    this._startPromptTimeout(() => {
+      const cur = kind === 'lane' ? this.state.pendingLaneChoice : this.state.pendingCardChoice;
+      if (!cur || cur !== armed) return;        // answered, or replaced by a newer prompt
+      const seat = armed._2v2ActingPlayer || null;
+      this.log(`  [2v2 TIMEOUT] ${this._2v2SeatName(seat)} did not answer in 30s — auto-picking so the table can continue.`);
+      if (kind === 'lane') this.state.pendingLaneChoice = null;
+      else this.state.pendingCardChoice = null;
+      try { resolve(); } catch (e) { console.error('[2v2 prompt timeout] resolve threw', e); }
+      // A prompt was what blocked end2v2Phase; with it gone the round can move.
+      try { this.cleanupDead(); } catch (e) {}
+      try { this.resumeCombatIfWaiting(); } catch (e) {}
+      if (this._pushOnlineState) { try { this._pushOnlineState(); } catch (e) {} }
+      if (typeof UI !== 'undefined' && UI.render) UI.render();
+    }, this._2v2_PROMPT_MS);
+  },
+  _2v2_PROMPT_MS: 30000,
+
+  // A 2v2 prompt that a REAL PERSON still has to answer. Watchdog recovery must
+  // never answer one of these — see the guard's use below.
+  _2v2PromptOnLiveHuman(p) {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt || !tt.online || !p) return false;
+    const seat = p._2v2ActingPlayer || p._2v2Seat;
+    const sp = seat && tt.players[seat];
+    return !!(sp && !sp.isAI && !sp._dropped);
+  },
   _autoResolveStuckCombatPrompt() {
     const s = this.state;
     if (!s) return false;
     const isGuest = (this.isMultiplayer && this.isMultiplayer() && this.mp && this.mp.role === 'guest')
       || !!(s.twoVTwo && s.twoVTwo.online && s.twoVTwo.you && s.twoVTwo.you !== 'p1');
     if (isGuest) return false;
+    // DO NOT ANSWER FOR A PERSON WHO CAN STILL ANSWER.
+    //
+    // The 2v2 stall watchdog's gate is an OR — an AI seat merely being on the
+    // clock lets the tick through no matter whose seat the prompt belongs to —
+    // and this function never looked at the seat. So a prompt an AI's card
+    // deliberately aims at a HUMAN (The Grinch stamps the VICTIM's seat at
+    // abilities.js:3340, exactly so the victim picks which trick to give up)
+    // was being answered here with lowestCost about three seconds after it
+    // appeared. From that player's side the game simply decided for them.
+    //
+    // The asymmetry is what makes it indefensible: 1v1 gives a human 30s to
+    // answer, and 2v2-online gave them no timer at all, so this 3s watchdog was
+    // the only clock on a 2v2 human prompt — an order of magnitude under the
+    // game's own idea of a fair wait. It has one now (see _2v2ArmPromptTimeout),
+    // so the right move here is to stand down and let that 30s run.
+    const _human = this._2v2PromptOnLiveHuman(s.pendingCardChoice)
+                || this._2v2PromptOnLiveHuman(s.pendingLaneChoice)
+                || this._2v2PromptOnLiveHuman(s.pendingBlockTrick);
+    if (_human) return false;
     const resume = (label) => {
       this.cleanupDead();
       this.resumeCombatIfWaiting();
@@ -12348,6 +12423,14 @@ const Game = {
         // must answer never saw it.
         if (typeof UI !== 'undefined' && UI.render) UI.render();
         this._pushOnlineState({ silent: true });
+        // …and put a clock on it. See _2v2ArmPromptTimeout: this path used to
+        // return here with no timer of any kind.
+        const _armedLane2v2 = this.state.pendingLaneChoice;
+        this._2v2ArmPromptTimeout('lane', _armedLane2v2, () => {
+          const pick = (typeof _armedLane2v2.aiPicker === 'function' && _armedLane2v2.aiPicker(lanes));
+          const lane = (pick != null) ? pick : lanes[0];
+          this._2v2WithSeatBound(_actor, () => callback(lane));
+        });
         return;
       }
       // 1v1 online: a lane choice owned by the guest seat ('ai') must be
@@ -12620,6 +12703,13 @@ const Game = {
         this.state.pendingCardChoice._2v2ActingPlayer = _actor;
         if (typeof UI !== 'undefined' && UI.render) UI.render();
         this._pushOnlineState({ silent: true });
+        // …and put a clock on it — see _2v2ArmPromptTimeout. The ability's own
+        // aiPicker makes the choice, the same one an AI seat would have got.
+        const _armedCard2v2 = this.state.pendingCardChoice;
+        this._2v2ArmPromptTimeout('card', _armedCard2v2, () => {
+          const pick = (typeof aiPicker === 'function' && aiPicker(cards)) || cards[0];
+          this._2v2WithSeatBound(_actor, () => callback(pick));
+        });
         return;
       }
       // 1v1 online: a card/target choice owned by the guest seat ('ai')
