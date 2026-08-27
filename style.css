@@ -46329,7 +46329,14 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    every badge, chamfer and type ramp on the card is already a ratio of it. */
 .draft-stage > .draft-choices {
   min-width: 0;
-  --read-card-w: clamp(160px, 18vw, 288px);
+  /* FULL WIDTH AGAIN. Owner: "make the cards wider like normal dont cut off
+     art." The card was squeezed to 18vw to make room for a rail carrying seven
+     slots and a mulligan row under the offers; the portrait keeps a 360/472
+     ratio, so a narrower card is a SHORTER card and the art gets cropped. The
+     tricks moved to the right rail and the mulligan moved into the header row,
+     which gives the middle column back the width to run at the read card's own
+     size. */
+  --read-card-w: clamp(210px, 25vw, 320px);
   gap: clamp(14px, 2.2vw, 44px);
   margin-bottom: 0;
   min-height: 0;
@@ -46512,24 +46519,29 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .dpr-slot.dpr-trick .dpr-q,
 .dpr-slot.dpr-trick .dpr-choosing { color: #b98cff; text-shadow: 0 0 10px rgba(185,140,255,0.6); }
 .dpr-slot.dpr-trick .dpr-name { color: color-mix(in srgb, #b98cff 30%, #ffffff); }
-/* First trick slot opens the second group. */
-.dpr-slot.dpr-card + .dpr-slot.dpr-trick { margin-top: 9px; padding-top: 9px; border-top: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.14); }
+/* The trick group rides the RIGHT rail now, under the opponent readout — that
+   column had a run of empty space and the left one was the tallest thing on the
+   screen. Slightly larger here because there is room for them. */
+.dcr-tricks { margin-top: 4px; gap: 8px; }
+.dcr-tricks .dpr-tile { width: 50px; }
 
 /* ---- MULLIGAN, THE REFERENCE ONE -------------------------------------------
    It was the fourth of four identical text links in the header row, next to
    Menu / Back / Hide Sounds — the wrong company, because those three are
    navigation and this one REPLACES THE CARDS IN FRONT OF YOU. Its own control,
    under the offers it acts on, carrying its remaining charge. */
-.draft-mulligan-row { display: flex; justify-content: center; margin-top: 12px; }
+/* It lives in the action row now (Menu · Mulligan · Hide Sounds), so it is an
+   inline item rather than a bar of its own. */
+.draft-mulligan-row { display: inline-flex; margin: 0; }
 .draft-mulligan {
   display: inline-flex; align-items: center; gap: 10px;
-  padding: 11px 22px; cursor: pointer;
+  padding: 7px 16px; cursor: pointer;
   background: #000;
   border: 1px solid rgba(255,179,71,0.55);
   clip-path: polygon(11px 0, 100% 0, 100% calc(100% - 11px), calc(100% - 11px) 100%, 0 100%, 0 11px);
   box-shadow: 0 0 16px rgba(255,179,71,0.16), inset 0 0 26px rgba(255,179,71,0.05);
-  font: 700 12px/1 'Rajdhani', system-ui, sans-serif;
-  letter-spacing: 0.18em; text-transform: uppercase;
+  font: 700 11px/1 'Rajdhani', system-ui, sans-serif;
+  letter-spacing: 0.16em; text-transform: uppercase;
   color: color-mix(in srgb, #ffb347 32%, #ffffff);
   transition: border-color .16s var(--ease-snap), box-shadow .16s var(--ease-snap), color .16s var(--ease-snap);
 }

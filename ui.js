@@ -707,6 +707,32 @@ const UI = {
   // `active` says which group is being picked right now; the other group's
   // empty slots stay quiet rather than showing a "choosing" marker in a phase
   // that is not running.
+  // ONE SLOT, drawn the same wherever it appears — the picks rail and the trick
+  // group in the right rail are the same object and must not drift.
+  _draftSlotHTML(c, label, state, kind) {
+    const esc = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    let face;
+    if (c) {
+      const art = this.getCardArtPath ? this.getCardArtPath(c.name) : '';
+      const bg = art ? `--portrait-bg:url('${art.replace(/'/g, '%27')}')${this._artFocalCard ? this._artFocalCard(c.name) : ''}` : '';
+      face = `<span class="dpr-cost">${c.baseCost != null ? c.baseCost : (c.cost || 0)}</span>
+              <span class="dpr-art" style="${bg}"></span>
+              <span class="dpr-name">${esc(c.name)}</span>`;
+    } else if (state === 'is-current') {
+      face = `<span class="dpr-q">?</span>`;
+    } else {
+      face = '';
+    }
+    const stats = c && c.attack != null && c.health != null
+      ? `<span class="dpr-stats"><b>${c.attack}</b> / <i>${c.health}</i></span>` : '';
+    return `<div class="dpr-slot ${state}${kind ? ' dpr-' + kind : ''}">
+      <div class="dpr-tile">${face}</div>
+      <div class="dpr-meta">
+        <span class="dpr-label">${esc(label)}</span>
+        ${c ? stats : (state === 'is-current' ? '<span class="dpr-choosing">Choosing</span>' : '')}
+      </div>
+    </div>`;
+  },
   _draftPicksRailHTML(groups, _legacyTotal, opts) {
     const o = opts || {};
     const esc = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -721,27 +747,7 @@ const UI = {
       for (let i = 0; i < total; i++) {
       const c = picks[i];
       const state = c ? 'is-filled' : ((g.active && i === picks.length) ? 'is-current' : 'is-empty');
-      let face;
-      if (c) {
-        const art = this.getCardArtPath ? this.getCardArtPath(c.name) : '';
-        const bg = art ? `--portrait-bg:url('${art.replace(/'/g, '%27')}')${this._artFocalCard ? this._artFocalCard(c.name) : ''}` : '';
-        face = `<span class="dpr-cost">${c.baseCost != null ? c.baseCost : (c.cost || 0)}</span>
-                <span class="dpr-art" style="${bg}"></span>
-                <span class="dpr-name">${esc(c.name)}</span>`;
-      } else if (state === 'is-current') {
-        face = `<span class="dpr-q">?</span>`;
-      } else {
-        face = '';
-      }
-      const stats = c && c.attack != null && c.health != null
-        ? `<span class="dpr-stats"><b>${c.attack}</b> / <i>${c.health}</i></span>` : '';
-      rows.push(`<div class="dpr-slot ${state}${g.kind ? ' dpr-' + g.kind : ''}">
-        <div class="dpr-tile">${face}</div>
-        <div class="dpr-meta">
-          <span class="dpr-label">${esc(g.label || 'Pick')} ${i + 1}</span>
-          ${c ? stats : (state === 'is-current' ? '<span class="dpr-choosing">Choosing</span>' : '')}
-        </div>
-      </div>`);
+      rows.push(this._draftSlotHTML(c, (g.label || 'Pick') + ' ' + (i + 1), state, g.kind));
       }
     });
     return `<aside class="draft-rail draft-rail-left">
@@ -782,6 +788,21 @@ const UI = {
         <span class="dcr-opp-name">${esc(o.oppName)}</span>
         <span class="dcr-opp-count">${o.oppPicked != null ? `${o.oppPicked} picked` : ''}</span>
       </div>` : '';
+    // THE TRICKS LIVE HERE NOW. They were stacked under the card picks in the
+    // left rail, which made that column the tallest thing on the screen and
+    // squeezed the offers narrow enough to crop their art. This side had a
+    // column of empty space under the opponent readout doing nothing.
+    // (Owner drew the arrow from one to the other.)
+    const t = o.tricks;
+    const trickHtml = (t && t.total) ? `
+      <div class="mp-rule"><span class="mp-rule-label">Your tricks</span><span class="mp-rule-line"></span></div>
+      <div class="dpr-list dcr-tricks">${
+        Array.from({ length: t.total }, (_, i) => {
+          const c = (t.items || [])[i];
+          const state = c ? 'is-filled' : ((t.active && i === (t.items || []).length) ? 'is-current' : 'is-empty');
+          return this._draftSlotHTML(c, 'Trick ' + (i + 1), state, 'trick');
+        }).join('')
+      }</div>` : '';
     return `<aside class="draft-rail draft-rail-right">
       <div class="mp-rule"><span class="mp-rule-label">${esc(o.title || 'Deck so far')}</span><span class="mp-rule-line"></span></div>
       <div class="dcr-stats">
@@ -794,6 +815,7 @@ const UI = {
       <div class="dcr-sub">Keywords held</div>
       <div class="dcr-kws">${kwHtml}</div>
       ${oppHtml}
+      ${trickHtml}
     </aside>`;
   },
 
@@ -12696,21 +12718,20 @@ const UI = {
     // The mulligan button is shown whether or not it is still yours to spend —
     // hiding it once locked in (the old `if (isMyPick)`) meant the row silently
     // changed shape mid-draft and you could not see that you still had one.
-    // Mulligan moved below the offers — see renderDraft.
+    html +=     this._draftMulliganHTML(mulliganUsed || !isMyPick, 'twov2OnlineDraftMulligan()');
     html +=   `</div>`;
     html += `</div>`;
     // Same two rails as the 1v1 draft — one implementation, called from both,
     // so the screens cannot drift. In 2v2 a seat's picks ARE its hand, and the
     // 'opponent' is the other TEAM, so the readout names both of them and how
     // many have locked in this round rather than pretending there is one rival.
-    const _railPicks2 = ((isCards ? (ap && ap.hand) : (ap && ap.trickHand)) || []).slice();
+    const _railPicks2 = ((ap && ap.hand) || []).slice();   // the deck is the deck — see renderDraft
     const _oppSeats = ['p1','p2','p3','p4'].filter(k => tt.players[k] && ap && tt.players[k].team !== ap.team);
     const _oppNames = _oppSeats.map(k => tt.players[k].name).join(' · ');
     const _oppIn = _oppSeats.filter(k => d.picked && d.picked[k]).length;
     html += `<div class="draft-stage">`;
     html +=   this._draftPicksRailHTML([
-                { label: 'Pick',  kind: 'card',  items: (ap && ap.hand) || [],      total: 4, active: isCards },
-                { label: 'Trick', kind: 'trick', items: (ap && ap.trickHand) || [], total: 2, active: !isCards },
+                { label: 'Pick', kind: 'card', items: (ap && ap.hand) || [], total: 4, active: isCards },
               ], 0, { title: 'Your picks' });
     html += `<div class="draft-choices">`;
 
@@ -12741,17 +12762,12 @@ const UI = {
     html += `</div>`; // draft-choices
 
     if (ap) {
-      // Cards live in the left rail now — see the note in renderDraft. Only the
-      // trick phase still needs the earlier card row printed.
-      const renderDraftedRow = (list, isTrick) => this._draftedRowHTML(list, isTrick);
-      if (!isCards) {
-        html += renderDraftedRow(ap.hand.map(c => ({ name: c.name, cost: c.cost })), false);
-      }
+      // Nothing here — the left rail carries the picks in both phases.
     }
 
-    html +=   this._draftDeckRailHTML(_railPicks2, { title: 'Deck so far', oppName: _oppNames, oppPicked: _oppIn });
+    html +=   this._draftDeckRailHTML(_railPicks2, { title: 'Deck so far', oppName: _oppNames, oppPicked: _oppIn,
+                tricks: { items: (ap && ap.trickHand) || [], total: 2, active: !isCards } });
     html += `</div>`;   // /draft-stage
-    html += this._draftMulliganHTML(mulliganUsed || !isMyPick, 'twov2OnlineDraftMulligan()');
     html += `</div>`; // draft-panel
     this.draftEl.innerHTML = html;
     if (this.applyTronFx) this.applyTronFx();
@@ -20111,10 +20127,11 @@ const UI = {
     // when there's nothing to undo (first pick of a phase). Uses the
     // curved-left glyph &#x21B6; — the conventional "undo" symbol —
     // paired with the label so it reads clearly even without the icon.
-    html +=     `<button type="button" class="draft-undo-btn${undoDisabled}" onclick="draftUndo()"${undoAttr} title="Undo the previous pick">`;
-    html +=       `<span class="mulligan-icon">&#x21B6;</span>`;
-    html +=       `<span class="mulligan-label">Back</span>`;
-    html +=     `</button>`;
+    // MULLIGAN SITS HERE NOW, in Back's place — the owner drew the arrow from the
+    // button at the foot of the screen up to this slot. It also buys back the
+    // vertical space the bottom row was costing, which is what lets the offers
+    // go full width again instead of being squeezed until the art cropped.
+    html +=     this._draftMulliganHTML(mulliganUsed, 'draftMulligan()');
     // Hand-audio privacy — draft cards have per-card hover cues exactly like a
     // hand does, so someone beside you (or on the call) can hear which offers
     // you're weighing. The in-hand glyph doesn't exist on this screen, so the
@@ -20141,14 +20158,17 @@ const UI = {
     // rails read from the picks array they are handed (_draftPicksRailHTML /
     // _draftDeckRailHTML) and the 2v2 draft calls the same two, so the screens
     // cannot drift apart the way they have before.
-    const _railPicks = (drafted || []).slice();
+    // THE DECK RAIL ALWAYS MEANS THE CARDS. This was `drafted`, which during the
+    // trick phase is playerTrickDrafted — so the moment you crossed the
+    // boundary "Deck so far" read 0 CARDS / — AVG COST / 0 TOTAL ATK with five
+    // cards sitting in the rail beside it. The deck is the deck in both phases.
+    const _railPicks = (d.playerDrafted || []).slice();
     const _oppName = (s._mpNames && s._mpNames.ai) ? s._mpNames.ai
                    : (Game.isMultiplayer && Game.isMultiplayer() ? 'Opponent' : (Game.seatLabel ? Game.seatLabel('ai') : 'AI'));
     const _oppPicked = ((isCards ? d.aiDrafted : d.aiTrickDrafted) || []).length;
     html += `<div class="draft-stage">`;
     html +=   this._draftPicksRailHTML([
-                { label: 'Pick',  kind: 'card',  items: d.playerDrafted || [],      total: 5, active: isCards },
-                { label: 'Trick', kind: 'trick', items: d.playerTrickDrafted || [], total: 2, active: !isCards },
+                { label: 'Pick', kind: 'card', items: d.playerDrafted || [], total: 5, active: isCards },
               ], 0, { title: 'Your picks' });
     html += `<div class="draft-choices">`;
 
@@ -20187,14 +20207,14 @@ const UI = {
         // Same one trick renderer — draft-card carries the picker footprint.
         html += `<div class="draft-offer">`
               + this.makeTrickEl(c, { extraClass: 'draft-card trick-draft', onclick: 'draftPick(' + i + ')' })
-              + this._draftCardFootHTML(c, _railPicks) + `</div>`;
+              + this._draftCardFootHTML(c, []) + `</div>`;   // a trick has no place on a cost curve
       }
     });
 
     html += `</div>`;
-    html +=   this._draftDeckRailHTML(_railPicks, { title: 'Deck so far', oppName: _oppName, oppPicked: _oppPicked });
+    html +=   this._draftDeckRailHTML(_railPicks, { title: 'Deck so far', oppName: _oppName, oppPicked: _oppPicked,
+                tricks: { items: d.playerTrickDrafted || [], total: 2, active: !isCards } });
     html += `</div>`;   // /draft-stage
-    html += this._draftMulliganHTML(mulliganUsed, 'draftMulligan()');
     // Drafted summary — render card list whenever any cards have been drafted
     // (so during trick draft the earlier card picks are still visible), and
     // render trick list once any tricks have been drafted. Per-tag rarity tier
@@ -20205,8 +20225,9 @@ const UI = {
     // the same picks with their art and stats — printing both is the same
     // information twice on one screen. During the TRICK phase the rail is
     // showing tricks, so the earlier card picks still get their row.
-    const renderDraftedRow = (list, isTrick) => this._draftedRowHTML(list, isTrick);
-    if (!isCards) html += renderDraftedRow(d.playerDrafted, false);
+    // No drafted-cards row at all now: the left rail shows those picks with art
+    // and stats in both phases, so printing the list under the offers was the
+    // same information twice.
     html += `</div>`;
     this.draftEl.innerHTML = html;
     // Decorate the two pick cards + the chrome buttons (MENU /
