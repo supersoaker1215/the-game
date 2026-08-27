@@ -46861,3 +46861,98 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   font: 700 8px/1 'Rajdhani', sans-serif; letter-spacing: 0.16em; text-transform: uppercase;
   color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 62%, #ffffff);
 }
+
+/* ============================================================
+   BOARD STRIPS — LABELLED, FROM THE REFERENCE (2026-08-27)
+   ============================================================
+   The reference's strips are labelled where ours were glyph-only: a seat badge
+   and a name, HP with its unit, and a caption on every readout. Nothing here
+   invents a value — each label names a number that was already on screen.
+
+   ONE DELIBERATE DEVIATION: the reference labels the 0/8 meter "TRICKS". That
+   is our BLOCK METER — it fills as you take damage and awards a free trick at
+   8/8. Calling it "tricks" would name the reward instead of the mechanic and
+   read as a count of tricks held, which is a different number entirely. It
+   stays BLOCK. */
+
+/* Seat badge — two letters, derived from the name so they cannot drift. */
+.seat-chip {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  min-width: 30px; height: 24px; padding: 0 6px;
+  font: 700 11px/1 var(--font-mono, 'JetBrains Mono', monospace); letter-spacing: 0.06em;
+  background: #000;
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+}
+.seat-chip-player {
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 26%, #ffffff);
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.75);
+  box-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.30);
+}
+.seat-chip-ai {
+  color: color-mix(in srgb, rgb(var(--enemy-r,255), var(--enemy-g,107), var(--enemy-b,107)) 30%, #ffffff);
+  border: 1px solid rgba(var(--enemy-r,255), var(--enemy-g,107), var(--enemy-b,107), 0.75);
+  box-shadow: 0 0 10px rgba(var(--enemy-r,255), var(--enemy-g,107), var(--enemy-b,107), 0.30);
+}
+.seat-name {
+  flex: 0 0 auto; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font: 700 13px/1 'Chakra Petch', 'Rajdhani', sans-serif; letter-spacing: 0.03em;
+}
+.seat-name-player { color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 32%, #ffffff); }
+.seat-name-ai {
+  color: color-mix(in srgb, rgb(var(--enemy-r,255), var(--enemy-g,107), var(--enemy-b,107)) 36%, #ffffff);
+}
+/* HP carries its unit, the way every other number on this screen does. */
+.hp-unit {
+  font: 700 8px/1 'Rajdhani', sans-serif; letter-spacing: 0.14em; text-transform: uppercase;
+  font-style: normal; margin-left: 4px; opacity: 0.85;
+}
+/* Captions on the readouts that had none. */
+.strip-cap {
+  flex: 0 0 auto;
+  font: 700 8px/1 'Rajdhani', sans-serif; letter-spacing: 0.16em; text-transform: uppercase;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 62%, #ffffff);
+}
+.ai-hand-mini .strip-cap {
+  color: color-mix(in srgb, rgb(var(--enemy-r,255), var(--enemy-g,107), var(--enemy-b,107)) 62%, #ffffff);
+}
+.strip-count {
+  flex: 0 0 auto;
+  font: 700 15px/1 'Chakra Petch', sans-serif; font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, rgb(var(--enemy-r,255), var(--enemy-g,107), var(--enemy-b,107)) 30%, #ffffff);
+}
+/* The cells that hold these need to lay out in a row rather than stack. */
+.bar-cell.bar-hp { display: flex; align-items: center; gap: 9px; }
+.bar-cell.bar-center.ai-hand-mini { display: flex; align-items: center; gap: 10px; }
+/* ENERGY gets its name too — it was a bare diamond with a digit in it. */
+.bar-cell.bar-energy { position: relative; }
+.bar-cell.bar-energy::before {
+  content: 'Energy'; position: absolute; left: 0; top: 50%; transform: translate(-100%, -50%);
+  padding-right: 9px; white-space: nowrap;
+  font: 700 8px/1 'Rajdhani', sans-serif; letter-spacing: 0.16em; text-transform: uppercase;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 62%, #ffffff);
+  pointer-events: none;
+}
+@media (max-width: 900px) { .bar-cell.bar-energy::before { display: none; } .seat-name { display: none; } }
+
+/* END CARDS — the reference's primary control, chamfered like every other
+   committing button in this game. It is the one thing on this bar that ADVANCES
+   the game, and it was reading as the same weight as the music toggle. */
+.actions-section .btn.btn-primary {
+  padding: 11px 26px;
+  background: #000 !important;
+  border: 1px solid rgb(var(--theme-rgb, 79,195,247)) !important;
+  border-radius: 0 !important;
+  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  box-shadow: 0 0 20px rgba(var(--theme-rgb, 79,195,247), 0.30),
+              inset 0 0 32px rgba(var(--theme-rgb, 79,195,247), 0.07) !important;
+  font: 700 12px/1 'Rajdhani', system-ui, sans-serif !important;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 22%, #ffffff) !important;
+  transition: box-shadow .16s var(--ease-snap), color .16s var(--ease-snap);
+}
+.actions-section .btn.btn-primary:hover:not(:disabled),
+.actions-section .btn.btn-primary:focus-visible:not(:disabled) {
+  color: #ffffff !important;
+  box-shadow: 0 0 32px rgba(var(--theme-rgb, 79,195,247), 0.55),
+              inset 0 0 38px rgba(var(--theme-rgb, 79,195,247), 0.12) !important;
+}

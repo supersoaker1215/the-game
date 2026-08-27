@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=1296">
+  <link rel="stylesheet" href="style.css?v=1298">
 
   <script>
     // Lightweight error reporter (pre-Sentry) — capture runtime JS
@@ -414,9 +414,14 @@
              UI._applyHeroAvatars with the side's hero art. Emote bubbles
              anchor to it in multiplayer. -->
         <div class="hero-avatar avatar-ai" id="ai-avatar" aria-hidden="true"></div>
+        <!-- SEAT BADGE + NAME, from the board reference. The strip identified
+             its player by an avatar glyph alone; in multiplayer that is the
+             one thing you actually want spelled out. Filled by UI._applySeatChips. -->
+        <span class="seat-chip seat-chip-ai" id="ai-seat-chip"></span>
+        <span class="seat-name seat-name-ai" id="ai-seat-name"></span>
         <div class="health-container">
           <div class="health-bar"><div class="health-fill ai-hp" id="ai-hp-fill" style="width:100%"></div></div>
-          <div class="health-text ai-color"><span id="ai-health">30</span></div>
+          <div class="health-text ai-color"><span id="ai-health">30</span><i class="hp-unit">HP</i></div>
         </div>
       </div>
       <div class="bar-cell bar-block">
@@ -426,7 +431,9 @@
         </div>
       </div>
       <div class="bar-cell bar-center ai-hand-mini">
+        <span class="strip-cap">Hand</span>
         <div id="ai-hand" class="hand-cards"></div>
+        <span class="strip-count" id="ai-hand-count">0</span>
       </div>
       <div class="bar-cell bar-energy">
         <div class="energy-display" id="ai-energy-display"></div>
@@ -479,9 +486,11 @@
         <button type="button" id="taunt-btn" class="emote-btn taunt-btn" style="display:none"
                 onclick="UI.toggleTauntPicker()" title="Send a taunt sound" aria-label="Send a taunt sound"><svg class="emote-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.4L12 5.6v12.8L7.4 14.5H4z"/><path d="M16.1 9.2a4 4 0 0 1 0 5.6"/><path d="M18.7 6.6a7.6 7.6 0 0 1 0 10.8"/></svg></button>
         <div id="taunt-picker" class="emote-picker taunt-picker" style="display:none"></div>
+        <span class="seat-chip seat-chip-player" id="player-seat-chip"></span>
+        <span class="seat-name seat-name-player" id="player-seat-name"></span>
         <div class="health-container">
           <div class="health-bar"><div class="health-fill player-hp" id="player-hp-fill" style="width:100%"></div></div>
-          <div class="health-text player-color"><span id="player-health">30</span></div>
+          <div class="health-text player-color"><span id="player-health">30</span><i class="hp-unit">HP</i></div>
         </div>
       </div>
       <div class="bar-cell bar-block">
@@ -890,7 +899,7 @@
        shared). Loaded BEFORE leaderboard.js so the client sees it on boot. -->
   <script>window.CLB_STATS_URL = "https://card-lane-battle-stats.ryanvtagle.workers.dev";</script>
   <script src="leaderboard.js?v=3"></script>
-  <script src="ui.js?v=1447"></script>
+  <script src="ui.js?v=1449"></script>
   <!-- Party voice chat. Loads after ui.js because it paints its own panel and
        reads Game/Multiplayer state; it asks for nothing until you press Join. -->
   <script src="voice.js?v=6"></script>
