@@ -18644,6 +18644,13 @@ const Game = {
         if (this.state.pendingJumpOffer && this.state.pendingJumpOffer.cardId === msg.cardId) {
           this.state.pendingJumpOffer = null;
         }
+        // RESUME COMBAT. A jump offer can pop DURING combat (Jason/Ghostface/etc.
+        // free-jump), which parks combat until it's answered. The 1v1 jumpSkip
+        // handler resumes; this 2v2 one only cleared the offer and broadcast, so
+        // a guest skipping a jump left the host's combat parked until the
+        // watchdog force-advanced it. (User: "i skipped the jump for jason and
+        // the combat stalls — the auto fix goes through but it shouldn't stall.")
+        this.resumeCombatIfWaiting();
         this._2v2OnlineBroadcast();
         break;
       }
