@@ -54,7 +54,11 @@ body.board-v2 #game-area {
     "left   mebar   right"
     "left   hand    right";
   gap: 0 22px;
-  align-content: start;
+  /* NO `align-content: start`. It pins the rows to the top and dumps any extra
+     height below the last one — which is exactly the band of dead black under
+     the hand in the owner's screenshot. `stretch` lets the flexible row take
+     it instead, so the console reaches the bottom at every window shape. */
+  align-content: stretch;
   padding: 10px 22px 18px;
   min-height: 100vh;
   box-sizing: border-box;
@@ -553,3 +557,105 @@ body.board-v2 .tricks-section .trick-card {
   max-width: none;
   min-height: 0;
 }
+
+/* ---------------------------------------------------------------------------
+   THE BARS ARE GRIDS, NOT FLEX ROWS — which is what jumbled everything.
+   .info-bar ships as `display: grid` with a fixed column template. Inserting
+   the seat plate gave it a SEVENTH child with no column to sit in, so the
+   plate took the first cell and every real cell was pushed out of the bar's
+   own box: measured, the player bar ended at y=685 while its cells sat at
+   y=684 — on top of the hand. Undo, Energy and the dead pile all landed in the
+   same place, which is the pile-up in the screenshot.
+   Flex here, so the plate is simply another item in the row and the cells sit
+   where they belong.
+   ------------------------------------------------------------------------- */
+body.board-v2 #game-area > .info-bar {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 16px;
+  min-height: 62px;
+}
+body.board-v2 #game-area > .info-bar > .bar-cell { margin: 0; }
+/* The HP track takes the slack between the plate and the right-hand cluster. */
+body.board-v2 #game-area > .info-bar > .bar-hp { flex: 1 1 auto; min-width: 0; }
+body.board-v2 #game-area > .info-bar > .bar-center { flex: 0 0 auto; }
+
+/* ---------------------------------------------------------------------------
+   USE THE WHOLE SCREEN.
+   The console was hugging its content and leaving a band of dead black under
+   the hand. The board takes the vertical slack and the hand is given a real
+   row rather than whatever its cards happened to need, so the layout reaches
+   the bottom of the window at any height.
+   ------------------------------------------------------------------------- */
+body.board-v2 #game-area {
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+  grid-template-rows:
+    auto                    /* hud   */
+    auto                    /* foe bar */
+    minmax(240px, 1fr)      /* board — takes the slack */
+    auto                    /* lane outcomes */
+    auto                    /* my bar */
+    auto;                   /* hand — its cards' own height */
+}
+/* Board bays stretch to their row instead of sitting at card height. */
+body.board-v2 .board-section { display: flex; min-height: 0; padding: 10px 0; }
+body.board-v2 #board { height: 100%; }
+body.board-v2 #board .lane { height: 100%; }
+body.board-v2 #board .card-slot {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+/* HAND. Its own row, cards sized from the row's height so they grow with the
+   window instead of staying thumbnail-sized in a tall empty band. */
+body.board-v2 .player-hand-section {
+  display: flex; flex-direction: column; min-height: 0;
+  padding: 12px 0 0;
+}
+body.board-v2 .player-hand-section #player-hand {
+  flex: 1 1 auto; min-height: 0;
+  align-items: flex-start;
+}
+/* NOT `height: 100%` AND NOT `--card-w: auto`. I tried both and the hand went
+   to blank coloured rectangles: every proportion on a card face — the art box,
+   the badge row, the stat plate, the rules cap — is derived from --card-w, so
+   `auto` leaves them all with nothing to compute from, and stretching the
+   height just scales the wreckage. A hand card is sized the same way a board
+   card is: give the width variable a real length and let the face build itself
+   to its own aspect. */
+body.board-v2 .player-hand-section .hand-card-wrapper .card {
+  --card-w: 132px;
+}
+
+/* The caption is a row of its own above the cards, not an overlay on them. */
+body.board-v2 #bv2-hand-cap { flex: 0 0 auto; }
+
+/* ---------------------------------------------------------------------------
+   BAR ORDER. The reference reads left-to-right as: who you are, your health,
+   then the small readouts, and the action plate LAST at the far right. The
+   shipping DOM puts the action cluster in the middle, so this reorders with
+   flex `order` rather than moving nodes — ui.js keeps owning the markup.
+   ------------------------------------------------------------------------- */
+body.board-v2 #game-area > .info-bar > .bv2-plate   { order: 0; }
+body.board-v2 #game-area > .info-bar > .bar-hp      { order: 1; }
+body.board-v2 #game-area > .info-bar > .bar-block   { order: 2; }
+body.board-v2 #game-area > .info-bar > .bar-dead    { order: 3; }
+body.board-v2 #game-area > .info-bar > .bar-energy  { order: 4; }
+body.board-v2 #game-area > .info-bar > .bar-center  { order: 5; margin-left: 6px; }
+
+/* The plate carries the seat's identity, so the round avatar is a second badge
+   saying the same thing — and in the reference there is no avatar at all. */
+body.board-v2 #game-area > .info-bar .hero-avatar { display: none; }
+
+/* Give the bars room to breathe; the reference's are taller than a toolbar. */
+body.board-v2 #game-area > .info-bar { min-height: 74px; padding: 10px 4px; }
+
+/* ---------------------------------------------------------------------------
+   HAND. Bigger faces, and the row centred on its own baseline rather than
+   crammed against the bar.
+   ------------------------------------------------------------------------- */
+body.board-v2 .player-hand-section #player-hand { gap: 14px; padding-top: 4px; }
+body.board-v2 .player-hand-section .hand-card-wrapper .card { --card-w: 146px; }
