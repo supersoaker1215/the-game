@@ -7331,9 +7331,16 @@ const UI = {
         // already run, so none of them can miss it.
         this._safe('boardV2', () => { if (typeof BoardV2 !== 'undefined') BoardV2.render(s); });
       };
-      if (is2v2OnlineGame) { this._render2v2OnlineBoard(s); this.renderInlineChoiceFallback(s); _redraw2v2(); _fit2v2(); return; }
-      if (is2v2LocalGame)  { this._render2v2LocalGame(s); this.renderInlineChoiceFallback(s); _redraw2v2(); _fit2v2(); return; }
-      this.render2v2(s); this.renderInlineChoiceFallback(s); _redraw2v2(); _fit2v2(); return;
+      // WRAPPED, like every 1v1 sub-renderer. These were called bare, so one
+      // throw anywhere inside a ~360-line function took the whole rest of the
+      // frame with it — and everything a player has to CLICK is at the bottom of
+      // that function: the block-trick modal, the jump offer, the Time Stone
+      // intercept, the FX drain. A single null reference near the top therefore
+      // did not look like a crash, it looked like the game silently skipping
+      // your turn. _safe logs it and lets the rest of the frame paint.
+      if (is2v2OnlineGame) { this._safe('2v2OnlineBoard', () => this._render2v2OnlineBoard(s)); this.renderInlineChoiceFallback(s); _redraw2v2(); _fit2v2(); return; }
+      if (is2v2LocalGame)  { this._safe('2v2LocalGame',  () => this._render2v2LocalGame(s));  this.renderInlineChoiceFallback(s); _redraw2v2(); _fit2v2(); return; }
+      this._safe('2v2Overlay', () => this.render2v2(s)); this.renderInlineChoiceFallback(s); _redraw2v2(); _fit2v2(); return;
     }
     if (isRoguelite && typeof Roguelite !== 'undefined') {
       if (Roguelite.renderPhase(s)) return;
@@ -7390,11 +7397,16 @@ const UI = {
       this.showPhaseBanner(this._gorrBannerText(s._gorrBanner), { duration: 7500 });
     }
 
-    // Health
-    document.getElementById('player-health').textContent = Math.max(0, s.player.health);
-    document.getElementById('ai-health').textContent = Math.max(0, s.ai.health);
-    document.getElementById('player-hp-fill').style.width = `${Math.max(0, (s.player.health / s.player.maxHealth) * 100)}%`;
-    document.getElementById('ai-hp-fill').style.width = `${Math.max(0, (s.ai.health / s.ai.maxHealth) * 100)}%`;
+    // Health. Guarded for the same reason the 2v2 copy is: these are near the
+    // top of the renderer, and everything a player has to CLICK is near the
+    // bottom. An unguarded write here does not degrade when a bar is missing —
+    // it throws, and takes the prompts, the modals and the FX with it.
+    const _hpTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    const _hpW   = (id, v) => { const el = document.getElementById(id); if (el) el.style.width = v; };
+    _hpTxt('player-health', Math.max(0, s.player.health));
+    _hpTxt('ai-health',     Math.max(0, s.ai.health));
+    _hpW('player-hp-fill', `${Math.max(0, (s.player.health / s.player.maxHealth) * 100)}%`);
+    _hpW('ai-hp-fill',     `${Math.max(0, (s.ai.health / s.ai.maxHealth) * 100)}%`);
     // HP critical pulse — toggle the hp-critical class on the fill +
     // the health-text wrapper so both get the red-throb animation
     // when the player is under 30% HP. AI side gets the same treatment
@@ -13335,12 +13347,16 @@ const UI = {
     // --- HUD: Health (my team always on bottom / player bar) ---
     const myTeamData  = tt.teams[myTeam];
     const oppTeamData = tt.teams[oppTeam];
-    document.getElementById('player-health').textContent = Math.max(0, myTeamData.health);
-    document.getElementById('ai-health').textContent     = Math.max(0, oppTeamData.health);
-    document.getElementById('player-hp-fill').style.width =
-      `${Math.max(0, (myTeamData.health / (myTeamData.maxHealth || 30)) * 100)}%`;
-    document.getElementById('ai-hp-fill').style.width =
-      `${Math.max(0, (oppTeamData.health / (oppTeamData.maxHealth || 30)) * 100)}%`;
+    // Guarded. These four are the first DOM writes in the function and they had
+    // no null check, so any layout that does not carry a health bar — or any bug
+    // that removes one — did not degrade, it threw, 200 lines before the modals
+    // this function is also responsible for drawing.
+    const _setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    const _setW   = (id, v) => { const el = document.getElementById(id); if (el) el.style.width = v; };
+    _setTxt('player-health', Math.max(0, myTeamData.health));
+    _setTxt('ai-health',     Math.max(0, oppTeamData.health));
+    _setW('player-hp-fill', `${Math.max(0, (myTeamData.health / (myTeamData.maxHealth || 30)) * 100)}%`);
+    _setW('ai-hp-fill',     `${Math.max(0, (oppTeamData.health / (oppTeamData.maxHealth || 30)) * 100)}%`);
     // Mr. Freeze frozen health bar — same animation as 1v1. myTeam always maps
     // to the bottom (player) bar, oppTeam to the top (ai) bar, so the flip is
     // already handled by the team mapping above.

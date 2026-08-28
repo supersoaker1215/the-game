@@ -202,14 +202,40 @@ const BoardV2 = {
         if (tt2.teams && tt2.teams[team] && tt2.teams[team].health != null) hp = tt2.teams[team].health;
         tag = 'T' + team;
       }
-      const sig = tag + '|' + name + '|' + hp;
-      if (plate.dataset.sig !== sig) {
-        plate.dataset.sig = sig;
+      // NEVER REBUILD THIS PLATE WITH innerHTML.
+      //
+      // The plate ADOPTS the live .health-container below — the real node, with
+      // #player-health / #player-hp-fill inside it, moved out of the band. So a
+      // wholesale innerHTML rewrite on the next render did not just repaint the
+      // plate, it DELETED those elements from the document. And the signature
+      // that gated the rewrite included the health, so it fired precisely when
+      // someone took damage. After that `bar.querySelector('.health-container')`
+      // found nothing and it could never be re-parked.
+      //
+      // What that cost: the 2v2 renderer writes
+      // `getElementById('player-health').textContent` with no guard, so the very
+      // next 2v2 render threw — and _render2v2OnlineBoard is not wrapped in
+      // _safe, so the throw took the whole rest of the frame with it: the
+      // block-trick modal, the jump offer, the Time Stone intercept, the FX
+      // drain. A blocked player's free trick was armed and never drawn until
+      // some later frame survived. (Owner: "EVERY TIME OUR TEAM BLOCKS MY
+      // TEAMMATE GETS A TRICK TO PLAY AND I DONT, IT SHOWS UP ON MY NEXT TURN".)
+      //
+      // Build the skeleton once, then write text into stable nodes. The adopted
+      // health bar sits inside .bv2-id and is never touched again.
+      if (!plate.firstChild) {
         plate.innerHTML =
-          '<span class="bv2-tag">' + tag + '</span>' +
-          '<span class="bv2-id"><b class="bv2-name">' + String(name).slice(0, 40) + '</b></span>' +
-          '<span class="bv2-hp">' + hp + '<i>HP</i></span>';
+          '<span class="bv2-tag"></span>' +
+          '<span class="bv2-id"><b class="bv2-name"></b></span>' +
+          '<span class="bv2-hp"><b class="bv2-hpn"></b><i>HP</i></span>';
       }
+      const _tagEl  = plate.querySelector('.bv2-tag');
+      const _nameEl = plate.querySelector('.bv2-name');
+      const _hpEl   = plate.querySelector('.bv2-hpn');
+      const _name40 = String(name).slice(0, 40);
+      if (_tagEl  && _tagEl.textContent  !== tag)      _tagEl.textContent  = tag;
+      if (_nameEl && _nameEl.textContent !== _name40)  _nameEl.textContent = _name40;
+      if (_hpEl   && _hpEl.textContent   !== String(hp)) _hpEl.textContent = hp;
       // Park the live health bar under the name, once.
       const hpBox = bar.querySelector('.health-container');
       const idCol = plate.querySelector('.bv2-id');

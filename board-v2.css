@@ -1607,3 +1607,32 @@ body.board-v2 .twov2-bls-btn {
   font-family: var(--fm); font-size: calc(11 * var(--u));
   min-width: calc(30 * var(--u));
 }
+
+/* ===========================================================================
+   A DOCKED PROMPT HAS TO FIT THE RAIL IT IS DOCKED IN.
+   The block-trick offer carries a full trick card, and the floating panel laid
+   the card and the buttons out side by side — fine at 420px, not at 182. The
+   preview was rendering 200px wide inside a 182px column and pushing Play Free
+   and Keep to x=1302 on a 1304px screen: present, clickable in theory, and off
+   the edge of the display in practice.
+   Column layout, and nothing inside may exceed the rail.
+   =========================================================================== */
+body.board-v2 #bv2-notices .floating-prompt,
+body.board-v2 #bv2-notices .floating-prompt * { max-width: 100%; box-sizing: border-box; }
+body.board-v2 #bv2-notices .fp-body {
+  display: flex !important; flex-direction: column !important;
+  align-items: flex-start !important; gap: calc(8 * var(--u));
+  width: 100%;
+}
+body.board-v2 #bv2-notices .fp-trick-preview {
+  width: 100% !important; max-width: 100% !important;
+  margin: 0 0 calc(4 * var(--u)) !important;
+  display: flex; justify-content: flex-start;
+}
+body.board-v2 #bv2-notices .fp-trick-preview > * {
+  width: calc(96 * var(--u)) !important; max-width: calc(96 * var(--u)) !important;
+  height: auto !important; flex: 0 0 auto;
+}
+body.board-v2 #bv2-notices .fp-choices {
+  width: 100%; flex-direction: column !important; align-items: flex-start !important;
+}

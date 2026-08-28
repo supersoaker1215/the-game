@@ -148,6 +148,51 @@ t('PC-4 _forceEndStalledCombat is a dropper, not a resolver', function () {
   eq('it never resolves a block trick', /_2v2ResolveBlockTrick/.test(src), false);
 });
 
+// ============================================================
+// PC-5 — A PROMPT THAT IS ARMED MUST ALSO BE DRAWN.
+//
+// The block-trick modal, the jump offer and the Time Stone intercept are all
+// rendered from the BOTTOM of _render2v2OnlineBoard, ~200 lines below its first
+// DOM writes. Those writes had no null guard, and the function was called bare
+// rather than through UI._safe — so a single null reference near the top did not
+// look like a crash, it looked like the game skipping your turn: the offer was
+// armed, broadcast, and never painted until some later frame happened to
+// survive. (Owner, on exactly that: "EVERY TIME OUR TEAM BLOCKS MY TEAMMATE
+// GETS A TRICK TO PLAY AND I DONT, IT SHOWS UP ON MY NEXT TURN".)
+//
+// The null itself came from the redesign's seat plate adopting the live
+// .health-container and then rebuilding itself with innerHTML — deleting
+// #player-health out of the document on the first render after anyone took
+// damage. PC-6 pins that.
+// ============================================================
+t('PC-5 the 2v2 renderers are wrapped so one throw cannot eat the frame', function () {
+  var ui = readFile('./ui.js');
+  eq('online board wrapped', /_safe\('2v2OnlineBoard'/.test(ui), true);
+  eq('local game wrapped',   /_safe\('2v2LocalGame'/.test(ui), true);
+  eq('overlay wrapped',      /_safe\('2v2Overlay'/.test(ui), true);
+  // (_render2v2LocalGame delegates to the online board on purpose; it is itself
+  // inside _safe('2v2LocalGame'), so that call is covered.)
+  // The HUD writes that threw are guarded — in BOTH renderers. The 1v1 copy had
+  // the identical unguarded write, so with the redesign on it crashed the same
+  // way; it was only ever reported in 2v2 because that is where it was played.
+  eq('no unguarded player-health write anywhere',
+     /getElementById\('player-health'\)\.textContent\s*=/.test(ui), false);
+  eq('no unguarded ai-health write anywhere',
+     /getElementById\('ai-health'\)\.textContent\s*=/.test(ui), false);
+  eq('no unguarded hp-fill write anywhere',
+     /getElementById\('(player|ai)-hp-fill'\)\.style\.width\s*=/.test(ui), false);
+});
+
+t('PC-6 the seat plate never rebuilds over the health bar it adopted', function () {
+  var b = readFile('./board-v2.js');
+  // It adopts the live node...
+  eq('the plate still adopts the health container', /idCol\.appendChild\(hpBox\)/.test(b), true);
+  // ...so it must never wipe itself wholesale afterwards.
+  eq('no signature-gated innerHTML rebuild', /plate\.innerHTML\s*=\s*\n?\s*'<span class="bv2-tag">' \+ tag/.test(b), false);
+  eq('the skeleton is built once', /if \(!plate\.firstChild\)/.test(b), true);
+  eq('text is written into stable nodes', /_nameEl\.textContent = _name40/.test(b), true);
+});
+
 // ---- run ----------------------------------------------------
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];
