@@ -7549,6 +7549,11 @@ const UI = {
     this._safe('voice',                   () => { if (typeof Voice !== 'undefined') Voice.mount(); });
     this._safe('renderLog',               () => this.renderLog(s));
     this._safe('renderBoardAside',        () => this.renderBoardAside(s));
+    // BOARD V2 (separate redesign, off by default). Returns immediately unless
+    // the flag is set, so the shipping board pays nothing for this call. Wrapped
+    // like every other sub-renderer: a fault in the redesign must not be able to
+    // take the real board down with it.
+    this._safe('boardV2', () => { if (typeof BoardV2 !== 'undefined') BoardV2.render(s); });
     this._safe('showDamageFloats',        () => this.showDamageFloats());
     // RETRY the two that decide whether the player can still ACT. If one of
     // them was the thing that threw, the player is staring at a board with no
