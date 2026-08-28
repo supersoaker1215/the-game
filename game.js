@@ -6348,6 +6348,19 @@ const Game = {
     if (p.playedTrickPile) p.playedTrickPile.push({ name: 'Time Stone', cost: 0 });
     trick._timeStonedAtRound = this.state.round;   // frozen this round
     this.log(`[TIME STONE] ${p.name} freezes time! ${trick.name} is undone and returned to the caster's hand.`);
+    // SHOW IT ON EVERY SCREEN, like any other trick. The AI's auto-counter used
+    // to only hit the log, so nobody saw the Time Stone play. Fire the same
+    // center-screen reveal a played trick does, plus the 2v2 FX relay so all four
+    // clients see it. (Owner: "an ai played time stone just make sure it appears
+    // on the screen after using for everyone to see like all tricks.")
+    try {
+      const tsdef = (typeof TRICK_DEFS !== 'undefined') ? TRICK_DEFS.find(t => t.name === 'Time Stone') : null;
+      const tdesc = (tsdef && tsdef.desc) || 'Counter the incoming trick.';
+      const tcost = (tsdef && tsdef.cost != null) ? tsdef.cost : 0;
+      const mine = !!(tt && tt.you && seat === tt.you);
+      if (typeof UI !== 'undefined' && UI.showTrickReveal) UI.showTrickReveal('Time Stone', tdesc, tcost, mine);
+      if (this.emitFX) this.emitFX('trickReveal', { name: 'Time Stone', desc: tdesc, cost: tcost, seat: seat || null });
+    } catch (e) {}
     // Draw the countering seat a card (routed to their own hand).
     const drawPile = tt.drawPile;
     const cap = p.maxHandSize || 7;
