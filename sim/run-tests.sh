@@ -69,6 +69,10 @@ echo "=== local-2v2.js (a local 2v2 is still a 2v2) ==="
 run_suite sim/local-2v2.js
 
 echo ""
+echo "=== moder-lane-lock.js (one answer to which lanes are placeable) ==="
+run_suite sim/moder-lane-lock.js
+
+echo ""
 if [ "$FAIL" -ne 0 ]; then
   echo "❌ TESTS FAILED — see suites above."
   exit 1

@@ -15049,6 +15049,36 @@ const Game = {
     return out;
   },
 
+  // WHICH LANES MAY THIS SIDE PLACE INTO RIGHT NOW — the one answer every
+  // placement surface asks. getOpenLanes says which lanes are physically free;
+  // this adds the rules that sit on top, which today means Moder's compulsion.
+  //
+  // Three placement UIs were each deciding this for themselves and only the 1v1
+  // board knew about Moder, so a compelled player in 2v2 saw every lane button
+  // lit and could aim anywhere — while the engine pulled the card into Moder's
+  // lane regardless. The rule was enforced but never shown. (Owner: "for moder,
+  // his ability works but the opponent needs to only have that lane highlighted
+  // to play.")
+  //
+  // It asks moderCompulsionLane, NOT the raw forcedLane stamp. The stamp
+  // outlives a Moder who left the board silently, and locking a board to a
+  // compeller who is not standing there any more is the same residue that used
+  // to march a guest's cards into lanes 1, 2, 3 with no picker at all.
+  placeableLanesFor(owner, card) {
+    const open = this.getOpenLanes(owner);
+    // An environment lands by its own rule and is never compelled — Moder pulls
+    // the next CARD, and an environment does not occupy the combat slot he is
+    // reaching for.
+    if (card && card.isEnvironment) {
+      return open.filter(i => this.canPlaceEnvironment(owner, i));
+    }
+    const forced = this.moderCompulsionLane ? this.moderCompulsionLane(owner) : -1;
+    // Only narrow when the forced lane is actually free — if this side already
+    // holds it, the compulsion has nowhere to land and must not lock the board.
+    if (forced >= 0 && open.indexOf(forced) >= 0) return [forced];
+    return open;
+  },
+
   findCardLane(card) {
     for (let i = 0; i < this.LANE_COUNT; i++) {
       const l = this.state.lanes[i];

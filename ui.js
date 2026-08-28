@@ -13703,12 +13703,23 @@ const UI = {
       return;
     }
     strip.style.display = 'flex';
+    // MODER LOCKS THE STRIP TOO. This asked only "is my slot free", so a
+    // compelled player got all eight buttons and could aim anywhere while the
+    // engine pulled the card into Moder's lane anyway.
+    const _selCard = (ap && ap.hand && UI._2v2SelectedCardIdx != null)
+      ? ap.hand[UI._2v2SelectedCardIdx] : null;
+    const _ok = new Set(Game.placeableLanesFor
+      ? Game.placeableLanesFor(mySide, _selCard) : s.lanes.map((_, i) => i));
+    const _compelled = Game.moderCompulsionLane ? Game.moderCompulsionLane(mySide) : -1;
     strip.innerHTML = `
-      <span class="twov2-bls-label">Place card in lane:</span>
+      <span class="twov2-bls-label">${_ok.size === 1 && _compelled >= 0
+        ? 'Forced into lane ' + (_compelled + 1) + ':' : 'Place card in lane:'}</span>
       ${s.lanes.map((ln, i) => {
-        const blocked = !!(ln[mySide]);
-        return `<button class="twov2-bls-btn${blocked ? ' twov2-bls-blocked' : ''}"
-                  onclick="twov2OnlinePlaceCard(${i})" ${blocked ? 'disabled' : ''}>
+        const blocked = !_ok.has(i);
+        const forced = (_compelled === i && _ok.has(i));
+        return `<button class="twov2-bls-btn${blocked ? ' twov2-bls-blocked' : ''}${forced ? ' twov2-bls-forced' : ''}"
+                  onclick="twov2OnlinePlaceCard(${i})" ${blocked ? 'disabled' : ''}
+                  ${blocked && _compelled >= 0 ? `title="Moder forces your next card into lane ${_compelled + 1}"` : ''}>
                   ${i + 1}
                 </button>`;
       }).join('')}
@@ -14272,16 +14283,25 @@ const UI = {
         <div class="twov2-lane-select" id="twov2-lane-select" style="display:none">
           <div class="twov2-ls-label">Pick a lane (1–${Game.LANE_COUNT}):</div>
           <div class="twov2-ls-row">
-            ${s.lanes.map((ln, i) => {
+            ${(() => {
               const myTeam = isOnline ? (tt.players[myKey] && tt.players[myKey].team) : activeTeam;
               const side = myTeam === 'A' ? 'player' : 'ai';
-              const blocked = !!(ln[side]);
-              const placeCmd = isOnline ? `twov2OnlinePlaceCard(${i})` : `twov2PlaceCard(${i})`;
-              return `<button class="twov2-ls-btn${blocked?' twov2-ls-blocked':''}"
-                        onclick="${placeCmd}" ${blocked?'disabled':''}>
-                Lane ${i+1}
-              </button>`;
-            }).join('')}
+              // Same lock as every other placement surface — see
+              // Game.placeableLanesFor.
+              const okSet = new Set(Game.placeableLanesFor
+                ? Game.placeableLanesFor(side, null) : s.lanes.map((_, i2) => i2));
+              const compelled = Game.moderCompulsionLane ? Game.moderCompulsionLane(side) : -1;
+              return s.lanes.map((ln, i) => {
+                const blocked = !okSet.has(i);
+                const forced = (compelled === i && okSet.has(i));
+                const placeCmd = isOnline ? `twov2OnlinePlaceCard(${i})` : `twov2PlaceCard(${i})`;
+                return `<button class="twov2-ls-btn${blocked?' twov2-ls-blocked':''}${forced?' twov2-ls-forced':''}"
+                          onclick="${placeCmd}" ${blocked?'disabled':''}
+                          ${blocked && compelled >= 0 ? `title="Moder forces your next card into lane ${compelled+1}"` : ''}>
+                  Lane ${i+1}
+                </button>`;
+              }).join('');
+            })()}
           </div>
           <button class="twov2-ls-cancel" onclick="twov2CancelCard()">Cancel</button>
         </div>
@@ -22387,14 +22407,18 @@ const UI = {
         // lane is clickable. The old Magneto-queue fallback (magnetoForcedLanes[0])
         // was removed with the Magneto redesign — no setter exists anymore, so a
         // stale queue could only wrongly padlock the whole hand to one lane.
-        let fl = s.player && s.player.forcedLane != null ? s.player.forcedLane : null;
-        // Only enforce Moder's lock if the forced lane is actually playable —
-        // if the player's card already occupies it (e.g. survived combat against
-        // Moder), there's nowhere to force and the lock should dissolve.
-        if (fl !== null) {
-          const flState = s.lanes[fl];
-          if (!flState || flState.destroyed || flState.player) fl = null;
-        }
+        // THE SAME AUTHORITY THE LOCK GLYPH USES. This read the raw
+        // `s.player.forcedLane` stamp while the status-row glyph a few hundred
+        // lines up asked moderCompulsionLane — so the two disagreed exactly when
+        // it mattered: a Moder who left the board silently left the stamp behind,
+        // and the board stayed padlocked to a compeller who was not there while
+        // the glyph correctly showed nothing. One question, one answer.
+        const _allowed = Game.placeableLanesFor
+          ? Game.placeableLanesFor('player', s.selectedCard)
+          : null;
+        let fl = (_allowed && _allowed.length === 1 && !s.selectedCard.isEnvironment
+                  && Game.moderCompulsionLane && Game.moderCompulsionLane('player') === _allowed[0])
+          ? _allowed[0] : null;
         if (fl !== null && fl !== i && !s.selectedCard.isEnvironment) {
           // Not the forced lane — show as locked, not playable.
           // The class goes on the LANE, not just the slot: a lockout is a
