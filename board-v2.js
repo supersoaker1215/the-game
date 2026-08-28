@@ -143,17 +143,13 @@ const BoardV2 = {
       const hp   = side.health != null ? side.health : '';
       const tag  = (String(name).replace(/[^A-Za-z0-9]/g, '').slice(0, 2)
                     || (who === 'player' ? 'YOU' : 'OP')).toUpperCase();
-      const trk  = ((side.tricksPlayed != null ? side.tricksPlayed : 0) + '/' +
-                    ((typeof Game !== 'undefined' && Game.TRICK_LIMIT) || 8));
-
-      const sig = tag + '|' + name + '|' + hp + '|' + trk;
+      const sig = tag + '|' + name + '|' + hp;
       if (plate.dataset.sig !== sig) {
         plate.dataset.sig = sig;
         plate.innerHTML =
           '<span class="bv2-tag">' + tag + '</span>' +
           '<span class="bv2-id"><b class="bv2-name">' + String(name).slice(0, 18) + '</b></span>' +
-          '<span class="bv2-hp">' + hp + '<i>HP</i></span>' +
-          '<span class="bv2-trk"><i>Tricks</i>' + trk + '</span>';
+          '<span class="bv2-hp">' + hp + '<i>HP</i></span>';
       }
       // Park the live health bar under the name, once.
       const hpBox = bar.querySelector('.health-container');
@@ -295,6 +291,25 @@ const BoardV2 = {
     ).join('');
   },
 
+  // Every internal proportion of a card face derives from --card-w. Board V2
+  // sizes the board card with `width: 100%` so it fills its slot, which left
+  // --card-w as the literal string `100%` — and `calc(100% * k)` in a
+  // font-size context resolves against the PARENT font size, not the card. So
+  // the cost numeral computed to 1.37px on board against 8.38px in hand: the
+  // ribbon was drawn, the number inside it was a rounding error tall.
+  //
+  // The slot's width is set by the lane and its own height cap, never by the
+  // card, so measuring it and handing the length back down is not a loop.
+  _sizeBoardCards() {
+    const slot = document.querySelector('#board .card-slot');
+    const root = document.getElementById('board');
+    if (!slot || !root) return;
+    const w = Math.round(slot.getBoundingClientRect().width * 100) / 100;
+    if (!w || w === this._slotW) return;
+    this._slotW = w;
+    root.style.setProperty('--bv2-board-card-w', w + 'px');
+  },
+
   // Called from UI.render's tail. Returns immediately when off, so the original
   // board pays nothing for this existing.
   render(s) {
@@ -306,6 +321,7 @@ const BoardV2 = {
       this._renderSeats(s);
       this._renderCounts(s);
       this._renderBandExtras(s);
+      this._sizeBoardCards();
       this._stripForecastSigns();
       this._fillRailLog(s);
     } catch (e) { console.error('[BoardV2] render', e); }

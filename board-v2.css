@@ -1275,3 +1275,45 @@ body.board-v2 #game-area > .info-bar.ai-bar {
     rgba(255,138,31,0.30) 0%,
     rgba(255,138,31,0.16) 100%) !important;
 }
+
+/* ===========================================================================
+   FOUR THINGS OFF THE BAND AND THE BOARD.
+
+   1. THE BOX BEHIND THE ENERGY CIRCLE. It was not the circle's own border —
+      `.tron-perimeter::before` was drawing a 13x34 box rotated 45deg (so it
+      read as a diamond) in rgba(79,195,247), the OLD theme blue, hatched with
+      a 45deg repeating gradient. Killed on the energy readout only; the card
+      variant `.tron-perimeter-card` is untouched.
+   2. The "Energy" caption above it, and
+   3. the "Tricks n/8" readout in each seat plate — both struck out. Tricks is
+      gone at the source in board-v2.js `_renderSeats`, not hidden here.
+   4. THE FORECAST ARROW WAS NOT CENTRED. Each `.lf-cell` IS centred on its
+      lane — it is the row inside it that sits off. The cell holds two 24px
+      face slots, one per side, and a side with nothing to report still keeps
+      its full 24px. So the one live face landed half a slot off-centre: +14px
+      for a lane you win, -14px for one you lose. Collapse the empty slot and
+      the live face centres on the lane itself.
+   =========================================================================== */
+body.board-v2 .info-bar .energy-display .tron-perimeter::before,
+body.board-v2 .info-bar .energy-display .tron-perimeter::after {
+  content: none !important;
+  display: none !important;
+}
+body.board-v2 .info-bar .bar-energy::before {
+  content: none !important;
+  display: none !important;
+}
+body.board-v2 .lane-forecast-strip .lf-face-zero { display: none !important; }
+
+/* ===========================================================================
+   THE COST RIBBON ON BOARD. The ribbon was drawn but the numeral inside it
+   computed to 1.37px, because `--card-w` on a board card was the string
+   `100%` and every card-face proportion is a calc() off that variable — in a
+   font-size context `calc(100% * k)` resolves against the parent font size.
+   board-v2.js now measures the slot and publishes the real length here; the
+   card still fills its slot by `width: 100%`, so nothing about the layout
+   moves — only the proportions inside the face are correct again.
+   =========================================================================== */
+body.board-v2 #board .lane .card {
+  --card-w: var(--bv2-board-card-w, calc(130 * var(--u)));
+}
