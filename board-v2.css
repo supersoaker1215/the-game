@@ -1105,3 +1105,60 @@ body.board-v2 #bv2-rail-left .ba-log {
   display: flex; flex-direction: column; gap: calc(6 * var(--u));
 }
 body.board-v2 #bv2-rail-left .ba-log-more { margin-top: auto; padding-top: calc(10 * var(--u)); }
+
+/* ===========================================================================
+   THE LINE ABOVE THE CARDS — it was a BOX-SHADOW, not a border.
+     .info-bar            box-shadow: rgba(79,195,247,0.22) 0 1px 0 inset
+     .player-hand-section box-shadow: rgba(79,195,247,0.22) 0 -1px 0
+   Two 1px shadows meeting at the bar/hand boundary, in the old theme blue.
+   Every sweep I ran looked for borders and painted boxes, which is why it
+   survived three passes. Gone from both.
+   =========================================================================== */
+body.board-v2 #game-area > .info-bar,
+body.board-v2 #game-area > .player-hand-section,
+body.board-v2 #game-area > .board-section,
+body.board-v2 #game-area > #lane-forecast-strip {
+  box-shadow: none !important;
+}
+
+/* ===========================================================================
+   REMOVALS: FULL LOG, DISCARD, and the rules around the music button.
+   =========================================================================== */
+body.board-v2 #bv2-rail-left .ba-log-more { display: none !important; }
+body.board-v2 #game-area > .info-bar > .bar-dead { display: none !important; }
+
+/* The vertical rules: my own divider before the action cluster, plus the
+   chamfered outlines the tools were carrying. The tools read as glyphs now. */
+body.board-v2 #game-area > .info-bar > .bar-center::before { display: none !important; }
+body.board-v2 .info-bar .hand-tools > * {
+  border: 0 !important;
+  clip-path: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  width: auto !important; height: auto !important;
+}
+body.board-v2 .info-bar .hand-tools {
+  border: 0 !important; background: transparent !important; box-shadow: none !important;
+}
+
+/* ===========================================================================
+   THE BOX BEHIND THE ENERGY CIRCLE. The disc is the readout; anything square
+   or diamond behind it is the shipping chrome showing through. Cleared so the
+   ring stands on the band alone.
+   =========================================================================== */
+body.board-v2 #game-area > .info-bar > .bar-energy {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  clip-path: none !important;
+  outline: none !important;
+}
+body.board-v2 .info-bar .energy-display {
+  outline: none !important;
+  clip-path: none !important;
+  background: rgba(4,6,10,0.9) !important;
+}
+body.board-v2 .info-bar .energy-display::before,
+body.board-v2 .info-bar .energy-display::after {
+  content: none !important; display: none !important;
+}
