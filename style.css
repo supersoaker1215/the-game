@@ -41369,22 +41369,44 @@ body.low-fx .badge-asleep { animation: none; }
 }
 .brainiac-scan.is-active {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
   position: absolute;
   top: calc(100% + 4px);
   right: 8px;
   z-index: 6;
-  padding: 3px 8px 3px 6px;
+  padding: 5px 7px;
   border-radius: 8px;
-  background: rgba(18, 10, 28, 0.92);
+  background: rgba(18, 10, 28, 0.94);
   border: 1px solid rgba(215, 179, 230, 0.55);   /* --palette-purple, dimmed */
   box-shadow: 0 0 10px rgba(140, 90, 200, 0.35), inset 0 0 6px rgba(126, 232, 165, 0.10);
   font-size: 11px;
   line-height: 1;
   pointer-events: auto;
-  cursor: pointer;
+  max-width: 240px;
   animation: brainiac-scan-in 220ms ease-out;
+}
+/* Header row — the collapse toggle. */
+.brainiac-scan-head {
+  display: flex; align-items: center; gap: 6px;
+  background: none; border: none; padding: 0; margin: 0;
+  color: inherit; font: inherit; cursor: pointer; width: 100%;
+}
+.brainiac-scan-count {
+  font-size: 9px; font-weight: 700; letter-spacing: 0.04em;
+  color: #cdf5dc; opacity: 0.9; margin-left: auto;
+}
+.brainiac-scan-chevron { font-size: 10px; color: rgba(233,214,245,0.85); }
+/* Card list body — wraps under the header, hidden when collapsed. */
+.brainiac-scan-body {
+  display: flex; flex-wrap: wrap; gap: 4px; cursor: pointer;
+  padding-top: 4px; border-top: 1px solid rgba(215, 179, 230, 0.22);
+}
+.brainiac-scan.is-collapsed .brainiac-scan-body { display: none; }
+.brainiac-scan-stat {
+  font-size: 9px; font-weight: 700; color: #ff9db0;
+  border-left: 1px solid rgba(255,157,176,0.3); padding-left: 4px; margin-left: 1px;
 }
 @keyframes brainiac-scan-in {
   from { opacity: 0; transform: translateY(-4px); }
