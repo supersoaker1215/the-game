@@ -966,3 +966,68 @@ body.board-v2 #board .lane .card {
 body.board-v2 #game-area {
   grid-template-columns: calc(268 * var(--u)) minmax(0, 1fr) calc(268 * var(--u));
 }
+
+/* ===========================================================================
+   THE BAND GRADIENTS WERE THE OLD COLOURS.
+   The washes were rendering, but in the SHIPPING palette — the opponent's at
+   rgba(231,76,60,.08), which is the red the spec bans, and yours at
+   rgba(79,195,247,.08), the old theme blue. So the board carried a faint
+   red-and-blue haze under a cyan-and-orange frame. Scoped through #game-area
+   so these win, and lifted so each band actually reads as lit.
+   =========================================================================== */
+body.board-v2 #game-area > .info-bar.ai-bar {
+  background-image: linear-gradient(to bottom,
+    rgba(255,138,31,0.26) 0%,
+    rgba(255,138,31,0.10) 46%,
+    rgba(255,138,31,0.00) 100%) !important;
+}
+body.board-v2 #game-area > .info-bar.player-bar {
+  background-image: linear-gradient(to top,
+    rgba(53,201,255,0.26) 0%,
+    rgba(53,201,255,0.10) 46%,
+    rgba(53,201,255,0.00) 100%) !important;
+}
+
+/* ===========================================================================
+   THE LINE BETWEEN THE CARDS AND EACH BAND.
+   The rails existed at 1px and simply did not read against the board. They are
+   the boundary between a player's territory and the field, so they get the
+   tube treatment: a bright core with a soft bloom, fading at both ends.
+   =========================================================================== */
+body.board-v2 #game-area > .info-bar::after {
+  height: 2px;
+  z-index: 2;
+}
+body.board-v2 #game-area > .info-bar.ai-bar::after {
+  background: linear-gradient(to right,
+    rgba(255,138,31,0) 0%, rgba(255,138,31,0.95) 14%,
+    rgba(255,138,31,0.95) 86%, rgba(255,138,31,0) 100%);
+  box-shadow: 0 0 6px rgba(255,138,31,0.55), 0 0 14px rgba(255,138,31,0.28);
+  filter: none;
+}
+body.board-v2 #game-area > .info-bar.player-bar::after {
+  background: linear-gradient(to right,
+    rgba(53,201,255,0) 0%, rgba(53,201,255,0.95) 14%,
+    rgba(53,201,255,0.95) 86%, rgba(53,201,255,0) 100%);
+  box-shadow: 0 0 6px rgba(53,201,255,0.55), 0 0 14px rgba(53,201,255,0.28);
+  filter: none;
+}
+
+/* The glow spills PAST the band and onto the field, so the boundary reads as a
+   lit edge the board is sitting inside rather than a hairline drawn on it. */
+body.board-v2 #game-area > .info-bar { overflow: visible; }
+body.board-v2 #game-area > .info-bar.ai-bar::before,
+body.board-v2 #game-area > .info-bar.player-bar::before {
+  content: '';
+  position: absolute; left: 0; right: 0;
+  height: calc(64 * var(--u));
+  pointer-events: none; z-index: 1;
+}
+body.board-v2 #game-area > .info-bar.ai-bar::before {
+  top: 100%;
+  background: linear-gradient(to bottom, rgba(255,138,31,0.16), rgba(255,138,31,0) 100%);
+}
+body.board-v2 #game-area > .info-bar.player-bar::before {
+  bottom: 100%;
+  background: linear-gradient(to top, rgba(53,201,255,0.16), rgba(53,201,255,0) 100%);
+}
