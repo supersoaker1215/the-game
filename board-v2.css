@@ -1162,3 +1162,28 @@ body.board-v2 .info-bar .energy-display::before,
 body.board-v2 .info-bar .energy-display::after {
   content: none !important; display: none !important;
 }
+
+/* ===========================================================================
+   THE GRADIENT FALLS. Both bands light at their TOP edge and fade downward,
+   so the two washes run the same direction down the screen instead of meeting
+   in the middle. Yours was inverted — `to top`, brightest along the bottom of
+   the band — which is why it read as light coming up off the hand.
+   =========================================================================== */
+body.board-v2 #game-area > .info-bar.player-bar {
+  background-image: linear-gradient(to bottom,
+    rgba(53,201,255,0.30) 0%,
+    rgba(53,201,255,0.12) 48%,
+    rgba(53,201,255,0.00) 100%) !important;
+}
+
+/* …and keeps falling past the band, into the hand, rather than stopping at its
+   own bottom edge. The spill moves from above the bar to below it. */
+body.board-v2 #game-area > .info-bar.player-bar::before {
+  top: 100%;
+  bottom: auto;
+  height: calc(150 * var(--u));
+  background: linear-gradient(to bottom,
+    rgba(53,201,255,0.16) 0%,
+    rgba(53,201,255,0.05) 45%,
+    rgba(53,201,255,0.00) 100%);
+}
