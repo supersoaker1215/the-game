@@ -2341,11 +2341,14 @@ const CARD_ABILITIES = {
           // If the prompt failed to reach that client for any reason, the table
           // simply stopped — which is what the owner keeps seeing.
           //
-          // A bot's cast now resolves entirely on its own: every seat takes its
-          // two lowest and play continues. Cast by a HUMAN it is unchanged —
-          // every human still picks their own two, which is the version the
-          // owner asked for earlier and which is not the one that stalls,
-          // because a human casting it is already the seat everyone is waiting on.
+          // STALE PARAGRAPH REMOVED: this used to claim "a bot's cast now
+          // resolves entirely on its own", and the condition below has never
+          // looked at who cast the card — `sp.isAI || hand.length <= 2` only
+          // asks about the SEAT. A bot's cast does still prompt human seats,
+          // deliberately (the owner asked for humans to keep choosing), so the
+          // thing that must hold is not "bots resolve silently" but "a human's
+          // pick is never made for them" — which is now enforced in
+          // forceComplete below rather than asserted in a comment.
           if (sp.isAI || hand.length <= 2) {
             // AI seat (auto-take its 2 lowest — "that's all they do"), or a hand
             // small enough that the pick is forced. EVERY HUMAN SEAT gets to
@@ -2405,6 +2408,31 @@ const CARD_ABILITIES = {
         const clearTimer = () => { if (timer && typeof clearTimeout !== 'undefined') { clearTimeout(timer); timer = null; } };
         const finishOnce = () => { if (done) return; done = true; clearTimer(); G.log('[SSM] cycle complete — healing caster.'); try { finish(); } catch (e) { console.error('[SSM] finish threw', e); } };
         const forceComplete = (fromIndex) => {
+          // THE SAME RULE AS end2v2Phase: NEVER PICK FOR A LIVE HUMAN.
+          //
+          // This force-complete takes the two lowest cards out of every
+          // remaining hand — including a human's. That is the "it auto-clicked
+          // one of my cards for me" report, and it is a skip by another name:
+          // 20 seconds is a normal amount of time to read four cards and
+          // decide, and the engine's own idea of a fair wait for a human prompt
+          // is 30s (_2v2_PROMPT_MS).
+          //
+          // If the seat we are about to decide for is a live human, we do not.
+          // We keep waiting and re-arm, so the moment they answer the chain
+          // drains normally — and if they are genuinely gone, the drop path
+          // converts the seat (_dropped/isAI) and the next tick completes it
+          // for a bot instead of for a person.
+          const blocker = order[fromIndex];
+          if (blocker && G._2v2SeatIsLiveHuman && G._2v2SeatIsLiveHuman(blocker)) {
+            const nm = (tt.players[blocker] && tt.players[blocker].name) || blocker;
+            console.warn('[SSM] still waiting on', blocker, '— a live human, so NOT picking for them');
+            G.log(`[SSM] still waiting on ${nm} — their cards will not be chosen for them.`);
+            if (G.state.twoVTwo && G.state.twoVTwo.online) { try { G._2v2OnlineBroadcast(); } catch (e) {} }
+            if (typeof UI !== 'undefined' && UI.render) UI.render();
+            clearTimer(); stallStartAt = Date.now(); nudged = true;
+            timer = setTimeout(tick, GIVEUP_MS);   // ask again later, do not decide
+            return;
+          }
           console.warn('[SSM] chain still stuck after nudge — force-completing from index', fromIndex);
           G.log('[SSM] a client never answered — completing the remaining shuffle so the table can continue.');
           const pc = G.state.pendingCardChoice;
