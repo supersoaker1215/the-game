@@ -310,6 +310,150 @@ const BoardV2 = {
     root.style.setProperty('--bv2-board-card-w', w + 'px');
   },
 
+  // ===========================================================================
+  // BOX 2 - DECISIONS, in the left rail under the log.
+  // Every card that asks you something (Paul Atreides, Spider-Man, Dr. Strange)
+  // raises the same `#prompt-banner`: the question, the detail line, the opt-out
+  // button and the 30s countdown. ui.js rebuilds that node every render and
+  // parks it across the top of the screen. Here it is MOVED, not copied - one
+  // node, so every listener ui.js attached comes with it and the countdown
+  // keeps ticking against the same element.
+  // ===========================================================================
+  _renderDecision(s) {
+    const left = document.getElementById('bv2-rail-left');
+    if (!left) return;
+    const panel = this._el('bv2-decision', 'bv2-decision', left);
+    if (panel.parentNode !== left) left.appendChild(panel);
+    if (!panel.firstChild) {
+      panel.innerHTML =
+        '<div class="bv2-cap bv2-cap-rule"><span class="bv2-cap-label">Decision</span>' +
+        '<span class="bv2-cap-line"></span></div><div class="bv2-dec-body"></div>';
+    }
+    const body = panel.querySelector('.bv2-dec-body');
+    const banner = document.getElementById('prompt-banner');
+    if (banner && banner.parentNode !== body) body.appendChild(banner);
+
+    // A choice that cannot be pointed at on the board opens the centre tray.
+    // Three card faces do not fit a 182px column, so the tray stays where it
+    // is - but the rail still says a decision is live, and what it is, so the
+    // panel is never silent while the game is waiting on you.
+    const tray = document.querySelector('#choice-tray .choice-tray-title');
+    let note = body.querySelector('.bv2-dec-echo');
+    if (tray && !banner) {
+      if (!note) { note = document.createElement('div'); note.className = 'bv2-dec-echo'; body.appendChild(note); }
+      const t = tray.textContent || '';
+      if (note.textContent !== t) note.textContent = t;
+    } else if (note) { note.remove(); note = null; }
+
+    panel.classList.toggle('is-live', !!(banner || note));
+  },
+
+  // ===========================================================================
+  // BOX 1 - NOTICES, in the right rail under the tricks.
+  // "Opponent played a Trick" was a corner toast that appeared, held 4s and
+  // vanished, so the answer to "what just happened?" was gone by the time you
+  // looked. In V2 the toast IS this feed: the corner popup is suppressed and
+  // every announcement lands here as a line that stays.
+  // The full-screen trick REVEAL is a different thing - a cinematic, not a
+  // notice - and is left alone; it logs a line here as it plays.
+  // ===========================================================================
+  _NOTICE_MAX: 8,
+  notice(label, name, desc) {
+    if (!this.enabled()) return;
+    if (!this._notices) this._notices = [];
+    const key = String(label) + ' ' + String(name);
+    if (this._notices[0] && this._notices[0].key === key) return;   // same beat twice
+    this._notices.unshift({ key: key, label: String(label || 'Notice'),
+                            name: String(name || ''), desc: String(desc || '') });
+    if (this._notices.length > this._NOTICE_MAX) this._notices.length = this._NOTICE_MAX;
+    this._paintNotices();
+  },
+  // The feed is on the singleton, so it outlives a match unless something
+  // drops it. There is no per-match id to key off — `_leaderboardMatchId` is
+  // null in solo, the state object is REUSED across matches, and the log is
+  // not truncated either, so every passive signal reads "same match". The one
+  // unambiguous event is the call that starts one.
+  _clearNotices() {
+    this._notices = [];
+    const list = document.querySelector('#bv2-notices .bv2-note-list');
+    if (list) { delete list.dataset.sig; list.innerHTML = ''; }
+    const panel = document.getElementById('bv2-notices');
+    if (panel) panel.classList.remove('is-live');
+  },
+  _paintNotices() {
+    const ts = document.querySelector('.tricks-section');
+    if (!ts) return;
+    const panel = this._el('bv2-notices', 'bv2-notices', ts);
+    if (panel.parentNode !== ts) ts.appendChild(panel);
+    if (!panel.firstChild) {
+      panel.innerHTML =
+        '<div class="bv2-cap bv2-cap-rule"><span class="bv2-cap-label">Notices</span>' +
+        '<span class="bv2-cap-line"></span></div><div class="bv2-note-list"></div>';
+    }
+    const list = panel.querySelector('.bv2-note-list');
+    const items = this._notices || [];
+    const sig = items.map(function (n) { return n.key; }).join('|');
+    if (list.dataset.sig === sig) return;
+    list.dataset.sig = sig;
+    const esc = function (t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
+    list.innerHTML = items.map(function (n, i) {
+      return '<div class="bv2-note' + (i === 0 ? ' is-latest' : '') + '">' +
+        '<span class="bv2-note-label">' + esc(n.label) + '</span>' +
+        (n.name ? '<span class="bv2-note-name">' + esc(n.name) + '</span>' : '') +
+      '</div>';
+    }).join('');
+    panel.classList.toggle('is-live', items.length > 0);
+  },
+  // Installed lazily on the first render, so UI is guaranteed to exist. Same
+  // wrap-the-method pattern ui.js already uses on undo/playCardFree/killCard -
+  // which does mean UI.showAITrickToast.toString() no longer shows the original.
+  _hookNotices() {
+    if (this._hooked) return;
+    if (typeof UI === 'undefined' || !UI || typeof UI.showAITrickToast !== 'function') return;
+    this._hooked = true;
+    const self = this;
+    const oppName = function () { try { return UI.oppName(); } catch (e) { return 'Opponent'; } };
+
+    const toast = UI.showAITrickToast.bind(UI);
+    UI.showAITrickToast = function (name, desc, kind) {
+      if (self.enabled()) {
+        const LABEL = {
+          discard: function () { return oppName() + ' played a Discard'; },
+          trick:   function () { return oppName() + ' played a Trick'; },
+          error:   function () { return 'Cannot play'; },
+          info:    function () { return 'Notice'; },
+          system:  function () { return 'System'; }
+        };
+        self.notice((LABEL[kind] || LABEL.trick)(), name, desc);
+        return;                       // the rail is the toast now
+      }
+      return toast(name, desc, kind);
+    };
+
+    if (typeof Game !== 'undefined' && Game && typeof Game.startMatch === 'function') {
+      const origSM = Game.startMatch.bind(Game);
+      Game.startMatch = function () { self._clearNotices(); return origSM.apply(null, arguments); };
+    }
+    if (typeof UI.showTrickReveal === 'function') {
+      const origTR = UI.showTrickReveal.bind(UI);
+      UI.showTrickReveal = function (name, desc, cost, mine) {
+        if (self.enabled()) {
+          self.notice(mine ? 'You played a Trick' : oppName() + ' played a Trick', name, desc);
+        }
+        return origTR(name, desc, cost, mine);
+      };
+    }
+    if (typeof UI.showCardReveal === 'function') {
+      const origCR = UI.showCardReveal.bind(UI);
+      UI.showCardReveal = function (name, desc, cost, mine, label) {
+        if (self.enabled()) {
+          self.notice(label || (mine ? 'You played a Card' : oppName() + ' played a Card'), name, desc);
+        }
+        return origCR(name, desc, cost, mine, label);
+      };
+    }
+  },
+
   // Called from UI.render's tail. Returns immediately when off, so the original
   // board pays nothing for this existing.
   render(s) {
@@ -321,6 +465,9 @@ const BoardV2 = {
       this._renderSeats(s);
       this._renderCounts(s);
       this._renderBandExtras(s);
+      this._hookNotices();
+      this._renderDecision(s);
+      this._paintNotices();
       this._sizeBoardCards();
       this._stripForecastSigns();
       this._fillRailLog(s);

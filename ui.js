@@ -12140,8 +12140,23 @@ const UI = {
       const btn = banner.querySelector('.prompt-decline');
       if (btn) btn.addEventListener('click', () => promptDeclinePick(declinable.kind));
     }
-    const turnHud = document.querySelector('.turn-hud');
-    if (turnHud) turnHud.parentNode.insertBefore(banner, turnHud.nextSibling);
+    // WHERE THE BANNER LANDS IS DECIDED HERE, not corrected afterwards.
+    // Board V2 gives decisions their own panel in the left rail, and this
+    // function rebuilds the node on every render AND from the prompt-arming
+    // path — so a renderer that moved it after the fact lost the race every
+    // time the banner was rebuilt outside a render pass. Pick the anchor once,
+    // at the single place the node is inserted, and every caller inherits it.
+    let anchored = false;
+    try {
+      if (typeof BoardV2 !== 'undefined' && BoardV2 && BoardV2.enabled()) {
+        const slot = document.querySelector('#bv2-decision .bv2-dec-body');
+        if (slot) { slot.appendChild(banner); anchored = true; }
+      }
+    } catch (e) {}
+    if (!anchored) {
+      const turnHud = document.querySelector('.turn-hud');
+      if (turnHud) turnHud.parentNode.insertBefore(banner, turnHud.nextSibling);
+    }
     // Re-anchor an active countdown to the new timer element
     if (s._promptDeadline && s._promptDeadline > Date.now()) {
       this.startPromptCountdown(s._promptDeadline);

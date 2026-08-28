@@ -1317,3 +1317,114 @@ body.board-v2 .lane-forecast-strip .lf-face-zero { display: none !important; }
 body.board-v2 #board .lane .card {
   --card-w: var(--bv2-board-card-w, calc(130 * var(--u)));
 }
+
+/* ===========================================================================
+   BOX 2 — THE DECISION PANEL (left rail, under the log).
+   Every card that asks you something raises the same #prompt-banner. It used
+   to stretch across the top of the screen over the board; now it lives here,
+   under the log, in the column that already answers "what is going on".
+   The panel only exists when something is actually being asked.
+   =========================================================================== */
+body.board-v2 #bv2-decision { display: none; flex: 0 0 auto; padding-top: calc(12 * var(--u)); }
+body.board-v2 #bv2-decision.is-live { display: block; }
+body.board-v2 #bv2-decision .bv2-dec-body { padding-top: calc(8 * var(--u)); }
+
+/* The banner is no longer a banner. Everything that made it one — the fixed
+   width, the centring, the panel chrome, and the hover-ghost that faded it as
+   you reached for it — is for a thing floating over the board, not a block
+   sitting in a column. */
+body.board-v2 #bv2-decision #prompt-banner {
+  position: static !important;
+  left: auto !important; right: auto !important; top: auto !important; bottom: auto !important;
+  transform: none !important;
+  width: 100% !important; max-width: 100% !important; min-width: 0 !important;
+  margin: 0 !important; padding: 0 !important;
+  background: none !important; border: 0 !important; box-shadow: none !important;
+  opacity: 1 !important; animation: none !important;
+  text-align: left !important;
+  font-family: var(--fd); font-weight: 700;
+  font-size: calc(14 * var(--u)); line-height: 1.25;
+  letter-spacing: .02em; color: var(--core);
+}
+body.board-v2 #bv2-decision #prompt-banner:hover { opacity: 1 !important; }
+body.board-v2 #bv2-decision .prompt-desc {
+  font-family: var(--fm); font-weight: 400;
+  font-size: calc(10.5 * var(--u)); line-height: 1.5;
+  letter-spacing: 0; color: rgba(143,224,255,.82);
+  margin-top: calc(6 * var(--u));
+}
+/* Boxless grow+glow, like every other text control on this board. */
+body.board-v2 #bv2-decision .prompt-actions { margin-top: calc(10 * var(--u)); }
+body.board-v2 #bv2-decision .prompt-decline {
+  background: none !important; border: 0 !important; box-shadow: none !important;
+  padding: 0 !important; border-radius: 0 !important;
+  font-family: var(--fm); font-size: calc(10 * var(--u));
+  letter-spacing: .22em; text-transform: uppercase;
+  color: var(--cy); cursor: pointer;
+  transition: color .14s ease, text-shadow .14s ease, transform .14s ease;
+}
+body.board-v2 #bv2-decision .prompt-decline:hover,
+body.board-v2 #bv2-decision .prompt-decline:focus-visible {
+  color: var(--core);
+  text-shadow: 0 0 6px rgba(53,201,255,.8), 0 0 14px rgba(53,201,255,.4);
+  transform: translateX(calc(2 * var(--u)));
+}
+/* The countdown reads as a tube draining, matching the rails. */
+body.board-v2 #bv2-decision .prompt-timer { margin-top: calc(10 * var(--u)); }
+body.board-v2 #bv2-decision .prompt-timer-bar {
+  height: 2px; width: 100%; background: rgba(53,201,255,.16); overflow: hidden;
+}
+body.board-v2 #bv2-decision .prompt-timer-fill {
+  height: 100%; transform-origin: left center;
+  background: var(--cy); box-shadow: 0 0 6px rgba(53,201,255,.7);
+}
+body.board-v2 #bv2-decision .prompt-timer-text {
+  font-family: var(--fm); font-size: calc(9 * var(--u));
+  letter-spacing: .22em; color: rgba(143,224,255,.72);
+  margin-top: calc(5 * var(--u));
+}
+body.board-v2 #bv2-decision .bv2-dec-echo {
+  font-family: var(--fd); font-weight: 700;
+  font-size: calc(13 * var(--u)); line-height: 1.25; color: var(--core);
+}
+
+/* ===========================================================================
+   BOX 1 — THE NOTICE FEED (right rail, under the tricks).
+   "Opponent played a Trick" was a corner toast: it appeared, held four
+   seconds and was gone, so by the time you looked up to ask what happened the
+   answer had already left. Here the answer stays. Newest at the top, brightest
+   at the top, fading down — the same reading order the log already teaches.
+   =========================================================================== */
+body.board-v2 #game-area > .tricks-section {
+  display: flex; flex-direction: column; min-height: 0;
+}
+body.board-v2 #game-area > .tricks-section > #player-tricks { flex: 0 0 auto; }
+body.board-v2 #bv2-notices {
+  display: none; flex: 1 1 auto; min-height: 0;
+  margin-top: calc(16 * var(--u));
+  overflow: hidden;
+}
+body.board-v2 #bv2-notices.is-live { display: flex; flex-direction: column; }
+body.board-v2 #bv2-notices .bv2-note-list {
+  flex: 1 1 auto; min-height: 0; overflow: hidden;
+  display: flex; flex-direction: column; gap: calc(9 * var(--u));
+  padding-top: calc(10 * var(--u));
+}
+body.board-v2 #bv2-notices .bv2-note { display: flex; flex-direction: column; gap: calc(2 * var(--u)); }
+body.board-v2 #bv2-notices .bv2-note-label {
+  font-family: var(--fm); font-size: calc(9 * var(--u));
+  letter-spacing: .22em; text-transform: uppercase; color: rgba(143,224,255,.62);
+}
+body.board-v2 #bv2-notices .bv2-note-name {
+  font-family: var(--fd); font-weight: 700;
+  font-size: calc(12.5 * var(--u)); letter-spacing: .02em;
+  color: rgba(143,224,255,.82);
+}
+body.board-v2 #bv2-notices .bv2-note.is-latest .bv2-note-name { color: var(--core); }
+body.board-v2 #bv2-notices .bv2-note.is-latest .bv2-note-label { color: var(--cy); }
+body.board-v2 #bv2-notices .bv2-note:nth-child(n+5) { opacity: .55; }
+
+/* The right rail centres its children, so the feed was sitting 43px in from
+   both edges at 95px wide inside a 182px column. It is a panel, not a card —
+   it takes the whole width. */
+body.board-v2 #bv2-notices { align-self: stretch; width: 100%; }
