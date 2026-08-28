@@ -631,3 +631,58 @@ body.board-v2 #board .lane-sep .lane-number {
   position: relative; z-index: 1;
   margin: 0;
 }
+
+/* ===========================================================================
+   DERIVE THE BOARD FROM THE SPACE, NOT FROM 1920.
+   The spec's responsive note is explicit about which numbers are structural
+   and which are not: "Structural, keep: the 64px gutter ... chamfer sizes ...
+   all colours ... slot and card ASPECT RATIOS. Incidental, recompute: every
+   absolute top/left; the 340/1016/340 column split; the 156px lane column.
+   Board width should derive from laneCount x (slotWidth + gap)."
+
+   Held to 1920's absolute widths, a 1196px window gave a 97px lane holding an
+   81px slot — 16px of dead lane per column, 96px across the board — and a slot
+   stretched to 236px against its own 254:130 ratio, so the card floated in the
+   top of it. Both of those are the "cards too small / dead space on the sides"
+   in the screenshot.
+
+   So: the lanes now FILL the board column and the slot keeps the spec's exact
+   130:254 aspect inside them. Chamfers, colours, type, tube edges and every
+   ratio are untouched — only the three widths the spec calls incidental move.
+   =========================================================================== */
+body.board-v2 #game-area {
+  grid-template-columns:
+    calc(296 * var(--u))
+    minmax(0, 1fr)
+    calc(296 * var(--u));
+  column-gap: calc(22 * var(--u));
+  padding-left:  calc(32 * var(--u));
+  padding-right: calc(32 * var(--u));
+}
+
+/* Lanes take the column between them; the flex line sizes the lane, nothing
+   inside it does — the same rule that stopped the board collapsing earlier. */
+body.board-v2 #board { justify-content: stretch; }
+body.board-v2 #board .lane {
+  flex: 1 1 0;
+  width: auto; min-width: 0;
+}
+
+/* The slot fills its lane bar a hairline for the tube, and holds the spec's
+   130 x 254 ratio so the card shape is unchanged — it is simply bigger. */
+body.board-v2 #board .card-slot {
+  width: calc(100% - 8 * var(--u));
+  flex: 0 0 auto;
+  aspect-ratio: 130 / 254;
+  height: auto;
+  max-height: calc(50% - 16 * var(--u));
+}
+body.board-v2 #board .lane { justify-content: center; }
+
+/* The card fills the slot it sits in. */
+body.board-v2 #board .lane .card {
+  --board-card-w: 100%;
+  --card-w: 100%;
+  width: 100%;
+  max-width: 100%;
+}
