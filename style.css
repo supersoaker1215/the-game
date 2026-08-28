@@ -7683,22 +7683,46 @@ body.hit-pause .ai-hand * {
    1.0s is unchanged and must stay in sync with the two 1100ms removal
    timers (ui.js — grep card-enter) and with the ~8 vibe loops gated on
    :not(.card-enter), which hold off until the entrance finishes. */
+/* THE TRAVEL WAS BACKWARDS, AND THAT IS THE INVISIBLE-CARD BUG.
+   mask-size is 100% 220%, so the element only ever sees 45.5% of the mask
+   image, and `to top` puts gradient 0% at the BOTTOM. Work the two ends out:
+     mask-position 0 0    -> element sees gradient 54.5%..100% (the TOP of the
+                             gradient) -> the TRANSPARENT half -> card HIDDEN
+     mask-position 0 100% -> element sees gradient 0%..45.5% (the BOTTOM) ->
+                             the OPAQUE half -> card VISIBLE
+   The keyframes ran 100% -> 0. The entrance ENDED WITH THE CARD INVISIBLE, and
+   the finished card only ever existed because ui.js strips .card-enter ~100ms
+   after the animation ends. Anything that stopped that removal from landing on
+   the node you are looking at left a card that is in state, hit-tests, opens on
+   click — and paints nothing. Which is exactly the report: a lane that looks
+   empty under a strip reading TRADE.
+   Reversed. Hidden -> visible, rising from the bottom. */
 @keyframes cardBuildInMask {
-  0%   { -webkit-mask-position: 0 100%; mask-position: 0 100%; }
-  100% { -webkit-mask-position: 0 0;    mask-position: 0 0;    }
+  0%   { -webkit-mask-position: 0 0;    mask-position: 0 0;    }
+  100% { -webkit-mask-position: 0 100%; mask-position: 0 100%; }
 }
 @keyframes cardBuildInFade {
   0%   { opacity: 0; filter: brightness(1.18) saturate(1.06); }
   100% { opacity: 1; filter: none; }
 }
 .card.card-enter {
-  /* Feathered, not a hard stop — this is what turns a wipe into a fade-up. */
-  -webkit-mask-image: linear-gradient(to top,
-    #000 30%, rgba(0,0,0,0.82) 40%, rgba(0,0,0,0.45) 50%, rgba(0,0,0,0.12) 58%, transparent 66%);
-          mask-image: linear-gradient(to top,
-    #000 30%, rgba(0,0,0,0.82) 40%, rgba(0,0,0,0.45) 50%, rgba(0,0,0,0.12) 58%, transparent 66%);
+  /* THE STOPS ARE GEOMETRY, NOT TASTE. At mask-size 220% the element sees
+     45.5% of the mask, so the end states are gradient 0..45.5% (revealed) and
+     54.5..100% (hidden). For "fully visible" and "fully hidden" to actually BE
+     those things, the feather must sit entirely inside 46%..54% — any wider and
+     the finished card keeps a permanently faded top edge, which is what the
+     previous five-stop gradient did. 8% of a 220% mask is ~18% of the card:
+     a soft edge about a sixth of the card tall, sweeping up. */
+  -webkit-mask-image: linear-gradient(to top, #000 46%, transparent 54%);
+          mask-image: linear-gradient(to top, #000 46%, transparent 54%);
   -webkit-mask-size: 100% 220%; mask-size: 100% 220%;
   -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  /* RESTING STATE = FULLY REVEALED. With no animation running, mask-position
+     would default to 0 0 — the hidden end — so a card that never gets to
+     animate (a tab that was in the background when it landed, an interrupted
+     frame) would sit there invisible. Declaring the visible end as the resting
+     value means the class alone can never hide a card. */
+  -webkit-mask-position: 0 100%; mask-position: 0 100%;
   /* BOTH on the same curve, deliberately. The old pair used a soft ease-out
      for the travel and a separate timeline for opacity, which was right when
      a scan line had to sit exactly on the reveal edge. With the line gone,
@@ -7707,9 +7731,16 @@ body.hit-pause .ai-hand * {
      on an already-complete card. Sharing ease-in-out keeps the rise and the
      fade locked together so the card comes up slowly for the whole second,
      which is the actual ask. */
+  /* `forwards`, NOT `both`. `both` also applies the 0% frame BEFORE the
+     animation starts and holds it if it never starts — and the 0% frame is
+     opacity 0. That is a second, independent way to strand a card invisible,
+     and it needs no stuck class at all. With `forwards` the pre-animation state
+     is the ordinary visible card, and the post-animation state is the 100%
+     frame, which is also the visible card. Every path through this rule now
+     ends with a card you can see. */
   animation:
-    cardBuildInMask 1.0s ease-in-out both,
-    cardBuildInFade 1.0s ease-in-out both;
+    cardBuildInMask 1.0s ease-in-out forwards,
+    cardBuildInFade 1.0s ease-in-out forwards;
   transform-origin: 50% 100%;
 }
 /* No scan line. .card::before goes back to being the inert shim it is
@@ -7720,7 +7751,7 @@ body.hit-pause .ai-hand * {
 @media (prefers-reduced-motion: reduce) {
   .card.card-enter {
     -webkit-mask-image: none; mask-image: none;
-    animation: cardBuildInFade 0.32s ease-out both;
+    animation: cardBuildInFade 0.32s ease-out forwards;
   }
 }
 
