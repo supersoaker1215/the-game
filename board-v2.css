@@ -686,3 +686,54 @@ body.board-v2 #board .lane .card {
   width: 100%;
   max-width: 100%;
 }
+
+/* ===========================================================================
+   THE HAND STACK. Spec: "three overlapping 30 x 40 chamfered backs plus a
+   count — NOT N loose backs". The band was printing all seven at 20 x 30 in a
+   164px row, which reads as a fan of cards rather than a held hand.
+   =========================================================================== */
+body.board-v2 .info-bar .ai-hand-mini { display: flex; align-items: center; }
+body.board-v2 .info-bar #ai-hand {
+  display: flex; align-items: center; gap: 0;
+  width: auto; margin-right: calc(10 * var(--u));
+}
+body.board-v2 .info-bar #ai-hand > * {
+  width: calc(30 * var(--u)) !important;
+  height: calc(40 * var(--u)) !important;
+  border-radius: 0 !important;
+  clip-path: polygon(calc(7 * var(--u)) 0, 100% 0,
+                     100% calc(100% - 7 * var(--u)),
+                     calc(100% - 7 * var(--u)) 100%, 0 100%, 0 calc(7 * var(--u)));
+  border: 1px solid rgba(255,138,31,0.42) !important;
+  background: linear-gradient(140deg, rgba(255,138,31,0.16), rgba(4,6,10,0.95)) !important;
+  box-shadow: none !important;
+  flex: 0 0 auto;
+}
+/* Three, overlapping — the rest are simply not drawn. */
+body.board-v2 .info-bar #ai-hand > * + * { margin-left: calc(-19 * var(--u)); }
+body.board-v2 .info-bar #ai-hand > *:nth-child(n+4) { display: none !important; }
+body.board-v2 .bv2-hand-count {
+  font-family: var(--fd); font-weight: 700;
+  font-size: calc(16 * var(--u)); color: var(--or-txt);
+  font-variant-numeric: tabular-nums;
+  margin-left: calc(4 * var(--u));
+}
+
+/* ===========================================================================
+   THE TURN FLAG — "YOUR TURN in green", on the band that is on the clock.
+   Green here is the spec's #3dff9e, the same value attack uses: it is a STATE,
+   not an ownership, which is why it does not take either player's hue.
+   =========================================================================== */
+body.board-v2 .bv2-turnflag {
+  order: 10;
+  font-family: var(--fm); font-weight: 700;
+  font-size: calc(10 * var(--u)); letter-spacing: .26em;
+  text-transform: uppercase;
+  color: rgba(143,224,255,.5);
+  white-space: nowrap;
+  margin-right: calc(4 * var(--u));
+}
+body.board-v2 .bv2-turnflag.is-mine {
+  color: var(--atk);
+  text-shadow: 0 0 6px rgba(61,255,158,.45);
+}

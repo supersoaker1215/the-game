@@ -221,6 +221,39 @@ const BoardV2 = {
     }
   },
 
+  // The two band pieces the spec calls for that the shipping bar has no
+  // element for: the hand STACK's count, and the turn flag.
+  //   "hand stack (three overlapping 30 x 40 chamfered backs plus a count —
+  //    not N loose backs) ... YOUR TURN in green, then the primary button"
+  // The backs themselves are the existing #ai-hand children, overlapped and
+  // trimmed to three by CSS; only the count needs a node, because the real
+  // hand size is not otherwise printed anywhere on that band.
+  _renderBandExtras(s) {
+    const ah = document.getElementById('ai-hand');
+    if (ah && ah.parentNode) {
+      const n = ah.children.length;
+      const cnt = this._el('bv2-hand-count', 'bv2-hand-count', ah.parentNode);
+      if (ah.nextSibling !== cnt) ah.parentNode.insertBefore(cnt, ah.nextSibling);
+      if (cnt.textContent !== String(n)) cnt.textContent = String(n);
+    }
+    // The flag lives on whichever band is on the clock, so the board answers
+    // "whose turn" from the seat itself rather than only from the left rail.
+    const ph = String(s.phase || '');
+    const mine = /^player-/.test(ph);
+    const theirs = /^ai-/.test(ph);
+    const bar = document.querySelector(mine ? '.info-bar.player-bar'
+                                            : (theirs ? '.info-bar.ai-bar' : null));
+    const old = document.getElementById('bv2-turnflag');
+    if (!bar) { if (old) old.remove(); return; }
+    const flag = this._el('bv2-turnflag', 'bv2-turnflag', bar);
+    const centre = bar.querySelector('.bar-center');
+    if (centre && flag.nextSibling !== centre) bar.insertBefore(flag, centre);
+    else if (!centre && flag.parentNode !== bar) bar.appendChild(flag);
+    const label = mine ? 'Your turn' : 'Their turn';
+    if (flag.textContent !== label) flag.textContent = label;
+    flag.classList.toggle('is-mine', mine);
+  },
+
   // Called from UI.render's tail. Returns immediately when off, so the original
   // board pays nothing for this existing.
   render(s) {
@@ -231,6 +264,7 @@ const BoardV2 = {
       this._renderPhase(s);
       this._renderSeats(s);
       this._renderCounts(s);
+      this._renderBandExtras(s);
     } catch (e) { console.error('[BoardV2] render', e); }
   },
 };
