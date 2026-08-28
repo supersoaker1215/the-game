@@ -709,7 +709,48 @@ const TRICK_DEFS = [
         if (Game.isHuman(owner)) {
           G.promptCardChoice(owner, allies, "Soul Stone — Choose Your Card", "Choose your card to sacrifice", doSoulStone);
         } else {
-          doSoulStone(allies[0]);
+          // THE AI USED TO SACRIFICE allies[0] — the first eligible ally in LANE
+          // ORDER, with no evaluation of any kind. In a real 2v2 that was the one
+          // body standing in front of a 15-ATK Doomsday, and throwing it away to
+          // kill a Hulk opened the lane that lost the match on the same swing.
+          // (Owner: "he gets soul stone kills my omni man for the hulk, doomsday
+          // with 15 attack is uncontested and hits us for the win — literally the
+          // worst possible plays.")
+          //
+          // A sacrifice costs more than the body. What it really costs is the
+          // body PLUS whatever that body was holding back: an ally facing a big
+          // attacker is a wall, and removing it hands the enemy a free swing at
+          // the team. Weighted x2 so a wall is never traded for stats, and
+          // ranked ascending so the cheapest thing to lose goes first. Ties go
+          // to whichever sacrifice kills the bigger enemy.
+          //
+          // Note this reads the ALLY's lane from the shared board, so in 2v2 it
+          // protects a TEAMMATE's blocker exactly as it protects its own — the
+          // whole team's cards are allies here, which is the case that broke.
+          const _oppSide = G.opponent(owner);
+          const _bestEnemyFor = (a) => {
+            const bc = a.baseCost || a.cost || 0;
+            return G.getEnemiesOf(owner)
+              .filter(e => G.canTrickLand(e, 'destroy', owner)
+                        && Math.abs((e.baseCost || e.cost || 0) - bc) <= 4)
+              .sort((x, y) => ((y.attack || 0) + (y.currentHealth || 0))
+                            - ((x.attack || 0) + (x.currentHealth || 0)))[0] || null;
+          };
+          const _costOfLosing = (a) => {
+            const lane = G.findCardLane(a);
+            const facing = lane >= 0 && G.state.lanes[lane] ? G.state.lanes[lane][_oppSide] : null;
+            const shielding = (facing && facing.currentHealth > 0) ? (facing.attack || 0) : 0;
+            return (a.attack || 0) + (a.currentHealth || 0) + shielding * 2;
+          };
+          const _ranked = allies.slice().sort((a, b) => {
+            const d = _costOfLosing(a) - _costOfLosing(b);
+            if (d !== 0) return d;
+            const ea = _bestEnemyFor(a), eb = _bestEnemyFor(b);
+            const va = ea ? (ea.attack || 0) + (ea.currentHealth || 0) : 0;
+            const vb = eb ? (eb.attack || 0) + (eb.currentHealth || 0) : 0;
+            return vb - va;
+          });
+          doSoulStone(_ranked[0]);
         }
       }
     }

@@ -73,6 +73,10 @@ echo "=== moder-lane-lock.js (one answer to which lanes are placeable) ==="
 run_suite sim/moder-lane-lock.js
 
 echo ""
+echo "=== ai-targeting.js (the bot's target picks) ==="
+run_suite sim/ai-targeting.js
+
+echo ""
 if [ "$FAIL" -ne 0 ]; then
   echo "❌ TESTS FAILED — see suites above."
   exit 1

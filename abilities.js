@@ -4625,13 +4625,22 @@ const CARD_ABILITIES = {
           for (let i = 0; i < Game.LANE_COUNT; i++) {
             if (i !== fromLane && !G.state.lanes[i][opp] && !G.state.lanes[i].destroyed) openLanes.push(i);
           }
-          // AI bias: prefer destinations inside Gojo's cone (lane ± 1) so the
-          // moved enemy gets attack-zeroed by Step 2. Cone-lanes float to the
-          // front of the array; the auto-picker takes lanes[0].
-          if (!Game.isHuman(self.owner)) {
-            const cone = new Set([lane - 1, lane, lane + 1]);
-            openLanes.sort((a, b) => (cone.has(a) ? 0 : 1) - (cone.has(b) ? 0 : 1));
-          }
+          // CONE LANES FIRST, ALWAYS — not just for the AI.
+          //
+          // Ordering the list costs a human nothing: every lane is still
+          // offered, in the same picker, and they choose freely. What it fixes
+          // is every path that does NOT choose — the 30s prompt timeout, the
+          // stall watchdog, the force-recovery — all of which take lanes[0].
+          // Gated on isHuman, those fallbacks moved the enemy to whatever lane
+          // happened to sort first, which is how a Gojo ended up shoving a
+          // 15-ATK Doomsday to the far side of the board and then stripping the
+          // ATK off an empty cone. (Owner: "he played gojo in 1 which is good
+          // but he moved doomsday 5 and didn't have his attack reduced to 0.")
+          // A destination inside the cone is the only one that makes the second
+          // half of the card do anything, so it is the right default for
+          // everyone.
+          const cone = new Set([lane - 1, lane, lane + 1]);
+          openLanes.sort((a, b) => (cone.has(a) ? 0 : 1) - (cone.has(b) ? 0 : 1));
           if (openLanes.length) {
             G.promptLaneChoice(self.owner, openLanes, `Move ${target.name}`, `Choose lane to move ${target.name} to`, (toLane) => {
               G.moveCard(target, fromLane, toLane);
