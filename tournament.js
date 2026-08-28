@@ -531,7 +531,18 @@ const Tournament = {
         <h1 class="tourney-h1">Bid for a Bonus Card</h1>
         <div class="tourney-lot">
           <div class="tl-name">${c.name}</div>
-          <div class="tl-stats">${(c.cost != null ? c.cost + '⚡ · ' : '')}${c.attack != null ? c.attack + '/' + c.health : ''} · ${c.type || ''}</div>
+          <div class="tl-stats">${[
+            c.cost != null ? c.cost + '⚡' : '',
+            /* Bodyless cards (Iron Giant, and the four discard-effect cards)
+               are printed 0/0 because they never stand in a lane. Printing
+               that here asked the player to bid energy on something the UI
+               describes as worthless. Same predicate every other surface
+               uses; guarded because tournament.js does not otherwise assume
+               UI is loaded. */
+            (c.attack != null && (typeof UI === 'undefined' || !UI._hasBody || UI._hasBody(c)))
+              ? c.attack + '/' + c.health : '',
+            c.type || ''
+          ].filter(Boolean).join(' · ')}</div>
           <div class="tl-desc">${c.desc || ''}</div>
         </div>
         <p class="tourney-lead">Your budget: <b>${a.playerBudget}⚡</b>. Highest bid wins it into your opening hand for this match. Ties go to the house (nobody).</p>

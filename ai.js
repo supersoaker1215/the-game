@@ -1637,6 +1637,16 @@ const AI = {
     const allies = Game.getAlliesOf(owner);
     let score = 0;
 
+    // LEGALITY FIRST. TRICK_ALWAYS_CAST short-circuits ahead of both the
+    // per-trick evaluators and the keyword scoring below, so a listed trick
+    // scored 5 even with nothing legal to point at — and Game.playTrick then
+    // refused it on the very same canPlay the evaluator never consulted.
+    // The AI re-picked it every step until the safety counter ended its whole
+    // trick phase with nothing cast. Reproduces whenever the board denies a
+    // listed trick its targets: an all-3+-ATK board against The Darkhold, or
+    // any removal against Dr. Manhattan / an Untrickable card.
+    if (trick.canPlay && !trick.canPlay(Game, owner)) return -1;
+
     if (this.TRICK_ALWAYS_CAST.has(trick.name)) return 5;
 
     // Per-trick override — pass owner so the evaluator uses the right side.
@@ -1702,6 +1712,14 @@ const AI = {
     const s = Game.state;
     const delay = this.aiStepMs();
     let safety = 0;
+    // A trick the engine REFUSED. Without this, a refusal changes nothing —
+    // the same trick still scores highest next step, so the AI re-picks it
+    // until `safety` trips and the trick phase ends having cast nothing, while
+    // the seat still holds tricks it could legally have played. The evaluator
+    // gate above is the real fix; this is the backstop that makes any future
+    // disagreement between "the AI wants it" and "the engine allows it" cost
+    // one wasted step instead of the whole phase.
+    const refused = new Set();
     const step = () => {
       if (safety++ >= 10) {
         document.body && document.body.classList.remove('ai-thinking');
@@ -1730,6 +1748,7 @@ const AI = {
         // timeout so the AI doesn't instantly re-play the same trick
         // the player just spent Time Stone to cancel.
         if (t._timeStonedAtRound === s.round) continue;
+        if (refused.has(t.id)) continue;              // engine already said no
         // Also skip tricks marked reactive — they only fire via
         // intercept (e.g. Time Stone itself when AI has it).
         if (t.reactive) continue;
@@ -1749,12 +1768,12 @@ const AI = {
           // the pause (another prompt resolved, etc.).
           if (!s[owner].trickHand.includes(best)) { step(); return; }
           if (Game.getTrickCost(owner, best) > s[owner].currency) { step(); return; }
-          Game.playTrick(owner, best);
+          if (!Game.playTrick(owner, best)) refused.add(best.id);
           if (typeof UI !== 'undefined' && UI.render) UI.render();
           step();
         }, delay);
       } else {
-        Game.playTrick(owner, best);
+        if (!Game.playTrick(owner, best)) refused.add(best.id);
         if (typeof UI !== 'undefined' && UI.render) UI.render();
         step();
       }
