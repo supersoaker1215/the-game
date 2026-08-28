@@ -33812,8 +33812,9 @@ function blockTrickKeep() {
   if (!Game.promptIsMine(trick, 'blockTrick')) return;
   const owner = trick._btOwner || 'player';
   s.pendingBlockTrick = null;
-  Game.addToTrickHand(owner, trick);
-  Game.log(`  [BLOCK TRICK] ${owner === 'player' ? 'You' : owner} keep ${trick.name} in hand (costs ${trick.cost})`);
+  // Cap-aware keep: if the trick hand is full, prompt to trade one out for the
+  // drawn trick instead of silently discarding it or blowing past the cap.
+  Game._keepBlockTrick(owner, trick, { isAI: false });
   UI.draftEl.style.display = 'none';
   document.getElementById('game-area').style.display = '';
   Game.resumeCombatIfWaiting();

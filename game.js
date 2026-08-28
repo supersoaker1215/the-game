@@ -2517,7 +2517,9 @@ const Game = {
               if (bt.play) { try { bt.play(this, owner); } catch(e) { console.error(e); } }
               this.cleanupDead();
             } else {
-              this.addToTrickHand(owner, bt);
+              // Cap-aware keep — 1v1 online, both sides are human, so this
+              // routes a trade prompt to the owner (the guest resolves theirs).
+              this._keepBlockTrick(owner, bt, { isAI: false });
             }
             this.resumeCombatIfWaiting();
           } else if (msg.choiceType === 'kang') {
@@ -8445,8 +8447,8 @@ const Game = {
               this.state._trickOwner = null;
               this.state._activeTrickName = null;
             } else {
-              this.addToTrickHand(owner, trick);
-              this.log(`  [BLOCK TRICK] ${this.seatLabel(owner)} keeps ${trick.name} in hand`);
+              // Cap-aware keep (trades out the lowest trick if the hand is full).
+              this._keepBlockTrick(owner, trick, { isAI: !this.isHuman(owner) });
               // Toast for the "kept it in hand" case too so the player
               // knows the AI now has a block-trick stashed for later.
               if (owner === 'ai' && typeof UI !== 'undefined' && UI.showAITrickToast) {
@@ -8946,6 +8948,77 @@ const Game = {
     const odd = this.state && this.state.oddPlayer;
     if (odd !== 'player' && odd !== 'ai') return null;   // not flipped yet
     return (r % 2 === 1) ? odd : this.opponent(odd);
+  },
+  // Keep a BLOCK-DRAWN trick, respecting the trick-hand cap in EVERY mode. When
+  // the hand is already full, a HUMAN is prompted to trade one existing trick
+  // out for the one just drawn (or discard the drawn one); an AI keeps the
+  // highest-value tricks (drops the lowest cost). Before this, the keep paths
+  // pushed straight onto trickHand and blew past the cap — a seat with 3 tricks
+  // ended up holding 4. (User: "he already had 3 and now he has 4 when the max
+  // is 3 — when he wants to keep the trick he should get a prompt to trade one
+  // out for the one he drew. That's how it should work for all gamemodes.")
+  //   owner    — side ('player'/'ai'); in 2v2 the side proxy for the seat.
+  //   opts.seat — 2v2 seat key that routes the prompt (null in 1v1).
+  //   opts.isAI — true when a bot holds the trick (auto-trade, no prompt).
+  _keepBlockTrick(owner, trick, opts) {
+    opts = opts || {};
+    const seat = opts.seat || null;
+    const tt = this.state.twoVTwo;
+    const holder = (seat && tt && tt.players[seat]) ? tt.players[seat] : this.state[owner];
+    if (!holder || !trick) return;
+    holder.trickHand = holder.trickHand || [];
+    const cap = (holder.maxTrickHandSize != null) ? holder.maxTrickHandSize : 3;
+    const nm = holder.name || this.seatLabel(owner);
+    const online2v2 = !!(seat && tt && tt.online);
+    const mpHost = !!(this.isMultiplayer && this.isMultiplayer() && this.mp && this.mp.role === 'host');
+    const sync = () => { try { if (online2v2) this._2v2OnlineBroadcast(); else if (mpHost) this._mpBroadcast(); } catch (e) {} };
+    const addNew = () => { const t = { ...trick }; if (t.id == null) t.id = nextCardId++; holder.trickHand.push(t); };
+    // Room to spare — just keep it.
+    if (holder.trickHand.length < cap) {
+      addNew();
+      this.log(`  [BLOCK TRICK] ${nm} keeps ${trick.name} in hand.`);
+      sync();
+      return;
+    }
+    // Full — a trade is forced.
+    if (opts.isAI) {
+      // Keep the most valuable tricks: drop the lowest-cost of {hand ∪ new}.
+      let lowIdx = -1, lowCost = trick.cost || 0, dropNew = true;
+      holder.trickHand.forEach((t, i) => { const c = t.cost || 0; if (c < lowCost) { lowCost = c; lowIdx = i; dropNew = false; } });
+      if (dropNew) {
+        this.log(`  [BLOCK TRICK] ${nm}'s trick hand is full — discards ${trick.name}.`);
+      } else {
+        const dropped = holder.trickHand[lowIdx];
+        holder.trickHand.splice(lowIdx, 1);
+        addNew();
+        this.log(`  [BLOCK TRICK] ${nm} trades ${dropped.name} for ${trick.name}.`);
+      }
+      sync();
+      return;
+    }
+    // Human — prompt which existing trick to trade out for the drawn one. Each
+    // choice carries its slot index (_tradeIdx) so the discard resolves to the
+    // exact trick even if two tricks share a name or a null id — the trick hand
+    // is not mutated while this prompt is open, so the index is stable.
+    if (seat) this._2v2CurrentActingPlayer = seat;
+    const choices = holder.trickHand.map((t, i) => ({ ...t, _tradeIdx: i }));
+    this.promptCardChoice(owner, choices,
+      'Trick hand full',
+      `Choose a trick to discard to keep ${trick.name}.`,
+      (chosen) => {
+        const di = (chosen && chosen._tradeIdx != null) ? chosen._tradeIdx : -1;
+        if (di >= 0 && di < holder.trickHand.length) {
+          const dropped = holder.trickHand[di];
+          holder.trickHand.splice(di, 1);
+          addNew();
+          this.log(`  [BLOCK TRICK] ${nm} trades ${dropped.name} for ${trick.name}.`);
+        }
+        sync();
+      },
+      cards => cards.slice().sort((a, b) => (a.cost || 0) - (b.cost || 0))[0],
+      { inlineTray: true, seat: seat || undefined,
+        declineLabel: `Discard ${trick.name}`,
+        onDecline: () => { this.log(`  [BLOCK TRICK] ${nm} keeps their tricks — discards ${trick.name}.`); sync(); } });
   },
   addToTrickHand(owner, trick) {
     const p = this.state[owner];
@@ -15179,8 +15252,7 @@ const Game = {
         this.state._inTrick = false; this.state._trickOwner = null; this.state._activeTrickName = null;
         this.cleanupDead();
       } else {
-        p.trickHand.push({ ...trick });   // no _blockFree — full cost later
-        this.log(`  [BLOCK TRICK] ${p.name} keeps ${trick.name} (costs ${trick.cost}).`);
+        this._keepBlockTrick(side, trick, { seat, isAI: true });   // cap-aware
       }
       if (tt.online) this._2v2OnlineBroadcast();
       // Any prompt the AI's trick raised must resolve before the next offer.
@@ -15218,8 +15290,7 @@ const Game = {
         this.state._inTrick = false; this.state._trickOwner = null; this.state._activeTrickName = null;
         this.cleanupDead();
       } else {
-        p.trickHand.push({ ...trick });   // declined — kept in hand at original cost
-        this.log(`  [BLOCK TRICK] ${p.name} keeps ${trick.name} (costs ${trick.cost}).`);
+        this._keepBlockTrick(side, trick, { seat, isAI: false });   // cap-aware trade
       }
     }
     if (tt && tt.online) this._2v2OnlineBroadcast();
