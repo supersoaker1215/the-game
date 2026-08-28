@@ -359,6 +359,57 @@ t('AT-11 Mind Stone controls the card that is about to win the game', function (
   eq('and not the first card in board order', !!optimus.isMindControlled, false);
 });
 
+// ============================================================
+// AT-12 / AT-13 — ANTI-VENOM: FREEING A BLOCKED BODY IS FACE DAMAGE.
+//
+// Two mispricings, and they compounded. The ALLY branch scored raw power, so
+// two equal bodies tied and the pick fell to board order — it could not see
+// that one of them was being WASTED in a contested lane while an unopposed one
+// sat open. And the ENEMY branch priced any non-lethal burn at a flat 20 + the
+// target's stats, which no ally play could ever beat no matter what it
+// unlocked. (Owner: "he moves groot, should've moved green lantern … then moved
+// him to an open lane to hit the frozen health bar. it's these types of plays
+// to make the ai smarter — deny energy and face damage.")
+//
+// A kill is still the best outcome and AT-13 holds that line.
+// ============================================================
+t('AT-12 it frees the blocked hitter instead of shuffling the other body', function () {
+  clearBoard();
+  Game.state.player.isHuman = false;
+  // Enemy side crowded so the ally choice is the live one, with two lanes open.
+  for (var i = 0; i < Game.LANE_COUNT; i++) Game.state.lanes[i].ai = mk('Sabertooth', 'ai');
+  Game.state.lanes[4].ai = null;
+  Game.state.lanes[5].ai = null;
+  var groot = mk('Groot', 'player');         groot.attack = 2; groot.currentHealth = 4;
+  var gl    = mk('Green Lantern', 'player'); gl.attack = 4;    gl.currentHealth = 2;
+  Game.state.lanes[0].player = groot;        // blocked, small
+  Game.state.lanes[3].player = gl;           // blocked, the real hitter
+  var av = mk('Anti-Venom', 'player');
+  Game.state.lanes[1].player = av;
+
+  CARD_ABILITIES['Anti-Venom'].onPlay(Game, av, 1);
+  var glLane = Game.findCardLane(gl);
+  eq('the 4-ATK body moved', glLane !== 3, true);
+  eq('and it is unopposed now', glLane >= 0 && !Game.state.lanes[glLane].ai, true);
+  eq('the small one stayed put', Game.findCardLane(groot), 0);
+});
+
+t('AT-13 but a kill still beats repositioning', function () {
+  clearBoard();
+  Game.state.player.isHuman = false;
+  var frail = mk('Sabertooth', 'ai'); frail.attack = 3; frail.currentHealth = 1;  // a -1/-1 finishes it
+  Game.state.lanes[2].ai = frail;
+  var gl = mk('Green Lantern', 'player'); gl.attack = 4; gl.currentHealth = 2;
+  Game.state.lanes[3].player = gl;
+  Game.state.lanes[3].ai = mk('Carnage', 'ai');
+  var av = mk('Anti-Venom', 'player');
+  Game.state.lanes[1].player = av;
+
+  CARD_ABILITIES['Anti-Venom'].onPlay(Game, av, 1);
+  Game.cleanupDead();
+  eq('the 1-HP enemy was finished', frail.currentHealth <= 0, true);
+});
+
 // ---- run ----------------------------------------------------
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];

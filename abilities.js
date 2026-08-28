@@ -2655,9 +2655,38 @@ const CARD_ABILITIES = {
         const power = (c.attack || 0) + (c.currentHealth || 0);
         if (c.owner !== self.owner) {
           const lethal = !G.statStripShieldsHp(c) && (c.currentHealth || 0) <= shift;
-          return (lethal ? 100 : 20) + power;
+          // KILLING ONE IS STILL THE BEST OUTCOME — that is unchanged.
+          if (lethal) return 1000 + power;
+          // But a non-lethal burn was priced at a flat 20 + the target's stats,
+          // which no ally play could ever beat no matter what it unlocked. A
+          // (−1/−1) on a body that lives is worth the stats it removes and
+          // nothing more; it was being valued like a threat removed. Priced as
+          // what it actually is, so it competes honestly with the ally half
+          // instead of automatically winning.
+          return shift * 2 + power * 0.25;
         }
-        return power * 0.5;
+        // FREEING A BLOCKED ALLY IS FACE DAMAGE, and the ally branch could not
+        // see that: it scored raw power, so two bodies of equal stats tied and
+        // the pick fell to board order. The one worth moving is the one being
+        // WASTED — standing in a contested lane, trading with a blocker, when
+        // an unopposed lane is open beside it. Move it there and its whole
+        // swing lands on the health bar instead. (Owner: "he moves groot,
+        // should've moved green lantern … then moved him to an open lane to hit
+        // the frozen health bar. it's these types of plays to make the ai
+        // smarter — deny energy and face damage.")
+        //
+        // Weighted by the attack it would actually land, plus the +N the move
+        // grants it, so a big blocked hitter outranks a small one. aiLaneFor
+        // already sends a moved ally to an unopposed lane, so the two halves
+        // agree without a second search.
+        const opp2 = G.opponent(self.owner);
+        const myLane = G.findCardLane(c);
+        const blocker = myLane >= 0 && G.state.lanes[myLane] ? G.state.lanes[myLane][opp2] : null;
+        const blockedNow = !!(blocker && blocker.currentHealth > 0);
+        const canGoFree = openLanesFor(c).some(l => !G.state.lanes[l][opp2]);
+        let s = power * 0.5;
+        if (blockedNow && canGoFree) s += ((c.attack || 0) + shift) * 2;
+        return s;
       };
       const aiPickCard = (list) => (list || []).slice()
         .sort((a, b) => scoreFor(b) - scoreFor(a))[0] || null;
