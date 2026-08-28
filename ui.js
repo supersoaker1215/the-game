@@ -7897,6 +7897,7 @@ const UI = {
       cardEl.classList.add('card-landing');
       setTimeout(() => cardEl.classList.remove('card-landing'), 400);
     } else {
+      cardEl.dataset.enterAt = String(Date.now());   // swept if it ever gets stuck (see renderBoard)
       cardEl.classList.add('card-enter');
       setTimeout(() => cardEl.classList.remove('card-enter'), 1100);
     }
@@ -21619,6 +21620,23 @@ const UI = {
   },
 
   renderBoard(s) {
+    // INVISIBLE-CARD SAFETY SWEEP. `.card.card-enter` holds opacity:0 + a full
+    // reveal mask (animation-fill-mode: both), so a card left with that class is
+    // present and clickable but INVISIBLE. Its removal is a per-element 1.1s
+    // setTimeout, which a re-render (Symbiote's redraw, a Michael Myers jump,
+    // rapid plays) can outlive — leaving the card stuck. Every add site now
+    // stamps data-enterAt; here, before painting, strip card-enter from any card
+    // whose entrance window has clearly elapsed (or that carries no stamp at
+    // all), so a card can never stay invisible past ~1.2s. (Owner: "cards going
+    // invisible on the board … you can click on them and they pop up but on the
+    // board they are invisible.")
+    try {
+      const now = Date.now();
+      document.querySelectorAll('#board .card.card-enter').forEach(el => {
+        const t = +(el.dataset && el.dataset.enterAt) || 0;
+        if (!t || (now - t) > 1300) { el.classList.remove('card-enter'); if (el.dataset) delete el.dataset.enterAt; }
+      });
+    } catch (e) {}
     try {
       this._renderBoardImpl(s);
     } finally {
@@ -22042,6 +22060,7 @@ const UI = {
           // literally being built from bottom to top." Same animation
           // for both sides keeps the play moment legible. Timeout matches
           // the 1.0s animation duration plus a small safety margin.
+          cardEl.dataset.enterAt = String(Date.now());   // swept if it ever gets stuck (see renderBoard)
           cardEl.classList.add('card-enter');
           setTimeout(() => cardEl.classList.remove('card-enter'), 1100);
           // (h) landing dip + (k) claim wave + dust kick + ring ripple —
