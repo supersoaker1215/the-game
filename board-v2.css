@@ -1024,3 +1024,70 @@ body.board-v2 #game-area > .info-bar > .bar-center::before { margin-right: 10px;
 body.board-v2 .bv2-plate { gap: 11px; }
 body.board-v2 .bv2-id { width: clamp(104px, 11.5vw, 156px); }
 body.board-v2 .bv2-hp { font-size: 21px; }
+
+/* ===========================================================================
+   DESTROY AND REBUILD: THE ACTION PLATE.
+   What was on screen was not my button at all. style.css carries
+   `#btn-action { border: 0; background: transparent }` with !important — (1,0,0)
+   plus importance, which beats `body.board-v2 #btn-action` at (1,1,0) without
+   it — and then draws a corner-bracket reticle with an inset ::before. So every
+   border and fill I wrote was discarded and you were looking at the shipping
+   decoration through my clip-path. That is the "corner brackets instead of a
+   plate" in the circle.
+   The reticle is switched off and the plate is rebuilt from nothing: a solid
+   angular slab, chamfered top-left and bottom-right, lit border, glowing label.
+   =========================================================================== */
+body.board-v2 #btn-action::before { content: none !important; display: none !important; }
+body.board-v2 #game-area .bar-center > #btn-action {
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.95) !important;
+  background:
+    linear-gradient(180deg,
+      rgba(var(--theme-rgb, 79,195,247), 0.16),
+      rgba(var(--theme-rgb, 79,195,247), 0.05) 46%,
+      rgba(0, 0, 0, 0.92)) !important;
+  box-shadow:
+    0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.14),
+    0 0 26px rgba(var(--theme-rgb, 79,195,247), 0.30),
+    inset 0 0 26px rgba(var(--theme-rgb, 79,195,247), 0.10) !important;
+  color: #f2fbff !important;
+  clip-path: polygon(18px 0, 100% 0, 100% calc(100% - 18px),
+                     calc(100% - 18px) 100%, 0 100%, 0 18px) !important;
+  border-radius: 0 !important;
+  text-shadow: 0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.75);
+}
+body.board-v2 #game-area .bar-center > #btn-action:hover {
+  background:
+    linear-gradient(180deg,
+      rgba(var(--theme-rgb, 79,195,247), 0.26),
+      rgba(var(--theme-rgb, 79,195,247), 0.10) 46%,
+      rgba(0, 0, 0, 0.92)) !important;
+  box-shadow:
+    0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.22),
+    0 0 34px rgba(var(--theme-rgb, 79,195,247), 0.46),
+    inset 0 0 30px rgba(var(--theme-rgb, 79,195,247), 0.16) !important;
+}
+body.board-v2 #game-area .bar-center > #btn-action[disabled] {
+  border-color: var(--bv2-line) !important;
+  background: #000 !important;
+  box-shadow: none !important;
+  color: var(--bv2-label) !important;
+  text-shadow: none;
+}
+
+/* ===========================================================================
+   DESTROY AND REBUILD: THE SEAT BADGE.
+   It was sitting at leftInset 0 — flush against the bar's own edge, so the
+   hexagon's left point had nowhere to go and the plate read as clipped. The
+   bar gets a left inset, and the badge is rebuilt as a plate with the chamfer
+   on the outer corners only, which is what keeps a short label centred inside
+   it instead of the angle eating into the letters.
+   =========================================================================== */
+body.board-v2 #game-area > .info-bar { padding-left: 14px; padding-right: 2px; }
+body.board-v2 .bv2-tag {
+  width: 62px; height: 46px;
+  font-size: 17px; letter-spacing: .10em;
+  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px),
+                     calc(100% - 12px) 100%, 0 100%, 0 12px);
+  border-width: 1px;
+  flex: 0 0 auto;
+}
