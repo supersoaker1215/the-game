@@ -13187,7 +13187,20 @@ body.turn-combat .board .lane.lane-active {
    dead-pile skull icon. Unified black-hole spec. */
 .incoming-damage {
   position: absolute;
-  bottom: 3px; left: 50%; transform: translateX(-50%);
+  left: 50%; transform: translateX(-50%);
+  /* CLEAR OF THE STAT ORBS. `bottom: 3px` put this chip INSIDE the readout
+     row: measured on a 140px board card the orbs occupy 309..331 and the chip
+     landed at 324..342 — sitting on top of them and hanging in the card's
+     bottom reserve, detached from the card it belongs to. (Owner: "the death
+     symbol is too low ... it should be [connected to the card]".)
+     The card reserves its bottom padding for those absolutely-positioned
+     readouts at a fixed RATIO of its own width (measured 0.273w), so the lift
+     has to be a ratio too or it breaks at every other card size. 0.28w clears
+     the reserve and +4px is the gap above it.
+     Deliberately on the BASE rule, at (0,1,0): the mobile
+     `@container (max-width: 520px)` block already lifts this with its own
+     value at (0,3,0), so phones keep the tuning they were given. */
+  bottom: calc(var(--card-w, 140px) * 0.28 + 4px);
   font-family: 'Rajdhani', sans-serif; font-weight: 700;
   font-size: 10px; letter-spacing: 0.3px;
   color: #ff8a7a;
@@ -13217,7 +13230,10 @@ body.turn-combat .board .lane.lane-active {
    skull or numbers." */
 .card-xp-chip {
   position: absolute;
-  bottom: 3px; left: 50%; transform: translateX(-50%);
+  left: 50%; transform: translateX(-50%);
+  /* Shares the incoming-damage slot (the renderer makes them mutually
+     exclusive), so it moves with it — see the note there. */
+  bottom: calc(var(--card-w, 140px) * 0.28 + 4px);
   height: 14px;
   min-width: 42px;
   padding: 0 6px;
