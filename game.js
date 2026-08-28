@@ -757,10 +757,26 @@ const Game = {
 
   // A 2v2 prompt that a REAL PERSON still has to answer. Watchdog recovery must
   // never answer one of these — see the guard's use below.
+  // WHOSE PROMPT IS THIS? Every pending-prompt shape stamps the seat under a
+  // different key, and `owner` is not one of them — it holds a SIDE at
+  // _checkJumpConditions2v2 (game.js ~4932: `owner: side, seat: pk`) and a SEAT
+  // at the 1v1 site (~5132). Anything reading `.owner` to get a seat therefore
+  // works for some prompts and silently fails for others: the 15s watchdog's
+  // "a human is never auto-skipped" guard read `pendingJumpOffer.owner`, got
+  // 'player', looked up tt.players['player'], found nothing, and concluded no
+  // human owned it — so every 2v2 jump offer was invisible to the one guard
+  // meant to protect it. A human reading a free-jump card had the offer deleted
+  // out from under them with no message.
+  // One reader, so a new prompt shape cannot reintroduce that by choosing a
+  // different key.
+  _2v2PromptSeat(p) {
+    if (!p) return null;
+    return p._2v2ActingPlayer || p._2v2Seat || p.seat || null;
+  },
   _2v2PromptOnLiveHuman(p) {
     const tt = this.state && this.state.twoVTwo;
     if (!tt || !tt.online || !p) return false;
-    const seat = p._2v2ActingPlayer || p._2v2Seat;
+    const seat = this._2v2PromptSeat(p);
     const sp = seat && tt.players[seat];
     return !!(sp && !sp.isAI && !sp._dropped);
   },
@@ -906,11 +922,16 @@ const Game = {
     // never something to time out over their head. Computed ONCE, up top, so both
     // tiers honour it.
     const _humanOwns = (seat) => !!(seat && tt.players[seat] && !tt.players[seat].isAI);
+    // Read every prompt's seat through the one reader — see _2v2PromptSeat.
+    // The jump offer used to be read as `.owner`, which is a SIDE in 2v2, so it
+    // never matched a seat and every human jump offer fell through this guard.
+    // Kang's choice was not consulted at all.
     const anyHumanPrompt =
-      _humanOwns(s.pendingCardChoice && s.pendingCardChoice._2v2ActingPlayer) ||
-      _humanOwns(s.pendingLaneChoice && s.pendingLaneChoice._2v2ActingPlayer) ||
-      _humanOwns(s.pendingBlockTrick && s.pendingBlockTrick._2v2Seat) ||
-      _humanOwns(s.pendingJumpOffer && s.pendingJumpOffer.owner);
+      _humanOwns(this._2v2PromptSeat(s.pendingCardChoice)) ||
+      _humanOwns(this._2v2PromptSeat(s.pendingLaneChoice)) ||
+      _humanOwns(this._2v2PromptSeat(s.pendingBlockTrick)) ||
+      _humanOwns(this._2v2PromptSeat(s.pendingJumpOffer)) ||
+      _humanOwns(this._2v2PromptSeat(s.pendingKangChoice));
     // AND — just as important — if it is a HUMAN SEAT'S TURN right now, leave it
     // alone. Their card/trick phase has no "prompt"; they are simply taking their
     // time (or just blocked and are about to play a trick). Force-ending the
@@ -12750,7 +12771,9 @@ const Game = {
       if (!_drivingAILane) { const _c = this._2v2CurrentActingPlayer; if (_c && this._2v2SeatIsAI(_c)) _drivingAILane = _c; }
       if (!_drivingAILane) { const _a = this._2v2ActivePlayer && this._2v2ActivePlayer(); if (_a && this._2v2SeatIsAI(_a)) _drivingAILane = _a; }
       if (!_drivingAILane) { const _o = this._2v2AbilityOwner && this._2v2AbilityOwner(); if (_o && this._2v2SeatIsAI(_o)) _drivingAILane = _o; }
-      if (_drivingAILane && this._2v2SeatIsAI(_drivingAILane)
+      // !_laneSeatOpt — a declared seat is final. Same defect and same fix as
+      // the promptCardChoice twin; see the long note there.
+      if (!_laneSeatOpt && _drivingAILane && this._2v2SeatIsAI(_drivingAILane)
           && (!this._2v2IsAIAuthority || this._2v2IsAIAuthority())
           && this._2v2SeatOnSide(_drivingAILane, owner) && !this._2v2SeatIsAI(_actor)) {
         _actor = _drivingAILane;
@@ -13025,7 +13048,29 @@ const Game = {
       if (!_drivingAI) { const _c = this._2v2CurrentActingPlayer; if (_c && this._2v2SeatIsAI(_c)) _drivingAI = _c; }
       if (!_drivingAI) { const _a = this._2v2ActivePlayer && this._2v2ActivePlayer(); if (_a && this._2v2SeatIsAI(_a)) _drivingAI = _a; }
       if (!_drivingAI) { const _o = this._2v2AbilityOwner && this._2v2AbilityOwner(); if (_o && this._2v2SeatIsAI(_o)) _drivingAI = _o; }
-      if (_drivingAI && this._2v2SeatIsAI(_drivingAI)
+      // !_seatOpt — A DECLARED SEAT IS FINAL, INCLUDING HERE.
+      // This net has no business overruling a caller that NAMED a seat, and it
+      // was the only thing in the chain that did. Read the last clause: it fires
+      // ONLY when the actor is NOT an AI — that is, only ever to take a prompt
+      // AWAY from a human — and the block twenty lines below then auto-picks,
+      // because by the time it asks "is this an AI seat?" the answer has been
+      // rewritten to yes. That block's own comment ("A seat that was NAMED by
+      // the caller is never auto-picked here unless that seat is genuinely an
+      // AI filler") was already the intended rule; this is what broke it.
+      //
+      // Shape of the bug: bot p3 plays Symbiote Spider-Man; SSM names each seat
+      // in turn with { seat }; the chain reaches human teammate p1; this rewrites
+      // p1 -> p3; the auto-pick fires with SSM's `lowest` picker. Two of that
+      // player's cheapest cards are shuffled away and the log reads "auto-picked
+      // for <bot> (AI seat)". Owner: "it auto-clicked one of my cards for me,
+      // and i never received a prompt at all." Not SSM-specific — every card
+      // that names a seat (the Grinch's victim pick, Human Torch, Iron Giant)
+      // lost its named human whenever a bot on that human's own team was driving.
+      //
+      // The net keeps its actual job: an UNNAMED prompt raised on a driving
+      // bot's own side is still answered by that bot, which is the stall it was
+      // written for.
+      if (!_seatOpt && _drivingAI && this._2v2SeatIsAI(_drivingAI)
           && (!this._2v2IsAIAuthority || this._2v2IsAIAuthority())
           && this._2v2SeatOnSide(_drivingAI, owner) && !this._2v2SeatIsAI(_actor)) {
         _actor = _drivingAI;

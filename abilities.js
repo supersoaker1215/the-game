@@ -2376,6 +2376,11 @@ const CARD_ABILITIES = {
               "Choose 1st card to shuffle back into the deck (pick 2 total)", (c1) => {
                 const i1 = hand.findIndex(c => c.id === c1.id);
                 if (i1 >= 0) { shuffleBack(hand[i1], seatSide); hand.splice(i1, 1); }
+                // EACH ANSWER GETS ITS OWN CLOCK. The stall timer was armed once
+                // per SEAT, but a human owes TWO answers here — so a player who
+                // spent 15s on the first pick had six seconds for the second
+                // before the force-complete fired mid-pair.
+                if (typeof armTimer === 'function') armTimer();
                 G._2v2CurrentActingPlayer = seatKey;
                 G.promptCardChoice(seatSide, [...hand], "Symbiote Spider-Man — Shuffle",
                   "Choose 2nd card to shuffle back into the deck", (c2) => {
@@ -2403,7 +2408,10 @@ const CARD_ABILITIES = {
         // it, so the human still gets to pick — and only if it is STILL stuck a
         // second time does it force the remaining seats through, as an absolute
         // last resort. (Owner: humans choose, no auto, no stall.)
-        const NUDGE_MS = 8000, GIVEUP_MS = 20000;
+        // GIVEUP must sit ABOVE the engine's own fair wait for a human prompt
+        // (_2v2_PROMPT_MS, 30s) — at 20s this card was out-racing the game's own
+        // standard and deciding for people who were still inside it.
+        const NUDGE_MS = 8000, GIVEUP_MS = 35000;
         let timer = null, stallStartAt = 0, nudged = false;
         const clearTimer = () => { if (timer && typeof clearTimeout !== 'undefined') { clearTimeout(timer); timer = null; } };
         const finishOnce = () => { if (done) return; done = true; clearTimer(); G.log('[SSM] cycle complete — healing caster.'); try { finish(); } catch (e) { console.error('[SSM] finish threw', e); } };
@@ -2441,7 +2449,13 @@ const CARD_ABILITIES = {
             const seatKey = order[i]; const sp2 = tt.players[seatKey]; if (!sp2) continue;
             const seatSide2 = G._2v2TeamSide[sp2.team];
             const hand2 = sp2.hand || [];
-            const back2 = Math.min(2, hand2.length);
+            // ALREADY GAVE ONE BACK? Then they owe one, not two. forceComplete
+            // is called with the index of the seat that is mid-pick, so without
+            // this the loop cycles that seat a SECOND time from the top: three
+            // cards shuffled back and only two drawn, and the card that is meant
+            // to be a wash quietly costs them one.
+            const already = pendingBack.filter(e => e.ownerKey === seatSide2).length;
+            const back2 = Math.max(0, Math.min(2, hand2.length) - already);
             G._2v2CurrentActingPlayer = seatKey;
             for (let j = 0; j < back2; j++) {
               const c = hand2.slice().sort((a, b) => (a.cost || 0) - (b.cost || 0))[0]; if (!c) break;

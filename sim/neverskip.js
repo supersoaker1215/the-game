@@ -75,3 +75,11 @@ results.forEach(function(r,i){
 });
 print(pass ? '=== 6 passed, 0 failed ==='
            : '=== 1 failed: the never-skip-a-human rule does not hold ===');
+
+// NOT TESTED HERE: "a named human seat is never rerouted to a driving bot"
+// (the promptCardChoice/promptLaneChoice safety-net fix). sim/shim.js resolves
+// prompts SYNCHRONOUSLY, so a headless test can never observe a prompt sitting
+// PENDING for a seat — the callback always fires and the thing under test is
+// exactly whether it should not have. Verified in the browser instead: with a
+// bot teammate driving, promptCardChoice(..., { seat: <human> }) must leave
+// pendingCardChoice stamped with that human and must NOT log "auto-picked for".
