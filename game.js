@@ -8482,7 +8482,7 @@ const Game = {
             if (typeof UI !== 'undefined' && UI.render) UI.render();
           } else {
             // AI-controlled: auto-play free if it has cards on board, else keep
-            if (this.getAllCardsOf(owner).length > 0 && trick.play) {
+            if (this.getAllCardsOf(owner).length > 0 && this._blockTrickWouldLand(trick, owner)) {
               this.log(`  [BLOCK TRICK] ${this.seatLabel(owner)} plays ${trick.name} for free!`);
               this.state[owner].playedTrickPile.push({ name: trick.name, cost: trick.cost });
               if (this.state._roundStats) this.state._roundStats.aiTricks.push(trick.name);
@@ -15545,6 +15545,20 @@ const Game = {
   // (User: "they blocked last round and he was able to play mother box for free
   // at the start of the next round, that should never happen.") When stale, the
   // trick is kept in hand at full cost instead of firing free.
+  // WOULD THIS TRICK ACTUALLY DO ANYTHING? Every trick that needs a target
+  // carries a canPlay, and the tray + playTrick both refuse it when it fails —
+  // but the FREE block-meter play went through neither. It asked only "do I
+  // have any cards on the board", so the bot burned The Darkhold ("destroy all
+  // enemies with <= 2 ATK") into a board with no such enemy and got nothing.
+  // (Owner: "the ai played the darkhold with no body with 2 attack, that
+  // shouldnt be possible.")
+  // A trick with no canPlay is unconditional and still fires.
+  _blockTrickWouldLand(trick, side) {
+    if (!trick || typeof trick.play !== 'function') return false;
+    if (typeof trick.canPlay !== 'function') return true;
+    try { return !!trick.canPlay(this, side); } catch (e) { return false; }
+  },
+
   _blockTrickStale(trick) {
     return !!(trick && trick._blockRound != null && trick._blockRound !== this.state.round);
   },
@@ -15568,7 +15582,7 @@ const Game = {
       // AI: play free if the team has bodies on the board, else keep at cost.
       // A trick that leaked past its earned round is never played free (see
       // _blockTrickStale) — it drops into hand at full cost.
-      if (!this._blockTrickStale(trick) && this.getAllCardsOf(side).length > 0 && typeof trick.play === 'function') {
+      if (!this._blockTrickStale(trick) && this.getAllCardsOf(side).length > 0 && this._blockTrickWouldLand(trick, side)) {
         this.log(`  [BLOCK TRICK] ${p.name} plays ${trick.name} for free!`);
         p.playedTrickPile = p.playedTrickPile || [];
         p.playedTrickPile.push({ name: trick.name, cost: trick.cost });

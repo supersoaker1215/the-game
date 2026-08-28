@@ -410,6 +410,39 @@ t('AT-13 but a kill still beats repositioning', function () {
   eq('the 1-HP enemy was finished', frail.currentHealth <= 0, true);
 });
 
+// ============================================================
+// AT-14 — A FREE TRICK IS NOT A REASON TO WASTE IT.
+//
+// Every trick that needs a target carries a canPlay, and both the tray and
+// playTrick refuse it when that fails. The block-meter FREE play went through
+// neither: it asked only "do I have any cards on the board", so the bot burned
+// The Darkhold ("destroy all enemies with <= 2 ATK") into a board with no such
+// enemy and got nothing for it. (Owner: "the ai played the darkhold with no
+// body with 2 attack, that shouldnt be possible.")
+//
+// A trick with no canPlay is unconditional and must still fire — AT-14 pins
+// that too, or the guard would quietly disable half the trick pool.
+// ============================================================
+t('AT-14 the AI only fires a free block trick that would actually land', function () {
+  clearBoard();
+  Game.state.player.isHuman = false;
+  Game.state.lanes[0].player = mk('Gizmo', 'player');       // we have a body
+  var fat = mk('Hulk', 'ai'); fat.attack = 7;               // 7 ATK — not a Darkhold target
+  Game.state.lanes[2].ai = fat;
+
+  eq('nothing for it to destroy', Game._blockTrickWouldLand(trick('The Darkhold'), 'player'), false);
+
+  var small = mk('Sabertooth', 'ai'); small.attack = 2;     // now a legal target
+  Game.state.lanes[4].ai = small;
+  eq('now it would land', Game._blockTrickWouldLand(trick('The Darkhold'), 'player'), true);
+
+  // A trick with no canPlay at all is unconditional and still fires.
+  eq('unconditional tricks are unaffected',
+     Game._blockTrickWouldLand(trick('Two-Face Coin'), 'player'), true);
+  // And something with no play function is never fired.
+  eq('a trick with no play does not fire', Game._blockTrickWouldLand({ name: 'x' }, 'player'), false);
+});
+
 // ---- run ----------------------------------------------------
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];
