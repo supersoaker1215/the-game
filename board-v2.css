@@ -825,3 +825,98 @@ body.board-v2 .info-bar .energy-display { width: calc(40 * var(--u)); height: ca
 body.board-v2 .player-hand-section .hand-card-wrapper .card { --card-w: calc(144 * var(--u)); }
 /* Trick cards 155 x 224, chamfer 13. */
 body.board-v2 .tricks-section .trick-card { width: calc(155 * var(--u)); max-width: calc(155 * var(--u)); }
+
+/* ===========================================================================
+   THE HEALTH BAR WAS NOT THICK — IT WAS OVERFLOWING.
+   The track is the spec's 4px (2.4px scaled) but `.health-fill` carries a
+   hardcoded `height: 14px`, so the fill stood six times proud of the rail it
+   sits in. Measured: container 2.4px, fill 14px.
+   =========================================================================== */
+/* THREE ELEMENTS, NOT TWO. The track is .health-container, but the fill is not
+   its child — there is a `.health-bar` between them carrying the hardcoded
+   14px, and the fill is correctly 100% OF THAT. Sizing the container and the
+   fill while leaving the middle element at 14px is why this looked unchanged.
+   All three now agree on the spec's 4px rail. */
+body.board-v2 .info-bar .health-container {
+  overflow: hidden;
+  height: calc(4 * var(--u)) !important;
+  min-height: 0 !important;
+}
+body.board-v2 .info-bar .health-bar {
+  height: 100% !important;
+  min-height: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+body.board-v2 .info-bar .health-fill {
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+/* ===========================================================================
+   THE BLUE AND THE RED. The frame BORDERS were already the spec's #35c9ff and
+   #ff8a1f, but every card's glow is driven by `--frame-rgb`, which still held
+   the shipping red (231,76,60) and the old theme blue (79,195,247). So each
+   card was outlined in the new palette and haloed in the old one — which is
+   why the board still read red-and-blue instead of orange-and-cyan.
+   Set the variable and the drop-shadows follow, because they were always
+   written to read from it.
+   =========================================================================== */
+body.board-v2 #board .ai-slot .card,
+body.board-v2 #board .ai-slot .card * {
+  --frame-rgb: 255, 138, 31;
+  --frame-color: #ff8a1f;
+}
+body.board-v2 #board .player-slot .card,
+body.board-v2 #board .player-slot .card * {
+  --frame-rgb: 53, 201, 255;
+  --frame-color: #35c9ff;
+}
+/* Glow discipline: two stops, not the shipping three, and at the spec's
+   ~36%-of-instinct radii. */
+body.board-v2 #board .lane .card {
+  filter:
+    drop-shadow(0 0 1px rgba(var(--frame-rgb), 0.75))
+    drop-shadow(0 0 4px rgba(var(--frame-rgb), 0.38)) !important;
+}
+
+/* ===========================================================================
+   BAND ORDER: "... YOUR TURN in #3dff9e · ENERGY as a 40px circular disc ·
+   [your band only] music + undo as 34px chamfered tertiary buttons · then the
+   primary." The energy disc sits with the turn flag; the tools follow it.
+   =========================================================================== */
+body.board-v2 #game-area > .info-bar > .bar-energy { flex-direction: row; }
+body.board-v2 #game-area > .info-bar > .bar-energy .energy-display { order: 0; }
+body.board-v2 #game-area > .info-bar > .bar-energy .hand-tools { order: 1; margin-left: calc(10 * var(--u)); }
+body.board-v2 #game-area > .info-bar > .bar-energy::before { order: -1; }
+body.board-v2 .bv2-turnflag { margin-right: calc(10 * var(--u)); }
+/* Tertiary tools: 34px chamfered, no glow, no fill. */
+body.board-v2 .info-bar .hand-tools > * {
+  width: calc(34 * var(--u)); height: calc(34 * var(--u));
+  border: 1px solid rgba(53,201,255,0.38);
+  background: transparent; box-shadow: none;
+  clip-path: polygon(calc(8 * var(--u)) 0, 100% 0,
+                     100% calc(100% - 8 * var(--u)),
+                     calc(100% - 8 * var(--u)) 100%, 0 100%, 0 calc(8 * var(--u)));
+}
+
+/* ===========================================================================
+   END LIGHT — the gradient above and below, one per player, in that player's
+   colour. The spec puts these at 0.10-0.11; lifted a little so each half of the
+   board is visibly lit from its own edge rather than sitting on flat black.
+   =========================================================================== */
+body.board-v2 #game-area::after {
+  background:
+    radial-gradient(56% 40% at 50% 50%, transparent 0%, rgba(4,6,10,0.92) 76%),
+    radial-gradient(96% 46% at 50% 0%,   rgba(255,138,31,0.20), transparent 72%),
+    radial-gradient(96% 46% at 50% 100%, rgba(53,201,255,0.19), transparent 72%),
+    repeating-linear-gradient(to bottom, rgba(0,0,0,0.18) 0 1px, transparent 1px 3px);
+}
+/* And the bands' own washes, so the light continues into the seat strips. */
+body.board-v2 #game-area > .info-bar.ai-bar {
+  background: linear-gradient(to bottom, rgba(255,138,31,0.14), transparent 82%);
+}
+body.board-v2 #game-area > .info-bar.player-bar {
+  background: linear-gradient(to top, rgba(53,201,255,0.14), transparent 82%);
+}
