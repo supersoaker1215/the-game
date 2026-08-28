@@ -897,6 +897,29 @@ const Game = {
     }
     if (!this._2v2IsAIAuthority || !this._2v2IsAIAuthority()) return;   // only the authority recovers
     if (typeof document !== 'undefined' && document.hidden) { this._ai2v2StallAt = Date.now(); this._ai2v2GlobalAt = Date.now(); return; }  // never judge a hidden tab
+    // A HUMAN IS NEVER AUTO-SKIPPED. If ANY pending prompt/offer belongs to a
+    // human seat, NOTHING here may fire — not tier 1, not the last-resort tier 2.
+    // A human deciding (or reading a long prompt) is not a stall; force-resolving
+    // it picked their target and skipped their turn. (Owner: "if a real human
+    // takes too long it auto skips them and that should never happen!") A prompt
+    // that is genuinely broken for a human is a routing bug to fix at the source,
+    // never something to time out over their head. Computed ONCE, up top, so both
+    // tiers honour it.
+    const _humanOwns = (seat) => !!(seat && tt.players[seat] && !tt.players[seat].isAI);
+    const anyHumanPrompt =
+      _humanOwns(s.pendingCardChoice && s.pendingCardChoice._2v2ActingPlayer) ||
+      _humanOwns(s.pendingLaneChoice && s.pendingLaneChoice._2v2ActingPlayer) ||
+      _humanOwns(s.pendingBlockTrick && s.pendingBlockTrick._2v2Seat) ||
+      _humanOwns(s.pendingJumpOffer && s.pendingJumpOffer.owner);
+    // AND — just as important — if it is a HUMAN SEAT'S TURN right now, leave it
+    // alone. Their card/trick phase has no "prompt"; they are simply taking their
+    // time (or just blocked and are about to play a trick). Force-ending the
+    // phase here is exactly the "we blocked and it skipped us being able to play
+    // tricks" / "a real human takes too long, it auto skips them" report. The
+    // watchdog only ever acts when an AI is the one on the clock.
+    const _activeSeat = (this._2v2ActivePlayer && this._2v2ActivePlayer()) || null;
+    const activeIsHuman = !!(_activeSeat && tt.players[_activeSeat] && !tt.players[_activeSeat].isAI);
+    if (anyHumanPrompt || activeIsHuman) { this._ai2v2StallSig = null; this._ai2v2StallAt = 0; this._ai2v2GlobalSig = null; this._ai2v2GlobalAt = 0; return; }
     // ═══ TIER 2 — LAST-RESORT GLOBAL FREEZE RECOVERY ═══
     // The fast guards below deliberately step aside for human-owned prompts and
     // for _resolving boundaries — correct in normal play. But a tangled
@@ -944,20 +967,7 @@ const Game = {
     if (tt._resolving) { this._ai2v2StallAt = Date.now(); return; }
     const active = (this._2v2ActivePlayer && this._2v2ActivePlayer()) || null;
     const activeIsAI = !!(active && tt.players[active] && tt.players[active].isAI);
-    // A HUMAN'S DECISION IS SACRED. If ANY pending prompt/offer is owned by a
-    // human seat, the watchdog must never touch it or force the turn — the human
-    // is simply deciding, and this can happen mid an AI seat's turn (a card the
-    // AI played that targets a human, a human's block-trick draw, a jump offer).
-    // Auto-resolving those was skipping human turns and picking their targets
-    // for them. (Owner: "make sure the human players arent getting their turn
-    // skipped … the choices … dont let the AI answer for me.")
-    const _humanOwns = (seat) => !!(seat && tt.players[seat] && !tt.players[seat].isAI);
-    const anyHumanPrompt =
-      _humanOwns(s.pendingCardChoice && s.pendingCardChoice._2v2ActingPlayer) ||
-      _humanOwns(s.pendingLaneChoice && s.pendingLaneChoice._2v2ActingPlayer) ||
-      _humanOwns(s.pendingBlockTrick && s.pendingBlockTrick._2v2Seat) ||
-      _humanOwns(s.pendingJumpOffer && s.pendingJumpOffer.owner);
-    if (anyHumanPrompt) { this._ai2v2StallSig = null; this._ai2v2StallAt = 0; return; }
+    // (human-owned prompts already returned above — this point is AI-only)
     // A pending prompt stamped to an AI seat covers deferred prompts that fire
     // outside a live drive (Dr. Strange's Foresee at the draw phase).
     const pc = s.pendingCardChoice || s.pendingLaneChoice;
