@@ -1409,9 +1409,25 @@ const CARD_ABILITIES = {
           G.grantTempBuff(G.state.lanes[l][own], { hasDamageImmunity: true });
         }
       });
+      // A LANE SHIELD on the adjacent lanes, exactly like Joker's Playing Card:
+      // lane.protected = own means an UNCONTESTED enemy in that lane can't swing
+      // at Groot's owner this round (resolveUncontestedLane / the bonus-attack
+      // path both honour lane.protected). Reset to null every startRound, so
+      // it's a one-turn shield. (User: "groot also gives the shield thing like
+      // the joker's playing card to the adjacent lanes.") Groot's own lane is
+      // never shielded — adjacent only, matching the immunity grant's shape.
+      [lane - 1, lane + 1].forEach(l => {
+        if (l >= 0 && l < Game.LANE_COUNT && G.state.lanes[l] && !G.state.lanes[l].destroyed) {
+          G.state.lanes[l].protected = own;
+          const foe = G.state.lanes[l][G.opponent(own)];
+          if (foe && foe.currentHealth > 0 && typeof UI !== 'undefined' && UI._fxTrickDebuff) {
+            try { UI._fxTrickDebuff(foe, '#39ff5e', '#0f8a2a'); } catch (e) {}
+          }
+        }
+      });
       G.log(includeSelf
-        ? "Groot protects himself AND adjacent allies for 1 turn!"
-        : "Groot protects adjacent allies for 1 turn!");
+        ? "Groot protects himself AND adjacent allies — and shields the adjacent lanes for 1 turn!"
+        : "Groot protects adjacent allies — and shields the adjacent lanes for 1 turn!");
       if (typeof UI !== 'undefined' && UI._fxGrootGuard) { try { UI._fxGrootGuard(self, lane, own); } catch (e) {} }
     }
   },
