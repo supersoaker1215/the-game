@@ -1031,3 +1031,19 @@ body.board-v2 #game-area > .info-bar.player-bar::before {
   bottom: 100%;
   background: linear-gradient(to top, rgba(53,201,255,0.16), rgba(53,201,255,0) 100%);
 }
+
+/* ===========================================================================
+   LET THE GRADIENT FLOW.
+   Two hard rules were cutting straight across the wash, and neither was on the
+   bands — which is why looking at the bands never found them:
+     .turn-hud          border-bottom: 1px solid rgba(255,255,255,0.25)
+     .player-hand-section border-top: 1px solid rgba(79,195,247,0.28)
+   They sit exactly where each band's glow should be fading out, so the light
+   stopped dead at a line instead of falling off. Gone. The only edges left
+   between the field and a seat are the two lit rails, which are the boundary
+   the board actually has.
+   =========================================================================== */
+body.board-v2 #game-area > .turn-hud { border-bottom: 0 !important; }
+body.board-v2 #game-area > .player-hand-section { border-top: 0 !important; }
+body.board-v2 #game-area > .board-section,
+body.board-v2 #game-area > #lane-forecast-strip { border: 0 !important; }
