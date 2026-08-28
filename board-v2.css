@@ -1063,44 +1063,25 @@ body.board-v2 #board::before { content: none !important; display: none !importan
 body.board-v2 #board::after  { content: none !important; display: none !important; }
 
 /* ===========================================================================
-   THE HAND FILLS ITS BAR.
-   Measured: five cards spanning 469px inside a 1082px band — 306px of dead
-   margin on each side. The spec sizes a hand card at 144 x 264 and centres the
-   row, which leaves margins at 1920 too; this is a deliberate departure from
-   that, chosen because the space is there and the hand is the thing you read
-   most.
-   Each wrapper takes an equal share of the row and is capped, so the hand fills
-   the band at a normal hand size and simply shrinks — rather than overflowing —
-   as the hand grows toward eight.
+   HAND — reverted to the spec. 144 x 264 cards, gap 16, CENTRED.
+   The wide version is gone: filling the band meant either 171px cards (whose
+   fixed aspect made them 339px tall and cost the board 250px of height) or
+   66px ones (smaller than the spec's own 144). The spec centres the row and
+   accepts margins at 1920 too, and that is what this is again.
    =========================================================================== */
 body.board-v2 .player-hand-section #player-hand {
-  /* space-between spreads the row across the band on spacing, so the hand
-     reaches the edges without the cards having to grow to get there. */
-  justify-content: space-between;
+  justify-content: center;
   gap: calc(16 * var(--u));
-  padding: 0 calc(28 * var(--u));
-}
-/* The hand keeps to its own row so widening it can never take the board's
-   height again — the spec's 284px band. */
-body.board-v2 #game-area > .player-hand-section {
-  max-height: calc(400 * var(--u));
+  padding: 0;
 }
 body.board-v2 .player-hand-section .hand-card-wrapper {
-  /* WIDTH BUYS HEIGHT, AND THE BOARD PAYS. A hand card's aspect is fixed, so
-     letting each wrapper take an equal share of a 1082px band made the cards
-     171px wide — and 339px tall, which took the board from 517px down to ~270.
-     Capped so the hand fills most of the band without eating the field: the
-     row spreads on its GAPS beyond this point rather than on card size. */
-  /* Fixed, not flexible. `0 1 auto` under space-between let the cards SHRINK to
-     66px — smaller than the spec's 144 — while the row spread. The row spreads
-     on its spacing; the card keeps a real size. */
   flex: 0 0 auto;
   max-width: none;
   display: flex; justify-content: center;
 }
 body.board-v2 .player-hand-section .hand-card-wrapper .card {
-  --card-w: calc(190 * var(--u));
-  width: calc(190 * var(--u));
+  --card-w: calc(144 * var(--u));
+  width: calc(144 * var(--u));
   max-width: none;
 }
 
