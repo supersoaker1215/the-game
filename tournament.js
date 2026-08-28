@@ -825,7 +825,20 @@ const Tournament = {
   _2v2Me() { const tt = this._2v2tt(); return tt ? tt.you : null; },
   _2v2AmAuth() { return this._2v2Me() === 'p1'; },
   _2v2MyTeam() { const tt = this._2v2tt(), me = this._2v2Me(); return (tt && me && tt.players[me]) ? tt.players[me].team : null; },
-  _2v2CaptainSeat(team) { return team === 'A' ? 'p1' : 'p2'; },
+  // The captain is the FIRST seat (slot order) that actually belongs to the
+  // team — derived live, NOT hardcoded p1/p2. If the lobby rearranged teams (so
+  // team B is, say, p3+p4), the old hardcode pointed at p2, which is now on the
+  // OTHER team — so the host checked the wrong seat's isAI flag and never
+  // auto-picked for the real AI captain, and the number game hung on "waiting
+  // for the other captain." (User: "the AI never picks a number.")
+  _2v2CaptainSeat(team) {
+    const tt = this._2v2tt();
+    if (tt && tt.players) {
+      const cap = ['p1', 'p2', 'p3', 'p4'].find(pk => tt.players[pk] && tt.players[pk].team === team);
+      if (cap) return cap;
+    }
+    return team === 'A' ? 'p1' : 'p2';   // fallback to the default arrangement
+  },
   _2v2TeamOfSeat(pk) { const tt = this._2v2tt(); return (tt && tt.players[pk]) ? tt.players[pk].team : null; },
   _2v2IAmCaptain() { const me = this._2v2Me(), team = this._2v2MyTeam(); return me && team && me === this._2v2CaptainSeat(team); },
   _2v2MyWins() { const t = this._t(); const team = this._2v2MyTeam(); return t ? (team === 'A' ? t.aWins : t.bWins) : 0; },
@@ -849,6 +862,22 @@ const Tournament = {
   _2v2OnlineRender() {
     const t = this._t();
     if (!t || !t.online || t.mode !== '2v2') { this._hideOverlay && this._hideOverlay(); return; }
+    // HOST SELF-HEAL: every time the host renders the number phase, fill any AI
+    // captain's pick and roll once both are in. Idempotent (== null guards) and
+    // only re-syncs when something actually changed, so a bot captain can never
+    // hang the draw even if a normal trigger was missed. (User: "the AI never
+    // picks a number.") Guarded against re-entrancy via _2v2Healing.
+    if (this._2v2AmAuth() && t.phase === 'number' && !this._2v2Healing) {
+      this._2v2Healing = true;
+      const sig = String(t.aNum) + '/' + String(t.bNum) + '/' + String(t.roll);
+      try {
+        this._2v2MaybeAutoNumber();
+        if (t.aNum != null && t.bNum != null && t.roll == null) this._2v2HostRoll();
+      } finally { this._2v2Healing = false; }
+      if (sig !== String(t.aNum) + '/' + String(t.bNum) + '/' + String(t.roll) && Game._2v2OnlineBroadcast) {
+        try { Game._2v2OnlineBroadcast(); } catch (e) {}
+      }
+    }
     this._ensureOverlay();
     if (t.phase === 'playing' && !Game.state.gameOver) { this._hideOverlay(); this._show2v2Hud(); return; }
     this._removeHud();
@@ -906,8 +935,9 @@ const Tournament = {
   // Host auto-picks for any AI captain.
   _2v2MaybeAutoNumber() {
     const t = this._t(); const tt = this._2v2tt(); if (!t || !tt) return;
-    if (t.aNum == null && tt.players.p1 && tt.players.p1.isAI) t.aNum = 1 + Math.floor(Math.random() * 20);
-    if (t.bNum == null && tt.players.p2 && tt.players.p2.isAI) t.bNum = 1 + Math.floor(Math.random() * 20);
+    const capA = this._2v2CaptainSeat('A'), capB = this._2v2CaptainSeat('B');
+    if (t.aNum == null && tt.players[capA] && tt.players[capA].isAI) t.aNum = 1 + Math.floor(Math.random() * 20);
+    if (t.bNum == null && tt.players[capB] && tt.players[capB].isAI) t.bNum = 1 + Math.floor(Math.random() * 20);
   },
   _2v2HostRoll() {
     const t = this._t();
