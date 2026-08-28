@@ -1541,6 +1541,15 @@ const UI = {
       this.settings.graphics = gfxEl.value;
       this.applyGraphicsMode();
     }
+    // Board layout — v1 (classic) / v2 (the redesign). The switch lives on
+    // BoardV2 itself, which owns the body class, the localStorage key AND the
+    // teardown that puts the DOM back; going through it means picking Classic
+    // genuinely restores the old board rather than just unsetting a class.
+    const bdEl = g('setting-board');
+    if (bdEl && typeof BoardV2 !== 'undefined') {
+      this.settings.board = bdEl.value;
+      BoardV2.set(bdEl.value === 'v2');
+    }
     // Hand card text — flip (click to reveal) / always (shown at rest).
     const htEl = g('setting-hand-text');
     if (htEl) {
@@ -1715,6 +1724,11 @@ const UI = {
     if (cbEl) cbEl.checked = !!this.settings.colorblind;
     const gfxEl = g('setting-graphics');
     if (gfxEl) gfxEl.value = this.settings.graphics || 'auto';
+    const bdEl = g('setting-board');
+    // Read from BoardV2 rather than this.settings: the flag is also settable
+    // from the console and persists on its own key, so BoardV2 is the truth and
+    // a stale copy here would show the wrong option.
+    if (bdEl) bdEl.value = (typeof BoardV2 !== 'undefined' && BoardV2.enabled()) ? 'v2' : 'v1';
     const htEl = g('setting-hand-text');
     if (htEl) htEl.value = this.settings.handText || 'flip';
     const hapEl = g('setting-haptics-off');

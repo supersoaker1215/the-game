@@ -752,6 +752,13 @@
           </select>
         </div>
         <div class="settings-row">
+          <label for="setting-board" title="Classic is the board the game has always used. Redesign is the new three-column console — same rules, same cards, same everything; only the layout changes.">Board layout</label>
+          <select id="setting-board">
+            <option value="v1">Classic</option>
+            <option value="v2">Redesign (new)</option>
+          </select>
+        </div>
+        <div class="settings-row">
           <label for="setting-hand-text" title="Flip to view: hand cards show art; click a card to flip it and read its rules. Always show: the rules stay visible under the art without clicking.">Hand card text</label>
           <select id="setting-hand-text">
             <option value="flip">Flip to view</option>
@@ -893,7 +900,7 @@
        shared). Loaded BEFORE leaderboard.js so the client sees it on boot. -->
   <script>window.CLB_STATS_URL = "https://card-lane-battle-stats.ryanvtagle.workers.dev";</script>
   <script src="leaderboard.js?v=4"></script>
-  <script src="ui.js?v=1461"></script>
+  <script src="ui.js?v=1462"></script>
   <script src="board-v2.js?v=3"></script>
   <!-- Party voice chat. Loads after ui.js because it paints its own panel and
        reads Game/Multiplayer state; it asks for nothing until you press Join. -->
