@@ -5417,7 +5417,7 @@ const Game = {
   _offerBwlKeepOrDestroy(opp, card, bwl) {
     const bwlAlive = !!(bwl && bwl.currentHealth > 0 && this.findCardLane(bwl) >= 0);
     if (!bwlAlive) {
-      this.addToHand(opp, card, bwl);
+      this.addToHand(opp, card, bwl, null, 'Stolen by Batman Who Laughs');
       this.log(`  [BWL] ${card.name} is kept — Batman Who Laughs is gone.`);
       this.resumeCombatIfWaiting();
       if (typeof UI !== 'undefined' && UI.render) UI.render();
@@ -5441,7 +5441,7 @@ const Game = {
           this.buffCard(bwl, 2, 2);
           this.log(`  [BWL] ${this.seatLabel(opp)} destroys ${card.name} — Batman Who Laughs gains +2/+2!`);
         } else {
-          this.addToHand(opp, card, bwl);
+          this.addToHand(opp, card, bwl, null, 'Stolen by Batman Who Laughs');
           this.log(`  [BWL] ${this.seatLabel(opp)} keeps ${card.name} in hand!`);
         }
         this.resumeCombatIfWaiting();
@@ -5466,7 +5466,7 @@ const Game = {
       const data = this.state[opp].stolenByBWL;
       if (!data) return;
       this.state[opp].stolenByBWL = null;
-      this.addToHand(opp, data.card, data.bwl);
+      this.addToHand(opp, data.card, data.bwl, null, 'Stolen by Batman Who Laughs');
       this.log(`  [BWL] You keep ${data.card.name} in hand!`);
       this.resumeCombatIfWaiting();
       if (typeof UI !== 'undefined' && UI.render) UI.render();
@@ -5489,7 +5489,7 @@ const Game = {
       if (bwl && bwl.currentHealth > 0 && this.findCardLane(bwl) >= 0) return; // still alive
       const data = st.stolenByBWL;
       st.stolenByBWL = null;
-      this.addToHand(seat, data.card, data.bwl);
+      this.addToHand(seat, data.card, data.bwl, null, 'Stolen by Batman Who Laughs');
       this.log(`  [BWL] ${data.card.name} is kept — Batman Who Laughs is gone.`);
       cleared = true;
     });
@@ -5509,7 +5509,7 @@ const Game = {
     const bwl = data.bwl;
     const bwlAlive = !!(bwl && bwl.currentHealth > 0 && this.findCardLane(bwl) >= 0);
     if (keep || !bwlAlive) {
-      this.addToHand(seat, data.card, bwl);
+      this.addToHand(seat, data.card, bwl, null, 'Stolen by Batman Who Laughs');
       this.log(`  [BWL] ${this.seatLabel(seat)} keeps ${data.card.name} in hand!`);
     } else {
       this.buffCard(bwl, 2, 2);
@@ -5558,7 +5558,7 @@ const Game = {
         this.buffCard(bwl, 2, 2);
         this.log(`  [BWL] ${this.seatLabel(opp)} destroys ${card.name} — Batman Who Laughs gains +2/+2!`);
       } else {
-        this.addToHand(opp, card, bwl);
+        this.addToHand(opp, card, bwl, null, 'Stolen by Batman Who Laughs');
         this.log(`  [BWL] ${this.seatLabel(opp)} keeps ${card.name} in hand!`);
       }
     }
@@ -6017,7 +6017,7 @@ const Game = {
           this.buffCard(bwl, 2, 2);
           this.log(`  [BWL] ${this.seatLabel(opp)} destroys ${card.name} — Batman Who Laughs gains +2/+2!`);
         } else {
-          this.addToHand(opp, card, bwl);
+          this.addToHand(opp, card, bwl, null, 'Stolen by Batman Who Laughs');
           this.log(`  [BWL] ${this.seatLabel(opp)} keeps ${card.name} in hand`);
         }
       }
@@ -8844,7 +8844,7 @@ const Game = {
   // separate from `source`, which drives the dossier line and the card-advantage
   // credit: a deck draw must still record as a plain "Drawn" and must not be
   // credited twice (drawCards already credits it).
-  addToHand(owner, card, source, routeSource) {
+  addToHand(owner, card, source, routeSource, how) {
     // 2v2 combat: land the card in the OWNING seat's hand, not whichever
     // teammate the side proxy happens to be bound to (see _2v2HandTarget).
     const p = this._2v2HandTarget(owner, routeSource || source);
@@ -8875,8 +8875,18 @@ const Game = {
     // DOSSIER: where this card came from. addToHand is the single door every
     // hand gain passes through — deck draw, Hela's resurrect, Grundy's death
     // pull, a Batman Who Laughs steal — so one line here credits them all.
+    // HOW it got here, not merely that it arrived. Every hand gain wrote
+    // "Drawn" or "Drawn by X", so an assimilated copy, a card stolen out of an
+    // enemy hand and a body raised from the dead pile all read identically —
+    // and the one question the dossier exists to answer went unanswered. A
+    // caller that knows the manner passes it; the rest keep the old default.
+    // `how` also survives a deferred callback, which the trick-name fallback
+    // does not: state._activeTrickName is cleared the moment trick.play()
+    // returns, so any trick that resolves inside a prompt (Assimilate in 2v2,
+    // Mobius Chair, Phantom Zone, Lazarus Pit) had already lost its name by
+    // the time the card landed. That is why the report read a bare "Drawn".
     const via = (source && source.name) || this._actingSourceName();
-    this.noteCardEvent(card, via ? `Drawn by ${via}` : 'Drawn');
+    this.noteCardEvent(card, how || (via ? `Drawn by ${via}` : 'Drawn'));
     // Card advantage — if a specific source card caused this hand gain
     // (Hela resurrect, Grundy onDeath, Dr. Doom revive, BWL steal, etc.),
     // credit it with +1 advantage. Deck-draws credit via drawCards path.
@@ -9194,6 +9204,9 @@ const Game = {
       card._deathHandled = false;
       const chargesLeft = card.reviveCharges;
       try { this.applyAbilities(card); } catch (e) {}
+      // "Abilities reset" has to include the once-per-life latches, or the
+      // card comes back with its signature ability already spent.
+      try { this.resetOncePerLifeTriggers(card); } catch (e) {}
       card.reviveCharges = chargesLeft;
       this.log(`  [REVIVE] ${card.name} revives — and is played anew! (${chargesLeft} charge${chargesLeft === 1 ? '' : 's'} left)`);
       if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.playEffectSfx) {
@@ -14712,6 +14725,49 @@ const Game = {
         return false;
       });
     });
+  },
+
+  // ===================== ONCE-PER-LIFE TRIGGERS =====================
+  // A generic Revive (Revan) promises the card "comes back as if newly played
+  // — abilities reset and its When Played fires again". That was true of the
+  // keyword kit and of onPlay, but not of the once-per-life LATCHES a card
+  // sets on itself. Carnage heals once at Start of Tricks and stamps
+  // `carnageHealed`; the flag survived the revive, so a revived Carnage was a
+  // 3/4 body with a dead ability. Same shape on Venom, Dormammu, Galactus,
+  // Anakin and Gizmo — the reported bug is the class, not the card.
+  //
+  // What is deliberately NOT here, and why, because each of these looks like
+  // the same pattern and is not:
+  //   _doomsdayRevived  — the revive limiter itself; clearing it is infinite lives
+  //   trigonFrozen      — documented as "once per instance = once, period",
+  //                       explicitly so a re-summon can't snap-freeze the field
+  //   _spinoHuntSpent   — the hunt meter is spent, not reset, by design
+  //   _revealSpent      — Game Over's loop guard ("the difference between a
+  //                       card and an infinite loop")
+  //   _obiWanReflecting / _trigonChaining — in-flight re-entrancy guards, not
+  //                       lifetime latches; clearing them mid-cascade is a hang
+  //   _bathroomTriggered / _owSpawned / _sewersTriggered / _wetReleased —
+  //                       environments, which are never revived
+  //   _artExhausted     — Art's exhaust also NULLS his hooks, and applyAbilities
+  //                       restores keyword flags only, so clearing the flag on
+  //                       its own would not give the bag back. Left alone
+  //                       rather than half-fixed.
+  ONCE_PER_LIFE_FLAGS: [
+    'carnageHealed',      // Carnage — heal at Start of Tricks
+    'venomHealed',        // Venom — same shape
+    'dormammuDrained',    // Dormammu
+    'galactusDevoured',   // Galactus
+    'anakinMoved',        // Anakin
+    '_gizmoTriggered',    // Gizmo
+    '_gojoFired',         // Gojo (already cleared in his onPlay; kept for symmetry)
+  ],
+  resetOncePerLifeTriggers(card) {
+    if (!card) return 0;
+    let cleared = 0;
+    this.ONCE_PER_LIFE_FLAGS.forEach((f) => {
+      if (card[f]) { card[f] = false; cleared++; }
+    });
+    return cleared;
   },
 
   applyAbilities(card) {

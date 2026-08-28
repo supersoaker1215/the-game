@@ -49,6 +49,10 @@ echo "=== neverskip.js (a human's turn is only ended by that human) ==="
 run_suite sim/neverskip.js
 
 echo ""
+echo "=== revive-and-record.js (revive resets once-per-life; dossier says HOW) ==="
+run_suite sim/revive-and-record.js
+
+echo ""
 if [ "$FAIL" -ne 0 ]; then
   echo "❌ TESTS FAILED — see suites above."
   exit 1

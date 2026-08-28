@@ -1231,7 +1231,7 @@ const CARD_ABILITIES = {
       const stripeDef = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(d => d.name === 'Stripe') : null;
       if (stripeDef) {
         const stripe = G.createCardInstance(stripeDef, self.owner);
-        if (G.addToHand(self.owner, stripe, self) !== false) {
+        if (G.addToHand(self.owner, stripe, self, null, 'Spawned by Gizmo') !== false) {
           G.log(`  [GIZMO] Stripe joins your hand.`);
         }
       }
@@ -2155,7 +2155,7 @@ const CARD_ABILITIES = {
         } else {
           card = oppDead.splice(idx - ownDead.length, 1)[0];
         }
-        G.addToHand(self.owner, G.createCardInstance(card, self.owner), self);
+        G.addToHand(self.owner, G.createCardInstance(card, self.owner), self, null, 'Scavenged from the Dead Pile');
         G.log(`Solomon Grundy's death draws ${card.name} from the dead pile!`);
       }
     }
@@ -2930,7 +2930,7 @@ const CARD_ABILITIES = {
         const sIdx = victimHand.indexOf(stolen);
         if (sIdx >= 0) victimHand.splice(sIdx, 1);
         stolen.owner = self.owner;
-        G.addToHand(self.owner, stolen, self);
+        G.addToHand(self.owner, stolen, self, null, 'Stolen by Deadpool');
         G.log(`Deadpool steals ${stolen.name} from the enemy's hand!`);
         if (skipGiveBack) { G.log(`Deadpool keeps ${stolen.name} — no trade!`); showVictimToast(stolen.name, null); if (dpIs2v2 && G._2v2OnlineBroadcast) { try { G._2v2OnlineBroadcast(); } catch (e) {} } return; }
         const givePool = ownerHand().filter(c => c.id !== stolen.id);
@@ -2940,7 +2940,7 @@ const CARD_ABILITIES = {
         const gIdx = gHand.indexOf(given);
         if (gIdx >= 0) gHand.splice(gIdx, 1);
         given.owner = opp;
-        G.addToHand(opp, given);
+        G.addToHand(opp, given, null, null, 'Slipped in by Deadpool');
         G.log(`Deadpool slips ${given.name} into the enemy's hand!`);
         showVictimToast(stolen.name, given.name);
         if (dpIs2v2 && G._2v2OnlineBroadcast) { try { G._2v2OnlineBroadcast(); } catch (e) {} }
@@ -2952,7 +2952,7 @@ const CARD_ABILITIES = {
           const idx = G.state[opp].hand.indexOf(stolen);
           if (idx >= 0) G.state[opp].hand.splice(idx, 1);
           stolen.owner = self.owner;
-          G.addToHand(self.owner, stolen, self);
+          G.addToHand(self.owner, stolen, self, null, 'Stolen by Deadpool');
           G.log(`Deadpool steals ${stolen.name} from the enemy's hand!`);
 
           if (skipGiveBack) {
@@ -2977,7 +2977,7 @@ const CARD_ABILITIES = {
               const gIdx = gHand.indexOf(given);
               if (gIdx >= 0) gHand.splice(gIdx, 1);
               given.owner = opp;
-              G.addToHand(opp, given);
+              G.addToHand(opp, given, null, null, 'Slipped in by Deadpool');
               G.log(`Deadpool slips ${given.name} into the enemy's hand!`);
               showVictimToast(stolen.name, given.name);
             },
@@ -3136,7 +3136,7 @@ const CARD_ABILITIES = {
         pile.push(other);
         const card = G._applyDoomsdayDrawScaling(G.createCardInstance(pick, self.owner), self.owner);
         card.cost = Math.max(0, card.cost - 2);
-        G.addToHand(self.owner, card, self);
+        G.addToHand(self.owner, card, self, null, 'Chosen by Paul Atreides');
         G.state[self.owner]._kangSkipDraw = true;
         G.log(`Paul Atreides keeps ${card.name} (cost reduced to ${card.cost})`);
         if (card.cost <= 2) {
@@ -4102,7 +4102,7 @@ const CARD_ABILITIES = {
           : aDead.splice(idx - pDead.length, 1)[0];
         const drawn = G.createCardInstance(card, self.owner);
         drawn._drawnBy = self;
-        G.addToHand(self.owner, drawn, self);
+        G.addToHand(self.owner, drawn, self, null, 'Raised from the Dead Pile');
         G.log(`Hela's death draws ${card.name} from the dead pile!`);
       }
     }
@@ -4576,7 +4576,7 @@ const CARD_ABILITIES = {
           // so even legendary revives drop to a reasonable curve cost.
           const reviveCut = self._doomReviveDiscount || 3;
           card.cost = Math.max(0, card.cost - reviveCut);
-          G.addToHand(owner, card, self);
+          G.addToHand(owner, card, self, null, 'Revived by Dr. Doom');
           G.log(`Dr. Doom revives ${card.name} to hand! Cost permanently reduced by ${reviveCut} → ${card.cost}.`);
           summonDoombot();
         },

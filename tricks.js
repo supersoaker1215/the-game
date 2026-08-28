@@ -309,7 +309,7 @@ const TRICK_DEFS = [
         const copy = G.createCardInstance(def, owner);
         if (typeof G.applyAbilities === 'function') G.applyAbilities(copy);
         const added = (typeof G.addToHand === 'function')
-          ? G.addToHand(owner, copy)
+          ? G.addToHand(owner, copy, null, null, 'Assimilated from the enemy hand')
           : (G.state[owner].hand.push(copy), true);
         if (added !== false) {
           G.log(`Assimilate copies ${copy.name} from the opponent's hand!`);
@@ -338,7 +338,7 @@ const TRICK_DEFS = [
         // fresh instance.
         const fresh = G.createCardInstance(archived, owner);
         if (typeof G.applyAbilities === 'function') G.applyAbilities(fresh);
-        if (typeof G.addToHand === 'function') G.addToHand(owner, fresh);
+        if (typeof G.addToHand === 'function') G.addToHand(owner, fresh, null, null, 'Returned by Lazarus Pit');
         else G.state[owner].hand.push(fresh);
         G.log(`Lazarus Pit revives ${fresh.name} to your hand!`);
       }
@@ -461,7 +461,7 @@ const TRICK_DEFS = [
       G.promptCardChoice(owner, choices, "Mobius Chair — Scry", "Pick a card to add to your hand", (picked) => {
         const idx = pile.indexOf(picked);
         if (idx >= 0) pile.splice(idx, 1);
-        G.addToHand(owner, G.createCardInstance(picked, owner));
+        G.addToHand(owner, G.createCardInstance(picked, owner), null, null, 'Taken with Mobius Chair');
         G.log(`Mobius Chair reveals ${choices.map(c => c.name).join(', ')} — takes ${picked.name}!`);
       }, cards => cards.sort((a, b) => (b.baseCost || b.cost) - (a.baseCost || a.cost))[0]);
     }
@@ -677,7 +677,7 @@ const TRICK_DEFS = [
           if (_dpTt && _dpTt.online && t._2v2PlayedBy && _dpTt.players[t._2v2PlayedBy]) {
             G._2v2CurrentActingPlayer = t._2v2PlayedBy;
           }
-          G.addToHand(t.owner, fresh);
+          G.addToHand(t.owner, fresh, null, null, 'Bounced by Phantom Zone');
           if (_dpTt && _dpTt.online) G._2v2CurrentActingPlayer = _savedActor;
           G.log(`Phantom Zone bounces ${t.name}!`);
         }, cards => cards.sort((a, b) => b.cost - a.cost)[0]);
