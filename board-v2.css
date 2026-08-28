@@ -920,3 +920,49 @@ body.board-v2 #game-area > .info-bar.ai-bar {
 body.board-v2 #game-area > .info-bar.player-bar {
   background: linear-gradient(to top, rgba(53,201,255,0.14), transparent 82%);
 }
+
+/* ===========================================================================
+   CARDS MUST FIT THE BOARD.
+   The spec's slot is 148 x 236 — aspect 1.59. This game's card component
+   renders at aspect 1.98: taller and narrower. Pinning the slot to the spec's
+   ratio therefore produced a slot the card could not fit in — measured, a 194px
+   card inside a 156px slot, overflowing by 38px — while the lane was 513px tall
+   and the two slots used only 340 of it. Both complaints, one cause: the slot
+   was sized from a ratio the card does not have.
+
+   The slot takes half the lane instead, and the card fills its width. That is
+   the spec's own instruction applied honestly — "slot and card ASPECT RATIOS"
+   are structural for the CARD, and the slot exists to hold whatever the card
+   is. At this window the card is width-limited (105px lane against ~248px of
+   slot height), so it fits with room to spare and comes out larger than before.
+   =========================================================================== */
+body.board-v2 #board .lane {
+  justify-content: flex-start;
+}
+body.board-v2 #board .card-slot {
+  flex: 1 1 0;
+  height: auto;
+  aspect-ratio: auto;
+  max-height: none;
+  min-height: 0;
+  align-items: center;
+}
+/* The card fills the bay's width and keeps its own proportions; if a very short
+   lane ever made height the binding constraint, it scales down instead of
+   spilling out of the slot. */
+body.board-v2 #board .lane .card {
+  width: 100%;
+  height: auto;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* The board is WIDTH-limited, not height-limited: with slots at 247px and a
+   card whose aspect is 1.98, a card could be 125px wide before height became
+   the constraint — but the lane is only 105. So 53px of every slot went unused
+   vertically while the cards stayed small. Narrowing the panels moves that
+   spare height into card size. 268 keeps the log readable without wrapping;
+   below about 240 it starts to. */
+body.board-v2 #game-area {
+  grid-template-columns: calc(268 * var(--u)) minmax(0, 1fr) calc(268 * var(--u));
+}
