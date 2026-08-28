@@ -47038,3 +47038,26 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   .twov2-bls-btn.twov2-bls-forced,
   .twov2-ls-btn.twov2-ls-forced { animation: none; }
 }
+
+
+/* ===========================================================================
+   THE TABLE IS WAITING — not "your cards are dead".
+   A pending prompt greys every hand at the table, and it wore the same
+   grayscale(.95) brightness(.6) as a card you cannot afford. The player reads
+   that as their hand being broken, tries anyway, and the play goes through
+   (the engine queues actions taken in that window and replays them) — so the
+   hand had told them a lie they then disproved.
+   Held, not dead: the cards keep their colour and dim only slightly, with a
+   slow breath so the pause reads as temporary.
+   =========================================================================== */
+.card.unplayable.table-waiting {
+  filter: brightness(0.78) saturate(0.9) !important;
+  animation: table-waiting-breathe 2.2s ease-in-out infinite;
+}
+@keyframes table-waiting-breathe {
+  0%, 100% { filter: brightness(0.78) saturate(0.90); }
+  50%      { filter: brightness(0.90) saturate(1.00); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card.unplayable.table-waiting { animation: none; }
+}

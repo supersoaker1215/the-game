@@ -26234,6 +26234,13 @@ const UI = {
         this._DECORATION_CLASSES.forEach(c => existing.classList.remove(c));
         existing.classList.remove(
           'afford', 'unafford', 'playable', 'unplayable',
+          // table-waiting is decided fresh every render like the four above it.
+          // Left off this list it never came OFF a card: the class stuck from
+          // the frame that set it, so once any prompt had ever opened, the hand
+          // carried it for the rest of the match. Invisible while .unplayable
+          // was gone (the rule needs both), and wrong the instant a prompt of
+          // your OWN opened. Same trap the afford/playable pairs are here for.
+          'table-waiting',
           'card-draw-in', 'card-enter', 'card-exit',
           'hit-flash', 'armor-burst', 'stat-changed', 'cant-afford'
         );
@@ -26393,8 +26400,25 @@ const UI = {
         // affordability indicator must STAY live so the hand keeps
         // reading truthfully (the "always-on" contract above).
         el.classList.add('unplayable');
+        // WAITING ON SOMEBODY ELSE IS NOT THE SAME AS UNPLAYABLE.
+        //
+        // `hasPending` is "is ANY prompt open", not "is it mine". In 2v2 that
+        // means one player answering a pick greys out all four hands in the
+        // exact same chrome a card you cannot afford wears — and because the
+        // engine QUEUES an action taken during that window and replays it, the
+        // card then plays anyway. So the hand said "you cannot play this",
+        // the player played it, and it worked. (Owner: "his cards are greyed
+        // out, he can still play them but its greyed out.")
+        //
+        // The cards stay non-interactive — the table really is mid-resolution —
+        // but a distinct class says WHY, so "the table is waiting" can never
+        // again be read as "your cards are broken".
+        const _mine = Game.promptIsMine
+          ? (Game.promptIsMine(cc, 'card') && Game.promptIsMine(lc, 'lane'))
+          : true;
+        if (!_mine) el.classList.add('table-waiting');
         const pCost = this._localCardCost(card);
-        if (s.player.currency >= pCost) el.classList.add('afford');
+        if (this._localEnergy() >= pCost) el.classList.add('afford');
         else el.classList.add('unafford');
       }
       // Anti-reattach guards: only call appendChild if the child
