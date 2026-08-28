@@ -2055,6 +2055,9 @@ const CARD_ABILITIES = {
     }
   },
   "Scarlet Witch": {
+    // What she is when there is nothing to copy. Named because the AI's lane
+    // picker has to know it too — see AI._asPlacedIn. One number, two readers.
+    COPY_FALLBACK: { atk: 3, hp: 4 },
     // Hex-mirror: when she enters a lane, Scarlet Witch reads the enemy
     // directly opposite and ADOPTS their ATK and HP for this match.
     // Her base stats are 0/0 with the `copiesOpposite` flag set, which
@@ -2113,13 +2116,14 @@ const CARD_ABILITIES = {
       } else {
         // No enemy to copy — fall back to her old 3/4 fingerprint so she
         // isn't a permanent 0/0 dud when played into an empty lane.
-        self.attack = 3 + bonus;
-        self.baseAttack = 3 + bonus;
-        self.currentHealth = 4 + bonus;
-        self.maxHealth = 4 + bonus;
-        self.baseHealth = 4 + bonus;
+        const fb = CARD_ABILITIES['Scarlet Witch'].COPY_FALLBACK;
+        self.attack = fb.atk + bonus;
+        self.baseAttack = fb.atk + bonus;
+        self.currentHealth = fb.hp + bonus;
+        self.maxHealth = fb.hp + bonus;
+        self.baseHealth = fb.hp + bonus;
         self.copiesOpposite = false;
-        G.log(`Scarlet Witch finds nothing to copy — defaults to ${3 + bonus}/${4 + bonus}.`);
+        G.log(`Scarlet Witch finds nothing to copy — defaults to ${fb.atk + bonus}/${fb.hp + bonus}.`);
       }
       if (typeof UI !== 'undefined' && UI._fxScarletHex) { try { UI._fxScarletHex(self, (enemy && enemy.currentHealth > 0 && !enemy.isFaceDown) ? enemy : null); } catch (e) {} }
     }

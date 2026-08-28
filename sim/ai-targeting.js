@@ -443,6 +443,63 @@ t('AT-14 the AI only fires a free block trick that would actually land', functio
   eq('a trick with no play does not fire', Game._blockTrickWouldLand({ name: 'x' }, 'player'), false);
 });
 
+// ============================================================
+// AT-15/16/17 — a card whose stats depend on WHERE it lands.
+//
+// Scarlet Witch is 0/0 in hand with `copiesOpposite` and adopts the ATK/HP of
+// the enemy opposite whichever lane she is played into. The lane picker scored
+// the literal 0/0: she could never kill, never survive and never deal face
+// damage, so every contested lane came back NEGATIVE and she was pushed into an
+// empty one — the single placement that throws the card away for a 3/4.
+// (Owner: "the scarlet witch should go to the enemy with the most stats.")
+// ============================================================
+t('AT-15 the witch takes the most STATS, not the most attack', function () {
+  clearBoard();
+  var loud = mk('Sabertooth', 'player'); loud.attack = 6; loud.currentHealth = 2; //  8
+  var fat  = mk('Droideka', 'player');   fat.attack  = 4; fat.currentHealth  = 9; // 13
+  var mid  = mk('Sabertooth', 'player'); mid.attack  = 4; mid.currentHealth  = 4; //  8
+  Game.state.lanes[1].player = loud;     // scariest, and the old pick
+  Game.state.lanes[3].player = fat;      // the body actually worth having
+  Game.state.lanes[5].player = mid;
+
+  var witch = mk('Scarlet Witch', 'ai');
+  eq('she carries no attack of her own', witch.attack || 0, 0);
+  eq('and is flagged as a copier', !!witch.copiesOpposite, true);
+  // The only per-lane signal used to be threatScore, and threat is essentially
+  // ATK — so the 6/2 won and she came in a 6/2. Half her body was invisible.
+  eq('lane chosen', AI.chooseLane(witch, 'ai'), 3);
+});
+
+t('AT-16 she will not copy something worse than her own default', function () {
+  clearBoard();
+  var runt = mk('Sabertooth', 'player'); runt.attack = 2; runt.currentHealth = 1;
+  Game.state.lanes[2].player = runt;
+  // Opposite a 2/1 she IS a 2/1. With nothing to copy she is a 3/4, so every
+  // open lane is a better card than the only contested one — the blocking
+  // terms alone used to send her into the runt anyway.
+  var witch = mk('Scarlet Witch', 'ai');
+  eq('takes the 3/4 instead', AI.chooseLane(witch, 'ai') !== 2, true);
+});
+
+t('AT-17 a face-down card cannot be copied, so it is not a target', function () {
+  clearBoard();
+  var hidden = mk('Droideka', 'player'); hidden.attack = 6; hidden.currentHealth = 7;
+  hidden.isFaceDown = true;              // Invisible Woman's promise
+  var seen = mk('Sabertooth', 'player'); seen.attack = 5; seen.currentHealth = 5;
+  Game.state.lanes[0].player = hidden;
+  Game.state.lanes[4].player = seen;
+
+  var witch = mk('Scarlet Witch', 'ai');
+  // The ability refuses to read a face-down card (she would land 3/4 there), so
+  // the picker must not rate that lane as if it held a 6/7.
+  eq('takes the enemy it can actually read', AI.chooseLane(witch, 'ai'), 4);
+  // And the effective-body helper agrees with the ability, not with the object.
+  var asHidden = AI._asPlacedIn(witch, 0, 'ai');
+  eq('hidden lane scores as the fallback', asHidden.attack + '/' + asHidden.currentHealth, '3/4');
+  var asSeen = AI._asPlacedIn(witch, 4, 'ai');
+  eq('readable lane scores as the copy', asSeen.attack + '/' + asSeen.currentHealth, '5/5');
+});
+
 // ---- run ----------------------------------------------------
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];

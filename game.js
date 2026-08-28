@@ -8457,13 +8457,26 @@ const Game = {
           const team = owner === 'player' ? 'A' : 'B';
           const queue = [];
           this._2v2BlockTrickOrder(team).forEach(pk => {
+            this._2v2RefillTrickPile();          // a block always pays both seats
             if (tt.trickDrawPile.length > 0) {
               const def = tt.trickDrawPile.pop();
               queue.push({ seat: pk, trick: { ...def, id: nextCardId++, _blockRound: this.state.round } });
               this.log(`  [BLOCK DRAW] ${tt.players[pk].name} earns ${def.name}.`);
             }
           });
-          this.state._2v2BlockQueue = queue;
+          // APPEND — NEVER REPLACE.
+          //
+          // This was a plain assignment, and combat resolves lane by lane: both
+          // teams can reach a full meter in the SAME combat, and one team can
+          // reach it twice. The second block then dropped the array the first
+          // one was still working through — so a teammate who had not been
+          // offered their trick yet never was, and the two cards already popped
+          // off the shared pile were gone. Nothing logged it, because from the
+          // engine's side nothing failed.
+          // (Owner: "the tricks being drawn in 2v2 is still not working all the
+          // time, it's like it passes through the system and sometimes doesn't
+          // happen immediately.")
+          this.state._2v2BlockQueue = (this.state._2v2BlockQueue || []).concat(queue);
           this._2v2NextBlockTrick();
           return;
         }
@@ -15559,6 +15572,28 @@ const Game = {
     try { return !!trick.canPlay(this, side); } catch (e) { return false; }
   },
 
+  // A BLOCK ALWAYS PAYS BOTH TEAMMATES.
+  //
+  // tt.trickDrawPile is dealt once at setup and never refilled — 31 tricks, two
+  // consumed per block, both teams drawing from the same pile. A long match runs
+  // it dry, and the draw loop just skipped a seat when it did: silently, no log
+  // line, no offer. One teammate got a trick and the other got nothing, which is
+  // indistinguishable from the queue bug above and shows up in the same games.
+  // (Owner: "2 tricks should be drawn, 1 for each teammate, its so simple.")
+  //
+  // Tricks are already non-unique in this mode — the opening deal reads the pool
+  // by index without removing — so a fresh shuffle is the distribution the table
+  // started with, not a new rule.
+  _2v2RefillTrickPile() {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt) return;
+    if (tt.trickDrawPile && tt.trickDrawPile.length) return;
+    const all = (typeof TRICK_DEFS !== 'undefined' ? TRICK_DEFS : []).slice();
+    if (!all.length) return;
+    tt.trickDrawPile = this.shuffle(all);
+    this.log('  [TRICK PILE] Reshuffled — the block reward never skips a teammate.');
+  },
+
   _blockTrickStale(trick) {
     return !!(trick && trick._blockRound != null && trick._blockRound !== this.state.round);
   },
@@ -15567,6 +15602,15 @@ const Game = {
     // that walks the queue shifts entries off its own copy and arms prompts the
     // host is about to overwrite.
     if (this._2v2IsAIAuthority && !this._2v2IsAIAuthority()) return;
+    // AN OFFER IS ALREADY ON SCREEN — LEAVE IT THERE.
+    //
+    // The pair above (a second block landing mid-queue) called straight into
+    // here while a teammate was still looking at their modal. This shift()ed
+    // the next entry and overwrote state.pendingBlockTrick underneath them:
+    // the card they were deciding on was swapped for a different one, or
+    // vanished as the queue moved past it. Whoever resolves the live offer
+    // calls back in — that is the only thing that should advance the queue.
+    if (this.state.pendingBlockTrick) return;
     const q = this.state._2v2BlockQueue;
     if (!q || !q.length) {
       this.state._2v2BlockQueue = null;

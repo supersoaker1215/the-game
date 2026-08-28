@@ -211,6 +211,81 @@ t('L2-7 local pass-and-play still counts as the authority', function () {
   eq('local play drives its own queue', Game._2v2IsAIAuthority(), true);
 });
 
+// ============================================================
+// L2-8 — A SECOND BLOCK MUST NOT EAT THE FIRST ONE'S QUEUE.
+//
+// Combat resolves lane by lane, so both teams can fill a meter in the same
+// combat (and one team can fill it twice). The queue was ASSIGNED, so the
+// second block threw away whatever the first was still working through — a
+// teammate who had not been offered their trick yet never was, and the card
+// already popped off the shared pile was gone. The same call then re-entered
+// the drain over a live modal and overwrote the offer being decided on.
+// (Owner: "the tricks being drawn in 2v2 is still not working all the time,
+// its like it passe sthrough the syetm and sometimes doenst haoppen
+// immediatly ... its so simple")
+// ============================================================
+t('L2-8 a second block queues behind the first instead of erasing it', function () {
+  var tt = table(false);                 // local host = the authority
+  Game.state.phase = '2v2-combat';
+  Game.state.pendingBlockTrick = null;
+  Game.state._2v2BlockQueue = null;
+  Game.state.log = [];
+  var pile0 = tt.trickDrawPile.length;
+  // The engine decides which teammate is offered first (the seat that plays
+  // cards+tricks this round, then the seat that plays tricks before combat) —
+  // read it rather than assuming, so this pins the QUEUE, not the order.
+  var order = Game._2v2BlockTrickOrder('A');
+
+  // Team A (p1 + p3, both human) blocks. The first offer arms a modal and the
+  // queue PAUSES there with the other seat's entry still in it.
+  Game.state[Game._2v2TeamSide['A']].blockMeter = Game.BLOCK_MAX - 1;
+  Game.damagePlayer(Game._2v2TeamSide['A'], 3, false, null);
+  var firstOffer = Game.state.pendingBlockTrick;
+  eq('an offer is up', !!firstOffer, true);
+  eq('routed to the first seat', firstOffer._2v2Seat, order[0]);
+  eq('one teammate still waiting', (Game.state._2v2BlockQueue || []).length, 1);
+
+  // Now team B blocks, mid-decision.
+  Game.state[Game._2v2TeamSide['B']].blockMeter = Game.BLOCK_MAX - 1;
+  Game.damagePlayer(Game._2v2TeamSide['B'], 3, false, null);
+
+  eq('the live offer is untouched', Game.state.pendingBlockTrick, firstOffer);
+  eq('the teammate is still owed a trick, and B is queued behind',
+     (Game.state._2v2BlockQueue || []).length, 3);
+  eq('four cards left the pile, one per teammate', pile0 - tt.trickDrawPile.length, 4);
+
+  // The first seat answers: the queue advances to their TEAMMATE, not past them.
+  Game._2v2ResolveBlockTrick(order[0], firstOffer, false);
+  eq('now it is the teammate\'s turn', (Game.state.pendingBlockTrick || {})._2v2Seat, order[1]);
+
+  // And once they answer, both AI seats on team B resolve themselves.
+  Game._2v2ResolveBlockTrick(order[1], Game.state.pendingBlockTrick, false);
+  eq('queue drained', (Game.state._2v2BlockQueue || []).length, 0);
+  eq('no offer left hanging', Game.state.pendingBlockTrick, null);
+});
+
+// ============================================================
+// L2-9 — the pile running dry is not an excuse to skip a teammate.
+// ============================================================
+t('L2-9 both teammates are paid even when the trick pile runs out', function () {
+  var tt = table(false);
+  Game.state.phase = '2v2-combat';
+  Game.state.pendingBlockTrick = null;
+  Game.state._2v2BlockQueue = null;
+  Game.state.log = [];
+  tt.trickDrawPile = [{ name: 'LastOne', cost: 3, desc: 'x' }];   // one card left
+
+  Game.state[Game._2v2TeamSide['A']].blockMeter = Game.BLOCK_MAX - 1;
+  Game.damagePlayer(Game._2v2TeamSide['A'], 3, false, null);
+
+  var drew = 0;
+  (Game.state.log || []).forEach(function (l) { if (/BLOCK DRAW/.test(l)) drew++; });
+  eq('two draws logged, not one', drew, 2);
+  // One offered now, one still queued behind it.
+  eq('an offer is up', !!Game.state.pendingBlockTrick, true);
+  eq('the teammate is queued', (Game.state._2v2BlockQueue || []).length, 1);
+});
+
 // ---- run ----------------------------------------------------
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];

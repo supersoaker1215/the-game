@@ -1172,6 +1172,42 @@ const AI = {
     return best;
   },
 
+  // WHAT WILL THIS CARD ACTUALLY BE, ONCE IT LANDS IN *THIS* LANE?
+  //
+  // Almost every card is the same body wherever it goes, so the lane picker
+  // scores the hand card directly. Scarlet Witch is not: she sits in hand as a
+  // 0/0 carrying `copiesOpposite`, and ADOPTS the ATK and HP of whoever stands
+  // opposite the lane she is played into.
+  //
+  // Scored as the literal 0/0, she can never kill, never survive and never deal
+  // face damage — so every contested lane came back negative (-2 for "dies
+  // without killing") and the picker shoved her into an EMPTY one, which is the
+  // single placement that throws the ability away for a 3/4. The bot was not
+  // picking a bad target; it was actively avoiding all of them.
+  // (Owner: "the scarlet witch should go to the enemy with the most stats.")
+  //
+  // Hand the scorer the body she will HAVE, and every existing consideration —
+  // threat, trade maths, survival, lethal — reads true with no special cases.
+  // A face-down card cannot be copied (the ability refuses to read one, so the
+  // hidden-card promise holds), so such a lane scores as the fallback.
+  _asPlacedIn(card, laneIdx, owner) {
+    if (!card || !card.copiesOpposite) return card;
+    const AB = (typeof CARD_ABILITIES !== 'undefined' && CARD_ABILITIES['Scarlet Witch']) || null;
+    const fb = (AB && AB.COPY_FALLBACK) || { atk: 3, hp: 4 };
+    const bonus = card._witchHexBonus || 0;
+    const l = Game.state.lanes[laneIdx];
+    const foe = l ? l[Game.opponent(owner)] : null;
+    const canCopy = foe && foe.currentHealth > 0 && !foe.isFaceDown;
+    const atk = (canCopy ? (foe.attack || 0) : fb.atk) + bonus;
+    const hp  = (canCopy ? (foe.currentHealth || foe.maxHealth || 1) : fb.hp) + bonus;
+    // Prototype proxy: every other trait (keywords, cost, armor, owner) still
+    // reads through, only the stat line is overridden. Nothing mutates it.
+    const proxy = Object.create(card);
+    proxy.attack = atk; proxy.baseAttack = atk;
+    proxy.currentHealth = hp; proxy.maxHealth = hp;
+    return proxy;
+  },
+
   chooseLane(card, owner = 'ai') {
     const s = Game.state;
     const opp = Game.opponent(owner);
@@ -1200,10 +1236,32 @@ const AI = {
     const useLookahead = _diff !== 'easy' && _effLa > 0;
     const leaks = team ? this._2v2UnansweredLanes(owner) : [];
 
+    const baseCard = card;
     const scores = open.map(l => {
       const lane = s.lanes[l];
       const enemy = lane[opp];
+      // See _asPlacedIn. For a copier this is a DIFFERENT body in every lane,
+      // which is the whole reason the lane matters.
+      const card = this._asPlacedIn(baseCard, l, owner);
       let score = 0;
+
+      // THE BODY ITSELF IS THE DECISION HERE.
+      //
+      // For every other card the stat line is identical in all six lanes, so it
+      // cancels out and the scorer rightly never prices it — which is why there
+      // is no body term anywhere else in this function. For a copier it is the
+      // ENTIRE choice, and the old ranking was blind to half of it: the only
+      // per-lane signal was threatScore, and threat is essentially ATK. So a
+      // 6/2 outranked a 4/9 and she copied the smaller card. Landing on 13
+      // stats instead of 8 outlives whatever trades this turn.
+      //
+      // Weighted to dominate rather than nudge, because "become the biggest
+      // thing you can" IS the card, and the surrounding terms (a +6 kill on a
+      // mirror is a mutual trade, not a win) should only break ties. It stays
+      // well under the +100 lethal push, which still outranks everything.
+      if (baseCard.copiesOpposite) {
+        score += ((card.attack || 0) + (card.currentHealth || 0)) * 3;
+      }
 
       // Some enemies vacate their lane before combat (Man-Bat's recurring
       // onBeforeTricks move-and-debuff). Contesting those lanes provides
