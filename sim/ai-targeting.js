@@ -255,6 +255,64 @@ t('AT-7 Kryptonite lands on the card that will actually hit us', function () {
   eq('and the small one is untouched',  small.attack, 1);
 });
 
+// ============================================================
+// AT-8 / AT-9 — OPTIMUS SPENDS THE FREE SWING WHERE IT CHANGES SOMETHING.
+//
+// Both of his picks were `[0]`: the first adjacent ally, and the enemy OPPOSITE
+// him if alive. On the reported board that sent Green Goblin into a 3/1 The
+// Thing — which Optimus himself, at 4 ATK, was going to kill in the very next
+// combat anyway — while a 3/6 Solomon Grundy stood untouched beside them.
+// (Owner: "he had GG attack the thing … he should have had GG attack solomon
+// grundy so they can trade. optimus was already going to win the trade vs the
+// thing.")
+// ============================================================
+function optimusBoard() {
+  clearBoard();
+  Game.state.ai.isHuman = false;
+  var gg     = mk('Green Goblin', 'ai');     gg.attack = 3; gg.currentHealth = 3;
+  var thing  = mk('The Thing', 'player');    thing.attack = 3; thing.currentHealth = 1;
+  var grundy = mk('Solomon Grundy', 'player'); grundy.attack = 3; grundy.currentHealth = 6; grundy.maxHealth = 6;
+  var opt    = mk('Optimus Prime', 'ai');    opt.attack = 4; opt.currentHealth = 4;
+  Game.state.lanes[3].ai = gg;
+  Game.state.lanes[4].player = thing;        // opposite Optimus, already doomed to him
+  Game.state.lanes[3].player = grundy;       // opposite Green Goblin, survives
+  Game.state.lanes[4].ai = opt;
+  return { gg: gg, thing: thing, grundy: grundy, opt: opt };
+}
+
+t('AT-8 a target our own body is already killing is worth almost nothing', function () {
+  var b = optimusBoard();
+  var AB = CARD_ABILITIES['Optimus Prime'];
+  var doomed = AB._targetScore(Game, b.opt, b.gg, b.thing);
+  var live   = AB._targetScore(Game, b.opt, b.gg, b.grundy);
+  eq('the doomed one scores low', doomed < 50, true);
+  eq('the live one scores higher', live > doomed, true);
+});
+
+t('AT-9 so Optimus sends the swing at the card that survives otherwise', function () {
+  var b = optimusBoard();
+  CARD_ABILITIES['Optimus Prime'].onPlay(Game, b.opt, 4);
+  eq('The Thing is left for Optimus', b.thing.currentHealth, 1);
+  eq('Grundy took the free swing',    b.grundy.currentHealth, 3);
+
+  // And a free swing that lands a kill nothing else was getting still wins.
+  clearBoard();
+  Game.state.ai.isHuman = false;
+  var ally  = mk('Green Goblin', 'ai');  ally.attack = 3; ally.currentHealth = 3;
+  var opt2  = mk('Optimus Prime', 'ai'); opt2.attack = 1; opt2.currentHealth = 4;
+  // Sabertooth, not The Thing — The Thing carries Armor 2, and a target whose
+  // armour eats the swing is a different test than the one intended here.
+  var frail = mk('Sabertooth', 'player'); frail.attack = 1; frail.currentHealth = 2;  // 1 ATK Optimus cannot finish it
+  var fat   = mk('Solomon Grundy', 'player'); fat.attack = 1; fat.currentHealth = 9; fat.maxHealth = 9;
+  Game.state.lanes[3].ai = ally;
+  Game.state.lanes[4].ai = opt2;
+  Game.state.lanes[4].player = frail;
+  Game.state.lanes[3].player = fat;
+  CARD_ABILITIES['Optimus Prime'].onPlay(Game, opt2, 4);
+  eq('it took the kill it could actually land', frail.currentHealth <= 0, true);
+  eq('and left the one it could not dent',      fat.currentHealth, 9);
+});
+
 // ---- run ----------------------------------------------------
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];

@@ -3275,6 +3275,76 @@ const CARD_ABILITIES = {
     }
   },
   "Optimus Prime": {
+    // DO NOT SPEND THE FREE SWING ON SOMETHING ALREADY DYING.
+    //
+    // Both picks used to be `[0]`: the first adjacent ally, and the enemy
+    // OPPOSITE Optimus if it was alive. On the reported board that sent Green
+    // Goblin into a 3/1 The Thing — which Optimus himself, at 4 ATK, was going
+    // to kill in the very next combat anyway — while a 3/6 Solomon Grundy stood
+    // untouched beside them. (Owner: "he had GG attack the thing, not the right
+    // play, he should have had GG attack solomon grundy so they can trade.
+    // optimus was already going to win the trade vs the thing.")
+    //
+    // A free attack is worth what it CHANGES. So each candidate is scored by
+    // that, not by where it happens to stand:
+    //   • a kill this swing lands that would NOT have happened otherwise: best
+    //   • a kill on something our own body was already going to finish: nearly
+    //     worthless, and it is exactly what the old `[0]` kept choosing
+    //   • no kill: chip the biggest real threat (Game.threatOf, so a feared
+    //     enemy hurting itself is not treated as a target)
+    _targetScore(G, self, ally, t) {
+      if (!t || t.currentHealth <= 0) return -1;
+      const tl = G.findCardLane(t);
+      const facing = tl >= 0 && G.state.lanes[tl] ? G.state.lanes[tl][self.owner] : null;
+      // ARMOR COUNTS. A raw `attack >= currentHealth` reads a 3-ATK swing as
+      // lethal against The Thing's 1 remaining HP — but Armor 2 turns that
+      // swing into 1 damage and he lives. Scoring a kill that cannot happen is
+      // how a "best play" becomes a wasted one. (Caught by AT-9 before it
+      // shipped.)
+      const effective = (atkr) => Math.max(0, (atkr && atkr.attack || 0) - (t.armorValue || 0));
+      // Is one of OUR bodies already positioned to finish it this combat?
+      const alreadyDoomed = !!(facing && facing.currentHealth > 0
+                               && effective(facing) >= t.currentHealth);
+      const kills = effective(ally) >= t.currentHealth;
+      if (kills && !alreadyDoomed) return 1000 + (t.attack || 0);
+      if (kills && alreadyDoomed)  return 10;               // it was dying anyway
+      const threat = (G.threatOf ? G.threatOf(t, self.owner) : (t.attack || 0));
+      return 100 + threat;
+    },
+    _bestTarget(G, self, ally, targets) {
+      if (!targets || !targets.length) return null;
+      const AB = CARD_ABILITIES['Optimus Prime'];
+      let best = targets[0], bs = AB._targetScore(G, self, ally, targets[0]);
+      for (let i = 1; i < targets.length; i++) {
+        const s2 = AB._targetScore(G, self, ally, targets[i]);
+        if (s2 > bs) { best = targets[i]; bs = s2; }
+      }
+      return best;
+    },
+    // And WHICH ally is commanded follows from that: take the one whose best
+    // available swing is worth the most.
+    _bestAlly(G, self, lane, allies) {
+      if (!allies || !allies.length) return null;
+      const AB = CARD_ABILITIES['Optimus Prime'];
+      const opp = G.opponent(self.owner);
+      const targetsFor = () => {
+        const out = [];
+        const o = G.state.lanes[lane] ? G.state.lanes[lane][opp] : null;
+        if (o && o.currentHealth > 0) out.push(o);
+        G.getAdjacentEnemiesInContext(lane, self.owner)
+          .forEach(e => { if (e.currentHealth > 0 && out.indexOf(e) < 0) out.push(e); });
+        return out;
+      };
+      const ts = targetsFor();
+      if (!ts.length) return allies[0];
+      let best = allies[0], bs = -1;
+      allies.forEach((a) => {
+        let s2 = -1;
+        ts.forEach((t) => { s2 = Math.max(s2, AB._targetScore(G, self, a, t)); });
+        if (s2 > bs) { best = a; bs = s2; }
+      });
+      return best;
+    },
     onPlay(G, self, lane) {
       const own = self.owner;
       const adj = [];
@@ -3324,10 +3394,11 @@ const CARD_ABILITIES = {
             G.promptCardChoice(self.owner, targets, "Optimus — Target", `Choose enemy for ${ally.name} to attack`, (target) => {
               chainAttack(ally, target);
               G.log(`Optimus commands ${ally.name} to attack ${target.name} for ${ally.attack}!`);
-            });
+            }, (cs) => CARD_ABILITIES['Optimus Prime']._bestTarget(G, self, ally, cs));
           } else if (targets.length) {
-            chainAttack(ally, targets[0]);
-            G.log(`Optimus commands ${ally.name} to attack ${targets[0].name} for ${ally.attack}!`);
+            const pick = CARD_ABILITIES['Optimus Prime']._bestTarget(G, self, ally, targets) || targets[0];
+            chainAttack(ally, pick);
+            G.log(`Optimus commands ${ally.name} to attack ${pick.name} for ${ally.attack}!`);
           }
         };
         // Roguelite Text+ override — _optimusCommandsBoth makes him
@@ -3338,9 +3409,10 @@ const CARD_ABILITIES = {
         if (self._optimusCommandsBoth) {
           adj.forEach(ally => doAttack(ally));
         } else if (Game.isHuman(self.owner)) {
-          G.promptCardChoice(self.owner, adj, "Optimus — Choose Ally", "Choose adjacent ally to command", doAttack);
+          G.promptCardChoice(self.owner, adj, "Optimus — Choose Ally", "Choose adjacent ally to command", doAttack,
+            (cs) => CARD_ABILITIES['Optimus Prime']._bestAlly(G, self, lane, cs));
         } else {
-          doAttack(adj[0]);
+          doAttack(CARD_ABILITIES['Optimus Prime']._bestAlly(G, self, lane, adj) || adj[0]);
         }
       }
     }

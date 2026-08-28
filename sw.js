@@ -13,7 +13,7 @@
 // refreshes code and leaves the assets alone.
 //   CODE_CACHE  — bumped on every deploy (that's the point: fresh code).
 //   ASSET_CACHE — bumped ONLY when the art/audio themselves change.
-const CACHE_VERSION = 'clb-v612-threat-is-not-raw-attack';
+const CACHE_VERSION = 'clb-v613-optimus-spends-the-swing-where-it-counts';
 const CODE_CACHE  = CACHE_VERSION;
 const ASSET_CACHE = 'clb-assets-v1';
 const APP_SHELL = [
