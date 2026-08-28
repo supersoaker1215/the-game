@@ -1215,3 +1215,36 @@ body.board-v2 #game-area > .info-bar.ai-bar::before {
     rgba(255,138,31,0.05) 45%,
     rgba(255,138,31,0.00) 100%);
 }
+
+/* ===========================================================================
+   THE RAIL IS THE EMITTER. Deleting it outright was wrong — a wash needs a
+   source, otherwise it is a haze with no origin. It goes back on the edge each
+   gradient flows FROM, which is the board-facing edge on both sides: the TOP of
+   your band, where your light starts before falling through the hand, and the
+   BOTTOM of theirs, where theirs starts before rising past the top strip.
+   Nothing sits at the far edge of either band, so the wash still fades out into
+   nothing rather than ending on a line.
+   =========================================================================== */
+body.board-v2 #game-area > .info-bar::after {
+  display: block !important;
+  content: '' !important;
+  position: absolute;
+  left: 0; right: 0;
+  height: 2px;
+  z-index: 3;
+  pointer-events: none;
+}
+body.board-v2 #game-area > .info-bar.player-bar::after {
+  top: 0; bottom: auto;
+  background: linear-gradient(to right,
+    rgba(53,201,255,0) 0%, rgba(53,201,255,1) 12%,
+    rgba(53,201,255,1) 88%, rgba(53,201,255,0) 100%);
+  box-shadow: 0 0 5px rgba(53,201,255,0.70), 0 0 13px rgba(53,201,255,0.34);
+}
+body.board-v2 #game-area > .info-bar.ai-bar::after {
+  bottom: 0; top: auto;
+  background: linear-gradient(to right,
+    rgba(255,138,31,0) 0%, rgba(255,138,31,1) 12%,
+    rgba(255,138,31,1) 88%, rgba(255,138,31,0) 100%);
+  box-shadow: 0 0 5px rgba(255,138,31,0.70), 0 0 13px rgba(255,138,31,0.34);
+}
