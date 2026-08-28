@@ -805,6 +805,49 @@ const AI = {
       });
     }
 
+    // A CARD THAT GROWS FROM LATER PLAYS BELONGS BEFORE THEM.
+    //
+    // Xenomorph is "+1/+1 each time any other card enters the board". At cost 2
+    // under the most-expensive-first rule he was always the LAST thing played,
+    // so he grew by exactly nothing and went to combat as a 0/1. (Owner: "the ai
+    // always plays xenomorph last — if that card is going to be played it always
+    // is played 1st.") It is not only him: every While-Active that answers an
+    // ENTRY only ever reaches the bodies that land after it — Juggernaut's
+    // adjacent Immunity, Poison Ivy's charm, Luke's and Dr. Strange's auras. So
+    // the rule is derived from the card's own hook rather than a name list, and
+    // a new card with the same shape is covered the day it is added.
+    //
+    // BUT PLAY ORDER IS THE DIFFICULTY LEVER — most-expensive-first is worth
+    // +6.3pp head to head precisely because cheapest-first strands the AI's best
+    // body on 34.6% of turns. So a reactive card jumps the queue ONLY when
+    // paying for it still leaves enough energy for the dearest card behind it.
+    // It goes first when that is free, and waits when going first would cost the
+    // AI its big play. Nothing is dropped either way; this only reorders.
+    const _reactsToEntry = (c) => !!(c && c.onAnyCardPlayed && !c.isEnvironment);
+    if (remaining.some(_reactsToEntry)) {
+      const _budget = spendable();
+      const _lift = [];
+      remaining.forEach((c) => {
+        if (!_reactsToEntry(c)) return;
+        const own = Game.getCardCost(owner, c) || 0;
+        // The most expensive OTHER card still waiting — the one the desc order
+        // exists to protect.
+        let dearest = 0;
+        remaining.forEach((o) => {
+          if (o === c || _lift.indexOf(o) >= 0) return;
+          dearest = Math.max(dearest, Game.getCardCost(owner, o) || 0);
+        });
+        if (own + dearest <= _budget) _lift.push(c);
+      });
+      // Stable lift: pull them out in place, then put them back at the front in
+      // the order the sort above already settled on.
+      _lift.forEach((c) => {
+        const i = remaining.indexOf(c);
+        if (i >= 0) remaining.splice(i, 1);
+      });
+      for (let i = _lift.length - 1; i >= 0; i--) remaining.unshift(_lift[i]);
+    }
+
     for (const cardRef of remaining) {
       queue.push(() => {
         // Recheck the card is still in hand (another play in this turn

@@ -150,6 +150,58 @@ t('AT-3 Gojo offers a cone lane first, whoever owns him', function () {
   });
 });
 
+// ============================================================
+// AT-4 / AT-5 — PLAY ORDER.
+//
+// Owner: "the ai always plays xenomorph last — if that card is going to be
+// played it always is played 1st."
+//
+// Xenomorph is "+1/+1 each time any other card enters the board", and he costs
+// 2. The AI plays most-expensive-first, so he was always LAST and grew by
+// nothing — a 0/1 walking into combat. The same is true of every While-Active
+// that answers an ENTRY (Juggernaut's adjacent Immunity, Poison Ivy's charm,
+// Luke's and Dr. Strange's auras): they only ever reach the bodies that land
+// after them. The rule reads the card's own onAnyCardPlayed hook rather than a
+// list of names, so a new card of that shape is covered on the day it is added.
+//
+// AT-5 is the guard rail. Most-expensive-first is worth +6.3pp head to head
+// because cheapest-first strands the AI's best body on a third of turns, so the
+// jump has to be conditional: a reactive card goes first only when paying for
+// it still leaves enough for the dearest card behind it.
+// ============================================================
+function playOrder(energy, names) {
+  Game.init();
+  for (var i = 0; i < Game.LANE_COUNT; i++) { Game.state.lanes[i].player = null; Game.state.lanes[i].ai = null; }
+  Game.state.phase = 'ai-cards';
+  Game.state.ai.currency = energy;
+  Game.state.ai.hand = names.map(function (n) { return mk(n, 'ai'); });
+  var order = [];
+  var real = Game.playCard;
+  Game.playCard = function (o, c, l) { order.push(c.name); return real.call(Game, o, c, l); };
+  try { AI.playCards('ai'); } catch (e) {}
+  Game.playCard = real;
+  return order;
+}
+
+t('AT-4 a card that grows from later plays is played before them', function () {
+  var order = playOrder(12, ['Xenomorph', 'Hulk', 'Gizmo']);
+  eq('it played several cards', order.length >= 2, true);
+  eq('Xenomorph led', order[0], 'Xenomorph');
+  // And he actually grew from the ones that followed.
+  var x = null;
+  Game.getAllCardsOf('ai').forEach(function (c) { if (c.name === 'Xenomorph') x = c; });
+  eq('he is on the board', !!x, true);
+  if (x) eq('and he is bigger than his printed 0/1', x.attack > 0, true);
+});
+
+t('AT-5 but not when going first would strand the best body', function () {
+  // Hulk costs 7 and the budget is 7: leading with the 2-drop leaves 5 and the
+  // big body never lands. The desc rule has to win here.
+  var order = playOrder(7, ['Xenomorph', 'Hulk']);
+  eq('the big body was played', order.indexOf('Hulk') >= 0, true);
+  eq('and it was not sacrificed to the 2-drop', order[0], 'Hulk');
+});
+
 // ---- run ----------------------------------------------------
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];
