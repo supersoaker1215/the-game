@@ -254,6 +254,21 @@ const BoardV2 = {
     flag.classList.toggle('is-mine', mine);
   },
 
+  // BOARD-SPEC FIX 3, second half: "No minus sign. The arrow carries direction
+  // and the colour carries who is dealing; `-3` on top of a down-arrow says the
+  // same thing twice and reads as a negative number."
+  // The engine writes the signed figure; the arrow is added in CSS. So the sign
+  // is stripped for DISPLAY only — the element's own text is what changes, never
+  // the value the engine computed.
+  _stripForecastSigns() {
+    const cells = document.querySelectorAll('#lane-forecast-strip .lf-face');
+    cells.forEach(el => {
+      const t = (el.textContent || '');
+      const clean = t.replace(/^[\u2212\-+]/, '');
+      if (clean !== t) el.textContent = clean;
+    });
+  },
+
   // Called from UI.render's tail. Returns immediately when off, so the original
   // board pays nothing for this existing.
   render(s) {
@@ -265,6 +280,7 @@ const BoardV2 = {
       this._renderSeats(s);
       this._renderCounts(s);
       this._renderBandExtras(s);
+      this._stripForecastSigns();
     } catch (e) { console.error('[BoardV2] render', e); }
   },
 };

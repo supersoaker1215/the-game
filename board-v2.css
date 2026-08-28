@@ -737,3 +737,91 @@ body.board-v2 .bv2-turnflag.is-mine {
   color: var(--atk);
   text-shadow: 0 0 6px rgba(61,255,158,.45);
 }
+
+/* ===========================================================================
+   BOARD-SPEC FIX 1 — delete the giant lane numbers.
+   "Three copies of the same number per lane is the single biggest source of
+   visual noise on the screen, and the ghost digits also sit INSIDE the drop
+   target, so they compete with the drop affordance. Keep only the 22x22 badge
+   in the midline row."
+   =========================================================================== */
+body.board-v2 #board .card-slot .empty-lane-glyph { display: none !important; }
+
+/* ===========================================================================
+   BOARD-SPEC FIX 2 — hand affordability is OPACITY, nothing else.
+   The shipping hand paints unaffordable cards with
+   `filter: grayscale(0.85) brightness(0.74)`, which is precisely what the spec
+   rules out: "No lock icon, no greyscale filter, no desaturation. Opacity alone
+   is correct because the card must still be READABLE while unaffordable — the
+   player is planning next turn."
+   =========================================================================== */
+body.board-v2 .player-hand-section .card.unafford,
+body.board-v2 .player-hand-section .card.unplayable {
+  filter: none !important;
+  opacity: 0.42 !important;
+}
+body.board-v2 .player-hand-section .card.unafford .stat-circle,
+body.board-v2 .player-hand-section .card.unplayable .stat-circle { filter: none !important; }
+body.board-v2 .player-hand-section .card:not(.unafford):not(.unplayable) {
+  filter: none !important;
+  opacity: 1 !important;
+  cursor: pointer;
+}
+
+/* ===========================================================================
+   BOARD-SPEC FIX 3 — a forecast strip belongs under ITS OWN lane.
+   The cells were a fixed 156u while the lanes had become flexible, so the row
+   no longer lined up with the columns it describes and the arrows read as
+   loose figures at the bottom of the board. They flex with the lanes now, so
+   each strip sits under the slot it belongs to.
+   =========================================================================== */
+body.board-v2 #lane-forecast-strip {
+  display: flex;
+  gap: calc(14 * var(--u));
+  justify-content: stretch;
+  margin-top: calc(7 * var(--u));
+  padding: 0 calc(32 * var(--u));
+}
+body.board-v2 #lane-forecast-strip .lf-cell {
+  flex: 1 1 0; width: auto; min-width: 0;
+  height: calc(20 * var(--u));
+}
+body.board-v2 #lane-forecast-strip .lf-cell.lf-empty::after { font-size: calc(11 * var(--u)); }
+
+/* ===========================================================================
+   REFERENCE VALUES (BOARD-SPEC sections 4-9). Gutter 56, lane 168 / gap 14,
+   slot 148 x 236 chamfer 12, midline 168 x 28, band 76, panels 324.
+   =========================================================================== */
+body.board-v2 #game-area {
+  grid-template-columns: calc(324 * var(--u)) minmax(0, 1fr) calc(324 * var(--u));
+  padding-left:  calc(56 * var(--u));
+  padding-right: calc(56 * var(--u));
+  column-gap: calc(20 * var(--u));
+}
+body.board-v2 #board { gap: calc(14 * var(--u)); }
+body.board-v2 #game-area > .info-bar { min-height: calc(76 * var(--u)); height: calc(76 * var(--u)); gap: calc(22 * var(--u)); }
+body.board-v2 .bv2-tag { width: calc(52 * var(--u)); height: calc(52 * var(--u)); }
+body.board-v2 .bv2-id  { width: calc(264 * var(--u)); }
+body.board-v2 #board .card-slot {
+  aspect-ratio: 148 / 236;
+  clip-path: polygon(calc(12 * var(--u)) 0, 100% 0,
+                     100% calc(100% - 12 * var(--u)),
+                     calc(100% - 12 * var(--u)) 100%, 0 100%, 0 calc(12 * var(--u)));
+}
+body.board-v2 #board .card-slot.player-slot:empty { background: rgba(53,201,255,0.07); }
+body.board-v2 #board .lane-sep { height: calc(28 * var(--u)); }
+/* Lane tubes to the spec's exact stops. */
+body.board-v2 #board .lane::before,
+body.board-v2 #board .lane::after {
+  background: linear-gradient(to bottom,
+    rgba(255,138,31,0.34) 0%,  rgba(255,138,31,0.08) 46%,
+    rgba(53,201,255,0.08) 54%, rgba(53,201,255,0.34) 100%);
+}
+/* Ring sizes: BLOCK 44, DISCARD 34, ENERGY disc 40. */
+body.board-v2 .info-bar .block-circle { width: calc(44 * var(--u)); height: calc(44 * var(--u)); }
+body.board-v2 .info-bar .pile-badge   { transform: none; }
+body.board-v2 .info-bar .energy-display { width: calc(40 * var(--u)); height: calc(40 * var(--u)); }
+/* Hand cards 144 x 264. */
+body.board-v2 .player-hand-section .hand-card-wrapper .card { --card-w: calc(144 * var(--u)); }
+/* Trick cards 155 x 224, chamfer 13. */
+body.board-v2 .tricks-section .trick-card { width: calc(155 * var(--u)); max-width: calc(155 * var(--u)); }

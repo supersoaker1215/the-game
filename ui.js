@@ -1545,8 +1545,15 @@ const UI = {
     // BoardV2 itself, which owns the body class, the localStorage key AND the
     // teardown that puts the DOM back; going through it means picking Classic
     // genuinely restores the old board rather than just unsetting a class.
+    // ONLY WHEN THE ROW HAS BEEN SYNCED. saveSettings() is called from more
+    // places than the settings dialog, and a <select> that openSettings never
+    // populated still reports its FIRST OPTION — 'v1' — so any unrelated save
+    // silently switched the board back to Classic. That is exactly how the
+    // redesign turned itself off mid-session while I was measuring it.
+    // The row stamps data-synced when it is populated; without that stamp its
+    // value is a default, not a choice, and is ignored.
     const bdEl = g('setting-board');
-    if (bdEl && typeof BoardV2 !== 'undefined') {
+    if (bdEl && bdEl.dataset.synced === '1' && typeof BoardV2 !== 'undefined') {
       this.settings.board = bdEl.value;
       BoardV2.set(bdEl.value === 'v2');
     }
@@ -1728,7 +1735,10 @@ const UI = {
     // Read from BoardV2 rather than this.settings: the flag is also settable
     // from the console and persists on its own key, so BoardV2 is the truth and
     // a stale copy here would show the wrong option.
-    if (bdEl) bdEl.value = (typeof BoardV2 !== 'undefined' && BoardV2.enabled()) ? 'v2' : 'v1';
+    if (bdEl) {
+      bdEl.value = (typeof BoardV2 !== 'undefined' && BoardV2.enabled()) ? 'v2' : 'v1';
+      bdEl.dataset.synced = '1';   // now it carries a choice, not a default
+    }
     const htEl = g('setting-hand-text');
     if (htEl) htEl.value = this.settings.handText || 'flip';
     const hapEl = g('setting-haptics-off');
