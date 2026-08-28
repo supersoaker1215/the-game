@@ -25,8 +25,15 @@ body.board-v2 {
   --bv2-foe:        #ff9048;
   --bv2-foe-dim:    rgba(255, 144, 72, 0.55);
   --bv2-foe-faint:  rgba(255, 144, 72, 0.16);
-  --bv2-label:      rgba(150, 176, 196, 0.72);
-  --bv2-line:       rgba(120, 160, 190, 0.16);
+  /* NO GREY TEXT — the standing rule, and the reason the reference looks
+     pristine next to what I had. Every label was rgba(150,176,196,.72), which
+     is grey-blue: it reads as UI chrome sitting on top of the game rather than
+     as part of it. Dim THEME cyan instead, so a label is the same colour as
+     the thing it labels, just quieter. The opponent's side takes the same
+     treatment in amber (see .ai-bar below), so each half of the board is one
+     hue at two brightnesses and nothing on screen is grey. */
+  --bv2-label:      rgba(var(--theme-rgb, 79,195,247), 0.62);
+  --bv2-line:       rgba(var(--theme-rgb, 79,195,247), 0.17);
   --bv2-panel:      #000;
   --bv2-chamfer:    10px;
   background: #000;
@@ -908,3 +915,44 @@ body.board-v2 #game-area > .info-bar > .bar-center::before {
   margin-right: 18px;
 }
 body.board-v2 #game-area > .info-bar > .bar-center { display: flex; align-items: center; }
+
+
+/* ---------------------------------------------------------------------------
+   ONE HUE PER SIDE. The opponent's half of the board — bar, rail edge, labels —
+   is amber at the same two brightnesses the player's half is cyan at.
+   ------------------------------------------------------------------------- */
+body.board-v2 #game-area > .info-bar.ai-bar {
+  --bv2-label: rgba(255, 144, 72, 0.62);
+  --bv2-line:  rgba(255, 144, 72, 0.17);
+}
+body.board-v2 #board .lane.occ-ai { --bv2-line: rgba(255, 144, 72, 0.17); }
+
+/* The readouts the bars carry, in the label colour rather than a neutral. */
+body.board-v2 .info-bar .block-circle,
+body.board-v2 .info-bar .pile-badge {
+  color: var(--bv2-label);
+  border-color: var(--bv2-line);
+}
+body.board-v2 .info-bar .hand-tools,
+body.board-v2 .info-bar .hand-tools * { color: var(--bv2-label); }
+
+/* The left rail's log and captions were the other grey on screen. */
+body.board-v2 #bv2-rail-left .ba-log-line { color: rgba(var(--theme-rgb, 79,195,247), 0.70); }
+body.board-v2 #bv2-rail-left .ba-log-line.is-latest { color: rgba(var(--theme-rgb, 79,195,247), 0.95); }
+body.board-v2 #bv2-rail-left .ba-rule-label,
+body.board-v2 #bv2-rail-left .ba-cap,
+body.board-v2 #bv2-rail-left .ba-log-more { color: var(--bv2-label); }
+body.board-v2 .bv2-cap-label,
+body.board-v2 .bv2-cap-val i,
+body.board-v2 .bv2-trk i,
+body.board-v2 .bv2-hp i,
+body.board-v2 .bv2-phase-cap,
+body.board-v2 .bv2-phase-hint { color: var(--bv2-label); }
+body.board-v2 .bv2-cap-val { color: rgba(var(--theme-rgb, 79,195,247), 0.92); }
+body.board-v2 .bv2-lane-no { color: rgba(var(--theme-rgb, 79,195,247), 0.85); }
+/* The hand caption sat in grey at the far left; same treatment. */
+body.board-v2 #bv2-hand-cap .bv2-cap-label { color: var(--bv2-label); }
+
+/* The seat name reads as the seat's own colour, brightly. */
+body.board-v2 .player-bar .bv2-name { color: #eaf9ff; }
+body.board-v2 .ai-bar     .bv2-name { color: #ffe3cc; }
