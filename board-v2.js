@@ -199,22 +199,11 @@ const BoardV2 = {
     }
   },
 
-  // Lane index chips down the middle of the board, as the reference has them.
-  // One per lane, created once, inside the lane's own separator.
-  _renderLaneChips() {
-    const lanes = document.querySelectorAll('#board .lane');
-    lanes.forEach((lane, i) => {
-      const sep = lane.querySelector('.lane-sep');
-      if (!sep) return;
-      let chip = sep.querySelector('.bv2-lane-no');
-      if (!chip) {
-        chip = document.createElement('span');
-        chip.className = 'bv2-lane-no';
-        chip.textContent = String(i + 1);
-        sep.appendChild(chip);
-      }
-    });
-  },
+  // NO INJECTED LANE CHIP. The separator already contains a `.lane-number`
+  // element that ui.js maintains, so adding a second one produced the doubled
+  // digits on the board. board-v2.css styles the real one to the spec's 22px
+  // chamfered square instead — fewer nodes, and the number stays whatever the
+  // engine says it is.
 
   // The rails themselves. Created inside #game-area so the grid can place them.
   _ensureRails() {
@@ -242,7 +231,6 @@ const BoardV2 = {
       this._renderPhase(s);
       this._renderSeats(s);
       this._renderCounts(s);
-      this._renderLaneChips();
     } catch (e) { console.error('[BoardV2] render', e); }
   },
 };

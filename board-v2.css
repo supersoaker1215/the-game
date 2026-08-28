@@ -1,71 +1,83 @@
 /* ============================================================================
-   BOARD V2 — layout for the redesigned board.
+   BOARD V2 — built to the Tron-neon handoff (design_handoff_neon_card).
    ============================================================================
-   EVERY rule here is scoped under `body.board-v2`. With the flag off this file
-   cannot affect a single pixel of the shipping board — that is the whole point
-   of it being a separate file, and it is why the selectors are verbose.
+   Every rule is scoped under `body.board-v2`; with the flag off this file
+   cannot move a pixel of the shipping board.
 
-   The reference is a three-column console: a readout rail on the left, the six
-   lanes in the middle, the trick rail on the right, with a seat bar above and
-   below the board and the hand along the bottom. The existing DOM already has
-   all of those pieces in one column, so this is a grid re-placement plus a
-   flatter, colder skin — not new markup.
+   THE STAGE IS 1920 x 1080 AND THIS WINDOW IS NOT. The spec's own responsive
+   note says to keep the gutter, chamfers, colours, type and aspect ratios and
+   to RECOMPUTE the absolute positions — so every length here is written as its
+   spec pixel value multiplied by one unit, and the unit is whatever makes the
+   1920x1080 stage fit this window. That reproduces the design exactly at any
+   size instead of approximating it at one.
 
-   COLOUR. The board reads as two sides, so the palette is two hues against
-   pure black: the player's cyan (--theme-rgb, whatever the owner has themed
-   to) and the opponent's amber. Everything else is neutral at low alpha.
-   Labels are uppercase, letter-spaced and dim; values are bright. That
-   contrast IS the hierarchy — there are no boxes around anything that does not
-   need one.
+       --u = min(100vw/1920, 100vh/1080)
+       a spec value of 156px becomes calc(156 * var(--u))
+
+   `calc(100vw / 1920)` is a LENGTH (a length over a number), so multiplying it
+   by a bare number is legal and gives the scaled length. Multiplying two
+   lengths would not be.
    ========================================================================== */
 body.board-v2 {
-  --bv2-ink:        rgba(var(--theme-rgb, 79,195,247), 1);
-  --bv2-ink-dim:    rgba(var(--theme-rgb, 79,195,247), 0.55);
-  --bv2-ink-faint:  rgba(var(--theme-rgb, 79,195,247), 0.16);
-  --bv2-foe:        #ff9048;
-  --bv2-foe-dim:    rgba(255, 144, 72, 0.55);
-  --bv2-foe-faint:  rgba(255, 144, 72, 0.16);
-  /* NO GREY TEXT — the standing rule, and the reason the reference looks
-     pristine next to what I had. Every label was rgba(150,176,196,.72), which
-     is grey-blue: it reads as UI chrome sitting on top of the game rather than
-     as part of it. Dim THEME cyan instead, so a label is the same colour as
-     the thing it labels, just quieter. The opponent's side takes the same
-     treatment in amber (see .ai-bar below), so each half of the board is one
-     hue at two brightnesses and nothing on screen is grey. */
-  --bv2-label:      rgba(var(--theme-rgb, 79,195,247), 0.62);
-  --bv2-line:       rgba(var(--theme-rgb, 79,195,247), 0.17);
-  --bv2-panel:      #000;
-  --bv2-chamfer:    10px;
-  background: #000;
+  --u: min(calc(100vw / 1920), calc(100vh / 1080));
+
+  /* --- Colour: one job per hue (SCREENS.md "Ownership, Value, System") ----- */
+  --cy:        #35c9ff;   /* You. Frames, rails, drop zones, primary actions. */
+  --or:        #ff8a1f;   /* The opponent. NOT red — red is health. */
+  --ice:       #dbeaf5;   /* System / neutral: tricks, timers, node chrome.   */
+  --atk:       #3dff9e;   /* Attack. A value, never ownership, never rethemed */
+  --hp:        #ff6b6b;   /* Health, and danger.                             */
+  --core:      #e8f7ff;   /* The hot core inside a 2px stroke.               */
+  --cy-dim:    #8fe0ff;
+  --cy-txt:    #eafaff;
+  --or-txt:    #ffd9b0;
+  --white:     #eef6fb;
+  --bg:        #04060a;
+  --timer:     #ffd24a;   /* the one surviving gold — neither player's        */
+
+  --fd: 'Chakra Petch', system-ui, sans-serif;   /* display: numbers, names   */
+  --fm: 'JetBrains Mono', ui-monospace, monospace; /* labels, log, metadata   */
+
+  background: var(--bg);
 }
 
 /* ---------------------------------------------------------------------------
-   THE THREE-COLUMN CONSOLE.
-   #game-area is the only container that holds all the pieces, so the grid goes
-   here and each existing child is placed by name. The overlays (game over,
-   round summary, dead pile, toasts) are position:fixed already and are left
-   out of the grid flow entirely — they must keep covering the whole screen.
+   1. THE STAGE — four full-bleed layers, all pointer-events:none.
+   Grid must be `repeating-`; a plain linear-gradient paints one stretched pass
+   and yields a single edge line (the spec flags this as a real bug it hit).
+   ------------------------------------------------------------------------- */
+body.board-v2 #game-area::before,
+body.board-v2 #game-area::after {
+  content: '';
+  position: fixed; inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+body.board-v2 #game-area::before {
+  background:
+    repeating-linear-gradient(to right,  rgba(53,201,255,0.10) 0 1px, transparent 1px 48px),
+    repeating-linear-gradient(to bottom, rgba(53,201,255,0.10) 0 1px, transparent 1px 48px);
+}
+body.board-v2 #game-area::after {
+  background:
+    radial-gradient(56% 40% at 50% 50%, transparent 0%, rgba(4,6,10,0.92) 76%),
+    radial-gradient(88% 40% at 50% 0%,   rgba(255,138,31,0.11), transparent 70%),
+    radial-gradient(88% 40% at 50% 100%, rgba(53,201,255,0.10), transparent 70%),
+    repeating-linear-gradient(to bottom, rgba(0,0,0,0.18) 0 1px, transparent 1px 3px);
+}
+body.board-v2 #game-area > * { position: relative; z-index: 1; }
+
+/* ---------------------------------------------------------------------------
+   2. LAYOUT. Bands run the full width; the two 340px panels flank the board
+   only. Board width derives from laneCount x (slot + gap), per the spec's
+   responsive note.
    ------------------------------------------------------------------------- */
 body.board-v2 #game-area {
   display: grid;
-  /* THE BARS RUN THE FULL WIDTH. In the reference the opponent bar is a rule
-     across the very top of the screen and the player bar is the same across the
-     bottom — the rails sit BETWEEN them, flanking the board only. I had both
-     bars inside the centre column, which is the single biggest reason it did
-     not read like the reference. */
-  /* FLUID RAILS. These were fixed at 268/262 with a 1240px cutoff below which
-     BOTH rails were dropped — and the owner's window is 1196px, so every single
-     screenshot they sent me was the fallback, never the design. The rails shrink
-     with the window now and the console holds down to ~980px. */
-  /* THE BOARD IS THE SUBJECT — the rails get what is left, not the reverse.
-     At 1196px the old widths (203 + 191) squeezed six lanes into 730px, which
-     made a board card 98px wide with 94x123 of art: too small to read the
-     painting or the badges. Trimming both rails hands that width back to the
-     lanes. */
   grid-template-columns:
-    clamp(158px, 14vw, 236px)
+    calc(340 * var(--u))
     minmax(0, 1fr)
-    clamp(132px, 11.5vw, 190px);
+    calc(340 * var(--u));
   grid-template-rows: auto auto minmax(0, 1fr) auto auto auto;
   grid-template-areas:
     "hud    hud     hud"
@@ -74,1115 +86,548 @@ body.board-v2 #game-area {
     "left   strip   right"
     "mebar  mebar   mebar"
     "hand   hand    hand";
-  gap: 0 clamp(12px, 1.4vw, 26px);
+  column-gap: calc(32 * var(--u));
   align-content: stretch;
-  padding: 8px clamp(12px, 1.6vw, 26px) 14px;
-  height: 100vh;
-  min-height: 0;
-  overflow: hidden;
+  padding: calc(20 * var(--u)) calc(64 * var(--u)) calc(24 * var(--u));  /* 64px gutter */
+  height: 100vh; min-height: 0; overflow: hidden;
   box-sizing: border-box;
 }
-body.board-v2 #game-area > .turn-hud        { grid-area: hud; }
-body.board-v2 #game-area > .info-bar.ai-bar { grid-area: foebar; }
-body.board-v2 #game-area > .board-section   { grid-area: board; }
+body.board-v2 #game-area > .turn-hud            { grid-area: hud; }
+body.board-v2 #game-area > .info-bar.ai-bar     { grid-area: foebar; }
+body.board-v2 #game-area > .board-section       { grid-area: board; }
 body.board-v2 #game-area > #lane-forecast-strip { grid-area: strip; }
 body.board-v2 #game-area > .info-bar.player-bar { grid-area: mebar; }
 body.board-v2 #game-area > .player-hand-section { grid-area: hand; }
-body.board-v2 #game-area > .tricks-section  { grid-area: right; align-self: start; }
-body.board-v2 #bv2-rail-left                { grid-area: left; align-self: start; }
-/* The round-pip track is the one piece the reference has no place for; the HUD
-   pill above already states the round. Hidden rather than removed so nothing
-   that writes into it can throw. */
-body.board-v2 #game-area > #round-track { display: none; }
+body.board-v2 #game-area > .tricks-section      { grid-area: right; }
+body.board-v2 #bv2-rail-left                    { grid-area: left; }
+body.board-v2 #game-area > #round-track         { display: none; }
 
-body.board-v2 .bv2-rail { min-width: 0; padding-top: 4px; }
-
-/* Below the width the three columns need, fold the rails away and let the
-   lanes have everything — a rail on top of the board is worse than no rail.
-   The same call the board-aside already makes for itself. */
-@media (max-width: 980px) {
-  body.board-v2 #game-area {
-    /* Hand and tricks share the last row, the way the shipping board arranges
-       them when there is no width for rails. Giving tricks a row of their own
-       cost the board 120px — it sat on its 240px floor while a stack of trick
-       faces took 363px underneath it. */
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      "hud    hud"
-      "foebar foebar"
-      "board  board"
-      "strip  strip"
-      "mebar  mebar"
-      "hand   right";
-    /* SEVEN AREAS NEED SEVEN ROWS. Overriding grid-template-areas without
-       grid-template-rows left the wide layout's SIX row definitions in force,
-       so the trick rail fell into an implicit auto row and took its content's
-       height: measured at 1196px wide, that row was 3095px tall with a single
-       trick card blown up to 1161x1522, and the hand was crushed to 13px.
-       This is the whole bug in the narrow view. */
-    grid-template-rows: auto auto minmax(220px, 1fr) auto auto auto;
-    padding: 8px 10px 14px;
-  }
-  body.board-v2 #bv2-rail-left { display: none; }
-  /* With no rail there is no column to fill, so the tricks lie down in a row of
-     ordinary cards rather than stacking full-width. */
-  body.board-v2 #game-area > .tricks-section > #player-tricks {
-    display: flex;
-    flex-wrap: nowrap;
-    gap: 10px;
-    width: auto;
-  }
-  /* Beside the hand they are hand-sized, not rail-sized. A real length, not
-     `auto`: as flex items with auto width they shrank to their content and came
-     out 50x66. */
-  body.board-v2 .tricks-section .trick-card {
-    flex: 0 0 auto;
-    width: 112px;
-    max-width: 112px;
-  }
-  body.board-v2 .tricks-section { align-self: end; }
+/* ---------------------------------------------------------------------------
+   3. THE CHAMFER PANEL. Two opposite corners cut, never four, never rounded.
+   ------------------------------------------------------------------------- */
+body.board-v2 .bv2-chamfer-16 {
+  clip-path: polygon(calc(16 * var(--u)) 0, 100% 0,
+                     100% calc(100% - 16 * var(--u)),
+                     calc(100% - 16 * var(--u)) 100%, 0 100%, 0 calc(16 * var(--u)));
 }
 
 /* ---------------------------------------------------------------------------
-   TOP HUD PILL — round, phase, deck, tricks.
+   4. RAILS — 1px dividers that fade at both ends and carry the owning colour.
    ------------------------------------------------------------------------- */
-body.board-v2 .turn-hud { padding: 2px 0 10px; }
-body.board-v2 .hud-pill.hud-pill-main {
-  background: #000;
-  border: 1px solid var(--bv2-line);
-  border-radius: 999px;
-  padding: 7px 26px;
-  gap: 16px;
-  box-shadow: none;
+body.board-v2 #game-area > .info-bar.ai-bar,
+body.board-v2 #game-area > .info-bar.player-bar { border: 0; position: relative; }
+body.board-v2 #game-area > .info-bar::after {
+  content: ''; position: absolute; left: 0; right: 0; height: 1px;
 }
-body.board-v2 .hud-pill .hud-divider { opacity: 0.35; }
+body.board-v2 #game-area > .info-bar.ai-bar::after {
+  bottom: 0;
+  background: linear-gradient(to right, rgba(255,138,31,0) 0%, rgba(255,138,31,0.45) 20%,
+                                        rgba(255,138,31,0.45) 80%, rgba(255,138,31,0) 100%);
+  filter: drop-shadow(0 0 6px rgba(255,138,31,0.5));
+}
+body.board-v2 #game-area > .info-bar.player-bar::after {
+  top: 0;
+  background: linear-gradient(to right, rgba(53,201,255,0) 0%, rgba(53,201,255,0.45) 20%,
+                                        rgba(53,201,255,0.45) 80%, rgba(53,201,255,0) 100%);
+  filter: drop-shadow(0 0 6px rgba(53,201,255,0.5));
+}
 
 /* ---------------------------------------------------------------------------
-   SEAT BARS. Flat rules, not raised panels: a hairline above/below and the
-   seat's own hue on the side that owns it.
+   5. BANDS — 84px, each with a vertical wash in its own colour so it reads as
+   lit glass rather than flat black.
    ------------------------------------------------------------------------- */
-body.board-v2 .info-bar {
-  background: #000;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-  padding: 8px 4px;
-  gap: 14px;
-  align-items: center;
+body.board-v2 #game-area > .info-bar {
+  display: flex; align-items: center;
+  gap: calc(18 * var(--u));
+  min-height: calc(84 * var(--u));
+  height: calc(84 * var(--u));
+  padding: 0;
+  border-radius: 0; box-shadow: none;
 }
-body.board-v2 .info-bar.ai-bar     { border-bottom: 1px solid var(--bv2-foe-faint); }
-body.board-v2 .info-bar.player-bar { border-top:    1px solid var(--bv2-ink-faint); }
+body.board-v2 #game-area > .info-bar.ai-bar {
+  background: linear-gradient(to bottom, rgba(255,138,31,0.08), transparent 78%);
+}
+body.board-v2 #game-area > .info-bar.player-bar {
+  background: linear-gradient(to top, rgba(53,201,255,0.075), transparent 78%);
+}
+body.board-v2 #game-area > .info-bar > .bar-hp { display: none; }
+body.board-v2 #game-area > .info-bar .hero-avatar { display: none; }
+body.board-v2 #game-area > .info-bar > .bv2-plate  { order: 0; margin-right: auto; }
+body.board-v2 #game-area > .info-bar > .bar-block  { order: 8; }
+body.board-v2 #game-area > .info-bar > .bar-dead   { order: 9; }
+body.board-v2 #game-area > .info-bar > .bar-energy { order: 10; }
+body.board-v2 #game-area > .info-bar > .bar-center { order: 11; }
+body.board-v2 #game-area > .info-bar > .bar-cell   { gap: calc(8 * var(--u)); padding: 0; margin: 0; }
 
-/* The seat plate the reference carries: tag, name, HP beside the bar. */
-body.board-v2 .bv2-plate {
-  display: flex; align-items: center; gap: 12px;
-  min-width: 0; flex: 0 0 auto;
-}
+/* Seat plate: 52-56px chamfered avatar, name + HP with a 4px bar, tricks count */
+body.board-v2 .bv2-plate { display: flex; align-items: center; gap: calc(14 * var(--u)); flex: 0 0 auto; }
 body.board-v2 .bv2-tag {
+  width: calc(56 * var(--u)); height: calc(56 * var(--u));
   display: inline-flex; align-items: center; justify-content: center;
-  width: 40px; height: 34px;
-  font-family: var(--font-display, 'Chakra Petch'), system-ui, sans-serif;
-  font-weight: 700; font-size: 13px; letter-spacing: .06em;
-  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
-}
-body.board-v2 .ai-bar     .bv2-tag { color: var(--bv2-foe); border: 1px solid var(--bv2-foe-dim); }
-body.board-v2 .player-bar .bv2-tag { color: var(--bv2-ink); border: 1px solid var(--bv2-ink-dim); }
-body.board-v2 .bv2-name {
-  font-family: var(--font-mono, ui-monospace), monospace;
-  font-size: 13px; letter-spacing: .04em; color: #d7e6f2; white-space: nowrap;
-}
-body.board-v2 .bv2-hp {
-  font-family: var(--font-display, 'Chakra Petch'), system-ui, sans-serif;
-  font-weight: 700; font-size: 21px; letter-spacing: .02em; color: #eef6fb;
-  font-variant-numeric: tabular-nums;
-}
-body.board-v2 .bv2-hp i {
-  font-style: normal; font-size: 9px; letter-spacing: .16em;
-  color: var(--bv2-label); margin-left: 5px;
-}
-
-/* The HP bar itself: a long flat track, no gloss. */
-body.board-v2 .info-bar .health-container {
-  height: 7px; border-radius: 0; background: rgba(255,255,255,0.05);
-  border: 0; box-shadow: none; min-width: 220px;
-}
-body.board-v2 .info-bar .health-fill { border-radius: 0; box-shadow: none; }
-body.board-v2 .ai-bar     .health-fill { background: linear-gradient(90deg, #7a3a12, var(--bv2-foe)); }
-body.board-v2 .player-bar .health-fill { background: linear-gradient(90deg, rgba(var(--theme-rgb,79,195,247),.35), var(--bv2-ink)); }
-/* The bar already prints the number in the plate. */
-body.board-v2 .info-bar .health-text { display: none; }
-
-body.board-v2 .info-bar .bar-center { flex: 1 1 auto; justify-content: flex-end; }
-body.board-v2 .info-bar .block-circle { box-shadow: none; }
-
-/* END CARDS. I drew this as a solid cyan slab; the reference is the opposite —
-   an OUTLINED plate, black inside, with the label glowing and the frame lit.
-   That reads as a console control rather than a web button, and it is why the
-   owner said the reference looked better. Chamfered on the same diagonal as the
-   banner so the two corners of the screen rhyme.
-   The arrow is a pseudo-element so the existing button text (which ui.js owns
-   and rewrites per phase — END CARDS / END TRICKS / END TURN) is untouched. */
-body.board-v2 #btn-action {
-  position: relative;
-  font-family: var(--font-display, 'Chakra Petch'), system-ui, sans-serif;
-  font-weight: 700; letter-spacing: .22em; font-size: 15px;
-  padding: 16px 52px 16px 34px;
-  color: #eaf9ff;
-  background: linear-gradient(180deg, rgba(var(--theme-rgb,79,195,247), .09), rgba(0,0,0,.9));
-  border: 1px solid var(--bv2-ink);
-  border-radius: 0;
-  clip-path: polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px);
-  text-shadow: 0 0 12px rgba(var(--theme-rgb,79,195,247), .7);
-  box-shadow:
-    0 0 20px rgba(var(--theme-rgb,79,195,247), .28),
-    inset 0 0 24px rgba(var(--theme-rgb,79,195,247), .10);
-  transition: box-shadow .18s ease, background .18s ease;
-}
-body.board-v2 #btn-action::after {
-  content: '\2192';                      /* → */
-  position: absolute; right: 22px; top: 50%; transform: translateY(-50%);
-  font-size: 17px; letter-spacing: 0;
-  color: var(--bv2-ink);
-  text-shadow: 0 0 10px rgba(var(--theme-rgb,79,195,247), .8);
-}
-body.board-v2 #btn-action:hover {
-  background: linear-gradient(180deg, rgba(var(--theme-rgb,79,195,247), .18), rgba(0,0,0,.9));
-  box-shadow:
-    0 0 30px rgba(var(--theme-rgb,79,195,247), .45),
-    inset 0 0 30px rgba(var(--theme-rgb,79,195,247), .16);
-}
-body.board-v2 #btn-action[disabled] {
-  background: #000; color: var(--bv2-label);
-  border-color: var(--bv2-line); box-shadow: none; text-shadow: none;
-}
-body.board-v2 #btn-action[disabled]::after { color: var(--bv2-label); text-shadow: none; }
-/* The other two match, quietly — they are not the primary action. */
-body.board-v2 #btn-undo,
-body.board-v2 #btn-new-game {
-  background: #000; border: 1px solid var(--bv2-line); border-radius: 0;
-  color: var(--bv2-label); box-shadow: none;
-  letter-spacing: .16em; font-size: 11px; padding: 10px 16px;
-}
-
-/* ---------------------------------------------------------------------------
-   THE BOARD. Lanes as tall bays with a hairline gutter, an index chip at the
-   waist, and a ghosted number where a bay is empty.
-   ------------------------------------------------------------------------- */
-body.board-v2 .board-section { padding: 12px 0; background: transparent; }
-body.board-v2 #board { gap: 12px; }
-body.board-v2 #board .round-watermark,
-body.board-v2 #board .board-mote,
-body.board-v2 .board-section .crt-scanlines { display: none; }
-
-body.board-v2 #board .lane {
-  background: linear-gradient(180deg, rgba(255,255,255,0.012), transparent 42%, rgba(255,255,255,0.012));
-  border: 1px solid var(--bv2-line);
-  border-radius: 0;
-  box-shadow: none;
-  padding: 6px;
-}
-body.board-v2 #board .lane.occ-ai   { border-color: var(--bv2-foe-faint); }
-body.board-v2 #board .lane.occ-both { border-color: var(--bv2-ink-faint); }
-
-/* The waist: a hairline with the lane's number sitting on it. */
-body.board-v2 #board .lane-sep {
-  position: relative;
-  height: 1px; margin: 10px 0;
-  background: var(--bv2-line);
-  overflow: visible;
-}
-body.board-v2 .bv2-lane-no {
-  position: absolute; left: 50%; top: 50%;
-  transform: translate(-50%, -50%);
-  width: 20px; height: 20px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  background: #000; border: 1px solid var(--bv2-line);
-  font-family: var(--font-mono, ui-monospace), monospace;
-  font-size: 10px; color: var(--bv2-label);
-}
-/* A ghost index in each empty bay, as the reference shows. */
-body.board-v2 #board .card-slot:empty::after {
-  content: attr(data-lane-no);
-  position: absolute; inset: 0;
-  display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-display, 'Chakra Petch'), system-ui, sans-serif;
-  font-weight: 700; font-size: 40px;
-  color: rgba(255,255,255,0.035);
-  pointer-events: none;
-}
-
-/* ---------------------------------------------------------------------------
-   LANE OUTCOME STRIP. Already the right idea; flattened to match.
-   ------------------------------------------------------------------------- */
-body.board-v2 #lane-forecast-strip { gap: 12px; margin-top: 6px; }
-body.board-v2 #lane-forecast-strip .lf-cell {
-  background: #000;
-  border: 1px solid var(--bv2-line);
-  border-radius: 0;
-  box-shadow: none;
-  padding: 5px 6px;
-}
-body.board-v2 #lane-forecast-strip .lf-verdict {
-  font-family: var(--font-mono, ui-monospace), monospace;
-  letter-spacing: .18em; font-size: 10px;
-}
-
-/* ---------------------------------------------------------------------------
-   LEFT RAIL — phase, then the existing "if combat resolves now" + log.
-   ------------------------------------------------------------------------- */
-/* THE BANNER. The owner's note: "your turn top left looks way brighter, bigger
-   and better than what you drew up." It was right — mine was a quiet 25px label
-   in a hairline box, and the reference is a lit panel that announces whose turn
-   it is from across the room. So: a bracketed frame with a chamfered corner, a
-   bright rule down the leading edge, a title at 34px with a real glow, and a
-   progress rail under it. It is the loudest thing in the left column on
-   purpose — it is the one piece of state you look for every single turn. */
-body.board-v2 #bv2-phase {
-  position: relative;
-  background:
-    linear-gradient(135deg, rgba(var(--theme-rgb,79,195,247), .10), transparent 62%),
-    #000;
-  border: 1px solid var(--bv2-ink-dim);
-  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 22px), calc(100% - 22px) 100%, 0 100%);
-  padding: 15px 18px 17px;
-  margin-bottom: 24px;
-  box-shadow:
-    0 0 0 1px rgba(var(--theme-rgb,79,195,247), .08),
-    0 0 26px rgba(var(--theme-rgb,79,195,247), .16),
-    inset 0 0 34px rgba(var(--theme-rgb,79,195,247), .05);
-}
-/* The lit leading edge — the reference's panel is anchored by a bright bar
-   down its left side rather than an even border all the way round. */
-body.board-v2 #bv2-phase::before {
-  content: '';
-  position: absolute; left: 0; top: 0; bottom: 22px; width: 3px;
-  background: var(--bv2-ink);
-  box-shadow: 0 0 12px rgba(var(--theme-rgb,79,195,247), .85);
-}
-/* Not my turn: the same frame, unlit. The panel should not shout when the
-   answer is "wait". */
-body.board-v2 #bv2-phase:not(.is-mine) {
-  border-color: var(--bv2-line);
-  box-shadow: none;
-  background: #000;
-}
-body.board-v2 #bv2-phase:not(.is-mine)::before {
-  background: rgba(255,255,255,.14); box-shadow: none;
-}
-body.board-v2 .bv2-phase-cap {
-  font-family: var(--font-mono, ui-monospace), monospace;
-  font-size: 9px; letter-spacing: .30em; color: var(--bv2-label);
-  text-transform: uppercase; margin-bottom: 7px;
-}
-body.board-v2 .bv2-phase-title {
-  font-family: var(--font-display, 'Chakra Petch'), system-ui, sans-serif;
-  font-weight: 700; font-size: 34px; letter-spacing: .045em;
-  line-height: .96; color: #f2fbff;
-  text-transform: uppercase;
-}
-body.board-v2 #bv2-phase.is-mine .bv2-phase-title {
-  color: #eaf9ff;
-  text-shadow:
-    0 0 10px rgba(var(--theme-rgb,79,195,247), .75),
-    0 0 26px rgba(var(--theme-rgb,79,195,247), .38);
-}
-body.board-v2 .bv2-phase-bar {
-  height: 3px; margin: 14px 0 10px;
-  background: rgba(255,255,255,0.06);
-  overflow: hidden;
-}
-body.board-v2 #bv2-phase.is-mine .bv2-phase-bar i {
-  display: block; height: 100%; width: 62%;
-  background: linear-gradient(90deg, rgba(var(--theme-rgb,79,195,247), .25), var(--bv2-ink));
-  box-shadow: 0 0 10px rgba(var(--theme-rgb,79,195,247), .7);
-}
-body.board-v2 .bv2-phase-hint {
-  font-family: var(--font-mono, ui-monospace), monospace;
-  font-size: 9px; letter-spacing: .24em; color: var(--bv2-label);
-  text-transform: uppercase;
-}
-
-/* The aside sits in the rail now, not fixed to the viewport. */
-body.board-v2 #bv2-rail-left .board-aside {
-  display: block !important;
-  position: static !important;
-  left: auto; top: auto; width: auto;
-}
-
-/* ---------------------------------------------------------------------------
-   RIGHT RAIL — the tricks, as a labelled column of full cards.
-   ------------------------------------------------------------------------- */
-body.board-v2 .tricks-section {
-  background: transparent; border: 0; box-shadow: none;
-  padding: 4px 0 0; margin: 0;
-}
-/* BLOCK, not flex — and scoped through #game-area because a plain
-   `body.board-v2 .tricks-section` (0,2,0) lost to whatever sets flex and the
-   section kept centring the grid at its content width, 132px of a 252px
-   column. Matching the id-scoped selector the grid placement already uses
-   settles it without reaching for !important. */
-body.board-v2 #game-area > .tricks-section { display: block; }
-body.board-v2 #game-area > .tricks-section > #player-tricks { width: 100%; }
-body.board-v2 .tricks-section #player-tricks {
-  display: grid; grid-template-columns: 1fr; gap: 14px;
-  justify-items: stretch;
-  /* THE SAME CIRCULAR TRAP THE LANES HAD, TWICE IN ONE FILE.
-     .tricks-section is a flex container, so this grid is a flex ITEM and sizes
-     shrink-to-fit — from its children. The children are `width: 100%`, which
-     resolves against the grid. Each waited for the other and both collapsed:
-     the rail measured 21px wide and the trick faces came out 21x27.
-     Giving the grid the container's width makes the PARENT the sizer, exactly
-     as `flex: 1 1 0; min-width: 0` does for a lane. */
-  width: 100%;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-/* Section captions: "HAND 5 / 8", "TRICKS —— 2 HELD". */
-body.board-v2 .bv2-cap {
-  display: flex; align-items: center; gap: 10px;
-  margin: 0 0 10px;
-  font-family: var(--font-mono, ui-monospace), monospace;
-}
-body.board-v2 .bv2-cap-label {
-  font-size: 9px; letter-spacing: .22em; text-transform: uppercase;
-  color: var(--bv2-label);
-}
-body.board-v2 .bv2-cap-line { flex: 1 1 auto; height: 1px; background: var(--bv2-line); }
-body.board-v2 .bv2-cap-val {
-  font-size: 11px; letter-spacing: .10em; color: #cfe2ef;
-  font-variant-numeric: tabular-nums;
-}
-body.board-v2 .bv2-cap-val i { font-style: normal; color: var(--bv2-label); }
-
-/* ---------------------------------------------------------------------------
-   HAND. Left-aligned along the bottom rule, not centred in a tray.
-   ------------------------------------------------------------------------- */
-body.board-v2 .player-hand-section {
-  background: transparent; border: 0; box-shadow: none;
-  padding: 14px 0 0; margin: 0;
-}
-body.board-v2 .player-hand-section #player-hand { justify-content: flex-start; gap: 12px; }
-
-/* ---------------------------------------------------------------------------
-   LANES FILL THEIR COLUMN.
-   The shipping board fixes a lane at 160px and centres the six, which leaves
-   the middle column with a wide dead margin either side — the reference has
-   the bays spanning the whole span. Lanes flex here instead, and the card
-   scales with the lane rather than being a constant, so the same rule holds at
-   any window width. `min-width: 0` because a flex item's default min-width is
-   its content and the lane would otherwise refuse to shrink.
-   ------------------------------------------------------------------------- */
-body.board-v2 #board {
-  /* Fill the column. The shipping board is centred at its content width, which
-     with flexible lanes collapses to whatever the cards happen to want. */
-  width: 100%;
-  justify-content: space-between;
-  align-items: stretch;
-}
-body.board-v2 #board .lane {
-  /* THE LANE IS THE SIZER, NOT THE CARD. First attempt sized the card with
-     clamp(96px, 100%, 168px) and the board collapsed from 1068px to 451px: the
-     lane was sizing from its content while the content sized from the lane, so
-     the two chased each other down. `flex: 1 1 0` with `min-width: 0` makes the
-     lane's width come from the flex line alone — nothing inside it can affect
-     it — and everything below can then safely resolve against the lane. */
-  flex: 1 1 0;
-  width: auto; min-width: 0;
-}
-body.board-v2 #board .card-slot {
-  position: relative;
-  width: 100%;
-  max-width: 172px;      /* a card stops growing before the art does */
-  margin: 0 auto;
-  display: flex; align-items: center; justify-content: center;
-  min-height: 190px;
-}
-body.board-v2 #board .lane .card {
-  /* `body.in-match .card-slot > .card` sets width from --board-card-w with
-     !important, so this is the knob rather than a competing width rule. */
-  --board-card-w: 100%;
-  --card-w: 100%;
-  max-width: 100%;
-}
-
-/* ---------------------------------------------------------------------------
-   SEAT BADGE. The reference tags each seat with a clipped plate — a hexagon
-   with two corners cut — in that seat's hue. Bigger and brighter than my first
-   pass, and lit on the side that owns it.
-   ------------------------------------------------------------------------- */
-body.board-v2 .bv2-tag {
-  width: 46px; height: 40px;
-  font-size: 15px; letter-spacing: .04em;
-  clip-path: polygon(11px 0, 100% 0, 100% calc(100% - 11px), calc(100% - 11px) 100%, 0 100%, 0 11px);
-  background: #000;
-}
-body.board-v2 .ai-bar .bv2-tag {
-  border-color: var(--bv2-foe);
-  box-shadow: 0 0 16px rgba(255,144,72,.28), inset 0 0 18px rgba(255,144,72,.10);
-  text-shadow: 0 0 10px rgba(255,144,72,.7);
+  font-family: var(--fd); font-weight: 700;
+  font-size: calc(17 * var(--u)); letter-spacing: .08em;
+  background: rgba(4,6,10,.9);
+  clip-path: polygon(calc(13 * var(--u)) 0, 100% 0,
+                     100% calc(100% - 13 * var(--u)),
+                     calc(100% - 13 * var(--u)) 100%, 0 100%, 0 calc(13 * var(--u)));
 }
 body.board-v2 .player-bar .bv2-tag {
-  border-color: var(--bv2-ink);
-  box-shadow: 0 0 16px rgba(var(--theme-rgb,79,195,247),.28),
-              inset 0 0 18px rgba(var(--theme-rgb,79,195,247),.10);
-  text-shadow: 0 0 10px rgba(var(--theme-rgb,79,195,247),.7);
+  border: 2px solid var(--cy); color: var(--cy-txt);
+  box-shadow: inset 0 0 0 1px rgba(232,247,255,.85), 0 0 6px rgba(53,201,255,.45);
 }
-body.board-v2 .bv2-hp { font-size: 25px; }
-body.board-v2 .ai-bar     .bv2-hp { text-shadow: 0 0 14px rgba(255,144,72,.35); }
-body.board-v2 .player-bar .bv2-hp { text-shadow: 0 0 14px rgba(var(--theme-rgb,79,195,247),.35); }
-
-/* Right-hand readouts on each bar: the reference labels them rather than
-   leaving bare glyphs. The elements already exist — this only labels and
-   spaces them. */
-body.board-v2 .info-bar .bar-energy { gap: 10px; }
-body.board-v2 .info-bar .bar-energy::before {
-  content: 'Energy';
-  font-family: var(--font-mono, ui-monospace), monospace;
-  font-size: 9px; letter-spacing: .24em; text-transform: uppercase;
-  color: var(--bv2-label);
+body.board-v2 .ai-bar .bv2-tag {
+  border: 2px solid var(--or); color: var(--or-txt);
+  box-shadow: inset 0 0 0 1px rgba(255,217,176,.7), 0 0 6px rgba(255,138,31,.42);
 }
-body.board-v2 .info-bar .ai-hand-mini::before {
-  content: 'Hand';
-  font-family: var(--font-mono, ui-monospace), monospace;
-  font-size: 9px; letter-spacing: .24em; text-transform: uppercase;
-  color: var(--bv2-label); margin-right: 8px;
-}
-body.board-v2 .info-bar .energy-display { box-shadow: none; }
-
-/* ---------------------------------------------------------------------------
-   CARDS IN THE BAYS. The mockup's faces were flat only because it had no art —
-   the real faces keep theirs. What they need is to FIT: a bay is now flexible,
-   so the face fills its width and the art holds its shape instead of the tile
-   being a fixed 140 in a 168 lane with dead space either side.
-   ------------------------------------------------------------------------- */
-body.board-v2 #board .lane .card {
-  border-radius: 0;
-  box-shadow: 0 0 0 1px rgba(255,255,255,.04), 0 10px 26px rgba(0,0,0,.55);
-}
-body.board-v2 #board .lane .card .card-portrait {
-  background-size: cover;
-  background-position: center 22%;
-}
-/* The lane frame brightens for the side that holds it, so a glance down the
-   board reads as territory rather than six identical boxes. */
-body.board-v2 #board .lane.occ-both { border-color: rgba(255,255,255,.10); }
-body.board-v2 #board .lane.occ-ai     { box-shadow: inset 0 34px 60px -34px rgba(255,144,72,.22); }
-body.board-v2 #board .lane.occ-player { box-shadow: inset 0 -34px 60px -34px rgba(var(--theme-rgb,79,195,247),.22); }
-body.board-v2 #board .lane.occ-both   { box-shadow: inset 0 34px 60px -34px rgba(255,144,72,.18),
-                                                    inset 0 -34px 60px -34px rgba(var(--theme-rgb,79,195,247),.18); }
-
-/* ---------------------------------------------------------------------------
-   TRICK RAIL. Full-height cards in a single column, as the reference shows —
-   two side by side was my compression, not the design.
-   ------------------------------------------------------------------------- */
-body.board-v2 .tricks-section #player-tricks {
-  grid-template-columns: 1fr;
-  gap: 14px;
-}
-body.board-v2 .tricks-section .trick-card {
-  width: 100%;
-  max-width: none;
-  border-radius: 0;
-}
-
-/* `.actions-section .btn` pins height: 34px, so the padding above could not
-   make the plate any taller — it only grew to 44 because the content refused
-   to fit. Released, with a floor instead of a fixed height so the label can
-   never be clipped. */
-body.board-v2 .info-bar .actions-section .btn { height: auto; }
-body.board-v2 #btn-action { min-height: 58px; }
-body.board-v2 #btn-undo,
-body.board-v2 #btn-new-game { min-height: 34px; }
-
-/* The action cluster sits hard right, as the reference has it, with the
-   primary plate last. */
-body.board-v2 .info-bar .actions-section { gap: 10px; align-items: center; }
-
-/* Trick rail. First attempt stretched the section and gave the cards
-   `height: 100%` — the section's grid row resolves from the OTHER columns'
-   content, so that percentage had nothing to resolve against and the cards
-   collapsed to 4x5px. Size them by WIDTH instead and let the face keep its own
-   aspect: the column is a known 252px, so the card is simply full-width. */
-body.board-v2 .tricks-section .trick-card {
-  width: 100%;
-  height: auto;
-  /* A CEILING, NOT `none`. `width: 100%` is only sensible while the parent is a
-     ~250px rail; the moment the rail folds away at a narrow window that 100%
-     became the full page and one trick card rendered 1161x1522. The cap means
-     the percentage can size it DOWN to fit a rail but never blow it up. */
-  max-width: 248px;
-  min-height: 0;
-}
-
-/* ---------------------------------------------------------------------------
-   THE BARS ARE GRIDS, NOT FLEX ROWS — which is what jumbled everything.
-   .info-bar ships as `display: grid` with a fixed column template. Inserting
-   the seat plate gave it a SEVENTH child with no column to sit in, so the
-   plate took the first cell and every real cell was pushed out of the bar's
-   own box: measured, the player bar ended at y=685 while its cells sat at
-   y=684 — on top of the hand. Undo, Energy and the dead pile all landed in the
-   same place, which is the pile-up in the screenshot.
-   Flex here, so the plate is simply another item in the row and the cells sit
-   where they belong.
-   ------------------------------------------------------------------------- */
-body.board-v2 #game-area > .info-bar {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: 16px;
-  min-height: 62px;
-}
-body.board-v2 #game-area > .info-bar > .bar-cell { margin: 0; }
-/* The HP track takes the slack between the plate and the right-hand cluster. */
-body.board-v2 #game-area > .info-bar > .bar-hp { flex: 1 1 auto; min-width: 0; }
-body.board-v2 #game-area > .info-bar > .bar-center { flex: 0 0 auto; }
-
-/* ---------------------------------------------------------------------------
-   USE THE WHOLE SCREEN.
-   The console was hugging its content and leaving a band of dead black under
-   the hand. The board takes the vertical slack and the hand is given a real
-   row rather than whatever its cards happened to need, so the layout reaches
-   the bottom of the window at any height.
-   ------------------------------------------------------------------------- */
-/* Board bays stretch to their row instead of sitting at card height. */
-body.board-v2 .board-section { display: flex; min-height: 0; padding: 10px 0; }
-body.board-v2 #board { height: 100%; }
-body.board-v2 #board .lane { height: 100%; }
-body.board-v2 #board .card-slot {
-  flex: 1 1 0;
-  min-height: 0;
-}
-
-/* HAND. Its own row, cards sized from the row's height so they grow with the
-   window instead of staying thumbnail-sized in a tall empty band. */
-body.board-v2 .player-hand-section {
-  display: flex; flex-direction: column; min-height: 0;
-  padding: 12px 0 0;
-}
-body.board-v2 .player-hand-section #player-hand {
-  flex: 1 1 auto; min-height: 0;
-  align-items: flex-start;
-}
-/* NOT `height: 100%` AND NOT `--card-w: auto`. I tried both and the hand went
-   to blank coloured rectangles: every proportion on a card face — the art box,
-   the badge row, the stat plate, the rules cap — is derived from --card-w, so
-   `auto` leaves them all with nothing to compute from, and stretching the
-   height just scales the wreckage. A hand card is sized the same way a board
-   card is: give the width variable a real length and let the face build itself
-   to its own aspect. */
-body.board-v2 .player-hand-section .hand-card-wrapper .card {
-  --card-w: 132px;
-}
-
-/* The caption is a row of its own above the cards, not an overlay on them. */
-body.board-v2 #bv2-hand-cap { flex: 0 0 auto; }
-
-/* ---------------------------------------------------------------------------
-   BAR ORDER. The reference reads left-to-right as: who you are, your health,
-   then the small readouts, and the action plate LAST at the far right. The
-   shipping DOM puts the action cluster in the middle, so this reorders with
-   flex `order` rather than moving nodes — ui.js keeps owning the markup.
-   ------------------------------------------------------------------------- */
-body.board-v2 #game-area > .info-bar > .bv2-plate   { order: 0; }
-body.board-v2 #game-area > .info-bar > .bar-hp      { order: 1; }
-body.board-v2 #game-area > .info-bar > .bar-block   { order: 2; }
-body.board-v2 #game-area > .info-bar > .bar-dead    { order: 3; }
-body.board-v2 #game-area > .info-bar > .bar-energy  { order: 4; }
-body.board-v2 #game-area > .info-bar > .bar-center  { order: 5; margin-left: 6px; }
-
-/* The plate carries the seat's identity, so the round avatar is a second badge
-   saying the same thing — and in the reference there is no avatar at all. */
-body.board-v2 #game-area > .info-bar .hero-avatar { display: none; }
-
-/* Give the bars room to breathe; the reference's are taller than a toolbar. */
-body.board-v2 #game-area > .info-bar { min-height: 74px; padding: 10px 4px; }
-
-/* ---------------------------------------------------------------------------
-   HAND. Bigger faces, and the row centred on its own baseline rather than
-   crammed against the bar.
-   ------------------------------------------------------------------------- */
-body.board-v2 .player-hand-section #player-hand { gap: 14px; padding-top: 4px; }
-body.board-v2 .player-hand-section .hand-card-wrapper .card { --card-w: 146px; }
-
-/* ===========================================================================
-   SEAT BAR — built to the reference, left to right:
-     [tag]  [name over its own health bar]  [30 HP]  [TRICKS 0/8]
-     ..................gap..................
-     [discard]  [♪]  [ENERGY n]  [END CARDS →]
-   The health bar is a SHORT track under the name, not a full-width rail across
-   the middle of the bar — that was the other thing making my version read as a
-   toolbar instead of a seat plate.
-   =========================================================================== */
-body.board-v2 #game-area > .info-bar {
-  display: flex;
-  align-items: center;
-  gap: clamp(10px, 1.4vw, 26px);
-  min-width: 0;
-  min-height: 68px;
-  padding: 10px 0;
-  background: #000;
-}
-body.board-v2 #game-area > .info-bar.ai-bar     { border-bottom: 1px solid var(--bv2-foe-faint); border-top: 0; }
-body.board-v2 #game-area > .info-bar.player-bar { border-top: 1px solid var(--bv2-ink-faint); border-bottom: 0; }
-
-body.board-v2 .bv2-plate {
-  display: flex; align-items: center; gap: 16px;
-  flex: 0 0 auto;
-}
-body.board-v2 .bv2-id { display: flex; flex-direction: column; gap: 7px; min-width: 190px; }
+body.board-v2 .bv2-id { display: flex; flex-direction: column; gap: calc(7 * var(--u));
+                        width: calc(240 * var(--u)); min-width: 0; }
 body.board-v2 .bv2-name {
-  font-family: var(--font-mono, ui-monospace), monospace;
-  font-size: 15px; font-weight: 600; letter-spacing: .02em;
-  color: #e8f4fc; white-space: nowrap;
+  font-family: var(--fm); font-weight: 500;
+  font-size: calc(17 * var(--u)); letter-spacing: .02em; white-space: nowrap;
 }
-body.board-v2 .ai-bar .bv2-name { color: #ffd9bd; }
-/* The moved health track: short, flat, under the name. */
+body.board-v2 .player-bar .bv2-name { color: var(--cy-txt); }
+body.board-v2 .ai-bar     .bv2-name { color: var(--or-txt); }
 body.board-v2 .bv2-id .health-container {
-  height: 4px; width: 100%; min-width: 0;
-  border-radius: 0; border: 0; box-shadow: none;
+  height: calc(4 * var(--u)); width: 100%;
+  border: 0; border-radius: 0; box-shadow: none;
   background: rgba(255,255,255,0.07);
 }
 body.board-v2 .bv2-id .health-fill { border-radius: 0; box-shadow: none; }
+body.board-v2 .player-bar .health-fill { background: var(--cy); }
+body.board-v2 .ai-bar     .health-fill { background: var(--or); }
+body.board-v2 .info-bar .health-text { display: none; }
+body.board-v2 .bv2-hp {
+  font-family: var(--fd); font-weight: 700;
+  font-size: calc(26 * var(--u)); font-variant-numeric: tabular-nums;
+}
+body.board-v2 .player-bar .bv2-hp { color: var(--cy-txt); }
+body.board-v2 .ai-bar     .bv2-hp { color: var(--or-txt); }
+body.board-v2 .bv2-hp i, body.board-v2 .bv2-trk i {
+  font-style: normal; font-family: var(--fm);
+  font-size: calc(9 * var(--u)); letter-spacing: .26em; text-transform: uppercase;
+  margin-left: calc(5 * var(--u));
+}
+body.board-v2 .player-bar .bv2-hp i, body.board-v2 .player-bar .bv2-trk i { color: rgba(143,224,255,.72); }
+body.board-v2 .ai-bar     .bv2-hp i, body.board-v2 .ai-bar     .bv2-trk i { color: rgba(255,196,140,.72); }
 body.board-v2 .bv2-trk {
-  font-family: var(--font-mono, ui-monospace), monospace;
-  font-size: 12px; letter-spacing: .10em; color: #cfe0ec;
+  font-family: var(--fm); font-size: calc(13 * var(--u));
+  display: inline-flex; align-items: baseline; gap: calc(7 * var(--u));
   font-variant-numeric: tabular-nums;
-  display: inline-flex; align-items: baseline; gap: 8px;
 }
-body.board-v2 .bv2-trk i {
-  font-style: normal; font-size: 9px; letter-spacing: .24em;
-  color: var(--bv2-label); text-transform: uppercase;
-}
-/* Everything after the plate is pushed to the right edge. */
-body.board-v2 #game-area > .info-bar > .bar-hp { display: none; }   /* its bar now lives in the plate */
-body.board-v2 #game-area > .info-bar > .bar-block { order: 8; }
-body.board-v2 #game-area > .info-bar > .bar-dead  { order: 9; }
-body.board-v2 #game-area > .info-bar > .bar-energy{ order: 10; }
-body.board-v2 #game-area > .info-bar > .bar-center{ order: 11; margin-left: 4px; }
-body.board-v2 #game-area > .info-bar > .bv2-plate { order: 0; margin-right: auto; }
+body.board-v2 .player-bar .bv2-trk { color: var(--cy-txt); }
+body.board-v2 .ai-bar     .bv2-trk { color: var(--or-txt); }
+body.board-v2 .bv2-trk i { margin-left: 0; }
 
-/* ===========================================================================
-   EMPTY BAYS. The reference marks a free slot with a small diamond, not a
-   giant ghost numeral — the numerals live on the divider line between the rows.
-   =========================================================================== */
-body.board-v2 #board .card-slot:empty::after {
-  content: '';
-  position: absolute; left: 50%; top: 50%;
-  width: 9px; height: 9px; margin: -5px 0 0 -5px;
-  border: 1px solid rgba(255,255,255,0.16);
-  transform: rotate(45deg);
-  background: transparent;
-  font-size: 0;
+/* Energy as a circular DISC, not a diamond. */
+body.board-v2 .info-bar .energy-display {
+  width: calc(38 * var(--u)); height: calc(38 * var(--u));
+  border-radius: 50%; clip-path: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(4,6,10,.9);
+  font-family: var(--fd); font-weight: 700; font-size: calc(15 * var(--u));
 }
-/* Lane index: a small SQUARE chip on the divider, as the reference draws it. */
-body.board-v2 .bv2-lane-no {
-  width: 22px; height: 18px; border-radius: 2px;
-  background: #000; border: 1px solid var(--bv2-line);
-  font-size: 10px; color: #cddfeb;
+body.board-v2 .player-bar .energy-display {
+  border: 2px solid var(--cy); color: var(--cy-txt);
+  box-shadow: inset 0 0 0 1px rgba(232,247,255,.6), 0 0 6px rgba(53,201,255,.4);
 }
+body.board-v2 .ai-bar .energy-display {
+  border: 2px solid var(--or); color: var(--or-txt);
+  box-shadow: inset 0 0 0 1px rgba(255,217,176,.55), 0 0 6px rgba(255,138,31,.38);
+}
+/* Tertiary tier: 1px at 35-40% alpha, no glow, no fill. */
+body.board-v2 .info-bar .block-circle,
+body.board-v2 .info-bar .pile-badge {
+  border: 1px solid rgba(53,201,255,0.38);
+  background: transparent; box-shadow: none;
+  color: rgba(143,224,255,0.86);
+  font-family: var(--fm); font-size: calc(11 * var(--u));
+}
+body.board-v2 .ai-bar .block-circle,
+body.board-v2 .ai-bar .pile-badge { border-color: rgba(255,138,31,0.38); color: rgba(255,196,140,.86); }
+body.board-v2 #game-area > .info-bar > .bar-dead::before,
+body.board-v2 .info-bar .bar-energy::before,
+body.board-v2 .info-bar .ai-hand-mini::before {
+  font-family: var(--fm); font-size: calc(9 * var(--u));
+  letter-spacing: .26em; text-transform: uppercase;
+  margin-right: calc(7 * var(--u));
+}
+body.board-v2 #game-area > .info-bar > .bar-dead::before { content: 'Discard'; }
+body.board-v2 .info-bar .bar-energy::before  { content: 'Energy'; }
+body.board-v2 .info-bar .ai-hand-mini::before { content: 'Hand'; }
+body.board-v2 .player-bar .bar-dead::before,
+body.board-v2 .player-bar .bar-energy::before { color: rgba(143,224,255,.72); }
+body.board-v2 .ai-bar .bar-dead::before,
+body.board-v2 .ai-bar .bar-energy::before,
+body.board-v2 .ai-bar .ai-hand-mini::before  { color: rgba(255,196,140,.72); }
+body.board-v2 #game-area > .info-bar > .bar-dead,
+body.board-v2 #game-area > .info-bar > .bar-energy { display: flex; align-items: center; }
+
+/* --- PRIMARY BUTTON. 2px stroke + 1px near-white core inset 1px, over a
+   105deg fill, with three stacked shadows. 214 x 60.
+   style.css sets `#btn-action { border:0; background:transparent }` with
+   !important and paints a bracket reticle in ::before, so both must be
+   overridden here or none of this lands. --------------------------------- */
+body.board-v2 #btn-action::before { content: none !important; display: none !important; }
+body.board-v2 #game-area .bar-center > #btn-action {
+  width: calc(214 * var(--u)); height: calc(60 * var(--u)); min-height: 0;
+  padding: 0 calc(30 * var(--u)) 0 calc(22 * var(--u));
+  display: inline-flex; align-items: center; justify-content: flex-start;
+  font-family: var(--fd); font-weight: 700;
+  font-size: calc(18 * var(--u)); letter-spacing: .14em;
+  color: var(--cy-txt) !important;
+  border: 2px solid var(--cy) !important;
+  border-radius: 0 !important;
+  background: linear-gradient(105deg, rgba(53,201,255,0.22), rgba(4,6,10,0.9)) !important;
+  box-shadow: inset 0 0 0 1px var(--core) !important;
+  filter:
+    drop-shadow(0 0 2px  rgba(224,246,255,0.8))
+    drop-shadow(0 0 11px rgba(53,201,255,0.55))
+    drop-shadow(0 0 30px rgba(40,180,240,0.24));
+  clip-path: polygon(calc(14 * var(--u)) 0, 100% 0,
+                     100% calc(100% - 14 * var(--u)),
+                     calc(100% - 14 * var(--u)) 100%, 0 100%, 0 calc(14 * var(--u)));
+  text-shadow: none;
+}
+body.board-v2 #game-area .bar-center > #btn-action::after {
+  content: '\2192'; margin-left: auto; color: var(--cy-dim);
+  font-size: calc(18 * var(--u)); position: static; transform: none;
+}
+body.board-v2 #game-area .bar-center > #btn-action[disabled] {
+  border-color: rgba(53,201,255,.3) !important;
+  background: rgba(4,6,10,.9) !important;
+  box-shadow: none !important; filter: none;
+  color: rgba(143,224,255,.5) !important;
+}
+/* Secondary / tertiary: never a fourth weight. */
+body.board-v2 #btn-undo, body.board-v2 #btn-new-game {
+  border: 1px solid rgba(53,201,255,0.38); background: transparent; box-shadow: none;
+  color: rgba(143,224,255,.86); border-radius: 0;
+  font-family: var(--fm); font-size: calc(10 * var(--u));
+  min-height: calc(32 * var(--u)); padding: 0 calc(12 * var(--u));
+}
+body.board-v2 #game-area > .info-bar > .bar-center { display: flex; align-items: center; gap: calc(12 * var(--u)); }
 
 /* ---------------------------------------------------------------------------
-   RIGHT RAIL must live inside its row. It spans the board + strip rows, but a
-   full-width trick face is ~340px tall and two of them plus a caption came to
-   699px — it spilled straight through the player bar. Cap the faces so the pair
-   fits the rail, and clip as a backstop so a third trick can never push the
-   layout around.
+   6. THE BOARD. Six 156px columns in a 16px gap row. Each column carries a 1px
+   light tube down BOTH edges, orange->dim->cyan top to bottom, so it reads as a
+   circuit channel and shows where territory changes hands.
    ------------------------------------------------------------------------- */
-body.board-v2 #game-area > .tricks-section {
-  /* STRETCH, not start. `align-self: start` makes a grid item content-sized, so
-     the rail measured 518px against a 475px row and spilled through the player
-     bar regardless of overflow. Stretching binds it to the row, and then
-     `min-height: 0` lets it actually shrink there — without it a grid item's
-     automatic minimum is its content and the clip never engages. */
-  align-self: stretch;
-  min-height: 0;
-  overflow: hidden;
+body.board-v2 .board-section {
+  display: flex; min-height: 0; padding: 0; background: transparent;
 }
-/* Trick faces were 176x231 and the second one hung 46px past the bottom of the
-   rail. They are a reference column, not the main event — sized so the pair and
-   the caption fit inside the rail with room to spare. */
-body.board-v2 .tricks-section .trick-card { max-width: 100%; }
-body.board-v2 .tricks-section #player-tricks { gap: 10px; }
-body.board-v2 .tricks-section #player-tricks { justify-items: center; }
-
-/* ---------------------------------------------------------------------------
-   The board is the subject — give it the height. The hand is a strip along the
-   bottom, not half the screen.
-   ------------------------------------------------------------------------- */
-body.board-v2 .player-hand-section .hand-card-wrapper .card { --card-w: 118px; }
-body.board-v2 .player-hand-section { padding-top: 8px; }
-body.board-v2 #board .card-slot { min-height: 0; }
-
-/* ---------------------------------------------------------------------------
-   BOARD CARDS: fill the bay. With the rails trimmed the lane is wider, and the
-   face should use it — the card takes the lane's width and its own aspect does
-   the rest, so the art gets bigger rather than the tile gaining dead margin.
-   ------------------------------------------------------------------------- */
-body.board-v2 #board .card-slot {
-  max-width: none;          /* the lane already bounds it */
+body.board-v2 .board-section .crt-scanlines, body.board-v2 .board-section .boot-scan-beam { display: none; }
+body.board-v2 #board {
+  width: 100%; height: 100%;
+  display: flex; gap: calc(16 * var(--u));
+  justify-content: center; align-items: stretch;
+}
+body.board-v2 #board .round-watermark, body.board-v2 #board .board-mote { display: none; }
+body.board-v2 #board .lane {
+  position: relative;
+  flex: 0 1 calc(156 * var(--u));
+  width: calc(156 * var(--u)); min-width: 0;
+  display: flex; flex-direction: column;
+  background: none; border: 0; border-radius: 0; box-shadow: none;
   padding: 0;
 }
-/* Lane chrome trimmed to a hairline of breathing room. The lane was 127px wide
-   holding a 113px card — 14px of it was padding doing nothing but shrinking the
-   art. */
-body.board-v2 #board .lane { padding: 5px 2px; }
-body.board-v2 #board { gap: 8px; }
+body.board-v2 #board .lane::before,
+body.board-v2 #board .lane::after {
+  content: ''; position: absolute; top: 0; bottom: 0; width: 1px;
+  background: linear-gradient(to bottom,
+    rgba(255,138,31,0.55) 0%, rgba(143,224,255,0.12) 50%, rgba(53,201,255,0.55) 100%);
+  pointer-events: none;
+}
+body.board-v2 #board .lane::before { left: 0; }
+body.board-v2 #board .lane::after  { right: 0; }
 
-/* ===========================================================================
-   1. LANE OUTCOMES AS ARROWS.
-   The strip ships as [my face] [VERDICT WORD] [their face] — "− STRIKE −2".
-   The reference prints one signed arrow per lane and nothing else: a green
-   ▲2 where you come out ahead, an amber ▼7 where you do not, an em dash where
-   the lane is quiet. Same numbers, a quarter of the ink, and it reads without
-   being parsed.
-   =========================================================================== */
+/* Slots: 130 x 254, chamfer 11. Never dashed. */
+body.board-v2 #board .card-slot {
+  position: relative;
+  width: calc(130 * var(--u));
+  flex: 1 1 auto; min-height: 0;
+  margin: 0 auto;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 0;
+  clip-path: polygon(calc(11 * var(--u)) 0, 100% 0,
+                     100% calc(100% - 11 * var(--u)),
+                     calc(100% - 11 * var(--u)) 100%, 0 100%, 0 calc(11 * var(--u)));
+}
+body.board-v2 #board .card-slot.player-slot:empty {
+  background: rgba(53,201,255,0.06);
+  box-shadow: inset 0 0 0 1px rgba(53,201,255,0.42);
+}
+body.board-v2 #board .card-slot.ai-slot:empty {
+  background: rgba(255,138,31,0.028);
+  box-shadow: inset 0 0 0 1px rgba(255,138,31,0.20);
+}
+/* Your legal drop carries a 12px diamond outline, centred. */
+body.board-v2 #board .card-slot.player-slot:empty::after {
+  content: ''; position: absolute; left: 50%; top: 50%;
+  width: calc(12 * var(--u)); height: calc(12 * var(--u));
+  margin: calc(-6 * var(--u)) 0 0 calc(-6 * var(--u));
+  border: 1px solid rgba(53,201,255,0.55);
+  transform: rotate(45deg);
+}
+
+/* Midline row: 156 x 30 — a 22px chamfered square badge between two 1px rules
+   that take the holding player's colour. */
+body.board-v2 #board .lane-sep {
+  position: relative;
+  height: calc(30 * var(--u)); margin: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: none; overflow: visible;
+}
+body.board-v2 #board .lane-sep::before,
+body.board-v2 #board .lane-sep::after {
+  content: ''; position: absolute; top: 50%; height: 1px;
+  background: rgba(143,224,255,0.20);
+}
+body.board-v2 #board .lane-sep::before { left: calc(6 * var(--u));  right: calc(50% + 16 * var(--u)); }
+body.board-v2 #board .lane-sep::after  { right: calc(6 * var(--u)); left:  calc(50% + 16 * var(--u)); }
+body.board-v2 #board .lane.occ-ai .lane-sep::before,
+body.board-v2 #board .lane.occ-ai .lane-sep::after { background: rgba(255,138,31,0.42); }
+body.board-v2 #board .lane.occ-both .lane-sep::before { background: rgba(255,138,31,0.42); }
+body.board-v2 #board .lane.occ-both .lane-sep::after  { background: rgba(53,201,255,0.42); }
+body.board-v2 #board .lane-sep .lane-number {
+  position: relative; z-index: 1;
+  width: calc(22 * var(--u)); height: calc(22 * var(--u));
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg);
+  border: 1px solid rgba(143,224,255,0.30);
+  border-radius: 0;
+  clip-path: polygon(calc(6 * var(--u)) 0, 100% 0,
+                     100% calc(100% - 6 * var(--u)),
+                     calc(100% - 6 * var(--u)) 100%, 0 100%, 0 calc(6 * var(--u)));
+  font-family: var(--fd); font-weight: 700;
+  font-size: calc(11 * var(--u)); color: var(--cy-dim);
+}
+
+/* Cards on board: 130 x 254. Frame colour is the OWNING PLAYER'S theme. */
+body.board-v2 #board .lane .card {
+  --board-card-w: calc(130 * var(--u));
+  --card-w: calc(130 * var(--u));
+  max-width: 100%;
+  border-radius: 0;
+  box-shadow: none;
+}
+body.board-v2 #board .ai-slot .card,
+body.board-v2 #board .ai-slot .card .cf-edge { border-color: var(--or) !important; }
+body.board-v2 #board .player-slot .card,
+body.board-v2 #board .player-slot .card .cf-edge { border-color: var(--cy) !important; }
+
+/* ---------------------------------------------------------------------------
+   7. THE DAMAGE FORECAST. 130 x 20 under each lane: ▲N cyan you deal,
+   ▼N orange you take, — at rgba(143,224,255,0.28) for nothing.
+   Arrow gives direction, colour gives the dealer.
+   ------------------------------------------------------------------------- */
+body.board-v2 #lane-forecast-strip {
+  display: flex; gap: calc(16 * var(--u)); justify-content: center;
+  margin-top: calc(7 * var(--u));
+}
 body.board-v2 #lane-forecast-strip .lf-cell {
-  border: 0;
-  background: transparent;
-  justify-content: center;
-  gap: 6px;
-  padding: 4px 2px;
+  width: calc(156 * var(--u)); height: calc(20 * var(--u));
+  background: transparent; border: 0; border-radius: 0; box-shadow: none;
+  display: flex; align-items: center; justify-content: center; gap: calc(4 * var(--u));
+  padding: 0;
 }
 body.board-v2 #lane-forecast-strip .lf-verdict { display: none; }
 body.board-v2 #lane-forecast-strip .lf-face-zero { display: none; }
 body.board-v2 #lane-forecast-strip .lf-cell.lf-empty::after {
-  content: '\2014';                                   /* — */
-  color: rgba(150,176,196,0.34);
-  font-family: var(--font-mono, ui-monospace), monospace;
-  font-size: 12px;
+  content: '\2014'; color: rgba(143,224,255,0.28);
+  font-family: var(--fm); font-size: calc(12 * var(--u));
 }
 body.board-v2 #lane-forecast-strip .lf-face {
-  font-family: var(--font-display, 'Chakra Petch'), system-ui, sans-serif;
-  font-weight: 700; font-size: 15px; letter-spacing: .02em;
+  font-family: var(--fd); font-weight: 700; font-size: calc(14 * var(--u));
   font-variant-numeric: tabular-nums;
-  display: inline-flex; align-items: center; gap: 3px;
+  display: inline-flex; align-items: center; gap: calc(3 * var(--u));
 }
-body.board-v2 #lane-forecast-strip .lf-face-green { color: #57e08a; }
-body.board-v2 #lane-forecast-strip .lf-face-red   { color: var(--bv2-foe); }
-body.board-v2 #lane-forecast-strip .lf-face-green::before {
-  content: '\25B2'; font-size: 9px; opacity: .95;      /* ▲ */
+body.board-v2 #lane-forecast-strip .lf-face-green {
+  color: var(--cy); text-shadow: 0 0 4px rgba(53,201,255,.55);
 }
-body.board-v2 #lane-forecast-strip .lf-face-red::before {
-  content: '\25BC'; font-size: 9px; opacity: .95;      /* ▼ */
+body.board-v2 #lane-forecast-strip .lf-face-red {
+  color: var(--or); text-shadow: 0 0 4px rgba(255,138,31,.55);
 }
-
-/* ===========================================================================
-   2. SMALLER BOARD CARDS. 124px read as chunky against the reference's slim
-   bay. The lane keeps its width — the card just stops filling every pixel of
-   it, which is what gives the reference its air.
-   =========================================================================== */
-body.board-v2 #board .card-slot { max-width: 104px; margin: 0 auto; }
-
-/* ===========================================================================
-   3. THE PLAYER BANNER, to the reference crop:
-      [VP] Player213 ──── 30 HP  TRICKS 0/8 ....... DISCARD 2  ♪  ENERGY (1) │ [END CARDS →]
-   =========================================================================== */
-/* A hard 300px minimum here pushed END TURN off the right edge at 1196px.
-   The name block is the flexible part of the bar — it takes what is spare and
-   gives it back when the readouts need it. */
-body.board-v2 .bv2-id { min-width: 0; width: clamp(150px, 20vw, 320px); }
-body.board-v2 .bv2-name { font-size: 17px; }
-body.board-v2 .bv2-hp   { font-size: 24px; }
-body.board-v2 .bv2-id .health-container { height: 3px; }
-
-/* Label the discard pile, as the reference does. */
-body.board-v2 #game-area > .info-bar > .bar-dead::before {
-  content: 'Discard';
-  font-family: var(--font-mono, ui-monospace), monospace;
-  font-size: 9px; letter-spacing: .24em; text-transform: uppercase;
-  color: var(--bv2-label); margin-right: 8px;
-}
-body.board-v2 #game-area > .info-bar > .bar-dead { display: flex; align-items: center; }
-
-/* Energy reads as a ring, not a diamond — matching the reference. */
-body.board-v2 .info-bar .energy-display {
-  width: 34px; height: 34px; border-radius: 50%;
-  clip-path: none;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: #000;
-  font-family: var(--font-display, 'Chakra Petch'), system-ui, sans-serif;
-  font-weight: 700;
-}
-body.board-v2 .player-bar .energy-display { border: 1px solid var(--bv2-ink); color: var(--bv2-ink); }
-body.board-v2 .ai-bar     .energy-display { border: 1px solid var(--bv2-foe); color: var(--bv2-foe); }
-
-/* A hairline between the readouts and the action, as the crop has. */
-body.board-v2 #game-area > .info-bar > .bar-center::before {
-  content: '';
-  width: 1px; height: 34px;
-  background: var(--bv2-line);
-  margin-right: 18px;
-}
-body.board-v2 #game-area > .info-bar > .bar-center { display: flex; align-items: center; }
-
+body.board-v2 #lane-forecast-strip .lf-face-green::before { content: '\25B2'; font-size: calc(9 * var(--u)); }
+body.board-v2 #lane-forecast-strip .lf-face-red::before   { content: '\25BC'; font-size: calc(9 * var(--u)); }
 
 /* ---------------------------------------------------------------------------
-   ONE HUE PER SIDE. The opponent's half of the board — bar, rail edge, labels —
-   is amber at the same two brightnesses the player's half is cyan at.
+   8. LEFT PANEL — phase. 340 wide, chamfer 16, 105deg cyan-to-dark fill.
    ------------------------------------------------------------------------- */
-body.board-v2 #game-area > .info-bar.ai-bar {
-  --bv2-label: rgba(255, 144, 72, 0.62);
-  --bv2-line:  rgba(255, 144, 72, 0.17);
+body.board-v2 .bv2-rail { min-width: 0; }
+body.board-v2 #bv2-phase {
+  position: relative;
+  background: linear-gradient(105deg, rgba(53,201,255,0.14), rgba(4,6,10,0.92));
+  border: 1px solid rgba(53,201,255,0.45);
+  clip-path: polygon(calc(16 * var(--u)) 0, 100% 0,
+                     100% calc(100% - 16 * var(--u)),
+                     calc(100% - 16 * var(--u)) 100%, 0 100%, 0 calc(16 * var(--u)));
+  padding: calc(16 * var(--u)) calc(18 * var(--u)) calc(18 * var(--u));
+  margin-bottom: calc(26 * var(--u));
 }
-body.board-v2 #board .lane.occ-ai { --bv2-line: rgba(255, 144, 72, 0.17); }
-
-/* The readouts the bars carry, in the label colour rather than a neutral. */
-body.board-v2 .info-bar .block-circle,
-body.board-v2 .info-bar .pile-badge {
-  color: var(--bv2-label);
-  border-color: var(--bv2-line);
+body.board-v2 #bv2-phase:not(.is-mine) {
+  background: rgba(4,6,10,0.92); border-color: rgba(143,224,255,0.16);
 }
-body.board-v2 .info-bar .hand-tools,
-body.board-v2 .info-bar .hand-tools * { color: var(--bv2-label); }
-
-/* The left rail's log and captions were the other grey on screen. */
-body.board-v2 #bv2-rail-left .ba-log-line { color: rgba(var(--theme-rgb, 79,195,247), 0.70); }
-body.board-v2 #bv2-rail-left .ba-log-line.is-latest { color: rgba(var(--theme-rgb, 79,195,247), 0.95); }
-body.board-v2 #bv2-rail-left .ba-rule-label,
-body.board-v2 #bv2-rail-left .ba-cap,
-body.board-v2 #bv2-rail-left .ba-log-more { color: var(--bv2-label); }
-body.board-v2 .bv2-cap-label,
-body.board-v2 .bv2-cap-val i,
-body.board-v2 .bv2-trk i,
-body.board-v2 .bv2-hp i,
-body.board-v2 .bv2-phase-cap,
-body.board-v2 .bv2-phase-hint { color: var(--bv2-label); }
-body.board-v2 .bv2-cap-val { color: rgba(var(--theme-rgb, 79,195,247), 0.92); }
-body.board-v2 .bv2-lane-no { color: rgba(var(--theme-rgb, 79,195,247), 0.85); }
-/* The hand caption sat in grey at the far left; same treatment. */
-body.board-v2 #bv2-hand-cap .bv2-cap-label { color: var(--bv2-label); }
-
-/* The seat name reads as the seat's own colour, brightly. */
-body.board-v2 .player-bar .bv2-name { color: #eaf9ff; }
-body.board-v2 .ai-bar     .bv2-name { color: #ffe3cc; }
-
-/* ===========================================================================
-   THE MIDDLE OF THE BAR IS SUPPOSED TO BE EMPTY.
-   Measured against the reference crop: its left cluster (badge, name, health,
-   HP, TRICKS) ends at ~29% of the bar and the right cluster (DISCARD, ♪,
-   ENERGY, END) does not start until ~71%. Forty-two percent of that bar is
-   deliberately nothing — that void is what makes it read as a console readout
-   instead of a crowded toolbar.
-   Mine: plate 456px and readouts 618px of an 1158px bar, so the right cluster
-   began at 42% and there was no gap at all. Both clusters are trimmed here;
-   the alignment was already right, the widths were not.
-   =========================================================================== */
-body.board-v2 #game-area > .info-bar { gap: 14px; }
-
-/* Left cluster — tighter, and the health track is a short rule under the name
-   rather than a bar that runs half the width of the seat. */
-body.board-v2 .bv2-plate { gap: 13px; }
-body.board-v2 .bv2-id { width: clamp(112px, 13vw, 178px); gap: 6px; }
-body.board-v2 .bv2-id .health-container { width: 100%; }
-body.board-v2 .bv2-hp { font-size: 22px; }
-body.board-v2 .bv2-trk { gap: 6px; }
-
-/* Right cluster — the readouts sit close together, as one group. */
-body.board-v2 #game-area > .info-bar > .bar-cell { gap: 8px; padding: 0; }
-body.board-v2 #game-area > .info-bar > .bar-dead::before { margin-right: 6px; }
-body.board-v2 .info-bar .bar-energy::before { margin-right: 2px; }
-body.board-v2 .info-bar .hand-tools { gap: 6px; }
-body.board-v2 .info-bar .energy-display { width: 30px; height: 30px; }
-body.board-v2 .info-bar .block-circle { width: 34px; height: 34px; }
-body.board-v2 #game-area > .info-bar > .bar-center::before { margin-right: 12px; height: 28px; }
-body.board-v2 #btn-action { padding: 14px 44px 14px 28px; min-height: 52px; font-size: 14px; }
-
-/* ===========================================================================
-   THE SEAT BADGE. The reference plate is a broad hexagon — chamfered on BOTH
-   ends, not a rectangle with one corner nicked off — and it is squarer and
-   heavier than mine was.
-   =========================================================================== */
-body.board-v2 .bv2-tag {
-  width: 56px; height: 44px;
-  font-size: 16px; letter-spacing: .06em;
-  clip-path: polygon(
-    13px 0, calc(100% - 13px) 0, 100% 50%,
-    calc(100% - 13px) 100%, 13px 100%, 0 50%);
+body.board-v2 #bv2-phase::before { display: none; }
+body.board-v2 .bv2-phase-cap {
+  font-family: var(--fm); font-size: calc(9 * var(--u));
+  letter-spacing: .30em; text-transform: uppercase;
+  color: rgba(143,224,255,.72); margin-bottom: calc(8 * var(--u));
 }
-
-/* Still 625px of readouts against the reference's ~284px equivalent, so the
-   void was 14% instead of 42%. Trim the group again — smaller caps, tighter
-   rhythm, a narrower action plate. The elements all stay: the reference's crop
-   simply does not show this game's block meter or its undo, and dropping either
-   to win a percentage would be removing information to match a picture. */
-body.board-v2 #game-area > .info-bar { gap: 10px; }
-body.board-v2 #game-area > .info-bar > .bar-cell { gap: 6px; }
-body.board-v2 #game-area > .info-bar > .bar-dead::before,
-body.board-v2 .info-bar .bar-energy::before,
-body.board-v2 .info-bar .ai-hand-mini::before {
-  font-size: 8px; letter-spacing: .16em; margin-right: 5px;
+body.board-v2 .bv2-phase-title {
+  font-family: var(--fd); font-weight: 700;
+  font-size: calc(26 * var(--u)); letter-spacing: .04em; line-height: 1;
+  color: var(--cy-txt); text-transform: uppercase;
 }
-body.board-v2 .info-bar .energy-display { width: 27px; height: 27px; font-size: 12px; }
-body.board-v2 .info-bar .block-circle   { width: 30px; height: 30px; font-size: 10px; }
-body.board-v2 .info-bar .pile-badge     { transform: scale(.86); transform-origin: center; }
-body.board-v2 #btn-undo { padding: 8px 10px; min-height: 30px; font-size: 10px; }
-body.board-v2 #btn-action { padding: 13px 36px 13px 24px; min-height: 48px; font-size: 13px; letter-spacing: .18em; }
-body.board-v2 #btn-action::after { right: 16px; font-size: 15px; }
-body.board-v2 #game-area > .info-bar > .bar-center::before { margin-right: 10px; height: 26px; }
-/* Left cluster gives a little back too. */
-body.board-v2 .bv2-plate { gap: 11px; }
-body.board-v2 .bv2-id { width: clamp(104px, 11.5vw, 156px); }
-body.board-v2 .bv2-hp { font-size: 21px; }
-
-/* ===========================================================================
-   DESTROY AND REBUILD: THE ACTION PLATE.
-   What was on screen was not my button at all. style.css carries
-   `#btn-action { border: 0; background: transparent }` with !important — (1,0,0)
-   plus importance, which beats `body.board-v2 #btn-action` at (1,1,0) without
-   it — and then draws a corner-bracket reticle with an inset ::before. So every
-   border and fill I wrote was discarded and you were looking at the shipping
-   decoration through my clip-path. That is the "corner brackets instead of a
-   plate" in the circle.
-   The reticle is switched off and the plate is rebuilt from nothing: a solid
-   angular slab, chamfered top-left and bottom-right, lit border, glowing label.
-   =========================================================================== */
-body.board-v2 #btn-action::before { content: none !important; display: none !important; }
-body.board-v2 #game-area .bar-center > #btn-action {
-  border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.95) !important;
-  background:
-    linear-gradient(180deg,
-      rgba(var(--theme-rgb, 79,195,247), 0.16),
-      rgba(var(--theme-rgb, 79,195,247), 0.05) 46%,
-      rgba(0, 0, 0, 0.92)) !important;
-  box-shadow:
-    0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.14),
-    0 0 26px rgba(var(--theme-rgb, 79,195,247), 0.30),
-    inset 0 0 26px rgba(var(--theme-rgb, 79,195,247), 0.10) !important;
-  color: #f2fbff !important;
-  clip-path: polygon(18px 0, 100% 0, 100% calc(100% - 18px),
-                     calc(100% - 18px) 100%, 0 100%, 0 18px) !important;
-  border-radius: 0 !important;
-  text-shadow: 0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.75);
-}
-body.board-v2 #game-area .bar-center > #btn-action:hover {
-  background:
-    linear-gradient(180deg,
-      rgba(var(--theme-rgb, 79,195,247), 0.26),
-      rgba(var(--theme-rgb, 79,195,247), 0.10) 46%,
-      rgba(0, 0, 0, 0.92)) !important;
-  box-shadow:
-    0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.22),
-    0 0 34px rgba(var(--theme-rgb, 79,195,247), 0.46),
-    inset 0 0 30px rgba(var(--theme-rgb, 79,195,247), 0.16) !important;
-}
-body.board-v2 #game-area .bar-center > #btn-action[disabled] {
-  border-color: var(--bv2-line) !important;
-  background: #000 !important;
-  box-shadow: none !important;
-  color: var(--bv2-label) !important;
-  text-shadow: none;
-}
-
-/* ===========================================================================
-   DESTROY AND REBUILD: THE SEAT BADGE.
-   It was sitting at leftInset 0 — flush against the bar's own edge, so the
-   hexagon's left point had nowhere to go and the plate read as clipped. The
-   bar gets a left inset, and the badge is rebuilt as a plate with the chamfer
-   on the outer corners only, which is what keeps a short label centred inside
-   it instead of the angle eating into the letters.
-   =========================================================================== */
-body.board-v2 #game-area > .info-bar { padding-left: 14px; padding-right: 2px; }
-body.board-v2 .bv2-tag {
-  width: 62px; height: 46px;
-  font-size: 17px; letter-spacing: .10em;
-  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px),
-                     calc(100% - 12px) 100%, 0 100%, 0 12px);
-  border-width: 1px;
-  flex: 0 0 auto;
-}
-
-/* ===========================================================================
-   THE TUBE. Colour spec, verbatim:
-       #35c9ff   the tube — every cyan stroke, border and rail on the board
-       #e8f7ff   the hot core — a 1px inner line INSIDE the 2px tube stroke,
-                 which is what makes a control read as LIT rather than outlined
-       #eafaff   label text
-       #8fe0ff   the arrow and the dim cyan labels
-   The core is the piece I had missing. I was drawing a 1px outline and then
-   trying to buy "lit" with more outer glow, which only ever produces a blurry
-   outline. A real tube is two strokes: the glass, and the filament inside it.
-   =========================================================================== */
-body.board-v2 {
-  --bv2-tube: #35c9ff;
-  --bv2-core: #e8f7ff;
-  --bv2-text: #eafaff;
-  --bv2-dim:  #8fe0ff;
-
-  /* Everything that was theme-derived now runs off the tube, so one hue
-     governs the whole board instead of two nearly-identical blues. */
-  --bv2-ink:       var(--bv2-tube);
-  --bv2-ink-dim:   rgba(53, 201, 255, 0.55);
-  --bv2-ink-faint: rgba(53, 201, 255, 0.16);
-  --bv2-label:     rgba(143, 224, 255, 0.72);
-  --bv2-line:      rgba(53, 201, 255, 0.17);
-}
-
-/* --- END CARDS: the lit plate, built to the spec ------------------------- */
-body.board-v2 #game-area .bar-center > #btn-action {
-  border: 2px solid var(--bv2-tube) !important;
-  /* The diagonal fill, then the hot core as a 1px inset ring just inside the
-     tube, then the three stacked glows: filament, mid, bloom. */
-  background: linear-gradient(135deg,
-      rgba(53, 201, 255, 0.22), transparent 78%) !important;
-  box-shadow:
-    inset 0 0 0 1px var(--bv2-core),
-    0 0 2px  rgba(224, 246, 255, 0.80),
-    0 0 11px rgba(53, 201, 255, 0.55),
-    0 0 30px rgba(40, 180, 240, 0.24) !important;
-  color: var(--bv2-text) !important;
-  text-shadow: 0 0 10px rgba(224, 246, 255, 0.55);
-}
-body.board-v2 #game-area .bar-center > #btn-action::after { color: var(--bv2-dim); }
-body.board-v2 #game-area .bar-center > #btn-action:hover {
-  background: linear-gradient(135deg,
-      rgba(53, 201, 255, 0.32), transparent 78%) !important;
-  box-shadow:
-    inset 0 0 0 1px var(--bv2-core),
-    0 0 3px  rgba(224, 246, 255, 0.95),
-    0 0 16px rgba(53, 201, 255, 0.70),
-    0 0 40px rgba(40, 180, 240, 0.34) !important;
-}
-
-/* --- the same tube treatment on the pieces that should read as lit -------- */
-body.board-v2 .player-bar .bv2-tag {
-  border: 2px solid var(--bv2-tube);
-  box-shadow:
-    inset 0 0 0 1px rgba(232, 247, 255, 0.85),
-    0 0 2px  rgba(224, 246, 255, 0.65),
-    0 0 11px rgba(53, 201, 255, 0.42);
-  color: var(--bv2-text);
-  text-shadow: 0 0 9px rgba(224, 246, 255, 0.5);
-}
-body.board-v2 #bv2-phase.is-mine {
-  border: 1px solid var(--bv2-tube);
-  box-shadow:
-    inset 0 0 0 1px rgba(232, 247, 255, 0.22),
-    0 0 2px  rgba(224, 246, 255, 0.35),
-    0 0 14px rgba(53, 201, 255, 0.30),
-    0 0 34px rgba(40, 180, 240, 0.18);
-}
-body.board-v2 #bv2-phase.is-mine::before {
-  background: var(--bv2-core);
-  box-shadow: 0 0 3px rgba(224,246,255,.9), 0 0 12px rgba(53,201,255,.75);
-}
-body.board-v2 #bv2-phase.is-mine .bv2-phase-title {
-  color: var(--bv2-text);
-  text-shadow: 0 0 10px rgba(224, 246, 255, 0.6), 0 0 26px rgba(53, 201, 255, 0.38);
+/* The turn bar is the one surviving gold — neither yours, theirs, nor a card. */
+body.board-v2 .bv2-phase-bar {
+  height: calc(3 * var(--u)); margin: calc(14 * var(--u)) 0 calc(10 * var(--u));
+  background: rgba(255,255,255,0.07); overflow: hidden;
 }
 body.board-v2 #bv2-phase.is-mine .bv2-phase-bar i {
-  background: linear-gradient(90deg, rgba(53,201,255,.25), var(--bv2-tube));
-  box-shadow: 0 0 8px rgba(53, 201, 255, 0.7);
+  display: block; height: 100%; width: 62%;
+  background: var(--timer); box-shadow: 0 0 5px rgba(255,210,74,.6);
 }
-body.board-v2 .player-bar .energy-display {
-  border: 2px solid var(--bv2-tube);
-  box-shadow: inset 0 0 0 1px rgba(232,247,255,.6), 0 0 9px rgba(53,201,255,.45);
-  color: var(--bv2-text);
+body.board-v2 .bv2-phase-hint {
+  font-family: var(--fm); font-size: calc(9 * var(--u));
+  letter-spacing: .26em; text-transform: uppercase; color: rgba(143,224,255,.72);
 }
-/* Text: labels take the dim tube, values the label white. */
-body.board-v2 .player-bar .bv2-name,
-body.board-v2 .bv2-cap-val,
-body.board-v2 .bv2-trk { color: var(--bv2-text); }
-body.board-v2 #bv2-rail-left .ba-log-line { color: rgba(143, 224, 255, 0.78); }
-body.board-v2 #bv2-rail-left .ba-log-line.is-latest { color: var(--bv2-text); }
-body.board-v2 .bv2-lane-no { color: var(--bv2-dim); }
+/* Section headers: 9px / 700 / 0.3em + diagonal + fading rule. */
+body.board-v2 #bv2-rail-left .ba-rule-label {
+  font-family: var(--fm); font-weight: 700; font-size: calc(9 * var(--u));
+  letter-spacing: .30em; text-transform: uppercase; color: rgba(143,224,255,.85);
+}
+body.board-v2 #bv2-rail-left .ba-rule-line {
+  background: linear-gradient(to right, rgba(53,201,255,.35), transparent);
+  height: 1px;
+}
+body.board-v2 #bv2-rail-left .board-aside {
+  display: block !important; position: static !important;
+  left: auto; top: auto; width: auto;
+  font-family: var(--fm);
+}
+body.board-v2 #bv2-rail-left .ba-fc-cell + .ba-fc-cell { border-left: 1px solid rgba(53,201,255,.18); }
+body.board-v2 #bv2-rail-left .ba-num { font-family: var(--fd); font-weight: 700; font-size: calc(26 * var(--u)); }
+body.board-v2 #bv2-rail-left .ba-deal { color: var(--cy); }
+body.board-v2 #bv2-rail-left .ba-take { color: var(--or); }
+body.board-v2 #bv2-rail-left .ba-good { color: var(--cy); }
+body.board-v2 #bv2-rail-left .ba-bad  { color: var(--or); }
+body.board-v2 #bv2-rail-left .ba-cap {
+  font-family: var(--fm); font-size: calc(9 * var(--u));
+  letter-spacing: .26em; text-transform: uppercase; color: rgba(143,224,255,.72);
+}
+body.board-v2 #bv2-rail-left .ba-log-line {
+  font-family: var(--fm); font-size: calc(10.5 * var(--u)); line-height: 1.5;
+  color: rgba(143,224,255,.78);
+}
+body.board-v2 #bv2-rail-left .ba-log-line.is-latest { color: var(--core); }
+body.board-v2 #bv2-rail-left .ba-log-line:last-child { opacity: .5; }
+body.board-v2 #bv2-rail-left .ba-log-more {
+  font-family: var(--fm); font-size: calc(9 * var(--u));
+  letter-spacing: .26em; color: rgba(143,224,255,.72);
+  background: none; border: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   9. RIGHT PANEL — tricks are CARDS WITH ART, 152 x 218, chamfer 13, ice-white
+   frame. Same construction as a hand card at a different size, which is what
+   makes a trick read as a card of a different type rather than as UI.
+   ------------------------------------------------------------------------- */
+body.board-v2 #game-area > .tricks-section {
+  display: block; background: transparent; border: 0; box-shadow: none;
+  padding: 0; margin: 0; align-self: stretch; min-height: 0; overflow: hidden;
+}
+body.board-v2 #game-area > .tricks-section > #player-tricks {
+  display: flex; flex-direction: column; gap: calc(14 * var(--u));
+  width: 100%; align-items: flex-start;
+}
+body.board-v2 .tricks-section .trick-card {
+  width: calc(152 * var(--u)); max-width: calc(152 * var(--u)); height: auto;
+  border-radius: 0;
+  border: 1px solid rgba(219,234,245,0.55) !important;
+  box-shadow: 0 0 5px rgba(219,234,245,0.16);
+  clip-path: polygon(calc(13 * var(--u)) 0, 100% 0,
+                     100% calc(100% - 13 * var(--u)),
+                     calc(100% - 13 * var(--u)) 100%, 0 100%, 0 calc(13 * var(--u)));
+}
+
+/* ---------------------------------------------------------------------------
+   10. HAND — 125 x 236, chamfer 10, gap 16, CENTRED. Unaffordable cards drop to
+   opacity 0.42 against current energy.
+   ------------------------------------------------------------------------- */
+body.board-v2 .player-hand-section {
+  display: flex; flex-direction: column; min-height: 0;
+  background: transparent; border: 0; box-shadow: none;
+  padding: calc(10 * var(--u)) 0 0; margin: 0;
+}
+body.board-v2 .player-hand-section #player-hand {
+  display: flex; gap: calc(16 * var(--u)); justify-content: center;
+  align-items: flex-start; flex: 1 1 auto; min-height: 0;
+}
+body.board-v2 .player-hand-section .hand-card-wrapper .card {
+  --card-w: calc(125 * var(--u));
+  border-radius: 0;
+}
+body.board-v2 .player-hand-section .hand-card-wrapper .card.unplayable,
+body.board-v2 .player-hand-section .hand-card-wrapper .card.unaffordable { opacity: .42; }
+
+/* Section captions in the shared header style. */
+body.board-v2 .bv2-cap { display: flex; align-items: center; gap: calc(10 * var(--u)); margin: 0 0 calc(10 * var(--u)); }
+body.board-v2 .bv2-cap-label {
+  font-family: var(--fm); font-weight: 700; font-size: calc(9 * var(--u));
+  letter-spacing: .30em; text-transform: uppercase; color: rgba(143,224,255,.85);
+}
+body.board-v2 .bv2-cap-line { flex: 1 1 auto; height: 1px;
+  background: linear-gradient(to right, rgba(53,201,255,.35), transparent); }
+body.board-v2 .bv2-cap-val {
+  font-family: var(--fm); font-size: calc(11 * var(--u));
+  color: var(--cy-txt); font-variant-numeric: tabular-nums;
+}
+body.board-v2 .bv2-cap-val i { font-style: normal; color: rgba(143,224,255,.72); }
+
+/* ---------------------------------------------------------------------------
+   11. TOP STRIP + STAT BRACKETS.
+   Attack #3dff9e / health #ff6b6b — a VALUE, never ownership, never rethemed.
+   ------------------------------------------------------------------------- */
+body.board-v2 .turn-hud { padding: 0 0 calc(12 * var(--u)); }
+body.board-v2 .hud-pill.hud-pill-main {
+  background: rgba(4,6,10,.9);
+  border: 1px solid rgba(53,201,255,0.38);
+  border-radius: 0;
+  clip-path: polygon(calc(12 * var(--u)) 0, 100% 0,
+                     100% calc(100% - 12 * var(--u)),
+                     calc(100% - 12 * var(--u)) 100%, 0 100%, 0 calc(12 * var(--u)));
+  height: calc(44 * var(--u));
+  padding: 0 calc(24 * var(--u));
+  gap: calc(16 * var(--u));
+  box-shadow: none;
+  font-family: var(--fm);
+}
+body.board-v2 .card .stat-atk { color: var(--atk) !important; }
+body.board-v2 .card .stat-hp  { color: var(--hp)  !important; }
+
+/* --------------------------------------------------------------------------
+   12. FOLD. The spec's own note: the three-column layout assumes >=1600 logical
+   px, and below that the side panels fold first. The scale unit keeps the
+   design intact well under that, so this only fires where a 340px panel would
+   genuinely have nowhere to go.
+   ------------------------------------------------------------------------- */
+@media (max-width: 900px) {
+  body.board-v2 #game-area {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "hud hud" "foebar foebar" "board board"
+      "strip strip" "mebar mebar" "hand right";
+    grid-template-rows: auto auto minmax(0,1fr) auto auto auto;
+    padding: calc(8 * var(--u)) calc(16 * var(--u));
+  }
+  body.board-v2 #bv2-rail-left { display: none; }
+  body.board-v2 #game-area > .tricks-section > #player-tricks { flex-direction: row; }
+  body.board-v2 .tricks-section .trick-card { width: calc(110 * var(--u)); max-width: calc(110 * var(--u)); }
+}
+
+
+/* The spec's lane badge, applied to the element ui.js already maintains. */
+body.board-v2 #board .lane-sep .lane-number {
+  position: relative; z-index: 1;
+  margin: 0;
+}
