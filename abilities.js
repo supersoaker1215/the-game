@@ -1897,7 +1897,7 @@ const CARD_ABILITIES = {
       'onEvade', 'onDamagePlayer', 'onTurnStart', 'passive',
       'onBeforeCombat', 'onLaneCombat', 'onLaneResolved', 'onAnyTrickPlayed',
       'onDiscard', 'onMoved',
-      'onAnyCardDamaged', 'onBlockMeterFired', 'onRevive',
+      'onAnyCardDamaged', 'onBlockMeterFired', 'onRevive', 'onAbsorbedHit',
     ];
     const STRIP_FIELDS = [
       ...STRIP_HOOKS,
@@ -4508,7 +4508,15 @@ const CARD_ABILITIES = {
       self.tauntTurns = Math.max(self.tauntTurns, 999);
       G.log(`Obi-Wan stands as the wall — Taunt active and damage from other lanes will be reflected.`);
     },
-    onDamaged(G, self, attacker, dmg) {
+    // ONE REFLECT, TWO DOORS IN.
+    // He reflects damage he TOOK (onDamaged) and damage that was ABSORBED before
+    // it could reach him (onAbsorbedHit). The second door is the one that was
+    // missing: Nth Metal, or any Invincible, made dealDamage return before
+    // _afterDamage — so shielding Obi-Wan switched his entire ability off, which
+    // is the exact opposite of what shielding a reflecting wall should do.
+    // (Owner: "obi wan had nth metal and he didnt reflect the damage back at the
+    // attackers, he should reflect.")
+    _reflect(G, self, attacker, dmg) {
       if (!attacker || !dmg || dmg <= 0) return;
       if (self._obiWanReflecting) return;
       const selfLane = G.findCardLane(self);
@@ -4525,6 +4533,12 @@ const CARD_ABILITIES = {
       if (typeof UI !== 'undefined' && UI._fxObiReflect) { try { UI._fxObiReflect(self, attacker); } catch (e) {} }
       G.dealDamage(attacker, reflectDmg, self);
       self._obiWanReflecting = false;
+    },
+    onDamaged(G, self, attacker, dmg) {
+      CARD_ABILITIES['Obi-Wan']._reflect(G, self, attacker, dmg);
+    },
+    onAbsorbedHit(G, self, attacker, wouldHave) {
+      CARD_ABILITIES['Obi-Wan']._reflect(G, self, attacker, wouldHave);
     },
     onDeath(G, self, lane) {
       const e = G.state.lanes[lane] ? G.state.lanes[lane][G.opponent(self.owner)] : null;

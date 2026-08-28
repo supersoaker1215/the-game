@@ -8041,12 +8041,17 @@ const Game = {
       this.log(`  [INVINCIBLE] ${target.name} takes no damage! (${target.invincibleTurns} turns left)`);
       this.emitDmg(target.id, 0, 'block');
       this._creditAbsorb(target, 'Invincible', attacker.attack || 0);
+      // The swing landed and was absorbed — see _notifyAbsorbedHit. This is a
+      // COMBAT swing, so the damage it would have dealt is the attacker's ATK;
+      // there is no `amount` in scope here (that is the ability-damage path).
+      this._notifyAbsorbedHit(target, attacker, attacker.attack || 0);
       return false;
     }
     if (absorb === 'immunity') {
       this.log(`  [DMG IMMUNE] ${target.name} is damage-immune!`);
       this.emitDmg(target.id, 0, 'block');
       this._creditAbsorb(target, 'Invincible', attacker.attack || 0);
+      this._notifyAbsorbedHit(target, attacker, attacker.attack || 0);
       return false;
     }
     if (absorb === 'evade') {
@@ -10694,12 +10699,17 @@ const Game = {
       this.log(`  [INVINCIBLE] ${card.name} blocks ${amount} damage${source ? ` from ${source.name}` : ''}!`);
       this.emitDmg(card.id, 0, 'block');
       this._creditAbsorb(card, 'Invincible', amount);
+      // The swing still happened — see _notifyAbsorbedHit. This is the ABILITY
+      // and trick damage path; applyCombatDamage has the combat one. They are
+      // separate callers, not two copies of one call, so both must say it.
+      this._notifyAbsorbedHit(card, source, amount);
       return true;
     }
     if (pre === 'immunity') {
       this.log(`  [DMG IMMUNE] ${card.name} ignores ${amount} damage${source ? ` from ${source.name}` : ''}!`);
       this.emitDmg(card.id, 0, 'block');
       this._creditAbsorb(card, 'Invincible', amount);
+      this._notifyAbsorbedHit(card, source, amount);
       return true;
     }
     if (this.is10CostImmune(source, card)) {
@@ -13937,6 +13947,24 @@ const Game = {
   // routed through broadcastHook: this fires once per damage instance (many
   // times inside one combat), and queueing each one on THE STACK would push a
   // counter tick through the same machinery that linearizes deaths.
+  // THE SWING HAPPENED; THE DAMAGE DID NOT. Invincible and Damage Immunity stop
+  // the health loss — they do not stop the attack from being made. An ability
+  // that answers being ATTACKED should still answer, which is the whole reason
+  // you would shield that card in the first place.
+  //
+  // `wouldHave` is the damage the attack was going to deal, so a reflect has a
+  // number to send back. The board-wide onAnyCardDamaged broadcast is NOT fired:
+  // nothing was damaged, and meters that count damage must not count a hit that
+  // did none.
+  _notifyAbsorbedHit(target, attacker, wouldHave) {
+    if (!target || !target.onAbsorbedHit || !attacker) return;
+    const amt = (typeof wouldHave === 'number' && wouldHave > 0) ? wouldHave : (attacker.attack || 0);
+    if (!(amt > 0)) return;
+    try {
+      this._2v2RunOwned(target, () => target.onAbsorbedHit(this, target, attacker, amt));
+    } catch (e) { console.error('[absorbedHit]', e); }
+  },
+
   _afterDamage(card, source, amount) {
     if (!card) return;
     if (card.onDamaged) this._2v2RunOwned(card, () => card.onDamaged(this, card, source, amount));
@@ -14470,6 +14498,18 @@ const Game = {
       // a card defines but this list omits is silently dropped, and the card
       // just quietly does nothing.
       onLaneCombat: def.onLaneCombat || null,
+      // onAbsorbedHit — "an attack landed on me and I took nothing from it".
+      // Fired ONLY from the Invincible / Damage-Immunity branches of dealDamage,
+      // which return before _afterDamage and so never reach onDamaged. A card
+      // whose ability answers being ATTACKED rather than being HURT needs this;
+      // Obi-Wan is the case that surfaced it. Deliberately NOT fired on Evade:
+      // an evaded attack MISSED, and there is nothing to answer.
+      // A separate hook rather than a zero-damage onDamaged, because six other
+      // cards read onDamaged (Bane, Gizmo, Wolverine, Red Hulk, Hulk, Harley)
+      // and several of them would start firing on hits that dealt nothing —
+      // Red Hulk in particular falls back to `attacker.attack` when the amount
+      // is 0. This changes exactly one card's behaviour.
+      onAbsorbedHit: def.onAbsorbedHit || null,
       // onAnyCardDamaged — "something on the board just took damage", fired for
       // every live card from the ONE post-damage notifier (_afterDamage).
       // Spinosaurus's Hunt Meter rides it.
