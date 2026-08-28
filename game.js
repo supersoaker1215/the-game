@@ -8371,7 +8371,7 @@ const Game = {
           this._2v2BlockTrickOrder(team).forEach(pk => {
             if (tt.trickDrawPile.length > 0) {
               const def = tt.trickDrawPile.pop();
-              queue.push({ seat: pk, trick: { ...def, id: nextCardId++ } });
+              queue.push({ seat: pk, trick: { ...def, id: nextCardId++, _blockRound: this.state.round } });
               this.log(`  [BLOCK DRAW] ${tt.players[pk].name} earns ${def.name}.`);
             }
           });
@@ -15136,6 +15136,16 @@ const Game = {
   // Offer the next queued block trick to its seat (human → modal stamped to the
   // seat; AI → auto play/keep), or resume combat when the queue is empty. This
   // is what sequences the two teammates' offers and keeps combat paused between.
+  // A block-meter trick is free ONLY in the round it was earned. The block
+  // queue is prompt-gated, so an offer can leak into the next round if a prompt
+  // it chained onto only clears then — and the AI would resolve last round's
+  // free trick mid-round for free (a free Mother Box summon out of nowhere).
+  // (User: "they blocked last round and he was able to play mother box for free
+  // at the start of the next round, that should never happen.") When stale, the
+  // trick is kept in hand at full cost instead of firing free.
+  _blockTrickStale(trick) {
+    return !!(trick && trick._blockRound != null && trick._blockRound !== this.state.round);
+  },
   _2v2NextBlockTrick() {
     const q = this.state._2v2BlockQueue;
     if (!q || !q.length) {
@@ -15150,7 +15160,9 @@ const Game = {
     const side = this._2v2TeamSide[p.team];
     if (p.isAI && (!this._2v2IsAIAuthority || this._2v2IsAIAuthority())) {
       // AI: play free if the team has bodies on the board, else keep at cost.
-      if (this.getAllCardsOf(side).length > 0 && typeof trick.play === 'function') {
+      // A trick that leaked past its earned round is never played free (see
+      // _blockTrickStale) — it drops into hand at full cost.
+      if (!this._blockTrickStale(trick) && this.getAllCardsOf(side).length > 0 && typeof trick.play === 'function') {
         this.log(`  [BLOCK TRICK] ${p.name} plays ${trick.name} for free!`);
         p.playedTrickPile = p.playedTrickPile || [];
         p.playedTrickPile.push({ name: trick.name, cost: trick.cost });
@@ -15193,7 +15205,7 @@ const Game = {
     s.pendingBlockTrick = null;
     if (p && trick) {
       const side = this._2v2TeamSide[p.team];
-      if (play && typeof trick.play === 'function') {
+      if (play && !this._blockTrickStale(trick) && typeof trick.play === 'function') {
         p.playedTrickPile = p.playedTrickPile || [];
         p.playedTrickPile.push({ name: trick.name, cost: trick.cost });
         this.log(`  [BLOCK TRICK] ${p.name} plays ${trick.name} for free!`);

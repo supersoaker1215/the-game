@@ -6807,6 +6807,14 @@ const CARD_ABILITIES = {
       // should be immune to."
       self.stunnedTurns = 0; self.isStunned = false;
       self.frozenTurns  = 0; self.isFrozen  = false;
+      // NO TAUNT ON THE REVIVE (see the block below). The revive path never
+      // re-arms Taunt, but it also wasn't CLEARING it — a Doomsday who died
+      // while his arrival Taunt was still ticking (tauntTurns > 0) rose still
+      // taunting, forcing enemies onto him for another turn. Taunt is his
+      // one-time arrival keyword, spent on landing; the revive wipes any
+      // leftover so he comes back without it. (User: "doomsday's taunt should
+      // not be on him when he revives.")
+      self.tauntTurns = 0; self.permanentTaunt = false;
       // He rises with IMMUNITY, the real keyword — not a Doomsday-shaped
       // lookalike. The _doomsdayRevived guard only ever refused Stun and
       // Freeze, so everything else a debuff can do (ATK/HP strip, Fear, Mind
