@@ -50,10 +50,15 @@ body.board-v2 #game-area {
      BOTH rails were dropped — and the owner's window is 1196px, so every single
      screenshot they sent me was the fallback, never the design. The rails shrink
      with the window now and the console holds down to ~980px. */
+  /* THE BOARD IS THE SUBJECT — the rails get what is left, not the reverse.
+     At 1196px the old widths (203 + 191) squeezed six lanes into 730px, which
+     made a board card 98px wide with 94x123 of art: too small to read the
+     painting or the badges. Trimming both rails hands that width back to the
+     lanes. */
   grid-template-columns:
-    clamp(186px, 17vw, 268px)
+    clamp(158px, 14vw, 236px)
     minmax(0, 1fr)
-    clamp(178px, 16vw, 262px);
+    clamp(132px, 11.5vw, 190px);
   grid-template-rows: auto auto minmax(0, 1fr) auto auto auto;
   grid-template-areas:
     "hud    hud     hud"
@@ -786,7 +791,11 @@ body.board-v2 #game-area > .tricks-section {
   min-height: 0;
   overflow: hidden;
 }
-body.board-v2 .tricks-section .trick-card { max-width: 178px; }
+/* Trick faces were 176x231 and the second one hung 46px past the bottom of the
+   rail. They are a reference column, not the main event — sized so the pair and
+   the caption fit inside the rail with room to spare. */
+body.board-v2 .tricks-section .trick-card { max-width: 100%; }
+body.board-v2 .tricks-section #player-tricks { gap: 10px; }
 body.board-v2 .tricks-section #player-tricks { justify-items: center; }
 
 /* ---------------------------------------------------------------------------
@@ -796,3 +805,18 @@ body.board-v2 .tricks-section #player-tricks { justify-items: center; }
 body.board-v2 .player-hand-section .hand-card-wrapper .card { --card-w: 118px; }
 body.board-v2 .player-hand-section { padding-top: 8px; }
 body.board-v2 #board .card-slot { min-height: 0; }
+
+/* ---------------------------------------------------------------------------
+   BOARD CARDS: fill the bay. With the rails trimmed the lane is wider, and the
+   face should use it — the card takes the lane's width and its own aspect does
+   the rest, so the art gets bigger rather than the tile gaining dead margin.
+   ------------------------------------------------------------------------- */
+body.board-v2 #board .card-slot {
+  max-width: none;          /* the lane already bounds it */
+  padding: 0;
+}
+/* Lane chrome trimmed to a hairline of breathing room. The lane was 127px wide
+   holding a 113px card — 14px of it was padding doing nothing but shrinking the
+   art. */
+body.board-v2 #board .lane { padding: 5px 2px; }
+body.board-v2 #board { gap: 8px; }
