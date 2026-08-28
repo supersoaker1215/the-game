@@ -65,6 +65,10 @@ echo "=== hand-empower.js (an empower needs a body to land on) ==="
 run_suite sim/hand-empower.js
 
 echo ""
+echo "=== local-2v2.js (a local 2v2 is still a 2v2) ==="
+run_suite sim/local-2v2.js
+
+echo ""
 if [ "$FAIL" -ne 0 ]; then
   echo "❌ TESTS FAILED — see suites above."
   exit 1

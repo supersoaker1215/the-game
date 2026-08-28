@@ -8402,9 +8402,20 @@ const Game = {
         // immediately (mid-combat), IN ORDER — the seat that played cards+tricks
         // this round first, then the seat that plays tricks right before combat.
         // Each teammate plays it free or, if they decline, keeps it in hand at
-        // its ORIGINAL cost. (Online-only: local pass-and-play keeps the old
-        // draw-to-hand behavior since two live modals don't fit one device.)
-        if (this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online) {
+        // its ORIGINAL cost, AND THE ROUND WAITS FOR BOTH ANSWERS.
+        //
+        // This used to be online-only, on the reasoning that "two live modals
+        // don't fit one device". They never had to: the queue is SEQUENTIAL —
+        // one offer at a time, the next only after the previous is answered —
+        // which is exactly what a pass-and-play device wants. What local 2v2 got
+        // instead was a silent push into each teammate's trick hand, so nothing
+        // popped up, the bot teammate played its free trick on its own turn, and
+        // the human's copy just sat there until they happened to look at their
+        // tricks a turn later. (Owner: "my ai teammate always gets a trick and it
+        // skips me then eventually the next turn my trick will pop up NO — when
+        // you block you draw a trick to play for free and the round cannot go on
+        // until the 2 players have decided to either play or keep the tricks.")
+        if (this.is2v2() && this.state.twoVTwo) {
           const tt = this.state.twoVTwo;
           const team = owner === 'player' ? 'A' : 'B';
           const queue = [];
@@ -8417,33 +8428,6 @@ const Game = {
           });
           this.state._2v2BlockQueue = queue;
           this._2v2NextBlockTrick();
-          return;
-        }
-        // 2v2 local pass-and-play: both teammates draw the trick to hand (free).
-        if (this.is2v2()) {
-          const tt = this.state.twoVTwo;
-          const team = owner === 'player' ? 'A' : 'B';
-          Object.keys(tt.players)
-            .filter(pk => tt.players[pk].team === team)
-            .forEach(pk => {
-              if (tt.trickDrawPile.length > 0) {
-                const def = tt.trickDrawPile.pop();
-                // FREE TO PLAY, IF THEY CHOOSE. 1v1 offers the blocker an
-                // immediate "play it free or keep it" modal; 2v2 fills a TEAM
-                // meter, so both teammates draw — but the trick used to land at
-                // full price, quietly making the 2v2 block reward strictly
-                // worse than the 1v1 one. Two simultaneous modals on two
-                // different clients is the wrong shape for that choice, so the
-                // free play is carried on the card instead: _blockFree makes
-                // getTrickCost return 0, and the flag is spent the first time
-                // the trick is actually played. Each teammate keeps full
-                // agency — play it free whenever their trick phase comes, or
-                // never play it at all. (User: "both players get a free trick
-                // to play if they choose.")
-                tt.players[pk].trickHand.push({ ...def, id: nextCardId++, _blockFree: true });
-                this.log(`  [BLOCK DRAW] ${tt.players[pk].name} draws: ${def.name} (free to play)`);
-              }
-            });
           return;
         }
         // Draw a trick card on block — can play free now or keep at regular cost.
@@ -12151,9 +12135,19 @@ const Game = {
   // proxy itself in 1v1, both seats in 2v2. Written once here so a card can ask
   // the question instead of each one re-deriving it inline and getting it
   // subtly different.
+  // A SIDE IS A TEAM, AND A TEAM HAS SEATS WHETHER OR NOT THERE IS A NETWORK.
+  // This gated on `tt.online`, so in a LOCAL 2v2 — pass-and-play, or a table
+  // with bots — it fell back to the side proxy. The proxy's hand is empty in
+  // 2v2 (the real hands live on the seats), so every per-seat effect routed
+  // through here silently did nothing: Doomsday never got his ally-death
+  // discount and cost full price all game, the sleep tick skipped both seats,
+  // and a side-wide draw drew for nobody. Online is about who is on the far end
+  // of a wire; it says nothing about where the cards are. `tt.players` is the
+  // real question, and it is the same gate _2v2HandTarget already uses to route
+  // hand writes per seat — so the two now agree in every mode.
   seatStatesOnSide(side) {
     const tt = this.state && this.state.twoVTwo;
-    if (!tt || !tt.online || !this._2v2SLOTS || !this._2v2TeamSide) return [this.state[side]];
+    if (!tt || !tt.players || !this._2v2SLOTS || !this._2v2TeamSide) return [this.state[side]];
     const team = (this._2v2TeamSide.A === side) ? 'A' : 'B';
     const seats = this._2v2SLOTS.filter(pk => tt.players[pk] && tt.players[pk].team === team);
     if (!seats.length) return [this.state[side]];
@@ -12163,7 +12157,9 @@ const Game = {
   // seat concept. Pairs with seatStatesOnSide by index.
   seatKeysOnSide(side) {
     const tt = this.state && this.state.twoVTwo;
-    if (!tt || !tt.online || !this._2v2SLOTS || !this._2v2TeamSide) return [null];
+    // Same gate as seatStatesOnSide — these two are paired by index, so they
+    // must agree about whether a side has seats or not.
+    if (!tt || !tt.players || !this._2v2SLOTS || !this._2v2TeamSide) return [null];
     const team = (this._2v2TeamSide.A === side) ? 'A' : 'B';
     const seats = this._2v2SLOTS.filter(pk => tt.players[pk] && tt.players[pk].team === team);
     return seats.length ? seats : [null];

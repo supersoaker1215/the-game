@@ -33783,10 +33783,16 @@ function blockTrickPlay() {
   if (!trick) return;
   // 2v2 online: resolve on the owning seat (host applies; guest forwards).
   const tt = s.twoVTwo;
-  if (tt && tt.online) {
+  // EVERY 2v2 ANSWER GOES THROUGH THE SEAT RESOLVER, not just the online one.
+  // _2v2ResolveBlockTrick is what advances the offer queue to the OTHER
+  // teammate; the generic fallback below does not. So while this was gated on
+  // `tt.online`, a local 2v2 answer resolved one trick and left the queue
+  // parked — which is half of why the second player never saw theirs.
+  if (tt && tt.players) {
     if (!Game.promptIsMine(trick, 'blockTrick')) return;
     const seat = trick._2v2Seat || trick._2v2ActingPlayer || tt.you;
-    if (tt.you === 'p1') { Game._2v2ResolveBlockTrick(seat, trick, true); }
+    // Local play has no wire and no host: the device answering IS the authority.
+    if (!tt.online || tt.you === 'p1') { Game._2v2ResolveBlockTrick(seat, trick, true); }
     else { if (typeof Multiplayer4 !== 'undefined') Multiplayer4.send({ t: 'resolve2v2BlockTrick', playerKey: tt.you, play: true }); s.pendingBlockTrick = null; }
     UI.render();
     return;
@@ -33823,10 +33829,16 @@ function blockTrickKeep() {
   if (!trick) return;
   // 2v2 online: kept trick goes to the seat's hand at its original cost.
   const tt = s.twoVTwo;
-  if (tt && tt.online) {
+  // EVERY 2v2 ANSWER GOES THROUGH THE SEAT RESOLVER, not just the online one.
+  // _2v2ResolveBlockTrick is what advances the offer queue to the OTHER
+  // teammate; the generic fallback below does not. So while this was gated on
+  // `tt.online`, a local 2v2 answer resolved one trick and left the queue
+  // parked — which is half of why the second player never saw theirs.
+  if (tt && tt.players) {
     if (!Game.promptIsMine(trick, 'blockTrick')) return;
     const seat = trick._2v2Seat || trick._2v2ActingPlayer || tt.you;
-    if (tt.you === 'p1') { Game._2v2ResolveBlockTrick(seat, trick, false); }
+    // Local play has no wire and no host: the device answering IS the authority.
+    if (!tt.online || tt.you === 'p1') { Game._2v2ResolveBlockTrick(seat, trick, false); }
     else { if (typeof Multiplayer4 !== 'undefined') Multiplayer4.send({ t: 'resolve2v2BlockTrick', playerKey: tt.you, play: false }); s.pendingBlockTrick = null; }
     UI.render();
     return;
