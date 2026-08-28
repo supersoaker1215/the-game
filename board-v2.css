@@ -956,3 +956,71 @@ body.board-v2 #bv2-hand-cap .bv2-cap-label { color: var(--bv2-label); }
 /* The seat name reads as the seat's own colour, brightly. */
 body.board-v2 .player-bar .bv2-name { color: #eaf9ff; }
 body.board-v2 .ai-bar     .bv2-name { color: #ffe3cc; }
+
+/* ===========================================================================
+   THE MIDDLE OF THE BAR IS SUPPOSED TO BE EMPTY.
+   Measured against the reference crop: its left cluster (badge, name, health,
+   HP, TRICKS) ends at ~29% of the bar and the right cluster (DISCARD, ♪,
+   ENERGY, END) does not start until ~71%. Forty-two percent of that bar is
+   deliberately nothing — that void is what makes it read as a console readout
+   instead of a crowded toolbar.
+   Mine: plate 456px and readouts 618px of an 1158px bar, so the right cluster
+   began at 42% and there was no gap at all. Both clusters are trimmed here;
+   the alignment was already right, the widths were not.
+   =========================================================================== */
+body.board-v2 #game-area > .info-bar { gap: 14px; }
+
+/* Left cluster — tighter, and the health track is a short rule under the name
+   rather than a bar that runs half the width of the seat. */
+body.board-v2 .bv2-plate { gap: 13px; }
+body.board-v2 .bv2-id { width: clamp(112px, 13vw, 178px); gap: 6px; }
+body.board-v2 .bv2-id .health-container { width: 100%; }
+body.board-v2 .bv2-hp { font-size: 22px; }
+body.board-v2 .bv2-trk { gap: 6px; }
+
+/* Right cluster — the readouts sit close together, as one group. */
+body.board-v2 #game-area > .info-bar > .bar-cell { gap: 8px; padding: 0; }
+body.board-v2 #game-area > .info-bar > .bar-dead::before { margin-right: 6px; }
+body.board-v2 .info-bar .bar-energy::before { margin-right: 2px; }
+body.board-v2 .info-bar .hand-tools { gap: 6px; }
+body.board-v2 .info-bar .energy-display { width: 30px; height: 30px; }
+body.board-v2 .info-bar .block-circle { width: 34px; height: 34px; }
+body.board-v2 #game-area > .info-bar > .bar-center::before { margin-right: 12px; height: 28px; }
+body.board-v2 #btn-action { padding: 14px 44px 14px 28px; min-height: 52px; font-size: 14px; }
+
+/* ===========================================================================
+   THE SEAT BADGE. The reference plate is a broad hexagon — chamfered on BOTH
+   ends, not a rectangle with one corner nicked off — and it is squarer and
+   heavier than mine was.
+   =========================================================================== */
+body.board-v2 .bv2-tag {
+  width: 56px; height: 44px;
+  font-size: 16px; letter-spacing: .06em;
+  clip-path: polygon(
+    13px 0, calc(100% - 13px) 0, 100% 50%,
+    calc(100% - 13px) 100%, 13px 100%, 0 50%);
+}
+
+/* Still 625px of readouts against the reference's ~284px equivalent, so the
+   void was 14% instead of 42%. Trim the group again — smaller caps, tighter
+   rhythm, a narrower action plate. The elements all stay: the reference's crop
+   simply does not show this game's block meter or its undo, and dropping either
+   to win a percentage would be removing information to match a picture. */
+body.board-v2 #game-area > .info-bar { gap: 10px; }
+body.board-v2 #game-area > .info-bar > .bar-cell { gap: 6px; }
+body.board-v2 #game-area > .info-bar > .bar-dead::before,
+body.board-v2 .info-bar .bar-energy::before,
+body.board-v2 .info-bar .ai-hand-mini::before {
+  font-size: 8px; letter-spacing: .16em; margin-right: 5px;
+}
+body.board-v2 .info-bar .energy-display { width: 27px; height: 27px; font-size: 12px; }
+body.board-v2 .info-bar .block-circle   { width: 30px; height: 30px; font-size: 10px; }
+body.board-v2 .info-bar .pile-badge     { transform: scale(.86); transform-origin: center; }
+body.board-v2 #btn-undo { padding: 8px 10px; min-height: 30px; font-size: 10px; }
+body.board-v2 #btn-action { padding: 13px 36px 13px 24px; min-height: 48px; font-size: 13px; letter-spacing: .18em; }
+body.board-v2 #btn-action::after { right: 16px; font-size: 15px; }
+body.board-v2 #game-area > .info-bar > .bar-center::before { margin-right: 10px; height: 26px; }
+/* Left cluster gives a little back too. */
+body.board-v2 .bv2-plate { gap: 11px; }
+body.board-v2 .bv2-id { width: clamp(104px, 11.5vw, 156px); }
+body.board-v2 .bv2-hp { font-size: 21px; }
