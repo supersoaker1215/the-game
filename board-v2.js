@@ -60,6 +60,18 @@ const BoardV2 = {
         if (next && next.parentNode === parent) parent.insertBefore(aside, next);
         else parent.appendChild(aside);
       }
+      // Health bars go home before the plates that host them are removed.
+      if (this._hpHome) {
+        ['ai', 'player'].forEach(who => {
+          const home = this._hpHome[who];
+          if (!home) return;
+          const bar = document.querySelector('.info-bar.' + (who === 'ai' ? 'ai-bar' : 'player-bar'));
+          const box = bar && bar.querySelector('.health-container');
+          if (!box || box.parentNode === home.parent) return;
+          if (home.next && home.next.parentNode === home.parent) home.parent.insertBefore(box, home.next);
+          else home.parent.appendChild(box);
+        });
+      }
       document.querySelectorAll('[id^="bv2-"], .bv2-lane-no').forEach(el => el.remove());
     } catch (e) { console.error('[BoardV2] teardown', e); }
   },
@@ -107,29 +119,50 @@ const BoardV2 = {
       (hint ? '<div class="bv2-phase-hint">' + hint + '</div>' : '');
   },
 
-  // Seat plates on each info bar: the tag, the name, and the HP number the
-  // reference prints beside the bar. Read from state — never invented.
+  // THE SEAT PLATE, BUILT LIKE THE REFERENCE.
+  // Left cluster is [tag] [name over its own health bar] [HP] [TRICKS n/8].
+  // That means the health bar has to live INSIDE the plate, under the name —
+  // in the shipping bar it is a separate full-width cell further along the row.
+  // So the node is MOVED here and put back by teardown(), the same contract the
+  // rail uses for #board-aside. Moving beats rebuilding: #player-hp-fill and
+  // #ai-hp-fill are written to by name from ui.js and the FX layer, so a copy
+  // would go stale the first time either took damage.
   _renderSeats(s) {
     const put = (bar, who) => {
       if (!bar) return;
       const side = s[who] || {};
       const plate = this._el('bv2-plate-' + who, 'bv2-plate', bar);
       if (bar.firstChild !== plate) bar.insertBefore(plate, bar.firstChild);
+
       let name = who === 'player' ? 'You' : 'Opponent';
       try {
         if (typeof Multiplayer !== 'undefined' && Multiplayer && Multiplayer.names) {
           name = Multiplayer.names[who] || name;
         } else if (side.name) { name = side.name; }
       } catch (e) {}
-      const hp = side.health != null ? side.health : '';
-      const tag = (String(name).replace(/[^A-Za-z0-9]/g, '').slice(0, 2) || (who === 'player' ? 'YOU' : 'OPP')).toUpperCase();
-      const sig = tag + '|' + name + '|' + hp;
-      if (plate.dataset.sig === sig) return;
-      plate.dataset.sig = sig;
-      plate.innerHTML =
-        '<span class="bv2-tag">' + tag + '</span>' +
-        '<span class="bv2-name">' + String(name).slice(0, 18) + '</span>' +
-        '<span class="bv2-hp">' + hp + '<i>HP</i></span>';
+      const hp   = side.health != null ? side.health : '';
+      const tag  = (String(name).replace(/[^A-Za-z0-9]/g, '').slice(0, 2)
+                    || (who === 'player' ? 'YOU' : 'OP')).toUpperCase();
+      const trk  = ((side.tricksPlayed != null ? side.tricksPlayed : 0) + '/' +
+                    ((typeof Game !== 'undefined' && Game.TRICK_LIMIT) || 8));
+
+      const sig = tag + '|' + name + '|' + hp + '|' + trk;
+      if (plate.dataset.sig !== sig) {
+        plate.dataset.sig = sig;
+        plate.innerHTML =
+          '<span class="bv2-tag">' + tag + '</span>' +
+          '<span class="bv2-id"><b class="bv2-name">' + String(name).slice(0, 18) + '</b></span>' +
+          '<span class="bv2-hp">' + hp + '<i>HP</i></span>' +
+          '<span class="bv2-trk"><i>Tricks</i>' + trk + '</span>';
+      }
+      // Park the live health bar under the name, once.
+      const hpBox = bar.querySelector('.health-container');
+      const idCol = plate.querySelector('.bv2-id');
+      if (hpBox && idCol && hpBox.parentNode !== idCol) {
+        if (!this._hpHome) this._hpHome = {};
+        if (!this._hpHome[who]) this._hpHome[who] = { parent: hpBox.parentNode, next: hpBox.nextSibling };
+        idCol.appendChild(hpBox);
+      }
     };
     put(document.querySelector('.info-bar.ai-bar'), 'ai');
     put(document.querySelector('.info-bar.player-bar'), 'player');

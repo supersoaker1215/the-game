@@ -41,26 +41,26 @@ body.board-v2 {
    ------------------------------------------------------------------------- */
 body.board-v2 #game-area {
   display: grid;
-  grid-template-columns: 268px minmax(0, 1fr) 252px;
-  /* The board takes the slack. Everything else is content-height; giving the
-     board row 1fr is what makes the six bays tall instead of leaving a band of
-     dead black under the hand. */
+  /* THE BARS RUN THE FULL WIDTH. In the reference the opponent bar is a rule
+     across the very top of the screen and the player bar is the same across the
+     bottom — the rails sit BETWEEN them, flanking the board only. I had both
+     bars inside the centre column, which is the single biggest reason it did
+     not read like the reference. */
+  grid-template-columns: 268px minmax(0, 1fr) 262px;
   grid-template-rows: auto auto minmax(0, 1fr) auto auto auto;
   grid-template-areas:
     "hud    hud     hud"
-    "left   foebar  right"
+    "foebar foebar  foebar"
     "left   board   right"
     "left   strip   right"
-    "left   mebar   right"
-    "left   hand    right";
-  gap: 0 22px;
-  /* NO `align-content: start`. It pins the rows to the top and dumps any extra
-     height below the last one — which is exactly the band of dead black under
-     the hand in the owner's screenshot. `stretch` lets the flexible row take
-     it instead, so the console reaches the bottom at every window shape. */
+    "mebar  mebar   mebar"
+    "hand   hand    hand";
+  gap: 0 26px;
   align-content: stretch;
-  padding: 10px 22px 18px;
-  min-height: 100vh;
+  padding: 8px 26px 14px;
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
   box-sizing: border-box;
 }
 body.board-v2 #game-area > .turn-hud        { grid-area: hud; }
@@ -626,18 +626,6 @@ body.board-v2 #game-area > .info-bar > .bar-center { flex: 0 0 auto; }
    row rather than whatever its cards happened to need, so the layout reaches
    the bottom of the window at any height.
    ------------------------------------------------------------------------- */
-body.board-v2 #game-area {
-  height: 100vh;
-  min-height: 0;
-  overflow: hidden;
-  grid-template-rows:
-    auto                    /* hud   */
-    auto                    /* foe bar */
-    minmax(240px, 1fr)      /* board — takes the slack */
-    auto                    /* lane outcomes */
-    auto                    /* my bar */
-    auto;                   /* hand — its cards' own height */
-}
 /* Board bays stretch to their row instead of sitting at card height. */
 body.board-v2 .board-section { display: flex; min-height: 0; padding: 10px 0; }
 body.board-v2 #board { height: 100%; }
@@ -697,3 +685,107 @@ body.board-v2 #game-area > .info-bar { min-height: 74px; padding: 10px 4px; }
    ------------------------------------------------------------------------- */
 body.board-v2 .player-hand-section #player-hand { gap: 14px; padding-top: 4px; }
 body.board-v2 .player-hand-section .hand-card-wrapper .card { --card-w: 146px; }
+
+/* ===========================================================================
+   SEAT BAR — built to the reference, left to right:
+     [tag]  [name over its own health bar]  [30 HP]  [TRICKS 0/8]
+     ..................gap..................
+     [discard]  [♪]  [ENERGY n]  [END CARDS →]
+   The health bar is a SHORT track under the name, not a full-width rail across
+   the middle of the bar — that was the other thing making my version read as a
+   toolbar instead of a seat plate.
+   =========================================================================== */
+body.board-v2 #game-area > .info-bar {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  min-height: 68px;
+  padding: 10px 0;
+  background: #000;
+}
+body.board-v2 #game-area > .info-bar.ai-bar     { border-bottom: 1px solid var(--bv2-foe-faint); border-top: 0; }
+body.board-v2 #game-area > .info-bar.player-bar { border-top: 1px solid var(--bv2-ink-faint); border-bottom: 0; }
+
+body.board-v2 .bv2-plate {
+  display: flex; align-items: center; gap: 16px;
+  flex: 0 0 auto;
+}
+body.board-v2 .bv2-id { display: flex; flex-direction: column; gap: 7px; min-width: 190px; }
+body.board-v2 .bv2-name {
+  font-family: var(--font-mono, ui-monospace), monospace;
+  font-size: 15px; font-weight: 600; letter-spacing: .02em;
+  color: #e8f4fc; white-space: nowrap;
+}
+body.board-v2 .ai-bar .bv2-name { color: #ffd9bd; }
+/* The moved health track: short, flat, under the name. */
+body.board-v2 .bv2-id .health-container {
+  height: 4px; width: 100%; min-width: 0;
+  border-radius: 0; border: 0; box-shadow: none;
+  background: rgba(255,255,255,0.07);
+}
+body.board-v2 .bv2-id .health-fill { border-radius: 0; box-shadow: none; }
+body.board-v2 .bv2-trk {
+  font-family: var(--font-mono, ui-monospace), monospace;
+  font-size: 12px; letter-spacing: .10em; color: #cfe0ec;
+  font-variant-numeric: tabular-nums;
+  display: inline-flex; align-items: baseline; gap: 8px;
+}
+body.board-v2 .bv2-trk i {
+  font-style: normal; font-size: 9px; letter-spacing: .24em;
+  color: var(--bv2-label); text-transform: uppercase;
+}
+/* Everything after the plate is pushed to the right edge. */
+body.board-v2 #game-area > .info-bar > .bar-hp { display: none; }   /* its bar now lives in the plate */
+body.board-v2 #game-area > .info-bar > .bar-block { order: 8; }
+body.board-v2 #game-area > .info-bar > .bar-dead  { order: 9; }
+body.board-v2 #game-area > .info-bar > .bar-energy{ order: 10; }
+body.board-v2 #game-area > .info-bar > .bar-center{ order: 11; margin-left: 4px; }
+body.board-v2 #game-area > .info-bar > .bv2-plate { order: 0; margin-right: auto; }
+
+/* ===========================================================================
+   EMPTY BAYS. The reference marks a free slot with a small diamond, not a
+   giant ghost numeral — the numerals live on the divider line between the rows.
+   =========================================================================== */
+body.board-v2 #board .card-slot:empty::after {
+  content: '';
+  position: absolute; left: 50%; top: 50%;
+  width: 9px; height: 9px; margin: -5px 0 0 -5px;
+  border: 1px solid rgba(255,255,255,0.16);
+  transform: rotate(45deg);
+  background: transparent;
+  font-size: 0;
+}
+/* Lane index: a small SQUARE chip on the divider, as the reference draws it. */
+body.board-v2 .bv2-lane-no {
+  width: 22px; height: 18px; border-radius: 2px;
+  background: #000; border: 1px solid var(--bv2-line);
+  font-size: 10px; color: #cddfeb;
+}
+
+/* ---------------------------------------------------------------------------
+   RIGHT RAIL must live inside its row. It spans the board + strip rows, but a
+   full-width trick face is ~340px tall and two of them plus a caption came to
+   699px — it spilled straight through the player bar. Cap the faces so the pair
+   fits the rail, and clip as a backstop so a third trick can never push the
+   layout around.
+   ------------------------------------------------------------------------- */
+body.board-v2 #game-area > .tricks-section {
+  /* STRETCH, not start. `align-self: start` makes a grid item content-sized, so
+     the rail measured 518px against a 475px row and spilled through the player
+     bar regardless of overflow. Stretching binds it to the row, and then
+     `min-height: 0` lets it actually shrink there — without it a grid item's
+     automatic minimum is its content and the clip never engages. */
+  align-self: stretch;
+  min-height: 0;
+  overflow: hidden;
+}
+body.board-v2 .tricks-section .trick-card { max-width: 178px; }
+body.board-v2 .tricks-section #player-tricks { justify-items: center; }
+
+/* ---------------------------------------------------------------------------
+   The board is the subject — give it the height. The hand is a strip along the
+   bottom, not half the screen.
+   ------------------------------------------------------------------------- */
+body.board-v2 .player-hand-section .hand-card-wrapper .card { --card-w: 118px; }
+body.board-v2 .player-hand-section { padding-top: 8px; }
+body.board-v2 #board .card-slot { min-height: 0; }
