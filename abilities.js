@@ -2346,14 +2346,14 @@ const CARD_ABILITIES = {
           // every human still picks their own two, which is the version the
           // owner asked for earlier and which is not the one that stalls,
           // because a human casting it is already the seat everyone is waiting on.
-          const castByBot = !!(self._2v2PlayedBy && tt.players[self._2v2PlayedBy]
-                               && tt.players[self._2v2PlayedBy].isAI);
-          if (sp.isAI || hand.length <= 2 || castByBot) {
-            // AI seat, or a hand small enough that the pick is forced: auto-cycle
-            // its 2 lowest. Every HUMAN seat — including when a bot cast the card —
-            // falls through to the pick prompt below and chooses for themselves.
-            // The watchdog above guarantees the chain can't hang if a client goes
-            // quiet, so prompting humans during a bot's turn is safe now.
+          if (sp.isAI || hand.length <= 2) {
+            // AI seat (auto-take its 2 lowest — "that's all they do"), or a hand
+            // small enough that the pick is forced. EVERY HUMAN SEAT gets to
+            // choose their own two, no matter who cast the card — that is what the
+            // owner wants ("people get to choose what they want to redraw and for
+            // AI just make it their lowest cost cards"). The human is never
+            // auto-skipped (watchdog leaves human prompts alone), so the pick just
+            // waits for them; each answer drains the chain to the next seat.
             for (let i = 0; i < back; i++) {
               const c = lowest(hand); if (!c) break;
               const idx = hand.findIndex(x => x.id === c.id);
