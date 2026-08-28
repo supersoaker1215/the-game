@@ -269,6 +269,32 @@ const BoardV2 = {
     });
   },
 
+  // FILL THE RAIL'S LOG. renderBoardAside prints the last three lines, which is
+  // right for a floating panel and leaves ~300px of black in a full-height rail.
+  // This repopulates that block with as many lines as the column can show —
+  // measured from its own height, not a guessed count — using the same markup
+  // and classes the aside already uses, so nothing about its styling changes.
+  // Runs AFTER renderBoardAside (BoardV2 is last in the render tail), so it is
+  // rewriting a block that has already been built for this frame.
+  _fillRailLog(s) {
+    const box = document.querySelector('#bv2-rail-left .ba-log');
+    if (!box) return;
+    const lines = (s && s.log) || [];
+    if (!lines.length) return;
+    const lineH = parseFloat(getComputedStyle(box).lineHeight) || 16;
+    const room  = box.clientHeight || 0;
+    // Each entry wraps to roughly two lines at this width; be conservative so
+    // the last one is never half-clipped.
+    const fit = Math.max(3, Math.floor(room / (lineH * 2.2)));
+    const want = lines.slice(-fit).reverse();
+    const sig = want.length + '|' + (want[0] || '');
+    if (box.dataset.bv2Sig === sig) return;
+    box.dataset.bv2Sig = sig;
+    box.innerHTML = want.map((t, i) =>
+      '<div class="ba-log-line' + (i === 0 ? ' is-latest' : '') + '">' + t + '</div>'
+    ).join('');
+  },
+
   // Called from UI.render's tail. Returns immediately when off, so the original
   // board pays nothing for this existing.
   render(s) {
@@ -281,6 +307,7 @@ const BoardV2 = {
       this._renderCounts(s);
       this._renderBandExtras(s);
       this._stripForecastSigns();
+      this._fillRailLog(s);
     } catch (e) { console.error('[BoardV2] render', e); }
   },
 };
