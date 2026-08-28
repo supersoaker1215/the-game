@@ -6150,12 +6150,33 @@ const Game = {
     // so in multiplayer the modal broadcast ungated to BOTH clients and the
     // guest's own Time Stone could never react at all.
     const tsDefender = this.opponent(owner);
-    // 2v2 has NO render or resolution path for the reactive Time Stone modal,
-    // and `isHuman(side)` is true for BOTH teams there (so it armed even for an
-    // all-AI defending team). Armed-but-unresolvable + no auto-timeout = a
-    // permanent freeze (the #1 stall found in 2v2 self-play). Skip the reactive
-    // intercept entirely in 2v2 — the AI never used it anyway (in 1v1 the AI
-    // seat isn't human, so it never armed for an AI defender there either).
+    // 2v2 (online): reactive Time Stone now works. Find a seat on the DEFENDING
+    // team holding a live Time Stone. An AI holder ALWAYS counters — resolved
+    // synchronously right here, so there is NO modal to leave armed and NO freeze.
+    // A HUMAN holder gets the exact 1v1 counter/allow choice, routed to their own
+    // seat (only they see it, and the human-safe watchdog never times them out).
+    // This runs on the host (the authority that executes every seat's play), so
+    // the arming + broadcast reach the holder's client. (Owner: "for human
+    // players give them the choice to counter … for AI players they always use
+    // it … no freeze.")
+    if (this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online
+        && !trick._timeStoneChecked && !this.state.pendingTimeStoneIntercept
+        && this._isHostileTrick(trick) && trick.name !== 'Time Stone') {
+      const tsSeat = this._2v2SeatWithTimeStone(tsDefender);
+      if (tsSeat) {
+        const tp = this.state.twoVTwo.players[tsSeat];
+        const intercept = { incomingTrick: trick, incomingOwner: owner, defender: tsDefender, _2v2Seat: tsSeat, _2v2ActingPlayer: tsSeat };
+        if (tp && tp.isAI) {
+          this._2v2TimeStoneCounter(tsSeat, intercept);   // AI always counters
+        } else {
+          this.state.pendingTimeStoneIntercept = intercept;
+          if (typeof UI !== 'undefined' && UI.render) UI.render();
+          this._2v2OnlineBroadcast();
+        }
+        return false;   // the hostile trick pauses (countered, or awaiting the human's choice)
+      }
+      // no defender holds Time Stone — fall through and let the trick resolve
+    }
     if (!trick._timeStoneChecked && this.isHuman(tsDefender)
         && !this.is2v2()
         && !this.state.pendingTimeStoneIntercept
@@ -6248,6 +6269,66 @@ const Game = {
       && p.trickHand.find(t => t && t.name === 'Time Stone'
           && t._timeStonedAtRound !== this.state.round));
   },
+  // 2v2: the first seat on `side`'s TEAM holding a live Time Stone (or null).
+  // Prefers a human holder over an AI one, so a human's counter choice is
+  // offered before a bot auto-spends its own.
+  _2v2SeatWithTimeStone(side) {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt || !tt.players) return null;
+    const seats = this._2v2SLOTS.filter(pk => tt.players[pk]
+      && this._2v2TeamSide[tt.players[pk].team] === side);
+    const holds = (pk) => {
+      const p = tt.players[pk];
+      return !!(p && p.trickHand && p.trickHand.find(t => t && t.name === 'Time Stone'
+        && t._timeStonedAtRound !== this.state.round));
+    };
+    return seats.find(pk => !tt.players[pk].isAI && holds(pk))
+        || seats.find(pk => holds(pk)) || null;
+  },
+  // 2v2 counter — consume THAT seat's Time Stone, freeze the incoming trick for
+  // the round (it returns to the caster's hand), and draw the countering seat a
+  // card. Synchronous, so an AI holder simply does this and play continues.
+  _2v2TimeStoneCounter(seat, intercept) {
+    const tt = this.state && this.state.twoVTwo;
+    const p = tt && tt.players[seat];
+    if (!p || !intercept) { this.state.pendingTimeStoneIntercept = null; return; }
+    const trick = intercept.incomingTrick;
+    const idx = (p.trickHand || []).findIndex(t => t && t.name === 'Time Stone');
+    if (idx < 0) { this._2v2TimeStoneAllow(intercept); return; }
+    p.trickHand.splice(idx, 1);
+    if (p.playedTrickPile) p.playedTrickPile.push({ name: 'Time Stone', cost: 0 });
+    trick._timeStonedAtRound = this.state.round;   // frozen this round
+    this.log(`[TIME STONE] ${p.name} freezes time! ${trick.name} is undone and returned to the caster's hand.`);
+    // Draw the countering seat a card (routed to their own hand).
+    const drawPile = tt.drawPile;
+    const cap = p.maxHandSize || 7;
+    if (drawPile && drawPile.length && (p.hand || []).length < cap) {
+      const def = drawPile.pop();
+      if (def) {
+        const c = this.createCardInstance(def, this._2v2TeamSide[p.team]);
+        try { this._2v2CurrentActingPlayer = seat; this.applyBrainiacDrain(c, seat, null); this.applyBrainiacHarvest(c, p); } catch (e) {}
+        p.hand.push(c);
+        this.log(`[TIME STONE] ${p.name} draws a card.`);
+      }
+    }
+    this.state.pendingTimeStoneIntercept = null;
+    if (typeof UI !== 'undefined' && UI.render) UI.render();
+    this._2v2OnlineBroadcast();
+    this.resumeCombatIfWaiting();
+  },
+  // 2v2 allow — the holder declined; re-play the hostile trick as its original
+  // caster (flagged so the intercept doesn't re-fire) and it resolves normally.
+  _2v2TimeStoneAllow(intercept) {
+    if (!intercept) intercept = this.state.pendingTimeStoneIntercept;
+    if (!intercept) return;
+    const trick = intercept.incomingTrick;
+    this.state.pendingTimeStoneIntercept = null;
+    trick._timeStoneChecked = true;
+    this.playTrick(intercept.incomingOwner || 'ai', trick);
+    if (typeof UI !== 'undefined' && UI.render) UI.render();
+    this._2v2OnlineBroadcast();
+    this.resumeCombatIfWaiting();
+  },
   // Predicate: does this trick negatively affect the opponent of its
   // caster? Uses an explicit `hostile` flag when set on the trick def,
   // else falls back to a keyword scan of the description. The list is
@@ -6287,6 +6368,17 @@ const Game = {
   timeStoneCounter() {
     const intercept = this.state.pendingTimeStoneIntercept;
     if (!intercept) return;
+    // 2v2 online: only the holding seat may answer; a guest forwards to the host.
+    if (this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online) {
+      const tt = this.state.twoVTwo;
+      if (intercept._2v2Seat && tt.you !== intercept._2v2Seat && tt.you !== 'p1') return;
+      if (tt.you !== 'p1') {
+        if (typeof Multiplayer4 !== 'undefined') Multiplayer4.send({ t: 'timeStoneChoice', playerKey: tt.you, counter: true });
+        return;
+      }
+      this._2v2TimeStoneCounter(intercept._2v2Seat, intercept);
+      return;
+    }
     const trick = intercept.incomingTrick;
     const defender = intercept.defender || 'player';
     this.state.pendingTimeStoneIntercept = null;
@@ -6323,6 +6415,17 @@ const Game = {
   timeStoneAllow(_intercept) {
     const intercept = _intercept || this.state.pendingTimeStoneIntercept;
     if (!intercept) return;
+    // 2v2 online: only the holding seat may answer; a guest forwards to the host.
+    if (!_intercept && this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online) {
+      const tt = this.state.twoVTwo;
+      if (intercept._2v2Seat && tt.you !== intercept._2v2Seat && tt.you !== 'p1') return;
+      if (tt.you !== 'p1') {
+        if (typeof Multiplayer4 !== 'undefined') Multiplayer4.send({ t: 'timeStoneChoice', playerKey: tt.you, counter: false });
+        return;
+      }
+      this._2v2TimeStoneAllow(intercept);
+      return;
+    }
     const trick = intercept.incomingTrick;
     this.state.pendingTimeStoneIntercept = null;
     trick._timeStoneChecked = true;
@@ -18300,6 +18403,14 @@ const Game = {
     if (!pk) return;
     // A seat asked for a rematch — p1 rebuilds the match and broadcasts.
     if (msg.t === 'rematch') { this._2v2Rematch(); return; }
+    // A holder answered the reactive Time Stone offer (counter / allow).
+    if (msg.t === 'timeStoneChoice') {
+      const ti = this.state.pendingTimeStoneIntercept;
+      if (ti && ti._2v2Seat === pk) {
+        if (msg.counter) this._2v2TimeStoneCounter(pk, ti); else this._2v2TimeStoneAllow(ti);
+      }
+      return;
+    }
     // TOURNAMENT — a team captain's number / modifier pick.
     if (msg.t === 'tourneyNum') { if (typeof Tournament !== 'undefined' && Tournament._2v2HostReceiveNumber) Tournament._2v2HostReceiveNumber(pk, msg.num); return; }
     if (msg.t === 'tourneyMod') { if (typeof Tournament !== 'undefined' && Tournament._2v2HostReceiveMod)    Tournament._2v2HostReceiveMod(pk, msg.mod, msg.first); return; }
