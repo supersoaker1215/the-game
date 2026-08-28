@@ -9487,8 +9487,8 @@ const Game = {
     if (p) p.cardsPlayedCount = (p.cardsPlayedCount || 0) + 1;
 
     // If Doomsday is already in hand, scale him live so the card updates visually.
-    const hand = p && p.hand;
-    if (hand) {
+    const scaleHand = (hand) => {
+      if (!hand) return;
       hand.forEach(c => {
         if (c.passive !== 'doomsdayScaling') return;
         c.attack = (c.attack || 0) + 1;
@@ -9496,6 +9496,19 @@ const Game = {
         c.currentHealth = (c.currentHealth || 0) + 1;
         this.log(`[DOOMSDAY] Owner played a card — grows to ${c.attack}/${c.maxHealth} (cost ${c.cost})`);
       });
+    };
+    // In 2v2 the cards live in the SEAT hands, not the side-proxy hand — so scale
+    // a Doomsday held by EITHER teammate on this side. (Before this, a Doomsday
+    // sitting in a 2v2 hand never grew when the team played cards; only the empty
+    // side-proxy hand was scanned.)
+    if (this.is2v2 && this.is2v2() && this.state.twoVTwo) {
+      const tt = this.state.twoVTwo;
+      (this._2v2SLOTS || ['p1', 'p2', 'p3', 'p4']).forEach(pk => {
+        const sp = tt.players[pk];
+        if (sp && this._2v2TeamSide[sp.team] === owner) scaleHand(sp.hand);
+      });
+    } else {
+      scaleHand(p && p.hand);
     }
     // Draw-pile Doomsday is NOT mutated here. His stats are set from
     // cardsPlayedCount the moment he is drawn (see drawCards).
@@ -17748,6 +17761,13 @@ const Game = {
           this.applyBrainiacDrain(drawn, pk, null);
           this.applyBrainiacHarvest(drawn, p);
           this.applyDrawDiscount(drawn, p);
+          // DOOMSDAY SCALING on the round draw. This push bypasses addToHand /
+          // drawCards (which apply it in 1v1), so a Doomsday drawn in 2v2 entered
+          // at his base 1/1 no matter how many cards the team had played. Set his
+          // stats from the team's cardsPlayedCount here, same as every other mode.
+          // (User: "doomsday in 2v2 hasn't kept track of how many cards i've
+          // played — drew him on round 7 and he's a 1/1.")
+          this._applyDoomsdayDrawScaling(drawn, side);
           p.hand.push(drawn);
         }
       }
