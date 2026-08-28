@@ -26461,7 +26461,15 @@ const UI = {
       // resolve the element back to THIS trick object, same as hand cards.
       if (trick.id != null) el.setAttribute('data-trick-id', trick.id);
       const cost = this._localTrickCost(trick);
-      const afford = s.player.currency >= cost;
+      // AFFORD AGAINST *MY* ENERGY. In 2v2 the viewer may be on Team B, whose
+      // energy is NOT s.player.currency (that's Team A). _localEnergy() reads the
+      // viewer's own seat — the same value the click handler checks — so a trick
+      // the seat can actually pay for no longer renders dark/colorless as if
+      // unplayable. (User: "a trick showed dark and colorless like I couldn't
+      // play it, but I played it and it worked.") 1v1/solo fall back to
+      // s.player.currency inside _localEnergy, so they're unchanged.
+      const _tSide = (this._2v2LocalSide && this._2v2LocalSide()) || 'player';
+      const afford = this._localEnergy() >= cost;
 
       const trickBadges = trick.abilities && trick.abilities.length
         ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(trick.abilities)}</div>`
@@ -26498,7 +26506,10 @@ const UI = {
       // Reaction-only tricks (Time Stone) always fail canPlay by design.
       let noTargets = false;
       if (trick.canPlay) {
-        try { noTargets = !trick.canPlay(Game, 'player'); } catch (e) {}
+        // From the viewer's OWN side — 'player' hardcoded asked the wrong
+        // team's board in 2v2, so a Team B trick with valid enemy targets read
+        // as "no targets" and dimmed. (Same fix as the afford check above.)
+        try { noTargets = !trick.canPlay(Game, _tSide); } catch (e) {}
       }
       if (((isAnytime && playerActive) || canTrick) && afford && !frozen && !noTargets) {
         el.classList.add('playable');
