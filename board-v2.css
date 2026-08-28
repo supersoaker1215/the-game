@@ -1187,3 +1187,31 @@ body.board-v2 #game-area > .info-bar.player-bar::before {
     rgba(53,201,255,0.05) 45%,
     rgba(53,201,255,0.00) 100%);
 }
+
+/* ===========================================================================
+   NO LINES — ONE CONTINUOUS WASH PER SIDE, RUNNING AWAY FROM THE BOARD.
+   The 2px rails are gone entirely: a hard edge in the middle of a gradient is
+   the thing that stops it reading as light. Each side's wash now emanates from
+   the board and falls off toward its own screen edge — yours downward through
+   the hand, theirs upward past the top strip — so the two mirror each other
+   and nothing cuts across either one.
+   =========================================================================== */
+body.board-v2 #game-area > .info-bar::after { display: none !important; content: none !important; }
+
+/* Opponent: brightest along the edge nearest the board, fading UP. */
+body.board-v2 #game-area > .info-bar.ai-bar {
+  background-image: linear-gradient(to top,
+    rgba(255,138,31,0.30) 0%,
+    rgba(255,138,31,0.12) 48%,
+    rgba(255,138,31,0.00) 100%) !important;
+}
+/* …and keeps rising past the band toward the top of the screen. */
+body.board-v2 #game-area > .info-bar.ai-bar::before {
+  top: auto;
+  bottom: 100%;
+  height: calc(150 * var(--u));
+  background: linear-gradient(to top,
+    rgba(255,138,31,0.16) 0%,
+    rgba(255,138,31,0.05) 45%,
+    rgba(255,138,31,0.00) 100%);
+}
