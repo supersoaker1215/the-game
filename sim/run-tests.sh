@@ -53,6 +53,10 @@ echo "=== revive-and-record.js (revive resets once-per-life; dossier says HOW) =
 run_suite sim/revive-and-record.js
 
 echo ""
+echo "=== before-tricks.js (Start of Tricks recurs unless the card says once) ==="
+run_suite sim/before-tricks.js
+
+echo ""
 if [ "$FAIL" -ne 0 ]; then
   echo "❌ TESTS FAILED — see suites above."
   exit 1

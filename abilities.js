@@ -471,6 +471,10 @@ const CARD_ABILITIES = {
     }
   },
   "Jango Fett": {
+    // The roguelite "Jetpack Salvo" upgrade below is a Man-Bat-style
+    // relocation, and Man-Bat's recurs. Without the flag the upgrade
+    // moved him exactly once for the whole run.
+    _recurringBT: true,
     onMoved(G, self, toLane) {
       // Roguelite Text+ override — _jangoSplashOnMove scales the
       // arrival splash. Default 1 (classic); Text+ raises to 2 so
@@ -840,6 +844,9 @@ const CARD_ABILITIES = {
       onTurnStart(G, self) { refreshAura(G, self); },
       // Re-evaluate aura whenever the board changes (cards moving in/out of adjacency)
       onAnyCardPlayed(G, self) { refreshAura(G, self); },
+      // The aura refresh has to run EVERY round, like the two hooks under
+      // it. It is not a one-shot effect; it is upkeep.
+      _recurringBT: true,
       onBeforeTricks(G, self) { refreshAura(G, self); },
       onBeforeAttack(G, self) { refreshAura(G, self); },
       onAllyKilled(G, self) { refreshAura(G, self); },
@@ -5191,6 +5198,11 @@ const CARD_ABILITIES = {
     }
   },
   "Thor": {
+    // Start of Tricks, EVERY round — the card text says so, and
+    // beforeTricksFired is only cleared in postCombat for cards carrying
+    // this flag. Without it the hook fires once, in the round the card
+    // lands, and never again.
+    _recurringBT: true,
     onPlay(G, self, lane) {
       const opp = G.opponent(self.owner);
       // Let the player pick where the freeze lands — was hardcoded to the
@@ -5539,6 +5551,10 @@ const CARD_ABILITIES = {
     }
   },
   "Yoda": {
+    // The reported bug. His gifts are explicitly re-chosen every Trick
+    // phase (the hook clears the prior mark first) and the Invincible he
+    // hands out lasts "this turn" — both only make sense if it recurs.
+    _recurringBT: true,
     passive: 'yodaShield',
     onPlay(G, self, lane) {
       // Activate the half-damage shield passive on entry (kept). The
