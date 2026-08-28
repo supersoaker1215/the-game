@@ -158,6 +158,59 @@ t('L2-5 one block-trick behaviour for every 2v2', function () {
   eq('_blockFree is no longer handed out on block', /_blockFree: true/.test(src), false);
 });
 
+// ============================================================
+// L2-6 — THE BLOCK QUEUE IS HOST-AUTHORITATIVE.
+//
+// Every client resolves combat locally for its own animation. Without a gate,
+// all four of them ran the block-meter branch: each POPPED the shared
+// tt.trickDrawPile — one block consuming up to eight cards instead of two —
+// each built its own queue, and each armed its own pendingBlockTrick. The host
+// then broadcast its version over the top, so a guest's offer could be replaced
+// mid-decision by a different one, or vanish outright.
+//
+// That is the "free trick on block is STILL skipping" that survived two earlier
+// fixes: both of those were on the host's path, and the host's path was never
+// the broken one. This case is written from the GUEST's chair for that reason.
+// ============================================================
+t('L2-6 a guest neither draws the block tricks nor arms the offer', function () {
+  // Drive a REAL block: prime the meter to one short and take a hit. That is
+  // the path that pops the pile, and it is the one all four clients were
+  // running. A test that only pokes _2v2NextBlockTrick misses it entirely —
+  // that function returns early on an empty queue either way.
+  var run = function (youSeat) {
+    var tt = table(true);
+    tt.you = youSeat;
+    tt.players.p3.isAI = true;
+    Game.state.phase = '2v2-combat';
+    Game.state.pendingBlockTrick = null;
+    Game.state._2v2BlockQueue = null;
+    Game.state.log = [];
+    var side = Game._2v2TeamSide['A'];
+    var pile0 = tt.trickDrawPile.length;
+    Game.state[side].blockMeter = Game.BLOCK_MAX - 1;
+    Game.damagePlayer(side, 3, false, null);
+    var drew = 0;
+    (Game.state.log || []).forEach(function (l) { if (/BLOCK DRAW/.test(l)) drew++; });
+    return { authority: Game._2v2IsAIAuthority(), taken: pile0 - tt.trickDrawPile.length, drew: drew };
+  };
+
+  var guest = run('p2');
+  eq('a guest is not the authority', guest.authority, false);
+  eq('so it takes NO cards from the shared pile', guest.taken, 0);
+  eq('and logs no draws',                          guest.drew, 0);
+
+  var host = run('p1');
+  eq('the host is the authority', host.authority, true);
+  eq('and draws exactly one per teammate', host.taken, 2);
+  eq('logging both',                       host.drew, 2);
+});
+
+t('L2-7 local pass-and-play still counts as the authority', function () {
+  var tt = table(false);               // not online
+  tt.you = 'p1';
+  eq('local play drives its own queue', Game._2v2IsAIAuthority(), true);
+});
+
 // ---- run ----------------------------------------------------
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];

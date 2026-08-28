@@ -8438,6 +8438,22 @@ const Game = {
         // until the 2 players have decided to either play or keep the tricks.")
         if (this.is2v2() && this.state.twoVTwo) {
           const tt = this.state.twoVTwo;
+          // THE BLOCK QUEUE IS HOST-AUTHORITATIVE. Every client resolves combat
+          // locally for its own animation, so without this gate all four of
+          // them ran this block: each POPPED the shared tt.trickDrawPile (one
+          // block consuming up to eight cards instead of two), each built its
+          // own queue, and each armed its own pendingBlockTrick. The host then
+          // broadcast its version over the top — so a guest's offer could be
+          // replaced mid-decision by a different one, or vanish outright.
+          // That is the "free trick on block is still skipping" that survived
+          // two previous fixes: both of them were on the host's path, and the
+          // host's path was never the broken one.
+          //
+          // A guest does nothing here. It receives pendingBlockTrick in the
+          // broadcast and renders it, which is the only way four clients can
+          // agree on which two cards were drawn. _2v2IsAIAuthority is true for
+          // local play (!tt.online), so pass-and-play is untouched.
+          if (this._2v2IsAIAuthority && !this._2v2IsAIAuthority()) return;
           const team = owner === 'player' ? 'A' : 'B';
           const queue = [];
           this._2v2BlockTrickOrder(team).forEach(pk => {
@@ -15533,6 +15549,10 @@ const Game = {
     return !!(trick && trick._blockRound != null && trick._blockRound !== this.state.round);
   },
   _2v2NextBlockTrick() {
+    // Host only — see the queue construction in the block-meter branch. A guest
+    // that walks the queue shifts entries off its own copy and arms prompts the
+    // host is about to overwrite.
+    if (this._2v2IsAIAuthority && !this._2v2IsAIAuthority()) return;
     const q = this.state._2v2BlockQueue;
     if (!q || !q.length) {
       this.state._2v2BlockQueue = null;
