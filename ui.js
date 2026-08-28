@@ -11918,7 +11918,16 @@ const UI = {
       // green and rising, so lifesteal and heal effects are finally legible
       // instead of the bar quietly growing.
       if (ev.type === 'heal' && ev.cardId == null) {
-        const hfill = document.getElementById(ev.owner === 'player' ? 'player-hp-fill' : 'ai-hp-fill');
+        // ROUTE THROUGH _fxDomSide like hpHit does. Using ev.owner raw put the
+        // heal float on the WRONG bar for any viewer whose own team isn't the
+        // 'player' side (every 2v2 team-B seat, and the 1v1 guest): the caster's
+        // +2 floated over the ENEMY bar while their real health quietly filled on
+        // their own bar — which reads as BOTH teams healing 2. (User: "symbiote
+        // spider-man is healing 2 for both teams — make sure it's only the team
+        // that played him.") Only the caster's team is ever healed; this just
+        // lands the float on the bar that actually changed.
+        const hside = this._fxDomSide ? this._fxDomSide(ev.owner) : ev.owner;
+        const hfill = document.getElementById(hside === 'player' ? 'player-hp-fill' : 'ai-hp-fill');
         const hcontainer = hfill ? hfill.closest('.health-container') : null;
         if (hcontainer && ev.amount > 0) {
           hcontainer.style.position = 'relative';

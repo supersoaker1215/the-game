@@ -2293,8 +2293,11 @@ const CARD_ABILITIES = {
       // disruption with no self-cost.
       const skipSelf = !!self._symbioteSkipSelf;
       const finish = () => {
+        // Heals ONLY the caster's side (self.owner). The "heals you" wording
+        // fired for all four 2v2 seats regardless of team; healPlayer already
+        // logs a team-accurate [HEAL] line, so this one just names the team.
         G.healPlayer(self.owner, 2, self);
-        G.log("Symbiote Spider-Man heals you for 2!");
+        G.log(`Symbiote Spider-Man heals its own team for 2!`);
       };
       // ANY 2v2, not just an online one. The seat-aware branch below is what
       // gives each of the four players their OWN hand to cycle and lets an AI
