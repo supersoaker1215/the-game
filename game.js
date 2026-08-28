@@ -11968,7 +11968,34 @@ const Game = {
       const blocker = l ? l[owner] : null;
       uncontested = !(blocker && blocker.currentHealth > 0);
     }
+    // LETHAL OUTRANKS EVERYTHING ELSE ON THE BOARD.
+    //
+    // An uncontested swing that finishes us is not "a bit more damage" — it is
+    // the match, and stopping it is worth more than any amount of value taken
+    // anywhere else. Without this the ranking treated a 4-ATK card walking into
+    // an empty lane at 10 HP the same as one doing it at 3 HP. (Owner: "michael
+    // myers is in lane 8 going to win the game, my ai teammate mind controls
+    // optimus prime, losing us the game — if he mind controls michael myers,
+    // negating damage to us, we are alive. that should take ultimate priority.")
+    if (uncontested) {
+      const hp = this.sideHealth(owner);
+      if (hp != null && atk >= hp) return 10000 + atk;
+    }
     return uncontested ? atk * 2 : atk;
+  },
+
+  // The health bar this side is actually playing for. In 2v2 that is the TEAM's,
+  // not the side proxy's — the proxy is bridged and restored around renders, so
+  // reading it outside one gives whatever the engine last left there.
+  sideHealth(side) {
+    if (!side || !this.state) return null;
+    const tt = this.state.twoVTwo;
+    if (tt && tt.teams && this._2v2TeamSide) {
+      const team = this._2v2TeamSide.A === side ? 'A' : 'B';
+      if (tt.teams[team] && tt.teams[team].health != null) return tt.teams[team].health;
+    }
+    const p = this.state[side];
+    return (p && p.health != null) ? p.health : null;
   },
   // The AI picker every enemy-neutralising effect should hand to
   // promptCardChoice. Ties keep board order, which is stable.

@@ -817,7 +817,12 @@ const TRICK_DEFS = [
             if (typeof UI !== 'undefined' && UI._fxTrickDebuff) { try { UI._fxTrickDebuff(t, '#f1c40f', '#b8860b'); } catch (e) {} }
             G.log(`Mind Stone controls ${t.name}!`);
           });
-        }, cards => cards[0]);
+          // `cards[0]` — the first enemy in BOARD ORDER, with no evaluation of
+          // any kind. On the reported board that was Optimus Prime in lane 7,
+          // while a Michael Myers stood uncontested in lane 8 with lethal on the
+          // team. Controlling him is the whole point of the card: the swing
+          // never lands. Threat ranks lethal above everything, so it is taken.
+        }, cards => G.pickBiggestThreat(cards, owner));
       }
     }
   },

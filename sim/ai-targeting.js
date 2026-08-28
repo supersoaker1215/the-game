@@ -313,6 +313,52 @@ t('AT-9 so Optimus sends the swing at the card that survives otherwise', functio
   eq('and left the one it could not dent',      fat.currentHealth, 9);
 });
 
+// ============================================================
+// AT-10 / AT-11 — LETHAL OUTRANKS EVERYTHING.
+//
+// Mind Stone's AI picker was `cards[0]` — the first enemy in BOARD ORDER, no
+// evaluation at all. On the reported board that was Optimus Prime in lane 7,
+// while a Michael Myers stood uncontested in lane 8 with lethal on the team.
+// Controlling him is the whole point of the card: the swing never lands.
+// (Owner: "michael myers is in lane 8 going to win the game, my ai teammate
+// mind controls optimus prime, losing us the game — if he mind controls michael
+// myers, negating damage to us, we are alive. that should take ultimate
+// priority.")
+// ============================================================
+t('AT-10 an uncontested swing that would finish us outranks everything', function () {
+  clearBoard();
+  Game.state.player.health = 10;
+  var contested = mk('Optimus Prime', 'ai'); contested.attack = 4;
+  Game.state.lanes[2].ai = contested;
+  Game.state.lanes[2].player = mk('Gizmo', 'player');       // a body absorbs it
+  var lethal = mk('Michael Myers', 'ai'); lethal.attack = 10;
+  Game.state.lanes[4].ai = lethal;                           // nothing opposite
+
+  eq('our health is read from the side', Game.sideHealth('player'), 10);
+  eq('the lethal one dwarfs the rest', Game.threatOf(lethal, 'player') > 1000, true);
+  eq('the contested one is ordinary',  Game.threatOf(contested, 'player'), 4);
+  eq('so it is the pick', Game.pickBiggestThreat([contested, lethal], 'player').name, 'Michael Myers');
+
+  // At healthy HP the same board ranks normally — no lethal bonus.
+  Game.state.player.health = 30;
+  eq('not lethal any more', Game.threatOf(lethal, 'player') < 1000, true);
+  eq('but still the bigger threat', Game.threatOf(lethal, 'player') > Game.threatOf(contested, 'player'), true);
+});
+
+t('AT-11 Mind Stone controls the card that is about to win the game', function () {
+  clearBoard();
+  Game.state.player.health = 10;
+  var optimus = mk('Optimus Prime', 'ai'); optimus.attack = 4;
+  Game.state.lanes[2].ai = optimus;                          // EARLIER in board order
+  Game.state.lanes[2].player = mk('Gizmo', 'player');
+  var myers = mk('Michael Myers', 'ai'); myers.attack = 10;
+  Game.state.lanes[4].ai = myers;
+
+  trick('Mind Stone').play(Game, 'player');
+  eq('the lethal attacker is controlled', !!myers.isMindControlled, true);
+  eq('and not the first card in board order', !!optimus.isMindControlled, false);
+});
+
 // ---- run ----------------------------------------------------
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];
