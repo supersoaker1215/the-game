@@ -1091,3 +1091,98 @@ body.board-v2 .bv2-tag {
   border-width: 1px;
   flex: 0 0 auto;
 }
+
+/* ===========================================================================
+   THE TUBE. Colour spec, verbatim:
+       #35c9ff   the tube — every cyan stroke, border and rail on the board
+       #e8f7ff   the hot core — a 1px inner line INSIDE the 2px tube stroke,
+                 which is what makes a control read as LIT rather than outlined
+       #eafaff   label text
+       #8fe0ff   the arrow and the dim cyan labels
+   The core is the piece I had missing. I was drawing a 1px outline and then
+   trying to buy "lit" with more outer glow, which only ever produces a blurry
+   outline. A real tube is two strokes: the glass, and the filament inside it.
+   =========================================================================== */
+body.board-v2 {
+  --bv2-tube: #35c9ff;
+  --bv2-core: #e8f7ff;
+  --bv2-text: #eafaff;
+  --bv2-dim:  #8fe0ff;
+
+  /* Everything that was theme-derived now runs off the tube, so one hue
+     governs the whole board instead of two nearly-identical blues. */
+  --bv2-ink:       var(--bv2-tube);
+  --bv2-ink-dim:   rgba(53, 201, 255, 0.55);
+  --bv2-ink-faint: rgba(53, 201, 255, 0.16);
+  --bv2-label:     rgba(143, 224, 255, 0.72);
+  --bv2-line:      rgba(53, 201, 255, 0.17);
+}
+
+/* --- END CARDS: the lit plate, built to the spec ------------------------- */
+body.board-v2 #game-area .bar-center > #btn-action {
+  border: 2px solid var(--bv2-tube) !important;
+  /* The diagonal fill, then the hot core as a 1px inset ring just inside the
+     tube, then the three stacked glows: filament, mid, bloom. */
+  background: linear-gradient(135deg,
+      rgba(53, 201, 255, 0.22), transparent 78%) !important;
+  box-shadow:
+    inset 0 0 0 1px var(--bv2-core),
+    0 0 2px  rgba(224, 246, 255, 0.80),
+    0 0 11px rgba(53, 201, 255, 0.55),
+    0 0 30px rgba(40, 180, 240, 0.24) !important;
+  color: var(--bv2-text) !important;
+  text-shadow: 0 0 10px rgba(224, 246, 255, 0.55);
+}
+body.board-v2 #game-area .bar-center > #btn-action::after { color: var(--bv2-dim); }
+body.board-v2 #game-area .bar-center > #btn-action:hover {
+  background: linear-gradient(135deg,
+      rgba(53, 201, 255, 0.32), transparent 78%) !important;
+  box-shadow:
+    inset 0 0 0 1px var(--bv2-core),
+    0 0 3px  rgba(224, 246, 255, 0.95),
+    0 0 16px rgba(53, 201, 255, 0.70),
+    0 0 40px rgba(40, 180, 240, 0.34) !important;
+}
+
+/* --- the same tube treatment on the pieces that should read as lit -------- */
+body.board-v2 .player-bar .bv2-tag {
+  border: 2px solid var(--bv2-tube);
+  box-shadow:
+    inset 0 0 0 1px rgba(232, 247, 255, 0.85),
+    0 0 2px  rgba(224, 246, 255, 0.65),
+    0 0 11px rgba(53, 201, 255, 0.42);
+  color: var(--bv2-text);
+  text-shadow: 0 0 9px rgba(224, 246, 255, 0.5);
+}
+body.board-v2 #bv2-phase.is-mine {
+  border: 1px solid var(--bv2-tube);
+  box-shadow:
+    inset 0 0 0 1px rgba(232, 247, 255, 0.22),
+    0 0 2px  rgba(224, 246, 255, 0.35),
+    0 0 14px rgba(53, 201, 255, 0.30),
+    0 0 34px rgba(40, 180, 240, 0.18);
+}
+body.board-v2 #bv2-phase.is-mine::before {
+  background: var(--bv2-core);
+  box-shadow: 0 0 3px rgba(224,246,255,.9), 0 0 12px rgba(53,201,255,.75);
+}
+body.board-v2 #bv2-phase.is-mine .bv2-phase-title {
+  color: var(--bv2-text);
+  text-shadow: 0 0 10px rgba(224, 246, 255, 0.6), 0 0 26px rgba(53, 201, 255, 0.38);
+}
+body.board-v2 #bv2-phase.is-mine .bv2-phase-bar i {
+  background: linear-gradient(90deg, rgba(53,201,255,.25), var(--bv2-tube));
+  box-shadow: 0 0 8px rgba(53, 201, 255, 0.7);
+}
+body.board-v2 .player-bar .energy-display {
+  border: 2px solid var(--bv2-tube);
+  box-shadow: inset 0 0 0 1px rgba(232,247,255,.6), 0 0 9px rgba(53,201,255,.45);
+  color: var(--bv2-text);
+}
+/* Text: labels take the dim tube, values the label white. */
+body.board-v2 .player-bar .bv2-name,
+body.board-v2 .bv2-cap-val,
+body.board-v2 .bv2-trk { color: var(--bv2-text); }
+body.board-v2 #bv2-rail-left .ba-log-line { color: rgba(143, 224, 255, 0.78); }
+body.board-v2 #bv2-rail-left .ba-log-line.is-latest { color: var(--bv2-text); }
+body.board-v2 .bv2-lane-no { color: var(--bv2-dim); }
