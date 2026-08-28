@@ -218,7 +218,9 @@ const TRICK_DEFS = [
           if (typeof UI !== 'undefined' && UI._fxTrickDebuff) { try { UI._fxTrickDebuff(t, '#4fe07a', '#1f9a3a'); } catch (e) {} }
           G.debuffCard(t, r, 0, false, { name: 'Kryptonite' });
           G.log(`Kryptonite: ${t.name} -${r} ATK!`);
-        }, cards => cards.sort((a, b) => b.attack - a.attack)[0]);
+          // Threat, not raw ATK — see Game.threatOf. Weakening a feared enemy
+          // stops it killing itself, which is the opposite of the point.
+        }, cards => G.pickBiggestThreat(cards, owner));
       }
     }
   },
@@ -524,7 +526,7 @@ const TRICK_DEFS = [
         G.promptCardChoice(owner, enemies, "Fear Toxin — Fear", "Choose enemy to fear", (t) => {
           if (typeof UI !== 'undefined' && UI._fxFearGas) { try { UI._fxFearGas(t); } catch (e) {} }
           G.fearCard(t, source); G.log(`Fear Toxin terrifies ${t.name}!`);
-        }, cards => cards.sort((a, b) => b.attack - a.attack)[0]);
+        }, cards => G.pickBiggestThreat(cards, owner));
       }
     }
   },

@@ -202,6 +202,59 @@ t('AT-5 but not when going first would strand the best body', function () {
   eq('and it was not sacrificed to the 2-drop', order[0], 'Hulk');
 });
 
+// ============================================================
+// AT-6 / AT-7 — WHICH ENEMY IS ACTUALLY GOING TO HURT US.
+//
+// Every "weaken or neutralise an enemy" picker sorted by raw ATK. A FEARED card
+// attacks ITSELF (resolveLaneCombat: `if (pCard.isFeared) pTarget = pCard`), so
+// its attack is not a threat, it is a gift — and taking 3 off it is the
+// difference between it dying on its own swing and surviving. The bot spent
+// Kryptonite on a feared Droideka and left an uncontested Revan to hit the
+// health bar. (Owner: "the ai played kryptonite on the droideka that was feared
+// so now he doesnt kill himself, instead of on the enemy revan to reduce damage
+// to our healthbar.")
+// ============================================================
+t('AT-6 threat is not raw ATK: feared scores below zero, uncontested doubles', function () {
+  clearBoard();
+  var feared = mk('Droideka', 'ai');
+  feared.attack = 5; feared.isFeared = true; feared.fearedTurns = 1;
+  Game.state.lanes[3].ai = feared;
+  Game.state.lanes[3].player = mk('Gizmo', 'player');      // contested
+  var open = mk('Revan', 'ai'); open.attack = 4;
+  Game.state.lanes[4].ai = open;                            // nothing opposite
+
+  eq('a feared enemy is worth LESS than nothing', Game.threatOf(feared, 'player') < 0, true);
+  eq('an uncontested swing counts double',        Game.threatOf(open, 'player'), 8);
+  eq('so the bigger number is not the pick',      Game.pickBiggestThreat([feared, open], 'player').name, 'Revan');
+
+  // Frozen and stunned do not swing either.
+  var frozen = mk('Hulk', 'ai'); frozen.attack = 9; frozen.isFrozen = true;
+  Game.state.lanes[1].ai = frozen;
+  eq('a frozen 9-ATK is worth nothing', Game.threatOf(frozen, 'player'), 0);
+});
+
+t('AT-7 Kryptonite lands on the card that will actually hit us', function () {
+  clearBoard();
+  var feared = mk('Droideka', 'ai');
+  feared.attack = 5; feared.isFeared = true; feared.fearedTurns = 1;
+  Game.state.lanes[3].ai = feared;
+  Game.state.lanes[3].player = mk('Gizmo', 'player');
+  var open = mk('Revan', 'ai'); open.attack = 4;
+  Game.state.lanes[4].ai = open;
+
+  trick('Kryptonite').play(Game, 'player');
+  eq('the feared one keeps its attack (it is killing itself)', feared.attack, 5);
+  eq('the real threat was weakened', open.attack, 1);
+
+  // And with nothing odd on the board it still takes the biggest hitter.
+  clearBoard();
+  var big = mk('Hulk', 'ai');  big.attack = 7;  Game.state.lanes[1].ai = big;
+  var small = mk('Gizmo', 'ai'); small.attack = 1; Game.state.lanes[2].ai = small;
+  trick('Kryptonite').play(Game, 'player');
+  eq('plain board: the biggest hitter', big.attack, 4);
+  eq('and the small one is untouched',  small.attack, 1);
+});
+
 // ---- run ----------------------------------------------------
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];

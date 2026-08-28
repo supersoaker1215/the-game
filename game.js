@@ -11933,6 +11933,55 @@ const Game = {
   // before-tricks repositioning). The mind-controlled card's own SWING is
   // resolved elsewhere and checks isStunned/isFrozen directly, so it still
   // attacks for its controller — which is the whole point of the card.
+  // WHICH ENEMY IS ACTUALLY GOING TO HURT US?
+  //
+  // Raw ATK is not the answer, and every "weaken or neutralise an enemy" picker
+  // was using it. The case that surfaced it: the bot spent Kryptonite on a
+  // FEARED Droideka and left an uncontested Revan to swing at the health bar.
+  // (Owner: "the ai played kryptonite on the droideka that was feared so now he
+  // doesnt kill himself, instead of on the enemy revan to reduce damage to our
+  // healthbar.")
+  //
+  // A FEARED card attacks ITSELF — resolveLaneCombat does `if (pCard.isFeared)
+  // pTarget = pCard`. Its attack is not a threat to us, it is a gift, and taking
+  // 3 off it is the difference between it dying on its own swing and surviving.
+  // So it scores BELOW zero: never the pick while anything else is available.
+  //
+  // FROZEN and STUNNED do not swing at all, so their attack buys nothing either.
+  // MIND CONTROLLED swings at its own side.
+  //
+  // And an UNCONTESTED enemy hits the health bar directly — the damage a player
+  // actually feels — so it outranks one that will merely trade with a body.
+  //
+  // `owner` is the side doing the picking (whose health bar is at risk).
+  threatOf(card, owner) {
+    if (!card || card.currentHealth <= 0) return -2;
+    if (card.isFeared) return -1;                       // it is hurting itself
+    if (card.isFrozen || card.isStunned || card.isMindControlled) return 0;
+    const atk = card.attack || 0;
+    if (atk <= 0) return 0;
+    // Uncontested = nothing of ours standing in that lane to absorb the swing.
+    let uncontested = false;
+    if (owner) {
+      const lane = this.findCardLane(card);
+      const l = lane >= 0 ? this.state.lanes[lane] : null;
+      const blocker = l ? l[owner] : null;
+      uncontested = !(blocker && blocker.currentHealth > 0);
+    }
+    return uncontested ? atk * 2 : atk;
+  },
+  // The AI picker every enemy-neutralising effect should hand to
+  // promptCardChoice. Ties keep board order, which is stable.
+  pickBiggestThreat(cards, owner) {
+    if (!cards || !cards.length) return null;
+    let best = cards[0], bestScore = this.threatOf(cards[0], owner);
+    for (let i = 1; i < cards.length; i++) {
+      const s = this.threatOf(cards[i], owner);
+      if (s > bestScore) { best = cards[i]; bestScore = s; }
+    }
+    return best;
+  },
+
   isActionLocked(card) {
     return !!(card && (card.isFrozen || card.isStunned || card.isFeared || card.isMindControlled));
   },

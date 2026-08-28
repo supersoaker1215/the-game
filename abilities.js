@@ -3760,7 +3760,7 @@ const CARD_ABILITIES = {
             if (typeof UI !== 'undefined' && UI._fxFearGas) { try { UI._fxFearGas(t); } catch (e) {} }
             G.log(`Joker terrifies ${t.name}!`);
           },
-          cards => cards.slice().sort((a, b) => b.attack - a.attack)[0]);
+          cards => G.pickBiggestThreat(cards, self.owner));
       }
       G.rerollCrazyInsane(self);
       CARD_ABILITIES.Joker._stampTopEnemyCrazy(G, self);
