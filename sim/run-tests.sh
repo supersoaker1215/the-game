@@ -45,6 +45,9 @@ echo ""
 echo "=== mpwire.js (MP wire budget + broadcast coalescing) ==="
 run_suite sim/mpwire.js
 
+echo "=== neverskip.js (a human's turn is only ended by that human) ==="
+run_suite sim/neverskip.js
+
 echo ""
 if [ "$FAIL" -ne 0 ]; then
   echo "❌ TESTS FAILED — see suites above."

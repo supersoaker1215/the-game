@@ -12628,7 +12628,7 @@ const UI = {
     // Done button → local phase-end handler
     const btnA = document.getElementById('btn-action');
     if (btnA && btnA.style.display !== 'none') {
-      btnA.onclick = () => Game.end2v2Phase();
+      btnA.onclick = () => Game.end2v2Phase(null, { actor: Game._2v2ActivePlayer() });
     }
 
     // Lane-select buttons → local place function (re-write onclick string)
@@ -14145,7 +14145,9 @@ const UI = {
     const trickClick = isOnline
       ? (idx) => `twov2OnlineTrick(${idx})`
       : (idx) => `twov2PlayTrick(${idx})`;
-    const doneClick  = isOnline ? 'twov2OnlineDone()' : 'Game.end2v2Phase()';
+    const doneClick  = isOnline
+      ? 'twov2OnlineDone()'
+      : 'Game.end2v2Phase(null, { actor: Game._2v2ActivePlayer() })';
 
     // Build lane HTML for 8 lanes
     const laneHtml = s.lanes.map((lane, i) => {
@@ -34843,7 +34845,7 @@ function twov2OnlineDone() {
   if (Game._2v2ActivePlayer() !== you) return;
   const isHost = you === 'p1';
   if (isHost) {
-    Game.end2v2Phase();
+    Game.end2v2Phase(null, { actor: you });   // this human ending their OWN turn
     Game._2v2OnlineBroadcast();
   } else {
     Multiplayer4.send({ t: 'end2v2Phase', playerKey: you });
