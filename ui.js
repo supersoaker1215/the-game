@@ -20450,7 +20450,7 @@ const UI = {
           </div>
         </div>
       </div>`;
-    document.body.appendChild(modal);
+    this._floatingPromptHome().appendChild(modal);
   },
 
   // Shared full-art trick card for floating prompts (block-trick choice,
@@ -20615,7 +20615,7 @@ const UI = {
           ${choicesHtml}
         </div>
       </div>`;
-    document.body.appendChild(modal);
+    this._floatingPromptHome().appendChild(modal);
   },
 
   // jumpReady mid-combat used to miss their window because combat resolved
@@ -20710,7 +20710,7 @@ const UI = {
         </div>
         ${bodyHtml}
       </div>`;
-    document.body.appendChild(modal);
+    this._floatingPromptHome().appendChild(modal);
   },
 
   // ===================== LANE CHOICE =====================
@@ -27297,6 +27297,20 @@ const UI = {
   // peek-restore pill state if the modal being removed is the one
   // currently peeked. Used when the underlying game state (e.g.
   // pendingBlockTrick) clears so the prompt no longer applies.
+  // WHERE A FLOATING PROMPT LANDS is decided once, here, for all three of
+  // them (block-trick, time-stone, jump-offer) — they are the same component
+  // built three times, so they get the same home. Board V2 docks them in the
+  // right rail's notice panel instead of floating them over the middle of the
+  // board; with the flag off they go to <body> exactly as before.
+  _floatingPromptHome() {
+    try {
+      if (typeof BoardV2 !== 'undefined' && BoardV2 && BoardV2.enabled()) {
+        const slot = document.querySelector('#bv2-notices .bv2-note-slot');
+        if (slot) return slot;
+      }
+    } catch (e) {}
+    return document.body;
+  },
   _removeFloatingPrompt(id) {
     const el = document.getElementById(id);
     if (!el) return;

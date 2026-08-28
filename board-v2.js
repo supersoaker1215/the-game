@@ -386,12 +386,34 @@ const BoardV2 = {
     const panel = this._el('bv2-notices', 'bv2-notices', ts);
     if (panel.parentNode !== ts) ts.appendChild(panel);
     if (!panel.firstChild) {
+      // The slot is where a floating prompt docks (jump offer, block-trick,
+      // time-stone). ui.js appends into it directly, so it must exist before
+      // any of those can fire — build it with the panel, never on demand.
       panel.innerHTML =
         '<div class="bv2-cap bv2-cap-rule"><span class="bv2-cap-label">Notices</span>' +
-        '<span class="bv2-cap-line"></span></div><div class="bv2-note-list"></div>';
+        '<span class="bv2-cap-line"></span></div>' +
+        '<div class="bv2-note-slot"></div><div class="bv2-note-list"></div>';
     }
     const list = panel.querySelector('.bv2-note-list');
+    const slot = panel.querySelector('.bv2-note-slot');
+    // ADOPT A STRAY. Picking the anchor at the insertion point covers every
+    // normal frame, but not the COLD one: on the first render after V2 turns
+    // on — and on the first frame of a match — the prompt is built before this
+    // panel exists, so it lands on <body> and floats over the board exactly
+    // once. Anything that got there is pulled in here.
+    if (slot) {
+      ['jump-offer-modal', 'block-trick-modal', 'time-stone-modal'].forEach(function (id) {
+        const m = document.getElementById(id);
+        if (m && m.parentNode !== slot) slot.appendChild(m);
+      });
+    }
     const items = this._notices || [];
+    // The panel is live when it has ANYTHING to show. This has to be decided
+    // before the redraw guard below, or a docked prompt arriving on a frame
+    // where the feed did not change would leave the panel hidden.
+    const docked = !!(slot && slot.firstElementChild);
+    panel.classList.toggle('is-live', items.length > 0 || docked);
+    panel.classList.toggle('has-docked', docked);
     const sig = items.map(function (n) { return n.key; }).join('|');
     if (list.dataset.sig === sig) return;
     list.dataset.sig = sig;
@@ -402,7 +424,6 @@ const BoardV2 = {
         (n.name ? '<span class="bv2-note-name">' + esc(n.name) + '</span>' : '') +
       '</div>';
     }).join('');
-    panel.classList.toggle('is-live', items.length > 0);
   },
   // Installed lazily on the first render, so UI is guaranteed to exist. Same
   // wrap-the-method pattern ui.js already uses on undo/playCardFree/killCard -

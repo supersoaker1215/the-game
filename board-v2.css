@@ -1428,3 +1428,105 @@ body.board-v2 #bv2-notices .bv2-note:nth-child(n+5) { opacity: .55; }
    both edges at 95px wide inside a 182px column. It is a panel, not a card —
    it takes the whole width. */
 body.board-v2 #bv2-notices { align-self: stretch; width: 100%; }
+
+/* ===========================================================================
+   A DOCKED PROMPT. The jump offer, the block-trick offer and the Time Stone
+   intercept are one component built three times: a backdrop, a floating panel,
+   a header and two buttons, dropped in the middle of the board. In V2 they
+   dock at the top of the notice panel instead — same rail, same reading order,
+   and the board stays visible underneath because nothing is on top of it.
+   Everything that made it a floating panel comes off: the fixed placement, the
+   backdrop, the chrome, and the peek button whose only job was hiding a panel
+   that was covering the board.
+   =========================================================================== */
+body.board-v2 #bv2-notices .bv2-note-slot:empty { display: none; }
+body.board-v2 #bv2-notices .bv2-note-slot {
+  padding-top: calc(10 * var(--u));
+  padding-bottom: calc(14 * var(--u));
+}
+body.board-v2 #bv2-notices .floating-prompt {
+  position: static !important; inset: auto !important;
+  display: block !important; width: 100% !important; max-width: 100% !important;
+  transform: none !important; animation: none !important;
+  background: none !important; backdrop-filter: none !important;
+  z-index: auto !important;
+}
+body.board-v2 #bv2-notices .floating-prompt-backdrop,
+body.board-v2 #bv2-notices .peek-toggle { display: none !important; }
+body.board-v2 #bv2-notices .floating-prompt-panel {
+  position: static !important; inset: auto !important;
+  transform: none !important; animation: none !important;
+  width: 100% !important; max-width: 100% !important; min-width: 0 !important;
+  margin: 0 !important; padding: 0 !important;
+  background: none !important; border: 0 !important;
+  box-shadow: none !important; border-radius: 0 !important;
+}
+body.board-v2 #bv2-notices .fp-header { margin: 0 0 calc(8 * var(--u)); padding: 0; }
+body.board-v2 #bv2-notices .fp-label {
+  font-family: var(--fd); font-weight: 700;
+  font-size: calc(13 * var(--u)); line-height: 1.2; letter-spacing: .02em;
+  color: var(--core); text-transform: none;
+}
+body.board-v2 #bv2-notices .fp-sub,
+body.board-v2 #bv2-notices .prompt-waiting {
+  display: block;
+  font-family: var(--fm); font-size: calc(10 * var(--u)); line-height: 1.5;
+  color: rgba(143,224,255,.82);
+}
+body.board-v2 #bv2-notices .fp-body { margin: 0; padding: 0; }
+/* The trick preview on the block-trick offer is a real card — it takes the
+   rail's card width, the same one the tricks above it use. */
+body.board-v2 #bv2-notices .fp-trick-preview {
+  margin: 0 0 calc(10 * var(--u));
+  display: flex; justify-content: flex-start;
+}
+body.board-v2 #bv2-notices .fp-trick-preview .trick-card,
+body.board-v2 #bv2-notices .fp-trick-preview .card {
+  width: calc(108 * var(--u)) !important; max-width: calc(108 * var(--u)) !important;
+  height: auto !important;
+}
+/* Boxless grow+glow, like every other text control on this board. */
+body.board-v2 #bv2-notices .fp-choices {
+  display: flex; flex-direction: column; align-items: flex-start;
+  gap: calc(8 * var(--u)); margin: 0; padding: 0;
+}
+body.board-v2 #bv2-notices .fp-btn {
+  background: none !important; border: 0 !important; box-shadow: none !important;
+  padding: 0 !important; margin: 0 !important; border-radius: 0 !important;
+  min-width: 0 !important; width: auto !important; height: auto !important;
+  cursor: pointer;
+  transition: color .14s ease, text-shadow .14s ease, transform .14s ease;
+}
+body.board-v2 #bv2-notices .fp-btn .fp-btn-title {
+  font-family: var(--fm); font-size: calc(10.5 * var(--u));
+  letter-spacing: .22em; text-transform: uppercase;
+}
+body.board-v2 #bv2-notices .fp-btn-primary   { color: var(--cy); }
+body.board-v2 #bv2-notices .fp-btn-secondary { color: rgba(143,224,255,.72); }
+body.board-v2 #bv2-notices .fp-btn:hover,
+body.board-v2 #bv2-notices .fp-btn:focus-visible {
+  color: var(--core);
+  text-shadow: 0 0 6px rgba(53,201,255,.8), 0 0 14px rgba(53,201,255,.4);
+  transform: translateX(calc(2 * var(--u)));
+}
+/* A docked prompt owns the top of the panel; the feed under it steps back so
+   the thing asking for an answer is not competing with the record of what
+   already happened. */
+body.board-v2 #bv2-notices.has-docked .bv2-note-list { opacity: .55; }
+
+/* The original button carries a min-height sized for a floating panel's touch
+   target — 44px behind a 7px glyph, which is why two text links took 110px of
+   a 193px column. In the rail it is a text control and takes the height of
+   its own text. */
+body.board-v2 #bv2-notices .fp-btn {
+  min-height: 0 !important; line-height: 1.2 !important;
+  display: inline-flex !important; align-items: center !important;
+}
+body.board-v2 #bv2-notices .fp-btn .fp-btn-title { line-height: 1.2; }
+
+/* The floating panel centred its own header. In a left-aligned column that one
+   centred line is the only thing not on the rail's edge. */
+body.board-v2 #bv2-notices .floating-prompt,
+body.board-v2 #bv2-notices .floating-prompt-panel,
+body.board-v2 #bv2-notices .fp-header,
+body.board-v2 #bv2-notices .fp-body { text-align: left !important; }
