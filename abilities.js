@@ -4427,7 +4427,16 @@ const CARD_ABILITIES = {
       // on options.seat. Magneto chains card pick -> lane pick -> card pick, and
       // a chain is exactly where a derived seat goes stale. (User: "my guest
       // buddy played magneto and his move ability never even fired.")
-      const magOpts = self._2v2PlayedBy ? { seat: self._2v2PlayedBy } : null;
+      // _2v2PlayedBy alone is not enough: an AI seat's plays are not always
+      // tagged, and an untagged Magneto left every prompt in this chain
+      // ownerless — which is how a bot's Magneto ended up asking the human
+      // teammate to pick. _2v2SeatOwning derives the seat from the card's own
+      // side when the stamp is missing, and refuses a stale stamp from a card
+      // that has changed hands.
+      const magSeat = self._2v2PlayedBy
+        || (Game._2v2SeatOwning && Game._2v2SeatOwning(self))
+        || null;
+      const magOpts = magSeat ? { seat: magSeat } : null;
       const magTray = Object.assign({ inlineTray: true }, magOpts || {});
       const step = () => {
         if (moved.length >= MOVE_COUNT) { G.applyMagnetoDebuffs(); return; }

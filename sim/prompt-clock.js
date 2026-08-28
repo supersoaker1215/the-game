@@ -193,6 +193,53 @@ t('PC-6 the seat plate never rebuilds over the health bar it adopted', function 
   eq('text is written into stable nodes', /_nameEl\.textContent = _name40/.test(b), true);
 });
 
+// ============================================================
+// PC-7 — A PROMPT NOBODY STAMPED IS NOT EVERYBODY'S.
+//
+// promptIsMine answered TRUE whenever _2v2ActingPlayer was missing, so any
+// prompt an ability forgot to stamp rendered on all four clients at once, each
+// able to answer it. The visible half is worse than the race: a human sitting
+// beside an AI teammate was handed the BOT's card to answer. (Owner: "my
+// teammate played magneto and i have the prompt — i dont get prompts for my
+// teammates cards.")
+// ============================================================
+t('PC-7 an unstamped 2v2 prompt belongs to the seat on the clock', function () {
+  Game.start2v2Match({ names: { p1: 'Henry', p2: 'Ryan', p3: 'Cortex', p4: 'Vega' },
+                       teamAssignment: { A: ['p1', 'p3'], B: ['p2', 'p4'] } });
+  var tt = Game.state.twoVTwo;
+  tt.online = true; tt.round = 7; Game.state.round = 7;
+  tt.players.p3.isAI = true;
+  var order = Game._2v2ComputePhaseOrder(tt.round);
+  var i = -1;
+  for (var k = 0; k < order.length; k++) if (order[k].indexOf('p3-') === 0) { i = k; break; }
+  tt.subPhaseIdx = i;
+  eq('the AI teammate is on the clock', Game._2v2ActivePlayer(), 'p3');
+
+  var bare = { title: 'Magneto — Move a Card' };
+  tt.you = 'p1';
+  eq('the human beside them is NOT asked', Game.promptIsMine(bare, 'card'), false);
+  tt.you = 'p3';
+  eq('the seat that raised it IS asked',   Game.promptIsMine(bare, 'card'), true);
+
+  // A stamped prompt is untouched by this.
+  tt.you = 'p1';
+  eq('stamped to me',    Game.promptIsMine({ _2v2ActingPlayer: 'p1' }, 'card'), true);
+  eq('stamped to them',  Game.promptIsMine({ _2v2ActingPlayer: 'p3' }, 'card'), false);
+
+  // With no seat on the clock at all — between phases — it stays anyone's,
+  // which is the only case the old answer was ever right for.
+  tt.subPhaseIdx = 99;
+  eq('no active seat', Game._2v2ActivePlayer(), null);
+  eq('then it is anyone\'s again', Game.promptIsMine(bare, 'card'), true);
+});
+
+t('PC-8 Magneto stamps his prompt chain even when the card carries no tag', function () {
+  var src = String(CARD_ABILITIES['Magneto'].onPlay);
+  eq('it no longer depends on _2v2PlayedBy alone',
+     /const magOpts = self\._2v2PlayedBy \? \{ seat: self\._2v2PlayedBy \} : null;/.test(src), false);
+  eq('it derives the seat from the card', /_2v2SeatOwning/.test(src), true);
+});
+
 // ---- run ----------------------------------------------------
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];

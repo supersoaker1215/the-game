@@ -2013,7 +2013,23 @@ const Game = {
   promptIsMine(prompt, kind) {
     if (!prompt) return true; // nothing to gate
     if (this.is2v2 && this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online) {
-      return !prompt._2v2ActingPlayer || prompt._2v2ActingPlayer === this.state.twoVTwo.you;
+      const tt = this.state.twoVTwo;
+      if (prompt._2v2ActingPlayer) return prompt._2v2ActingPlayer === tt.you;
+      // AN UNSTAMPED PROMPT IS NOT EVERYBODY'S.
+      //
+      // This used to answer TRUE whenever the seat was missing, so any prompt an
+      // ability forgot to stamp rendered on all four clients at once — every one
+      // of them able to answer it, racing to resolve a single slot. The visible
+      // half is worse than the race: a human sitting beside an AI teammate was
+      // handed the BOT's card to answer. (Owner: "my teammate played magneto and
+      // i have the prompt — i dont get prompts for my teammates cards.")
+      //
+      // A prompt with no owner belongs to the seat on the clock, because that is
+      // the seat whose action raised it. Only when there is genuinely no active
+      // seat — between phases — does it fall back to "anyone", which is the old
+      // behaviour and the only case it was ever right for.
+      const active = this._2v2ActivePlayer && this._2v2ActivePlayer();
+      return !active || active === tt.you;
     }
     if (!this.isMultiplayer()) return true; // solo — AI prompts resolve elsewhere
     return this._promptOwnerSeat(prompt, kind) === 'player';
