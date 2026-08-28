@@ -1248,3 +1248,30 @@ body.board-v2 #game-area > .info-bar.ai-bar::after {
     rgba(255,138,31,1) 88%, rgba(255,138,31,0) 100%);
   box-shadow: 0 0 5px rgba(255,138,31,0.70), 0 0 13px rgba(255,138,31,0.34);
 }
+
+/* ===========================================================================
+   NO GROOVE AT THE BAND'S FAR EDGE — ONE UNBROKEN FALL-OFF.
+   There was no border and no shadow down there; the "indentation" was the wash
+   itself. Each band's gradient ran all the way to ZERO at its own far edge, and
+   then the spill immediately restarted at 0.16 — so the column read
+
+       band bottom 0.016  →  spill top 0.149
+
+   a dark trough with a bright step right after it. That reads as an inset line
+   even though nothing is drawn there.
+
+   The band now ENDS on the alpha the spill BEGINS on (0.16), so the two pieces
+   are one curve. The slopes very nearly match at the seam too — 0.0018/u in the
+   band against 0.0016/u entering the spill — so there is no kink either, just a
+   continuous fall from the rail out to nothing. Mirrored on both sides.
+   =========================================================================== */
+body.board-v2 #game-area > .info-bar.player-bar {
+  background-image: linear-gradient(to bottom,
+    rgba(53,201,255,0.30) 0%,
+    rgba(53,201,255,0.16) 100%) !important;
+}
+body.board-v2 #game-area > .info-bar.ai-bar {
+  background-image: linear-gradient(to top,
+    rgba(255,138,31,0.30) 0%,
+    rgba(255,138,31,0.16) 100%) !important;
+}
