@@ -733,18 +733,41 @@ const Game = {
   // does nothing if that is no longer the live prompt. A stale timer answering
   // a NEWER prompt is the documented root cause of the old "guest's card always
   // goes to the lowest lane" bug; it must not come back through this door.
+  // EVERY PROMPT SHAPE IS ON THE CLOCK, not just card and lane.
+  //
+  // hasPendingPrompt() counts five slots, and any one of them parks combat via
+  // whenPromptCleared — but only two of them had a timer. A block-trick offer,
+  // a jump offer or a Time Stone intercept that nobody answered held the whole
+  // table until the 45s _forceEndStalledCombat recovery, and that path does not
+  // RESOLVE them, it DROPS them: "Drop every blocker so hasPendingPrompt() can't
+  // re-park combat" nulls the slot with no keep, no skip, no trick. So the
+  // reward silently evaporated, or surfaced a round late once something else
+  // drained the queue. (Owner: "we blocked and apparently i got power stone but
+  // no pop up … i just got my power stone in the middle of the next round".)
+  //
+  // Adding the three offers here means they time out the way a card pick does:
+  // 30s, announced in the log, resolved properly — the trick is KEPT, the jump
+  // is SKIPPED, the intercept is ALLOWED — instead of vanishing at 45s.
+  _2v2_PROMPT_SLOT: {
+    lane:       'pendingLaneChoice',
+    card:       'pendingCardChoice',
+    blockTrick: 'pendingBlockTrick',
+    jump:       'pendingJumpOffer',
+    timeStone:  'pendingTimeStoneIntercept',
+  },
   _2v2ArmPromptTimeout(kind, armed, resolve) {
     const tt = this.state && this.state.twoVTwo;
     if (!tt || !tt.online) return;
     if (!this._2v2IsAIAuthority || !this._2v2IsAIAuthority()) return;
     if (this._syncMode) return;                 // headless resolves synchronously
+    const slot = this._2v2_PROMPT_SLOT[kind];
+    if (!slot) return;
     this._startPromptTimeout(() => {
-      const cur = kind === 'lane' ? this.state.pendingLaneChoice : this.state.pendingCardChoice;
+      const cur = this.state[slot];
       if (!cur || cur !== armed) return;        // answered, or replaced by a newer prompt
-      const seat = armed._2v2ActingPlayer || null;
+      const seat = armed._2v2ActingPlayer || armed.seat || null;
       this.log(`  [2v2 TIMEOUT] ${this._2v2SeatName(seat)} did not answer in 30s — auto-picking so the table can continue.`);
-      if (kind === 'lane') this.state.pendingLaneChoice = null;
-      else this.state.pendingCardChoice = null;
+      this.state[slot] = null;
       try { resolve(); } catch (e) { console.error('[2v2 prompt timeout] resolve threw', e); }
       // A prompt was what blocked end2v2Phase; with it gone the round can move.
       try { this.cleanupDead(); } catch (e) {}
@@ -4952,7 +4975,15 @@ const Game = {
         } else if (!this.state.pendingJumpOffer && isAuthority) {
           inHand.jumpReady = true;
           this.logPrivate(pk, `  [JUMP] Freddy Fazbear senses ${tt.players[target].name}'s ${best} wasted Energy — free play available!`);
-          this.state.pendingJumpOffer = { cardId: inHand.id, owner: side, seat: pk, _2v2ActingPlayer: pk };
+          const _armedJump = { cardId: inHand.id, owner: side, seat: pk, _2v2ActingPlayer: pk };
+          this.state.pendingJumpOffer = _armedJump;
+          // Timing out SKIPS the jump — the same thing the Skip button does —
+          // rather than leaving the offer to be deleted by the 45s recovery.
+          this._2v2ArmPromptTimeout('jump', _armedJump, () => {
+            const sp = this.state.twoVTwo && this.state.twoVTwo.players[pk];
+            const c = sp && (sp.hand || []).find(h => h.id === _armedJump.cardId);
+            if (c) { c.jumpReady = false; c.jumpLane = undefined; }
+          });
         }
         break;   // one hand copy per team
       }
@@ -6233,11 +6264,18 @@ const Game = {
         && !this.state.pendingTimeStoneIntercept
         && this._seatHasTimeStone(tsDefender) && this._isHostileTrick(trick)
         && trick.name !== 'Time Stone') {
-      this.state.pendingTimeStoneIntercept = {
+      const _armedTS = {
         incomingTrick: trick,
         incomingOwner: owner,
         defender: tsDefender
       };
+      this.state.pendingTimeStoneIntercept = _armedTS;
+      // Timing out ALLOWS the trick through — the same answer the Allow
+      // button gives. Without a clock this one froze the table outright in
+      // 2v2, where its modal was never even rendered.
+      this._2v2ArmPromptTimeout('timeStone', _armedTS, () => {
+        try { if (this.timeStoneAllow) this.timeStoneAllow(); } catch (e) { console.error(e); }
+      });
       if (typeof UI !== 'undefined' && UI.render) UI.render();
       // Host: push the armed intercept to the guest immediately — the guest
       // may be the defender and needs the modal now, not on the next action.
@@ -15333,7 +15371,14 @@ const Game = {
     // acting seat too so any prompt the trick raises when played (and the FX
     // reveal) resolve to this player, and so the offer is unambiguously owned.
     this._2v2CurrentActingPlayer = seat;
-    this.state.pendingBlockTrick = { ...trick, _btOwner: side, _2v2ActingPlayer: seat, _2v2Seat: seat };
+    const _armedBT = { ...trick, _btOwner: side, _2v2ActingPlayer: seat, _2v2Seat: seat };
+    this.state.pendingBlockTrick = _armedBT;
+    // On the clock. Timing out KEEPS the trick — the same answer the stall
+    // watchdog gives — so the reward still reaches the player's hand instead of
+    // being dropped by the 45s recovery.
+    this._2v2ArmPromptTimeout('blockTrick', _armedBT, () => {
+      this._2v2ResolveBlockTrick(seat, _armedBT, false);
+    });
     if (tt.online) this._2v2OnlineBroadcast();
     if (typeof UI !== 'undefined' && UI.render) UI.render();
   },

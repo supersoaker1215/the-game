@@ -13507,6 +13507,15 @@ const UI = {
     if (s.pendingJumpOffer) { this.renderJumpOfferChoice(s); }
     else { const jm = document.getElementById('jump-offer-modal'); if (jm) jm.remove(); }
 
+    // Time Stone intercept — the third floating prompt, and the one that was
+    // still missing. hasPendingPrompt() counts pendingTimeStoneIntercept, so in
+    // 2v2 it parked combat behind a modal that NO 2v2 render path ever drew:
+    // an unanswerable prompt, frozen until a watchdog. The block-trick and jump
+    // offers above were each surfaced here for exactly this reason; this is the
+    // last one of the set.
+    if (s.pendingTimeStoneIntercept) { this.renderTimeStoneIntercept(s); }
+    else { const ts = document.getElementById('time-stone-modal'); if (ts) ts.remove(); }
+
     this.applyTronFx();
     this._applyMotionEffects();
 

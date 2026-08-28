@@ -57,6 +57,10 @@ echo "=== before-tricks.js (Start of Tricks recurs unless the card says once) ==
 run_suite sim/before-tricks.js
 
 echo ""
+echo "=== prompt-clock.js (every 2v2 prompt slot has a timeout) ==="
+run_suite sim/prompt-clock.js
+
+echo ""
 if [ "$FAIL" -ne 0 ]; then
   echo "❌ TESTS FAILED — see suites above."
   exit 1
