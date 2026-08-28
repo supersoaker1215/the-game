@@ -2909,6 +2909,40 @@ const CARD_ABILITIES = {
           try { UI.showAITrickToast("Deadpool's Final Trick", desc, 'trick'); } catch (e) {}
         }
       };
+      // AI-OWNED DEADPOOL — resolve the ENTIRE trade synchronously, no prompts.
+      // The prompt flow schedules the steal and the give-back on two separate
+      // _aiActionDelay setTimeouts during combat; if the round advances (or the
+      // combat watchdog fires) between them, the AI steals but never gives a card
+      // back. Doing both inline here can't be outrun, and the give-back always
+      // picks the LOWEST-cost card. (User: "when the AI steals a card he doesn't
+      // give a card back — if it's a stall issue he should always give the lowest
+      // cost card.") Headless 1v1/2v2 already pass; this hardens the live path.
+      const _dpOwnerIsAI = dpIs2v2
+        ? !!(G.state.twoVTwo && deadpoolOwnerSeat && G.state.twoVTwo.players[deadpoolOwnerSeat] && G.state.twoVTwo.players[deadpoolOwnerSeat].isAI)
+        : (self.owner === 'ai' && !(G.isMultiplayer && G.isMultiplayer()));
+      if (_dpOwnerIsAI) {
+        const victimHand = G.state[opp].hand;
+        if (!victimHand.length) { G.log("Deadpool's final trick fails — the enemy has no cards in hand!"); return; }
+        const stolen = victimHand[Math.floor(Game.rng() * victimHand.length)];
+        const sIdx = victimHand.indexOf(stolen);
+        if (sIdx >= 0) victimHand.splice(sIdx, 1);
+        stolen.owner = self.owner;
+        G.addToHand(self.owner, stolen, self);
+        G.log(`Deadpool steals ${stolen.name} from the enemy's hand!`);
+        if (skipGiveBack) { G.log(`Deadpool keeps ${stolen.name} — no trade!`); showVictimToast(stolen.name, null); if (dpIs2v2 && G._2v2OnlineBroadcast) { try { G._2v2OnlineBroadcast(); } catch (e) {} } return; }
+        const givePool = ownerHand().filter(c => c.id !== stolen.id);
+        if (!givePool.length) { G.log("Deadpool has no cards to give in return."); showVictimToast(stolen.name, null); if (dpIs2v2 && G._2v2OnlineBroadcast) { try { G._2v2OnlineBroadcast(); } catch (e) {} } return; }
+        const given = givePool.slice().sort((a, b) => (a.baseCost || a.cost) - (b.baseCost || b.cost))[0];
+        const gHand = ownerHand();
+        const gIdx = gHand.indexOf(given);
+        if (gIdx >= 0) gHand.splice(gIdx, 1);
+        given.owner = opp;
+        G.addToHand(opp, given);
+        G.log(`Deadpool slips ${given.name} into the enemy's hand!`);
+        showVictimToast(stolen.name, given.name);
+        if (dpIs2v2 && G._2v2OnlineBroadcast) { try { G._2v2OnlineBroadcast(); } catch (e) {} }
+        return;
+      }
       const onStolen = (stolen) => {
           // Back to the OWNER for the trade-back decision (2v2 routing).
           if (dpIs2v2) G._2v2CurrentActingPlayer = deadpoolOwnerSeat;
