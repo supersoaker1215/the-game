@@ -1530,3 +1530,80 @@ body.board-v2 #bv2-notices .floating-prompt,
 body.board-v2 #bv2-notices .floating-prompt-panel,
 body.board-v2 #bv2-notices .fp-header,
 body.board-v2 #bv2-notices .fp-body { text-align: left !important; }
+
+
+/* ===========================================================================
+   2v2 IN THE REDESIGN.
+   The 2v2 board paints into the SAME #game-area grid the 1v1 board uses — same
+   lanes, same bands, same trick rail — so almost all of the redesign already
+   applied to it the moment the layout was switched on. What did not were the
+   pieces 2v2 adds ON TOP of that grid, each of which assumes the shipping
+   band's spacing and lands on the redesign's plate instead.
+   =========================================================================== */
+
+/* THE ROSTER STRIPS. 2v2 prints a chip per player — name plus a fan of card
+   backs — into each band's centre cell. The redesign's plate already names both
+   teammates and marks the one on the clock, so the chips were saying it twice
+   and taking the room the primary button needs. The COUNT is the part the plate
+   does not carry, so the strips stay — as counts, not as fans of cards. */
+body.board-v2 .twov2-roster-strip { gap: calc(10 * var(--u)); }
+/* The fan is a row of .rc-back spans, one per card held. At 2v2 hand sizes that
+   is up to ten little rectangles per player, four players, inside a band that
+   also has to hold the plate and the primary button. BoardV2 rewrites the fan
+   as the number it was counting; the bot icon beside the name stays, because
+   "this seat is a bot" is not something the plate says. */
+body.board-v2 .twov2-roster-strip .rc-back { display: none !important; }
+body.board-v2 .twov2-roster-strip .rc-hand {
+  display: inline-flex; align-items: baseline; gap: calc(3 * var(--u));
+  font-family: var(--fm); font-size: calc(10 * var(--u)); letter-spacing: .1em;
+}
+body.board-v2 .twov2-roster-strip .rc-hand i {
+  font-style: normal; opacity: .6; margin-right: calc(4 * var(--u));
+}
+body.board-v2 .twov2-roster-strip .bv2-rc-n { color: var(--core); font-weight: 700; }
+body.board-v2 #game-area > .info-bar.ai-bar .twov2-roster-strip .bv2-rc-n { color: #ffd9a8; }
+body.board-v2 .twov2-roster-strip .rc-name { display: inline-flex; align-items: center; gap: calc(4 * var(--u)); }
+body.board-v2 .twov2-roster-strip .rc-name .bot-ic { width: calc(11 * var(--u)); height: calc(11 * var(--u)); opacity: .7; }
+body.board-v2 .twov2-roster-strip .rc-chip {
+  background: none !important; border: 0 !important; box-shadow: none !important;
+  padding: 0 !important; border-radius: 0 !important;
+  font-family: var(--fm); font-size: calc(10 * var(--u));
+  letter-spacing: .16em; text-transform: uppercase;
+  color: rgba(143,224,255,.72);
+}
+body.board-v2 #game-area > .info-bar.ai-bar .twov2-roster-strip .rc-chip { color: rgba(255,196,140,.78); }
+
+/* THE TURN-ORDER TRACKER is position:fixed on <body>, which in the redesign
+   parks it on top of the trick rail and the hand. BoardV2 moves the node into
+   the left column — where "what is happening" already lives — and these rules
+   take the floating-panel chrome off it once it is there. */
+body.board-v2 #bv2-rail-left #twov2-turn-tracker {
+  position: static !important;
+  inset: auto !important;
+  width: 100% !important; max-width: 100% !important;
+  margin: calc(12 * var(--u)) 0 0 !important;
+  background: none !important; border: 0 !important; box-shadow: none !important;
+  border-radius: 0 !important; backdrop-filter: none !important;
+  z-index: auto !important;
+  flex: 0 0 auto;
+}
+body.board-v2 #bv2-rail-left .twov2-tk-head {
+  font-family: var(--fm); font-size: calc(9 * var(--u));
+  letter-spacing: .26em; text-transform: uppercase;
+  color: rgba(143,224,255,.72);
+  background: none !important; border: 0 !important;
+}
+
+/* The 2v2 lane-select strip floats over the board in the shipping layout; in
+   the redesign it sits above the hand, where the eye already is. */
+body.board-v2 #twov2-board-lane-select {
+  position: static !important;
+  inset: auto !important;
+  margin: 0 auto calc(8 * var(--u)) !important;
+  background: none !important; border: 0 !important; box-shadow: none !important;
+  justify-content: center;
+}
+body.board-v2 .twov2-bls-btn {
+  font-family: var(--fm); font-size: calc(11 * var(--u));
+  min-width: calc(30 * var(--u));
+}

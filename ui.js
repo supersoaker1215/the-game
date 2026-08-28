@@ -7321,6 +7321,15 @@ const UI = {
         this._safe('redrawBtn', () => this._renderRedrawButton(false));
         this._safe('heartbeat', () => this._updateDangerHeartbeat(s));
         this._safe('voice', () => { if (typeof Voice !== 'undefined') Voice.mount(); });
+        // THE REDESIGN RUNS IN 2v2 TOO. BoardV2.render hangs off the END of the
+        // 1v1 renderer, and every 2v2 path returns ~300 lines before it — so
+        // with the layout switched on, 2v2 got the CSS (which is scoped to
+        // body.board-v2 and cares nothing for which renderer painted the board)
+        // but none of the DOM the redesign builds: no left rail, no decision
+        // panel, no notice feed, and board cards sized from a --card-w that was
+        // never measured. Called here, in the shared tail all three 2v2 paths
+        // already run, so none of them can miss it.
+        this._safe('boardV2', () => { if (typeof BoardV2 !== 'undefined') BoardV2.render(s); });
       };
       if (is2v2OnlineGame) { this._render2v2OnlineBoard(s); this.renderInlineChoiceFallback(s); _redraw2v2(); _fit2v2(); return; }
       if (is2v2LocalGame)  { this._render2v2LocalGame(s); this.renderInlineChoiceFallback(s); _redraw2v2(); _fit2v2(); return; }

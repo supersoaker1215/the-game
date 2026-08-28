@@ -101,13 +101,32 @@ const BoardV2 = {
     // "whose turn / what happens if it ends now / what just happened".
     if (rail.firstChild !== panel) rail.insertBefore(panel, rail.firstChild);
     const ph = String(s.phase || '');
-    const mine = /^player-/.test(ph);
-    const title = mine
-      ? (/tricks/.test(ph) ? 'YOUR TRICKS' : 'YOUR TURN')
-      : (/^ai-/.test(ph) ? 'OPPONENT' : (ph.replace(/-/g, ' ').toUpperCase() || '—'));
-    const hint = mine
-      ? (/tricks/.test(ph) ? 'Play a trick or end' : 'Play or end')
-      : (/^ai-/.test(ph) ? 'Waiting' : '');
+    let mine, title, hint;
+    const tt = this._tt();
+    if (tt && /^2v2-/.test(ph)) {
+      // 2v2 phase names are seat-keyed ('2v2-p3-cards-tricks'), so the 1v1
+      // reading produced "2V2 P1 CARDS TRICKS" on the panel — the raw slug.
+      // Say whose turn it is by NAME, and whether it is yours.
+      const m = ph.match(/^2v2-(p[1-4])-(.+)$/);
+      const seat = m && m[1];
+      const kind = (m && m[2]) || '';
+      const me = this._mySeat();
+      mine = !!(seat && seat === me);
+      const who = (seat && tt.players[seat] && tt.players[seat].name) || 'Opponent';
+      const what = /tricks/.test(kind) ? (/cards/.test(kind) ? 'CARDS + TRICKS' : 'TRICKS') : 'CARDS';
+      title = mine ? ('YOUR ' + what) : String(who).toUpperCase();
+      hint  = mine ? (/tricks/.test(kind) ? (/cards/.test(kind) ? 'Play cards or tricks, then end' : 'Play a trick or end') : 'Play or end')
+                   : (what.charAt(0) + what.slice(1).toLowerCase());
+      if (/combat/.test(ph)) { title = 'COMBAT'; hint = 'Lanes resolving'; mine = false; }
+    } else {
+      mine = /^player-/.test(ph);
+      title = mine
+        ? (/tricks/.test(ph) ? 'YOUR TRICKS' : 'YOUR TURN')
+        : (/^ai-/.test(ph) ? 'OPPONENT' : (ph.replace(/-/g, ' ').toUpperCase() || '—'));
+      hint = mine
+        ? (/tricks/.test(ph) ? 'Play a trick or end' : 'Play or end')
+        : (/^ai-/.test(ph) ? 'Waiting' : '');
+    }
     panel.classList.toggle('is-mine', mine);
     const sig = title + '|' + hint;
     if (panel.dataset.sig === sig) return;
@@ -127,6 +146,30 @@ const BoardV2 = {
   // rail uses for #board-aside. Moving beats rebuilding: #player-hp-fill and
   // #ai-hp-fill are written to by name from ui.js and the FX layer, so a copy
   // would go stale the first time either took damage.
+  // ===================== 2v2 AWARENESS =====================
+  // A SIDE IS A TEAM. Everything the redesign prints on a band — the name, the
+  // HP, the hand count, the trick count — is a per-PLAYER fact in 1v1 and a
+  // per-TEAM or per-SEAT fact in 2v2, and s.player / s.ai are combat proxies
+  // that carry neither. These three answer it once so no panel guesses.
+  _tt() { const s = (typeof Game !== 'undefined' && Game.state) || null; return (s && s.twoVTwo && s.twoVTwo.players) ? s.twoVTwo : null; },
+  _teamOf(side) {
+    const map = (typeof Game !== 'undefined' && Game._2v2TeamSide) || { A: 'player', B: 'ai' };
+    return map.A === side ? 'A' : 'B';
+  },
+  _seatsOnSide(side) {
+    const tt = this._tt(); if (!tt) return [];
+    const team = this._teamOf(side);
+    return ['p1', 'p2', 'p3', 'p4'].filter(pk => tt.players[pk] && tt.players[pk].team === team);
+  },
+  // The seat this device is playing. In local pass-and-play that is whoever is
+  // on the clock; online it is the fixed `you`.
+  _mySeat() {
+    const tt = this._tt(); if (!tt) return null;
+    if (tt.online) return tt.you || null;
+    try { return (Game._2v2ActivePlayer && Game._2v2ActivePlayer()) || tt.you || null; } catch (e) { return tt.you || null; }
+  },
+  _mySeatState() { const tt = this._tt(); const k = this._mySeat(); return (tt && k && tt.players[k]) || null; },
+
   _renderSeats(s) {
     const put = (bar, who) => {
       if (!bar) return;
@@ -140,15 +183,31 @@ const BoardV2 = {
           name = Multiplayer.names[who] || name;
         } else if (side.name) { name = side.name; }
       } catch (e) {}
-      const hp   = side.health != null ? side.health : '';
-      const tag  = (String(name).replace(/[^A-Za-z0-9]/g, '').slice(0, 2)
-                    || (who === 'player' ? 'YOU' : 'OP')).toUpperCase();
+      let hp  = side.health != null ? side.health : '';
+      let tag = (String(name).replace(/[^A-Za-z0-9]/g, '').slice(0, 2)
+                 || (who === 'player' ? 'YOU' : 'OP')).toUpperCase();
+      // 2v2: the band belongs to a TEAM. Name both seats, mark the one on the
+      // clock, and read the team's health — side.health is the combat proxy and
+      // is not the number the scoreboard shows.
+      const tt2 = this._tt();
+      if (tt2) {
+        const team = this._teamOf(who);
+        const seats = this._seatsOnSide(who);
+        let onClock = null;
+        try { onClock = Game._2v2ActivePlayer && Game._2v2ActivePlayer(); } catch (e) {}
+        name = seats.map(pk => {
+          const nm = String(tt2.players[pk].name || pk);
+          return (pk === onClock) ? '\u25B8 ' + nm : nm;
+        }).join('  \u00B7  ');
+        if (tt2.teams && tt2.teams[team] && tt2.teams[team].health != null) hp = tt2.teams[team].health;
+        tag = 'T' + team;
+      }
       const sig = tag + '|' + name + '|' + hp;
       if (plate.dataset.sig !== sig) {
         plate.dataset.sig = sig;
         plate.innerHTML =
           '<span class="bv2-tag">' + tag + '</span>' +
-          '<span class="bv2-id"><b class="bv2-name">' + String(name).slice(0, 18) + '</b></span>' +
+          '<span class="bv2-id"><b class="bv2-name">' + String(name).slice(0, 40) + '</b></span>' +
           '<span class="bv2-hp">' + hp + '<i>HP</i></span>';
       }
       // Park the live health bar under the name, once.
@@ -171,7 +230,9 @@ const BoardV2 = {
     if (hs) {
       const cap = this._el('bv2-hand-cap', 'bv2-cap', hs);
       if (hs.firstChild !== cap) hs.insertBefore(cap, hs.firstChild);
-      const n = ((s.player && s.player.hand) || []).length;
+      // 2v2 hands live on the SEAT, never on the side proxy.
+      const _seat = this._mySeatState();
+      const n = ((_seat ? _seat.hand : (s.player && s.player.hand)) || []).length;
       const max = (typeof Game !== 'undefined' && Game.HAND_LIMIT) || 8;
       const sig = n + '/' + max;
       if (cap.dataset.sig !== sig) {
@@ -184,7 +245,8 @@ const BoardV2 = {
     if (ts) {
       const cap = this._el('bv2-trick-cap', 'bv2-cap bv2-cap-rule', ts);
       if (ts.firstChild !== cap) ts.insertBefore(cap, ts.firstChild);
-      const n = ((s.player && s.player.trickHand) || []).length;
+      const _seatT = this._mySeatState();
+      const n = ((_seatT ? _seatT.trickHand : (s.player && s.player.trickHand)) || []).length;
       const sig = String(n);
       if (cap.dataset.sig !== sig) {
         cap.dataset.sig = sig;
@@ -209,6 +271,28 @@ const BoardV2 = {
     // The existing aside already carries the reference's "if combat resolves
     // now" block and the last log lines — reuse it rather than building a
     // second one that could disagree with it.
+    // THE ASIDE IS PAINTED BY THE 1v1 TAIL, WHICH 2v2 NEVER REACHES. Without it
+    // the rail in a 2v2 match held the phase panel and nothing else — a 180px
+    // column of black beside the board, missing both the combat forecast and
+    // the log.
+    //
+    // It has to be painted EVERY 2v2 render, not just when the node is absent.
+    // renderBoardAside hides itself on any phase that is not a live turn and
+    // returns early while hidden, so a one-shot bootstrap that happened to run
+    // during setup left it hidden forever — the node existed, empty, and
+    // nothing ever came back to fill it.
+    if (this._tt() && typeof UI !== 'undefined' && UI.renderBoardAside) {
+      try { UI.renderBoardAside(Game.state); } catch (e) {}
+    }
+    // THE TURN-ORDER TRACKER is position:fixed on <body>, so in the redesign it
+    // sat on top of the trick rail and the hand. It belongs in the column that
+    // already answers "what is happening" — moved, not copied, so the 2v2
+    // renderer keeps updating the same node.
+    const tracker = document.getElementById('twov2-turn-tracker');
+    if (tracker && tracker.parentNode !== left) {
+      if (!this._trackerHome) this._trackerHome = { parent: tracker.parentNode, next: tracker.nextSibling };
+      left.appendChild(tracker);
+    }
     const aside = document.getElementById('board-aside');
     if (aside && aside.parentNode !== left) {
       // Remember where it lives so teardown can put it back exactly.
@@ -248,6 +332,26 @@ const BoardV2 = {
     const label = mine ? 'Your turn' : 'Their turn';
     if (flag.textContent !== label) flag.textContent = label;
     flag.classList.toggle('is-mine', mine);
+  },
+
+  // THE ROSTER FAN BECOMES A NUMBER. 2v2 prints one small rectangle per card
+  // each player holds, four players at up to ten cards, inside a band that also
+  // has to carry the seat plate and the primary button — so the button was
+  // being squeezed to fit a picture of a hand size. The count is the
+  // information; the fan was the decoration. Read off the same spans the
+  // renderer just built, so it cannot disagree with them.
+  _slim2v2Roster() {
+    if (!this._tt()) return;
+    document.querySelectorAll('.twov2-roster-strip .rc-chip .rc-hand').forEach((h) => {
+      const cards  = h.querySelectorAll('.rc-back-card').length;
+      const tricks = h.querySelectorAll('.rc-back-trick').length;
+      if (!cards && !tricks && !h.dataset.bv2Sig) return;   // nothing to read yet
+      const sig = cards + '/' + tricks;
+      if (h.dataset.bv2Sig === sig) return;
+      h.dataset.bv2Sig = sig;
+      h.innerHTML = '<span class="bv2-rc-n">' + cards + '</span><i>cards</i>' +
+                    '<span class="bv2-rc-n">' + tricks + '</span><i>tricks</i>';
+    });
   },
 
   // BOARD-SPEC FIX 3, second half: "No minus sign. The arrow carries direction
@@ -486,6 +590,7 @@ const BoardV2 = {
       this._renderSeats(s);
       this._renderCounts(s);
       this._renderBandExtras(s);
+      this._slim2v2Roster();
       this._hookNotices();
       this._renderDecision(s);
       this._paintNotices();
