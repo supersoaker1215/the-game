@@ -7341,30 +7341,47 @@ everySeatAffected('every seat gets its round energy', {
   act: function (G) { advanceRound(G); }
 });
 
-everySeatAffected("Doomsday's in-hand discount reaches both teammates", {
+everySeatAffected("Doomsday's in-hand discount reaches both teammates' hands", {
   // Found by auditing card text against behaviour: Doomsday's discount IS
-  // implemented, but against state[side].hand — the proxy bound to one seat —
-  // so a Doomsday in the other teammate's hand silently cost full price.
+  // implemented, but was read against state[side].hand — the proxy bound to one
+  // seat — so a Doomsday in the OTHER teammate's hand was never even scanned
+  // and silently cost full price. That lookup is what this pins.
+  //
+  // WHOSE DEATH triggers it is a separate question, and the answer changed:
+  // a side in 2v2 is a team of two, so counting both teammates' losses grew
+  // Doomsday at twice the rate his text describes. He counts his OWN seat's
+  // losses now (owner: "they get too big, this is a nerf" — see
+  // sim/seat-scope.js). So each seat is given its own ally to lose here; the
+  // property under test is that BOTH hands are reached, not that one death
+  // pays out twice.
   seats: ['p1', 'p2'],
   snapshot: function (G, k) {
     var d = G.state.twoVTwo.players[k].hand[0];
     return d ? d.cost : 'none';
   },
   build: function (G) {
-    ['p1', 'p2'].forEach(function (k) {
-      var d = G.createCardInstance(cardByName('Doomsday'), 'player');
+    G._allies = {};
+    ['p1', 'p2'].forEach(function (k, i) {
+      var side = G.state.twoVTwo.players[k].team === 'A' ? 'player' : 'ai';
+      var d = G.createCardInstance(cardByName('Doomsday'), side);
       d.passive = 'doomsdayScaling';
+      d._2v2PlayedBy = k;
       G.state.twoVTwo.players[k].hand = [d];
+      // That seat's OWN ally, on that seat's own side of the board.
+      var ally = G.createCardInstance(cardByName('Sabertooth'), side);
+      ally._2v2PlayedBy = k;
+      G.state.lanes[3 + i][side] = ally;
+      G._allies[k] = { card: ally, lane: 3 + i };
     });
-    // An ally on Team A to die.
-    var ally = G.createCardInstance(cardByName('Sabertooth'), 'player');
-    G.state.lanes[3].player = ally;
-    G._ally = ally;
   },
   act: function (G) {
-    G._ally.currentHealth = 0;
-    G.handleDeath(G._ally, 3, null);
-    G.cleanupDead();
+    ['p1', 'p2'].forEach(function (k) {
+      var a = G._allies[k];
+      G._2v2CurrentActingPlayer = k;
+      a.card.currentHealth = 0;
+      G.handleDeath(a.card, a.lane, null);
+      G.cleanupDead();
+    });
   }
 });
 

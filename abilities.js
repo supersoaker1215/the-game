@@ -5004,8 +5004,14 @@ const CARD_ABILITIES = {
       if (typeof UI !== 'undefined' && UI._fxHandHaze) { try { UI._fxHandHaze(opp, { color: '#a24bff' }); } catch (e) {} }
       });
     },
-    onAllyKilled(G, self) {
+    onAllyKilled(G, self, dead) {
       if (self.currentHealth <= 0) return;
+      // HIS OWN FALLEN, NOT THE TEAM'S. A side in 2v2 is a team of two, so this
+      // counted the teammate's losses as well and Mace grew at twice the rate
+      // his text describes. (Owner: "for mace and doomsday in 2v2 it only counts
+      // for your own cards, not teammates … they get too big, this is a nerf.")
+      // _2v2SameSeat is always true in 1v1, so that mode is unchanged.
+      if (dead && G._2v2SameSeat && !G._2v2SameSeat(self, dead)) return;
       self.maxHealth     = (self.maxHealth     || 0) + 2;
       self.currentHealth = (self.currentHealth || 0) + 2;
       G.log(`Mace Windu grows stronger from an ally's fall (+0/+2)!`);

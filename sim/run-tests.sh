@@ -81,6 +81,10 @@ echo "=== absorbed-hit.js (a shield stops the damage, not the swing) ==="
 run_suite sim/absorbed-hit.js
 
 echo ""
+echo "=== seat-scope.js (your cards, not your team's) ==="
+run_suite sim/seat-scope.js
+
+echo ""
 if [ "$FAIL" -ne 0 ]; then
   echo "❌ TESTS FAILED — see suites above."
   exit 1

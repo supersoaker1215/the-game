@@ -9335,10 +9335,10 @@ const Game = {
       // tokens don't carry those passives.
       if (killer && killer.onKill) this._2v2RunOwned(killer, () => killer.onKill(this, killer));
       const livingAllies = this.getAllCardsOf(card.owner);
-      livingAllies.forEach(a => { if (a.onAllyKilled) this._2v2RunOwned(a, () => a.onAllyKilled(this, a)); });
+      livingAllies.forEach(a => { if (a.onAllyKilled) this._2v2RunOwned(a, () => a.onAllyKilled(this, a, card)); });
       const livingEnemiesT = this.getAllCardsOf(this.opponent(card.owner));
       livingEnemiesT.forEach(a => { if (a.onEnemyKilled) a.onEnemyKilled(this, a); });
-      this._scaleDoomsdayInHands(card.owner);
+      this._scaleDoomsdayInHands(card.owner, card);
       livingAllies.forEach(a => this.drainBonusAttacks(a));
       this.checkJumpConditions('allyDied', { owner: card.owner, laneIdx });
       return;
@@ -9455,10 +9455,10 @@ const Game = {
     // last acted. Match the token branch. No-op in 1v1.
     if (killer && killer.onKill) { this._2v2ActFor(killer); killer.onKill(this, killer); }
     const livingAllies = this.getAllCardsOf(card.owner);
-    livingAllies.forEach(a => { if (a.onAllyKilled) this._2v2RunOwned(a, () => a.onAllyKilled(this, a)); });
+    livingAllies.forEach(a => { if (a.onAllyKilled) this._2v2RunOwned(a, () => a.onAllyKilled(this, a, card)); });
     const livingEnemies = this.getAllCardsOf(this.opponent(card.owner));
     livingEnemies.forEach(a => { if (a.onEnemyKilled) { this._2v2ActFor(a); a.onEnemyKilled(this, a); } });
-    this._scaleDoomsdayInHands(card.owner);
+    this._scaleDoomsdayInHands(card.owner, card);
     // Drain bonus attacks immediately on every death — combat or
     // trick-triggered. User spec: "Anakin and bonus attacks in general
     // shouldn't happen at the end of the round but instead immediately."
@@ -9487,7 +9487,7 @@ const Game = {
   // - In draw pile: stats grow for every death, cost stays locked.
   // Ally death: cost drops by 1 for any Doomsday the same owner has in hand.
   // Draw-pile Doomsday is unaffected by deaths — stats only grow on card plays.
-  _scaleDoomsdayInHands(deadOwner) {
+  _scaleDoomsdayInHands(deadOwner, deadCard) {
     // PER SEAT, not per side. This read state[side].hand — the proxy bound to
     // whichever seat is acting — so in 2v2 a Doomsday sitting in the OTHER
     // teammate's hand never got its discount and quietly cost full price all
@@ -9502,10 +9502,12 @@ const Game = {
         if (!hand) continue;
         hand.forEach(c => {
           if (c.passive !== 'doomsdayScaling') return;
-          if (c.owner === deadOwner) {
-            c.cost = Math.max(0, (c.cost || 0) - 1);
-            this.log(`[DOOMSDAY] Ally fell — cost drops to ${c.cost}`);
-          }
+          if (c.owner !== deadOwner) return;
+          // YOUR ally, not your team's. Both teammates' Doomsdays used to
+          // discount off one death — see _2v2SameSeat.
+          if (deadCard && !this._2v2SameSeat(c, deadCard)) return;
+          c.cost = Math.max(0, (c.cost || 0) - 1);
+          this.log(`[DOOMSDAY] Ally fell — cost drops to ${c.cost}`);
         });
       }
     }
@@ -9527,7 +9529,17 @@ const Game = {
   _applyDoomsdayDrawScaling(card, owner) {
     if (!card || card.passive !== 'doomsdayScaling') return card;
     const p = this.state[owner];
-    const count = (p && p.cardsPlayedCount) || 0;
+    // Per-seat in 2v2 (see _scaleDoomsdayOnOwnerPlay), side-wide in 1v1.
+    let count = (p && p.cardsPlayedCount) || 0;
+    const _ttD = this.state && this.state.twoVTwo;
+    if (_ttD && _ttD.players) {
+      const seatD = this._2v2CurrentActingPlayer
+        || (this._2v2ActivePlayer && this._2v2ActivePlayer()) || null;
+      if (seatD && _ttD.players[seatD]
+          && this._2v2TeamSide[_ttD.players[seatD].team] === owner) {
+        count = _ttD.players[seatD].cardsPlayedCount || 0;
+      }
+    }
     card.attack = 1 + count;
     card.health = 1 + count;
     card.maxHealth = 1 + count;
@@ -9559,10 +9571,25 @@ const Game = {
     // side-proxy hand was scanned.)
     if (this.is2v2 && this.is2v2() && this.state.twoVTwo) {
       const tt = this.state.twoVTwo;
-      (this._2v2SLOTS || ['p1', 'p2', 'p3', 'p4']).forEach(pk => {
+      // ONLY THE SEAT THAT PLAYED IT. This scaled every Doomsday held anywhere
+      // on the side, so both teammates' copies grew off one card — two people
+      // playing meant a Doomsday gaining +2/+2 a round against the +1/+1 his
+      // text promises. He counts his own owner's plays now.
+      const acting = this._2v2CurrentActingPlayer
+        || (this._2v2ActivePlayer && this._2v2ActivePlayer())
+        || null;
+      const seat = acting && tt.players[acting]
+                   && this._2v2TeamSide[tt.players[acting].team] === owner ? acting : null;
+      if (seat) scaleHand(tt.players[seat].hand);
+      else (this._2v2SLOTS || ['p1', 'p2', 'p3', 'p4']).forEach(pk => {
+        // No seat resolved — fall back to the old side-wide sweep rather than
+        // silently growing nobody.
         const sp = tt.players[pk];
         if (sp && this._2v2TeamSide[sp.team] === owner) scaleHand(sp.hand);
       });
+      // The draw-pile counter is per SEAT too, so a Doomsday drawn later
+      // arrives sized to its own owner's plays and not the team's.
+      if (seat) tt.players[seat].cardsPlayedCount = (tt.players[seat].cardsPlayedCount || 0) + 1;
     } else {
       scaleHand(p && p.hand);
     }
@@ -11591,7 +11618,7 @@ const Game = {
       // what actually SPENDS what onAllyKilled just banked, which is why
       // Ahsoka swings immediately rather than sitting on a stored attack.
       const _devourAllies = this.getAllCardsOf(card.owner);
-      _devourAllies.forEach(a => { if (a.onAllyKilled) this._2v2RunOwned(a, () => a.onAllyKilled(this, a)); });
+      _devourAllies.forEach(a => { if (a.onAllyKilled) this._2v2RunOwned(a, () => a.onAllyKilled(this, a, card)); });
       this.getAllCardsOf(this.opponent(card.owner))
         .forEach(a => { if (a.onEnemyKilled) a.onEnemyKilled(this, a); });
       _devourAllies.forEach(a => this.drainBonusAttacks(a));
@@ -12024,6 +12051,27 @@ const Game = {
   },
   // The seat a card's abilities belong to: what it recorded when it was played,
   // else a human on its team (never an AI filler when a person is available).
+  // SAME SEAT, OR JUST THE SAME TEAM?
+  //
+  // A side in 2v2 is a TEAM of two, so "an ally was destroyed" and "you played a
+  // card" are both true of your teammate's board as well as your own — and cards
+  // that grow on those events were compounding at twice the rate the 1v1 text
+  // was written for. (Owner: "for mace and doomsday in 2v2 it only counts for
+  // your own cards, not teammates … they get too big, this is a nerf.")
+  //
+  // Returns true when `card` belongs to the same SEAT as `holder`, so a growth
+  // effect can count its own owner's cards only. Outside 2v2 there is one seat
+  // per side and this is always true, which is why 1v1 is untouched: every
+  // caller keeps its existing behaviour there for free.
+  _2v2SameSeat(holder, card) {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt || !tt.players) return true;              // 1v1 — one seat per side
+    const a = this._2v2SeatOwning ? this._2v2SeatOwning(holder) : null;
+    const b = this._2v2SeatOwning ? this._2v2SeatOwning(card) : null;
+    if (!a || !b) return true;                        // unknown ownership: do not silently swallow
+    return a === b;
+  },
+
   _2v2SeatOwning(card) {
     const tt = this.state && this.state.twoVTwo;
     if (!tt || !tt.online || !card) return null;
