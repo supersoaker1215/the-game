@@ -61,6 +61,10 @@ echo "=== prompt-clock.js (every 2v2 prompt slot has a timeout) ==="
 run_suite sim/prompt-clock.js
 
 echo ""
+echo "=== hand-empower.js (an empower needs a body to land on) ==="
+run_suite sim/hand-empower.js
+
+echo ""
 if [ "$FAIL" -ne 0 ]; then
   echo "❌ TESTS FAILED — see suites above."
   exit 1

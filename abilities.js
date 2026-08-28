@@ -2029,7 +2029,15 @@ const CARD_ABILITIES = {
       // fuzz harness and replay system both depend on the same seed producing
       // the same game.
       const hand = (G.state && G.state[self.owner] && G.state[self.owner].hand) || [];
-      const pool = hand.filter(c => c && c.id !== self.id);
+      // A CARD WITH NO BODY CANNOT BE EMPOWERED. Jigsaw, Brainiac, Professor X
+      // and Mr. Fantastic are discard effects, Iron Giant is never placeable,
+      // and an environment never fights — none of them ever carry the +2/+2 to
+      // a lane, so rolling one is the ability doing nothing at all. Red Skull's
+      // whole job is making a FUTURE PLAY bigger; there is no future play here.
+      // Game.cardHasBody is the canonical answer to "does this card fight?" —
+      // the same one the renderer uses to decide whether to print stats — so
+      // this cannot drift from what the card visibly is.
+      const pool = hand.filter(c => c && c.id !== self.id && G.cardHasBody(c));
       if (pool.length) {
         const pick = pool[Math.floor(G.rng() * pool.length)];
         const pickIdx = hand.indexOf(pick);
@@ -5007,11 +5015,17 @@ const CARD_ABILITIES = {
         // auto-Untrickable, so Doomsday (skipAutoUntrickable) still
         // qualifies despite his 12 starting cost.
         (holder.hand || []).filter(card =>
-          // Environments are excluded outright — they never fight, so a combat
-          // keyword on one is noise. applyAbilities refuses them too, but doing
-          // it here as well keeps the phantom entry out of card.abilities and
-          // stops the log claiming a grant that never happened.
-          !card.isEnvironment &&
+          // A combat keyword only means something on a card that fights. This
+          // read `!card.isEnvironment`, which is the right idea applied to a
+          // third of the cases: it let Armor / Evade / Bullseye / Overdrive
+          // land on Jigsaw, Brainiac, Professor X, Mr. Fantastic and Iron
+          // Giant, none of which ever reach a lane. cardHasBody is the whole
+          // rule — environments included — and it is the same predicate the
+          // renderer uses to decide whether a card even shows stats.
+          // (applyAbilities refuses environments too, but filtering here also
+          // keeps the phantom entry out of card.abilities and stops the log
+          // claiming a grant that never happened.)
+          G.cardHasBody(card) &&
           (card.skipAutoUntrickable || (card.baseCost || card.cost || 0) < 10)
         ).forEach(card => {
           const kw = KEYWORDS[Math.floor(Game.rng() * KEYWORDS.length)];
