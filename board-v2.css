@@ -83,11 +83,45 @@ body.board-v2 .bv2-rail { min-width: 0; padding-top: 4px; }
    The same call the board-aside already makes for itself. */
 @media (max-width: 1240px) {
   body.board-v2 #game-area {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "hud" "foebar" "board" "strip" "mebar" "hand" "right";
+    /* Hand and tricks share the last row, the way the shipping board arranges
+       them when there is no width for rails. Giving tricks a row of their own
+       cost the board 120px — it sat on its 240px floor while a stack of trick
+       faces took 363px underneath it. */
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "hud    hud"
+      "foebar foebar"
+      "board  board"
+      "strip  strip"
+      "mebar  mebar"
+      "hand   right";
+    /* SEVEN AREAS NEED SEVEN ROWS. Overriding grid-template-areas without
+       grid-template-rows left the wide layout's SIX row definitions in force,
+       so the trick rail fell into an implicit auto row and took its content's
+       height: measured at 1196px wide, that row was 3095px tall with a single
+       trick card blown up to 1161x1522, and the hand was crushed to 13px.
+       This is the whole bug in the narrow view. */
+    grid-template-rows: auto auto minmax(220px, 1fr) auto auto auto;
     padding: 8px 10px 14px;
   }
   body.board-v2 #bv2-rail-left { display: none; }
+  /* With no rail there is no column to fill, so the tricks lie down in a row of
+     ordinary cards rather than stacking full-width. */
+  body.board-v2 #game-area > .tricks-section > #player-tricks {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 10px;
+    width: auto;
+  }
+  /* Beside the hand they are hand-sized, not rail-sized. A real length, not
+     `auto`: as flex items with auto width they shrank to their content and came
+     out 50x66. */
+  body.board-v2 .tricks-section .trick-card {
+    flex: 0 0 auto;
+    width: 112px;
+    max-width: 112px;
+  }
+  body.board-v2 .tricks-section { align-self: end; }
 }
 
 /* ---------------------------------------------------------------------------
@@ -554,7 +588,11 @@ body.board-v2 .info-bar .actions-section { gap: 10px; align-items: center; }
 body.board-v2 .tricks-section .trick-card {
   width: 100%;
   height: auto;
-  max-width: none;
+  /* A CEILING, NOT `none`. `width: 100%` is only sensible while the parent is a
+     ~250px rail; the moment the rail folds away at a narrow window that 100%
+     became the full page and one trick card rendered 1161x1522. The cap means
+     the percentage can size it DOWN to fit a rail but never blow it up. */
+  max-width: 248px;
   min-height: 0;
 }
 
