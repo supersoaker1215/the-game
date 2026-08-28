@@ -46,7 +46,14 @@ body.board-v2 #game-area {
      bottom — the rails sit BETWEEN them, flanking the board only. I had both
      bars inside the centre column, which is the single biggest reason it did
      not read like the reference. */
-  grid-template-columns: 268px minmax(0, 1fr) 262px;
+  /* FLUID RAILS. These were fixed at 268/262 with a 1240px cutoff below which
+     BOTH rails were dropped — and the owner's window is 1196px, so every single
+     screenshot they sent me was the fallback, never the design. The rails shrink
+     with the window now and the console holds down to ~980px. */
+  grid-template-columns:
+    clamp(186px, 17vw, 268px)
+    minmax(0, 1fr)
+    clamp(178px, 16vw, 262px);
   grid-template-rows: auto auto minmax(0, 1fr) auto auto auto;
   grid-template-areas:
     "hud    hud     hud"
@@ -55,9 +62,9 @@ body.board-v2 #game-area {
     "left   strip   right"
     "mebar  mebar   mebar"
     "hand   hand    hand";
-  gap: 0 26px;
+  gap: 0 clamp(12px, 1.4vw, 26px);
   align-content: stretch;
-  padding: 8px 26px 14px;
+  padding: 8px clamp(12px, 1.6vw, 26px) 14px;
   height: 100vh;
   min-height: 0;
   overflow: hidden;
@@ -81,7 +88,7 @@ body.board-v2 .bv2-rail { min-width: 0; padding-top: 4px; }
 /* Below the width the three columns need, fold the rails away and let the
    lanes have everything — a rail on top of the board is worse than no rail.
    The same call the board-aside already makes for itself. */
-@media (max-width: 1240px) {
+@media (max-width: 980px) {
   body.board-v2 #game-area {
     /* Hand and tricks share the last row, the way the shipping board arranges
        them when there is no width for rails. Giving tricks a row of their own
