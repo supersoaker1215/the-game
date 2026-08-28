@@ -710,7 +710,8 @@ body.board-v2 .player-hand-section .hand-card-wrapper .card { --card-w: 146px; }
 body.board-v2 #game-area > .info-bar {
   display: flex;
   align-items: center;
-  gap: 26px;
+  gap: clamp(10px, 1.4vw, 26px);
+  min-width: 0;
   min-height: 68px;
   padding: 10px 0;
   background: #000;
@@ -820,3 +821,90 @@ body.board-v2 #board .card-slot {
    art. */
 body.board-v2 #board .lane { padding: 5px 2px; }
 body.board-v2 #board { gap: 8px; }
+
+/* ===========================================================================
+   1. LANE OUTCOMES AS ARROWS.
+   The strip ships as [my face] [VERDICT WORD] [their face] — "− STRIKE −2".
+   The reference prints one signed arrow per lane and nothing else: a green
+   ▲2 where you come out ahead, an amber ▼7 where you do not, an em dash where
+   the lane is quiet. Same numbers, a quarter of the ink, and it reads without
+   being parsed.
+   =========================================================================== */
+body.board-v2 #lane-forecast-strip .lf-cell {
+  border: 0;
+  background: transparent;
+  justify-content: center;
+  gap: 6px;
+  padding: 4px 2px;
+}
+body.board-v2 #lane-forecast-strip .lf-verdict { display: none; }
+body.board-v2 #lane-forecast-strip .lf-face-zero { display: none; }
+body.board-v2 #lane-forecast-strip .lf-cell.lf-empty::after {
+  content: '\2014';                                   /* — */
+  color: rgba(150,176,196,0.34);
+  font-family: var(--font-mono, ui-monospace), monospace;
+  font-size: 12px;
+}
+body.board-v2 #lane-forecast-strip .lf-face {
+  font-family: var(--font-display, 'Chakra Petch'), system-ui, sans-serif;
+  font-weight: 700; font-size: 15px; letter-spacing: .02em;
+  font-variant-numeric: tabular-nums;
+  display: inline-flex; align-items: center; gap: 3px;
+}
+body.board-v2 #lane-forecast-strip .lf-face-green { color: #57e08a; }
+body.board-v2 #lane-forecast-strip .lf-face-red   { color: var(--bv2-foe); }
+body.board-v2 #lane-forecast-strip .lf-face-green::before {
+  content: '\25B2'; font-size: 9px; opacity: .95;      /* ▲ */
+}
+body.board-v2 #lane-forecast-strip .lf-face-red::before {
+  content: '\25BC'; font-size: 9px; opacity: .95;      /* ▼ */
+}
+
+/* ===========================================================================
+   2. SMALLER BOARD CARDS. 124px read as chunky against the reference's slim
+   bay. The lane keeps its width — the card just stops filling every pixel of
+   it, which is what gives the reference its air.
+   =========================================================================== */
+body.board-v2 #board .card-slot { max-width: 104px; margin: 0 auto; }
+
+/* ===========================================================================
+   3. THE PLAYER BANNER, to the reference crop:
+      [VP] Player213 ──── 30 HP  TRICKS 0/8 ....... DISCARD 2  ♪  ENERGY (1) │ [END CARDS →]
+   =========================================================================== */
+/* A hard 300px minimum here pushed END TURN off the right edge at 1196px.
+   The name block is the flexible part of the bar — it takes what is spare and
+   gives it back when the readouts need it. */
+body.board-v2 .bv2-id { min-width: 0; width: clamp(150px, 20vw, 320px); }
+body.board-v2 .bv2-name { font-size: 17px; }
+body.board-v2 .bv2-hp   { font-size: 24px; }
+body.board-v2 .bv2-id .health-container { height: 3px; }
+
+/* Label the discard pile, as the reference does. */
+body.board-v2 #game-area > .info-bar > .bar-dead::before {
+  content: 'Discard';
+  font-family: var(--font-mono, ui-monospace), monospace;
+  font-size: 9px; letter-spacing: .24em; text-transform: uppercase;
+  color: var(--bv2-label); margin-right: 8px;
+}
+body.board-v2 #game-area > .info-bar > .bar-dead { display: flex; align-items: center; }
+
+/* Energy reads as a ring, not a diamond — matching the reference. */
+body.board-v2 .info-bar .energy-display {
+  width: 34px; height: 34px; border-radius: 50%;
+  clip-path: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #000;
+  font-family: var(--font-display, 'Chakra Petch'), system-ui, sans-serif;
+  font-weight: 700;
+}
+body.board-v2 .player-bar .energy-display { border: 1px solid var(--bv2-ink); color: var(--bv2-ink); }
+body.board-v2 .ai-bar     .energy-display { border: 1px solid var(--bv2-foe); color: var(--bv2-foe); }
+
+/* A hairline between the readouts and the action, as the crop has. */
+body.board-v2 #game-area > .info-bar > .bar-center::before {
+  content: '';
+  width: 1px; height: 34px;
+  background: var(--bv2-line);
+  margin-right: 18px;
+}
+body.board-v2 #game-area > .info-bar > .bar-center { display: flex; align-items: center; }
