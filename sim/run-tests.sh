@@ -49,6 +49,30 @@ echo "=== neverskip.js (a human's turn is only ended by that human) ==="
 run_suite sim/neverskip.js
 
 echo ""
+echo "=== revive-and-record.js (revive resets once-per-life; dossier says HOW) ==="
+run_suite sim/revive-and-record.js
+
+echo ""
+echo "=== before-tricks.js (Start of Tricks recurs unless the card says once) ==="
+run_suite sim/before-tricks.js
+
+echo ""
+echo "=== prompt-clock.js (every 2v2 prompt slot has a timeout) ==="
+run_suite sim/prompt-clock.js
+
+echo ""
+echo "=== hand-empower.js (an empower needs a body to land on) ==="
+run_suite sim/hand-empower.js
+
+echo ""
+echo "=== local-2v2.js (a local 2v2 is still a 2v2) ==="
+run_suite sim/local-2v2.js
+
+echo ""
+echo "=== moder-lane-lock.js (one answer to which lanes are placeable) ==="
+run_suite sim/moder-lane-lock.js
+
+echo ""
 if [ "$FAIL" -ne 0 ]; then
   echo "❌ TESTS FAILED — see suites above."
   exit 1

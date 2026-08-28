@@ -11947,7 +11947,16 @@ const UI = {
       // green and rising, so lifesteal and heal effects are finally legible
       // instead of the bar quietly growing.
       if (ev.type === 'heal' && ev.cardId == null) {
-        const hfill = document.getElementById(ev.owner === 'player' ? 'player-hp-fill' : 'ai-hp-fill');
+        // ROUTE THROUGH _fxDomSide like hpHit does. Using ev.owner raw put the
+        // heal float on the WRONG bar for any viewer whose own team isn't the
+        // 'player' side (every 2v2 team-B seat, and the 1v1 guest): the caster's
+        // +2 floated over the ENEMY bar while their real health quietly filled on
+        // their own bar — which reads as BOTH teams healing 2. (User: "symbiote
+        // spider-man is healing 2 for both teams — make sure it's only the team
+        // that played him.") Only the caster's team is ever healed; this just
+        // lands the float on the bar that actually changed.
+        const hside = this._fxDomSide ? this._fxDomSide(ev.owner) : ev.owner;
+        const hfill = document.getElementById(hside === 'player' ? 'player-hp-fill' : 'ai-hp-fill');
         const hcontainer = hfill ? hfill.closest('.health-container') : null;
         if (hcontainer && ev.amount > 0) {
           hcontainer.style.position = 'relative';
@@ -13542,6 +13551,15 @@ const UI = {
     if (s.pendingJumpOffer) { this.renderJumpOfferChoice(s); }
     else { const jm = document.getElementById('jump-offer-modal'); if (jm) jm.remove(); }
 
+    // Time Stone intercept — the third floating prompt, and the one that was
+    // still missing. hasPendingPrompt() counts pendingTimeStoneIntercept, so in
+    // 2v2 it parked combat behind a modal that NO 2v2 render path ever drew:
+    // an unanswerable prompt, frozen until a watchdog. The block-trick and jump
+    // offers above were each surfaced here for exactly this reason; this is the
+    // last one of the set.
+    if (s.pendingTimeStoneIntercept) { this.renderTimeStoneIntercept(s); }
+    else { const ts = document.getElementById('time-stone-modal'); if (ts) ts.remove(); }
+
     this.applyTronFx();
     this._applyMotionEffects();
 
@@ -13729,12 +13747,23 @@ const UI = {
       return;
     }
     strip.style.display = 'flex';
+    // MODER LOCKS THE STRIP TOO. This asked only "is my slot free", so a
+    // compelled player got all eight buttons and could aim anywhere while the
+    // engine pulled the card into Moder's lane anyway.
+    const _selCard = (ap && ap.hand && UI._2v2SelectedCardIdx != null)
+      ? ap.hand[UI._2v2SelectedCardIdx] : null;
+    const _ok = new Set(Game.placeableLanesFor
+      ? Game.placeableLanesFor(mySide, _selCard) : s.lanes.map((_, i) => i));
+    const _compelled = Game.moderCompulsionLane ? Game.moderCompulsionLane(mySide) : -1;
     strip.innerHTML = `
-      <span class="twov2-bls-label">Place card in lane:</span>
+      <span class="twov2-bls-label">${_ok.size === 1 && _compelled >= 0
+        ? 'Forced into lane ' + (_compelled + 1) + ':' : 'Place card in lane:'}</span>
       ${s.lanes.map((ln, i) => {
-        const blocked = !!(ln[mySide]);
-        return `<button class="twov2-bls-btn${blocked ? ' twov2-bls-blocked' : ''}"
-                  onclick="twov2OnlinePlaceCard(${i})" ${blocked ? 'disabled' : ''}>
+        const blocked = !_ok.has(i);
+        const forced = (_compelled === i && _ok.has(i));
+        return `<button class="twov2-bls-btn${blocked ? ' twov2-bls-blocked' : ''}${forced ? ' twov2-bls-forced' : ''}"
+                  onclick="twov2OnlinePlaceCard(${i})" ${blocked ? 'disabled' : ''}
+                  ${blocked && _compelled >= 0 ? `title="Moder forces your next card into lane ${_compelled + 1}"` : ''}>
                   ${i + 1}
                 </button>`;
       }).join('')}
@@ -14298,16 +14327,25 @@ const UI = {
         <div class="twov2-lane-select" id="twov2-lane-select" style="display:none">
           <div class="twov2-ls-label">Pick a lane (1–${Game.LANE_COUNT}):</div>
           <div class="twov2-ls-row">
-            ${s.lanes.map((ln, i) => {
+            ${(() => {
               const myTeam = isOnline ? (tt.players[myKey] && tt.players[myKey].team) : activeTeam;
               const side = myTeam === 'A' ? 'player' : 'ai';
-              const blocked = !!(ln[side]);
-              const placeCmd = isOnline ? `twov2OnlinePlaceCard(${i})` : `twov2PlaceCard(${i})`;
-              return `<button class="twov2-ls-btn${blocked?' twov2-ls-blocked':''}"
-                        onclick="${placeCmd}" ${blocked?'disabled':''}>
-                Lane ${i+1}
-              </button>`;
-            }).join('')}
+              // Same lock as every other placement surface — see
+              // Game.placeableLanesFor.
+              const okSet = new Set(Game.placeableLanesFor
+                ? Game.placeableLanesFor(side, null) : s.lanes.map((_, i2) => i2));
+              const compelled = Game.moderCompulsionLane ? Game.moderCompulsionLane(side) : -1;
+              return s.lanes.map((ln, i) => {
+                const blocked = !okSet.has(i);
+                const forced = (compelled === i && okSet.has(i));
+                const placeCmd = isOnline ? `twov2OnlinePlaceCard(${i})` : `twov2PlaceCard(${i})`;
+                return `<button class="twov2-ls-btn${blocked?' twov2-ls-blocked':''}${forced?' twov2-ls-forced':''}"
+                          onclick="${placeCmd}" ${blocked?'disabled':''}
+                          ${blocked && compelled >= 0 ? `title="Moder forces your next card into lane ${compelled+1}"` : ''}>
+                  Lane ${i+1}
+                </button>`;
+              }).join('');
+            })()}
           </div>
           <button class="twov2-ls-cancel" onclick="twov2CancelCard()">Cancel</button>
         </div>
@@ -22413,14 +22451,18 @@ const UI = {
         // lane is clickable. The old Magneto-queue fallback (magnetoForcedLanes[0])
         // was removed with the Magneto redesign — no setter exists anymore, so a
         // stale queue could only wrongly padlock the whole hand to one lane.
-        let fl = s.player && s.player.forcedLane != null ? s.player.forcedLane : null;
-        // Only enforce Moder's lock if the forced lane is actually playable —
-        // if the player's card already occupies it (e.g. survived combat against
-        // Moder), there's nowhere to force and the lock should dissolve.
-        if (fl !== null) {
-          const flState = s.lanes[fl];
-          if (!flState || flState.destroyed || flState.player) fl = null;
-        }
+        // THE SAME AUTHORITY THE LOCK GLYPH USES. This read the raw
+        // `s.player.forcedLane` stamp while the status-row glyph a few hundred
+        // lines up asked moderCompulsionLane — so the two disagreed exactly when
+        // it mattered: a Moder who left the board silently left the stamp behind,
+        // and the board stayed padlocked to a compeller who was not there while
+        // the glyph correctly showed nothing. One question, one answer.
+        const _allowed = Game.placeableLanesFor
+          ? Game.placeableLanesFor('player', s.selectedCard)
+          : null;
+        let fl = (_allowed && _allowed.length === 1 && !s.selectedCard.isEnvironment
+                  && Game.moderCompulsionLane && Game.moderCompulsionLane('player') === _allowed[0])
+          ? _allowed[0] : null;
         if (fl !== null && fl !== i && !s.selectedCard.isEnvironment) {
           // Not the forced lane — show as locked, not playable.
           // The class goes on the LANE, not just the slot: a lockout is a
@@ -26496,7 +26538,15 @@ const UI = {
       // resolve the element back to THIS trick object, same as hand cards.
       if (trick.id != null) el.setAttribute('data-trick-id', trick.id);
       const cost = this._localTrickCost(trick);
-      const afford = s.player.currency >= cost;
+      // AFFORD AGAINST *MY* ENERGY. In 2v2 the viewer may be on Team B, whose
+      // energy is NOT s.player.currency (that's Team A). _localEnergy() reads the
+      // viewer's own seat — the same value the click handler checks — so a trick
+      // the seat can actually pay for no longer renders dark/colorless as if
+      // unplayable. (User: "a trick showed dark and colorless like I couldn't
+      // play it, but I played it and it worked.") 1v1/solo fall back to
+      // s.player.currency inside _localEnergy, so they're unchanged.
+      const _tSide = (this._2v2LocalSide && this._2v2LocalSide()) || 'player';
+      const afford = this._localEnergy() >= cost;
 
       const trickBadges = trick.abilities && trick.abilities.length
         ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(trick.abilities)}</div>`
@@ -26533,7 +26583,10 @@ const UI = {
       // Reaction-only tricks (Time Stone) always fail canPlay by design.
       let noTargets = false;
       if (trick.canPlay) {
-        try { noTargets = !trick.canPlay(Game, 'player'); } catch (e) {}
+        // From the viewer's OWN side — 'player' hardcoded asked the wrong
+        // team's board in 2v2, so a Team B trick with valid enemy targets read
+        // as "no targets" and dimmed. (Same fix as the afford check above.)
+        try { noTargets = !trick.canPlay(Game, _tSide); } catch (e) {}
       }
       if (((isAnytime && playerActive) || canTrick) && afford && !frozen && !noTargets) {
         el.classList.add('playable');
@@ -33812,10 +33865,16 @@ function blockTrickPlay() {
   if (!trick) return;
   // 2v2 online: resolve on the owning seat (host applies; guest forwards).
   const tt = s.twoVTwo;
-  if (tt && tt.online) {
+  // EVERY 2v2 ANSWER GOES THROUGH THE SEAT RESOLVER, not just the online one.
+  // _2v2ResolveBlockTrick is what advances the offer queue to the OTHER
+  // teammate; the generic fallback below does not. So while this was gated on
+  // `tt.online`, a local 2v2 answer resolved one trick and left the queue
+  // parked — which is half of why the second player never saw theirs.
+  if (tt && tt.players) {
     if (!Game.promptIsMine(trick, 'blockTrick')) return;
     const seat = trick._2v2Seat || trick._2v2ActingPlayer || tt.you;
-    if (tt.you === 'p1') { Game._2v2ResolveBlockTrick(seat, trick, true); }
+    // Local play has no wire and no host: the device answering IS the authority.
+    if (!tt.online || tt.you === 'p1') { Game._2v2ResolveBlockTrick(seat, trick, true); }
     else { if (typeof Multiplayer4 !== 'undefined') Multiplayer4.send({ t: 'resolve2v2BlockTrick', playerKey: tt.you, play: true }); s.pendingBlockTrick = null; }
     UI.render();
     return;
@@ -33852,10 +33911,16 @@ function blockTrickKeep() {
   if (!trick) return;
   // 2v2 online: kept trick goes to the seat's hand at its original cost.
   const tt = s.twoVTwo;
-  if (tt && tt.online) {
+  // EVERY 2v2 ANSWER GOES THROUGH THE SEAT RESOLVER, not just the online one.
+  // _2v2ResolveBlockTrick is what advances the offer queue to the OTHER
+  // teammate; the generic fallback below does not. So while this was gated on
+  // `tt.online`, a local 2v2 answer resolved one trick and left the queue
+  // parked — which is half of why the second player never saw theirs.
+  if (tt && tt.players) {
     if (!Game.promptIsMine(trick, 'blockTrick')) return;
     const seat = trick._2v2Seat || trick._2v2ActingPlayer || tt.you;
-    if (tt.you === 'p1') { Game._2v2ResolveBlockTrick(seat, trick, false); }
+    // Local play has no wire and no host: the device answering IS the authority.
+    if (!tt.online || tt.you === 'p1') { Game._2v2ResolveBlockTrick(seat, trick, false); }
     else { if (typeof Multiplayer4 !== 'undefined') Multiplayer4.send({ t: 'resolve2v2BlockTrick', playerKey: tt.you, play: false }); s.pendingBlockTrick = null; }
     UI.render();
     return;
@@ -33870,8 +33935,9 @@ function blockTrickKeep() {
   if (!Game.promptIsMine(trick, 'blockTrick')) return;
   const owner = trick._btOwner || 'player';
   s.pendingBlockTrick = null;
-  Game.addToTrickHand(owner, trick);
-  Game.log(`  [BLOCK TRICK] ${owner === 'player' ? 'You' : owner} keep ${trick.name} in hand (costs ${trick.cost})`);
+  // Cap-aware keep: if the trick hand is full, prompt to trade one out for the
+  // drawn trick instead of silently discarding it or blowing past the cap.
+  Game._keepBlockTrick(owner, trick, { isAI: false });
   UI.draftEl.style.display = 'none';
   document.getElementById('game-area').style.display = '';
   Game.resumeCombatIfWaiting();

@@ -47017,3 +47017,24 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   background: var(--accent, #35e0ff);
   border-radius: 2px;
 }
+
+/* ===========================================================================
+   MODER'S FORCED LANE — the one open door, in the 2v2 placement strips.
+   The 1v1 board already lit the compelled lane and padlocked the rest; the
+   two 2v2 pickers are buttons, so they say it the same way a button can.
+   =========================================================================== */
+.twov2-bls-btn.twov2-bls-forced,
+.twov2-ls-btn.twov2-ls-forced {
+  border-color: rgba(255,138,31,0.95) !important;
+  color: #ffd9a8 !important;
+  box-shadow: 0 0 8px rgba(255,138,31,0.55), inset 0 0 10px rgba(255,138,31,0.18);
+  animation: moder-forced-pulse 1.6s ease-in-out infinite;
+}
+@keyframes moder-forced-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(255,138,31,0.55), inset 0 0 10px rgba(255,138,31,0.18); }
+  50%      { box-shadow: 0 0 14px rgba(255,138,31,0.85), inset 0 0 14px rgba(255,138,31,0.30); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .twov2-bls-btn.twov2-bls-forced,
+  .twov2-ls-btn.twov2-ls-forced { animation: none; }
+}

@@ -733,18 +733,41 @@ const Game = {
   // does nothing if that is no longer the live prompt. A stale timer answering
   // a NEWER prompt is the documented root cause of the old "guest's card always
   // goes to the lowest lane" bug; it must not come back through this door.
+  // EVERY PROMPT SHAPE IS ON THE CLOCK, not just card and lane.
+  //
+  // hasPendingPrompt() counts five slots, and any one of them parks combat via
+  // whenPromptCleared — but only two of them had a timer. A block-trick offer,
+  // a jump offer or a Time Stone intercept that nobody answered held the whole
+  // table until the 45s _forceEndStalledCombat recovery, and that path does not
+  // RESOLVE them, it DROPS them: "Drop every blocker so hasPendingPrompt() can't
+  // re-park combat" nulls the slot with no keep, no skip, no trick. So the
+  // reward silently evaporated, or surfaced a round late once something else
+  // drained the queue. (Owner: "we blocked and apparently i got power stone but
+  // no pop up … i just got my power stone in the middle of the next round".)
+  //
+  // Adding the three offers here means they time out the way a card pick does:
+  // 30s, announced in the log, resolved properly — the trick is KEPT, the jump
+  // is SKIPPED, the intercept is ALLOWED — instead of vanishing at 45s.
+  _2v2_PROMPT_SLOT: {
+    lane:       'pendingLaneChoice',
+    card:       'pendingCardChoice',
+    blockTrick: 'pendingBlockTrick',
+    jump:       'pendingJumpOffer',
+    timeStone:  'pendingTimeStoneIntercept',
+  },
   _2v2ArmPromptTimeout(kind, armed, resolve) {
     const tt = this.state && this.state.twoVTwo;
     if (!tt || !tt.online) return;
     if (!this._2v2IsAIAuthority || !this._2v2IsAIAuthority()) return;
     if (this._syncMode) return;                 // headless resolves synchronously
+    const slot = this._2v2_PROMPT_SLOT[kind];
+    if (!slot) return;
     this._startPromptTimeout(() => {
-      const cur = kind === 'lane' ? this.state.pendingLaneChoice : this.state.pendingCardChoice;
+      const cur = this.state[slot];
       if (!cur || cur !== armed) return;        // answered, or replaced by a newer prompt
-      const seat = armed._2v2ActingPlayer || null;
+      const seat = armed._2v2ActingPlayer || armed.seat || null;
       this.log(`  [2v2 TIMEOUT] ${this._2v2SeatName(seat)} did not answer in 30s — auto-picking so the table can continue.`);
-      if (kind === 'lane') this.state.pendingLaneChoice = null;
-      else this.state.pendingCardChoice = null;
+      this.state[slot] = null;
       try { resolve(); } catch (e) { console.error('[2v2 prompt timeout] resolve threw', e); }
       // A prompt was what blocked end2v2Phase; with it gone the round can move.
       try { this.cleanupDead(); } catch (e) {}
@@ -2517,7 +2540,9 @@ const Game = {
               if (bt.play) { try { bt.play(this, owner); } catch(e) { console.error(e); } }
               this.cleanupDead();
             } else {
-              this.addToTrickHand(owner, bt);
+              // Cap-aware keep — 1v1 online, both sides are human, so this
+              // routes a trade prompt to the owner (the guest resolves theirs).
+              this._keepBlockTrick(owner, bt, { isAI: false });
             }
             this.resumeCombatIfWaiting();
           } else if (msg.choiceType === 'kang') {
@@ -4950,7 +4975,15 @@ const Game = {
         } else if (!this.state.pendingJumpOffer && isAuthority) {
           inHand.jumpReady = true;
           this.logPrivate(pk, `  [JUMP] Freddy Fazbear senses ${tt.players[target].name}'s ${best} wasted Energy — free play available!`);
-          this.state.pendingJumpOffer = { cardId: inHand.id, owner: side, seat: pk, _2v2ActingPlayer: pk };
+          const _armedJump = { cardId: inHand.id, owner: side, seat: pk, _2v2ActingPlayer: pk };
+          this.state.pendingJumpOffer = _armedJump;
+          // Timing out SKIPS the jump — the same thing the Skip button does —
+          // rather than leaving the offer to be deleted by the 45s recovery.
+          this._2v2ArmPromptTimeout('jump', _armedJump, () => {
+            const sp = this.state.twoVTwo && this.state.twoVTwo.players[pk];
+            const c = sp && (sp.hand || []).find(h => h.id === _armedJump.cardId);
+            if (c) { c.jumpReady = false; c.jumpLane = undefined; }
+          });
         }
         break;   // one hand copy per team
       }
@@ -5415,7 +5448,7 @@ const Game = {
   _offerBwlKeepOrDestroy(opp, card, bwl) {
     const bwlAlive = !!(bwl && bwl.currentHealth > 0 && this.findCardLane(bwl) >= 0);
     if (!bwlAlive) {
-      this.addToHand(opp, card, bwl);
+      this.addToHand(opp, card, bwl, null, 'Stolen by Batman Who Laughs');
       this.log(`  [BWL] ${card.name} is kept — Batman Who Laughs is gone.`);
       this.resumeCombatIfWaiting();
       if (typeof UI !== 'undefined' && UI.render) UI.render();
@@ -5439,7 +5472,7 @@ const Game = {
           this.buffCard(bwl, 2, 2);
           this.log(`  [BWL] ${this.seatLabel(opp)} destroys ${card.name} — Batman Who Laughs gains +2/+2!`);
         } else {
-          this.addToHand(opp, card, bwl);
+          this.addToHand(opp, card, bwl, null, 'Stolen by Batman Who Laughs');
           this.log(`  [BWL] ${this.seatLabel(opp)} keeps ${card.name} in hand!`);
         }
         this.resumeCombatIfWaiting();
@@ -5464,7 +5497,7 @@ const Game = {
       const data = this.state[opp].stolenByBWL;
       if (!data) return;
       this.state[opp].stolenByBWL = null;
-      this.addToHand(opp, data.card, data.bwl);
+      this.addToHand(opp, data.card, data.bwl, null, 'Stolen by Batman Who Laughs');
       this.log(`  [BWL] You keep ${data.card.name} in hand!`);
       this.resumeCombatIfWaiting();
       if (typeof UI !== 'undefined' && UI.render) UI.render();
@@ -5487,7 +5520,7 @@ const Game = {
       if (bwl && bwl.currentHealth > 0 && this.findCardLane(bwl) >= 0) return; // still alive
       const data = st.stolenByBWL;
       st.stolenByBWL = null;
-      this.addToHand(seat, data.card, data.bwl);
+      this.addToHand(seat, data.card, data.bwl, null, 'Stolen by Batman Who Laughs');
       this.log(`  [BWL] ${data.card.name} is kept — Batman Who Laughs is gone.`);
       cleared = true;
     });
@@ -5507,7 +5540,7 @@ const Game = {
     const bwl = data.bwl;
     const bwlAlive = !!(bwl && bwl.currentHealth > 0 && this.findCardLane(bwl) >= 0);
     if (keep || !bwlAlive) {
-      this.addToHand(seat, data.card, bwl);
+      this.addToHand(seat, data.card, bwl, null, 'Stolen by Batman Who Laughs');
       this.log(`  [BWL] ${this.seatLabel(seat)} keeps ${data.card.name} in hand!`);
     } else {
       this.buffCard(bwl, 2, 2);
@@ -5556,7 +5589,7 @@ const Game = {
         this.buffCard(bwl, 2, 2);
         this.log(`  [BWL] ${this.seatLabel(opp)} destroys ${card.name} — Batman Who Laughs gains +2/+2!`);
       } else {
-        this.addToHand(opp, card, bwl);
+        this.addToHand(opp, card, bwl, null, 'Stolen by Batman Who Laughs');
         this.log(`  [BWL] ${this.seatLabel(opp)} keeps ${card.name} in hand!`);
       }
     }
@@ -6015,7 +6048,7 @@ const Game = {
           this.buffCard(bwl, 2, 2);
           this.log(`  [BWL] ${this.seatLabel(opp)} destroys ${card.name} — Batman Who Laughs gains +2/+2!`);
         } else {
-          this.addToHand(opp, card, bwl);
+          this.addToHand(opp, card, bwl, null, 'Stolen by Batman Who Laughs');
           this.log(`  [BWL] ${this.seatLabel(opp)} keeps ${card.name} in hand`);
         }
       }
@@ -6231,11 +6264,18 @@ const Game = {
         && !this.state.pendingTimeStoneIntercept
         && this._seatHasTimeStone(tsDefender) && this._isHostileTrick(trick)
         && trick.name !== 'Time Stone') {
-      this.state.pendingTimeStoneIntercept = {
+      const _armedTS = {
         incomingTrick: trick,
         incomingOwner: owner,
         defender: tsDefender
       };
+      this.state.pendingTimeStoneIntercept = _armedTS;
+      // Timing out ALLOWS the trick through — the same answer the Allow
+      // button gives. Without a clock this one froze the table outright in
+      // 2v2, where its modal was never even rendered.
+      this._2v2ArmPromptTimeout('timeStone', _armedTS, () => {
+        try { if (this.timeStoneAllow) this.timeStoneAllow(); } catch (e) { console.error(e); }
+      });
       if (typeof UI !== 'undefined' && UI.render) UI.render();
       // Host: push the armed intercept to the guest immediately — the guest
       // may be the defender and needs the modal now, not on the next action.
@@ -6348,6 +6388,19 @@ const Game = {
     if (p.playedTrickPile) p.playedTrickPile.push({ name: 'Time Stone', cost: 0 });
     trick._timeStonedAtRound = this.state.round;   // frozen this round
     this.log(`[TIME STONE] ${p.name} freezes time! ${trick.name} is undone and returned to the caster's hand.`);
+    // SHOW IT ON EVERY SCREEN, like any other trick. The AI's auto-counter used
+    // to only hit the log, so nobody saw the Time Stone play. Fire the same
+    // center-screen reveal a played trick does, plus the 2v2 FX relay so all four
+    // clients see it. (Owner: "an ai played time stone just make sure it appears
+    // on the screen after using for everyone to see like all tricks.")
+    try {
+      const tsdef = (typeof TRICK_DEFS !== 'undefined') ? TRICK_DEFS.find(t => t.name === 'Time Stone') : null;
+      const tdesc = (tsdef && tsdef.desc) || 'Counter the incoming trick.';
+      const tcost = (tsdef && tsdef.cost != null) ? tsdef.cost : 0;
+      const mine = !!(tt && tt.you && seat === tt.you);
+      if (typeof UI !== 'undefined' && UI.showTrickReveal) UI.showTrickReveal('Time Stone', tdesc, tcost, mine);
+      if (this.emitFX) this.emitFX('trickReveal', { name: 'Time Stone', desc: tdesc, cost: tcost, seat: seat || null });
+    } catch (e) {}
     // Draw the countering seat a card (routed to their own hand).
     const drawPile = tt.drawPile;
     const cap = p.maxHandSize || 7;
@@ -8349,48 +8402,32 @@ const Game = {
         // immediately (mid-combat), IN ORDER — the seat that played cards+tricks
         // this round first, then the seat that plays tricks right before combat.
         // Each teammate plays it free or, if they decline, keeps it in hand at
-        // its ORIGINAL cost. (Online-only: local pass-and-play keeps the old
-        // draw-to-hand behavior since two live modals don't fit one device.)
-        if (this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online) {
+        // its ORIGINAL cost, AND THE ROUND WAITS FOR BOTH ANSWERS.
+        //
+        // This used to be online-only, on the reasoning that "two live modals
+        // don't fit one device". They never had to: the queue is SEQUENTIAL —
+        // one offer at a time, the next only after the previous is answered —
+        // which is exactly what a pass-and-play device wants. What local 2v2 got
+        // instead was a silent push into each teammate's trick hand, so nothing
+        // popped up, the bot teammate played its free trick on its own turn, and
+        // the human's copy just sat there until they happened to look at their
+        // tricks a turn later. (Owner: "my ai teammate always gets a trick and it
+        // skips me then eventually the next turn my trick will pop up NO — when
+        // you block you draw a trick to play for free and the round cannot go on
+        // until the 2 players have decided to either play or keep the tricks.")
+        if (this.is2v2() && this.state.twoVTwo) {
           const tt = this.state.twoVTwo;
           const team = owner === 'player' ? 'A' : 'B';
           const queue = [];
           this._2v2BlockTrickOrder(team).forEach(pk => {
             if (tt.trickDrawPile.length > 0) {
               const def = tt.trickDrawPile.pop();
-              queue.push({ seat: pk, trick: { ...def, id: nextCardId++ } });
+              queue.push({ seat: pk, trick: { ...def, id: nextCardId++, _blockRound: this.state.round } });
               this.log(`  [BLOCK DRAW] ${tt.players[pk].name} earns ${def.name}.`);
             }
           });
           this.state._2v2BlockQueue = queue;
           this._2v2NextBlockTrick();
-          return;
-        }
-        // 2v2 local pass-and-play: both teammates draw the trick to hand (free).
-        if (this.is2v2()) {
-          const tt = this.state.twoVTwo;
-          const team = owner === 'player' ? 'A' : 'B';
-          Object.keys(tt.players)
-            .filter(pk => tt.players[pk].team === team)
-            .forEach(pk => {
-              if (tt.trickDrawPile.length > 0) {
-                const def = tt.trickDrawPile.pop();
-                // FREE TO PLAY, IF THEY CHOOSE. 1v1 offers the blocker an
-                // immediate "play it free or keep it" modal; 2v2 fills a TEAM
-                // meter, so both teammates draw — but the trick used to land at
-                // full price, quietly making the 2v2 block reward strictly
-                // worse than the 1v1 one. Two simultaneous modals on two
-                // different clients is the wrong shape for that choice, so the
-                // free play is carried on the card instead: _blockFree makes
-                // getTrickCost return 0, and the flag is spent the first time
-                // the trick is actually played. Each teammate keeps full
-                // agency — play it free whenever their trick phase comes, or
-                // never play it at all. (User: "both players get a free trick
-                // to play if they choose.")
-                tt.players[pk].trickHand.push({ ...def, id: nextCardId++, _blockFree: true });
-                this.log(`  [BLOCK DRAW] ${tt.players[pk].name} draws: ${def.name} (free to play)`);
-              }
-            });
           return;
         }
         // Draw a trick card on block — can play free now or keep at regular cost.
@@ -8432,8 +8469,8 @@ const Game = {
               this.state._trickOwner = null;
               this.state._activeTrickName = null;
             } else {
-              this.addToTrickHand(owner, trick);
-              this.log(`  [BLOCK TRICK] ${this.seatLabel(owner)} keeps ${trick.name} in hand`);
+              // Cap-aware keep (trades out the lowest trick if the hand is full).
+              this._keepBlockTrick(owner, trick, { isAI: !this.isHuman(owner) });
               // Toast for the "kept it in hand" case too so the player
               // knows the AI now has a block-trick stashed for later.
               if (owner === 'ai' && typeof UI !== 'undefined' && UI.showAITrickToast) {
@@ -8829,7 +8866,7 @@ const Game = {
   // separate from `source`, which drives the dossier line and the card-advantage
   // credit: a deck draw must still record as a plain "Drawn" and must not be
   // credited twice (drawCards already credits it).
-  addToHand(owner, card, source, routeSource) {
+  addToHand(owner, card, source, routeSource, how) {
     // 2v2 combat: land the card in the OWNING seat's hand, not whichever
     // teammate the side proxy happens to be bound to (see _2v2HandTarget).
     const p = this._2v2HandTarget(owner, routeSource || source);
@@ -8860,8 +8897,18 @@ const Game = {
     // DOSSIER: where this card came from. addToHand is the single door every
     // hand gain passes through — deck draw, Hela's resurrect, Grundy's death
     // pull, a Batman Who Laughs steal — so one line here credits them all.
+    // HOW it got here, not merely that it arrived. Every hand gain wrote
+    // "Drawn" or "Drawn by X", so an assimilated copy, a card stolen out of an
+    // enemy hand and a body raised from the dead pile all read identically —
+    // and the one question the dossier exists to answer went unanswered. A
+    // caller that knows the manner passes it; the rest keep the old default.
+    // `how` also survives a deferred callback, which the trick-name fallback
+    // does not: state._activeTrickName is cleared the moment trick.play()
+    // returns, so any trick that resolves inside a prompt (Assimilate in 2v2,
+    // Mobius Chair, Phantom Zone, Lazarus Pit) had already lost its name by
+    // the time the card landed. That is why the report read a bare "Drawn".
     const via = (source && source.name) || this._actingSourceName();
-    this.noteCardEvent(card, via ? `Drawn by ${via}` : 'Drawn');
+    this.noteCardEvent(card, how || (via ? `Drawn by ${via}` : 'Drawn'));
     // Card advantage — if a specific source card caused this hand gain
     // (Hela resurrect, Grundy onDeath, Dr. Doom revive, BWL steal, etc.),
     // credit it with +1 advantage. Deck-draws credit via drawCards path.
@@ -8933,6 +8980,77 @@ const Game = {
     const odd = this.state && this.state.oddPlayer;
     if (odd !== 'player' && odd !== 'ai') return null;   // not flipped yet
     return (r % 2 === 1) ? odd : this.opponent(odd);
+  },
+  // Keep a BLOCK-DRAWN trick, respecting the trick-hand cap in EVERY mode. When
+  // the hand is already full, a HUMAN is prompted to trade one existing trick
+  // out for the one just drawn (or discard the drawn one); an AI keeps the
+  // highest-value tricks (drops the lowest cost). Before this, the keep paths
+  // pushed straight onto trickHand and blew past the cap — a seat with 3 tricks
+  // ended up holding 4. (User: "he already had 3 and now he has 4 when the max
+  // is 3 — when he wants to keep the trick he should get a prompt to trade one
+  // out for the one he drew. That's how it should work for all gamemodes.")
+  //   owner    — side ('player'/'ai'); in 2v2 the side proxy for the seat.
+  //   opts.seat — 2v2 seat key that routes the prompt (null in 1v1).
+  //   opts.isAI — true when a bot holds the trick (auto-trade, no prompt).
+  _keepBlockTrick(owner, trick, opts) {
+    opts = opts || {};
+    const seat = opts.seat || null;
+    const tt = this.state.twoVTwo;
+    const holder = (seat && tt && tt.players[seat]) ? tt.players[seat] : this.state[owner];
+    if (!holder || !trick) return;
+    holder.trickHand = holder.trickHand || [];
+    const cap = (holder.maxTrickHandSize != null) ? holder.maxTrickHandSize : 3;
+    const nm = holder.name || this.seatLabel(owner);
+    const online2v2 = !!(seat && tt && tt.online);
+    const mpHost = !!(this.isMultiplayer && this.isMultiplayer() && this.mp && this.mp.role === 'host');
+    const sync = () => { try { if (online2v2) this._2v2OnlineBroadcast(); else if (mpHost) this._mpBroadcast(); } catch (e) {} };
+    const addNew = () => { const t = { ...trick }; if (t.id == null) t.id = nextCardId++; holder.trickHand.push(t); };
+    // Room to spare — just keep it.
+    if (holder.trickHand.length < cap) {
+      addNew();
+      this.log(`  [BLOCK TRICK] ${nm} keeps ${trick.name} in hand.`);
+      sync();
+      return;
+    }
+    // Full — a trade is forced.
+    if (opts.isAI) {
+      // Keep the most valuable tricks: drop the lowest-cost of {hand ∪ new}.
+      let lowIdx = -1, lowCost = trick.cost || 0, dropNew = true;
+      holder.trickHand.forEach((t, i) => { const c = t.cost || 0; if (c < lowCost) { lowCost = c; lowIdx = i; dropNew = false; } });
+      if (dropNew) {
+        this.log(`  [BLOCK TRICK] ${nm}'s trick hand is full — discards ${trick.name}.`);
+      } else {
+        const dropped = holder.trickHand[lowIdx];
+        holder.trickHand.splice(lowIdx, 1);
+        addNew();
+        this.log(`  [BLOCK TRICK] ${nm} trades ${dropped.name} for ${trick.name}.`);
+      }
+      sync();
+      return;
+    }
+    // Human — prompt which existing trick to trade out for the drawn one. Each
+    // choice carries its slot index (_tradeIdx) so the discard resolves to the
+    // exact trick even if two tricks share a name or a null id — the trick hand
+    // is not mutated while this prompt is open, so the index is stable.
+    if (seat) this._2v2CurrentActingPlayer = seat;
+    const choices = holder.trickHand.map((t, i) => ({ ...t, _tradeIdx: i }));
+    this.promptCardChoice(owner, choices,
+      'Trick hand full',
+      `Choose a trick to discard to keep ${trick.name}.`,
+      (chosen) => {
+        const di = (chosen && chosen._tradeIdx != null) ? chosen._tradeIdx : -1;
+        if (di >= 0 && di < holder.trickHand.length) {
+          const dropped = holder.trickHand[di];
+          holder.trickHand.splice(di, 1);
+          addNew();
+          this.log(`  [BLOCK TRICK] ${nm} trades ${dropped.name} for ${trick.name}.`);
+        }
+        sync();
+      },
+      cards => cards.slice().sort((a, b) => (a.cost || 0) - (b.cost || 0))[0],
+      { inlineTray: true, seat: seat || undefined,
+        declineLabel: `Discard ${trick.name}`,
+        onDecline: () => { this.log(`  [BLOCK TRICK] ${nm} keeps their tricks — discards ${trick.name}.`); sync(); } });
   },
   addToTrickHand(owner, trick) {
     const p = this.state[owner];
@@ -9108,6 +9226,9 @@ const Game = {
       card._deathHandled = false;
       const chargesLeft = card.reviveCharges;
       try { this.applyAbilities(card); } catch (e) {}
+      // "Abilities reset" has to include the once-per-life latches, or the
+      // card comes back with its signature ability already spent.
+      try { this.resetOncePerLifeTriggers(card); } catch (e) {}
       card.reviveCharges = chargesLeft;
       this.log(`  [REVIVE] ${card.name} revives — and is played anew! (${chargesLeft} charge${chargesLeft === 1 ? '' : 's'} left)`);
       if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.playEffectSfx) {
@@ -9401,8 +9522,8 @@ const Game = {
     if (p) p.cardsPlayedCount = (p.cardsPlayedCount || 0) + 1;
 
     // If Doomsday is already in hand, scale him live so the card updates visually.
-    const hand = p && p.hand;
-    if (hand) {
+    const scaleHand = (hand) => {
+      if (!hand) return;
       hand.forEach(c => {
         if (c.passive !== 'doomsdayScaling') return;
         c.attack = (c.attack || 0) + 1;
@@ -9410,6 +9531,19 @@ const Game = {
         c.currentHealth = (c.currentHealth || 0) + 1;
         this.log(`[DOOMSDAY] Owner played a card — grows to ${c.attack}/${c.maxHealth} (cost ${c.cost})`);
       });
+    };
+    // In 2v2 the cards live in the SEAT hands, not the side-proxy hand — so scale
+    // a Doomsday held by EITHER teammate on this side. (Before this, a Doomsday
+    // sitting in a 2v2 hand never grew when the team played cards; only the empty
+    // side-proxy hand was scanned.)
+    if (this.is2v2 && this.is2v2() && this.state.twoVTwo) {
+      const tt = this.state.twoVTwo;
+      (this._2v2SLOTS || ['p1', 'p2', 'p3', 'p4']).forEach(pk => {
+        const sp = tt.players[pk];
+        if (sp && this._2v2TeamSide[sp.team] === owner) scaleHand(sp.hand);
+      });
+    } else {
+      scaleHand(p && p.hand);
     }
     // Draw-pile Doomsday is NOT mutated here. His stats are set from
     // cardsPlayedCount the moment he is drawn (see drawCards).
@@ -12001,9 +12135,19 @@ const Game = {
   // proxy itself in 1v1, both seats in 2v2. Written once here so a card can ask
   // the question instead of each one re-deriving it inline and getting it
   // subtly different.
+  // A SIDE IS A TEAM, AND A TEAM HAS SEATS WHETHER OR NOT THERE IS A NETWORK.
+  // This gated on `tt.online`, so in a LOCAL 2v2 — pass-and-play, or a table
+  // with bots — it fell back to the side proxy. The proxy's hand is empty in
+  // 2v2 (the real hands live on the seats), so every per-seat effect routed
+  // through here silently did nothing: Doomsday never got his ally-death
+  // discount and cost full price all game, the sleep tick skipped both seats,
+  // and a side-wide draw drew for nobody. Online is about who is on the far end
+  // of a wire; it says nothing about where the cards are. `tt.players` is the
+  // real question, and it is the same gate _2v2HandTarget already uses to route
+  // hand writes per seat — so the two now agree in every mode.
   seatStatesOnSide(side) {
     const tt = this.state && this.state.twoVTwo;
-    if (!tt || !tt.online || !this._2v2SLOTS || !this._2v2TeamSide) return [this.state[side]];
+    if (!tt || !tt.players || !this._2v2SLOTS || !this._2v2TeamSide) return [this.state[side]];
     const team = (this._2v2TeamSide.A === side) ? 'A' : 'B';
     const seats = this._2v2SLOTS.filter(pk => tt.players[pk] && tt.players[pk].team === team);
     if (!seats.length) return [this.state[side]];
@@ -12013,7 +12157,9 @@ const Game = {
   // seat concept. Pairs with seatStatesOnSide by index.
   seatKeysOnSide(side) {
     const tt = this.state && this.state.twoVTwo;
-    if (!tt || !tt.online || !this._2v2SLOTS || !this._2v2TeamSide) return [null];
+    // Same gate as seatStatesOnSide — these two are paired by index, so they
+    // must agree about whether a side has seats or not.
+    if (!tt || !tt.players || !this._2v2SLOTS || !this._2v2TeamSide) return [null];
     const team = (this._2v2TeamSide.A === side) ? 'A' : 'B';
     const seats = this._2v2SLOTS.filter(pk => tt.players[pk] && tt.players[pk].team === team);
     return seats.length ? seats : [null];
@@ -14615,6 +14761,49 @@ const Game = {
     });
   },
 
+  // ===================== ONCE-PER-LIFE TRIGGERS =====================
+  // A generic Revive (Revan) promises the card "comes back as if newly played
+  // — abilities reset and its When Played fires again". That was true of the
+  // keyword kit and of onPlay, but not of the once-per-life LATCHES a card
+  // sets on itself. Carnage heals once at Start of Tricks and stamps
+  // `carnageHealed`; the flag survived the revive, so a revived Carnage was a
+  // 3/4 body with a dead ability. Same shape on Venom, Dormammu, Galactus,
+  // Anakin and Gizmo — the reported bug is the class, not the card.
+  //
+  // What is deliberately NOT here, and why, because each of these looks like
+  // the same pattern and is not:
+  //   _doomsdayRevived  — the revive limiter itself; clearing it is infinite lives
+  //   trigonFrozen      — documented as "once per instance = once, period",
+  //                       explicitly so a re-summon can't snap-freeze the field
+  //   _spinoHuntSpent   — the hunt meter is spent, not reset, by design
+  //   _revealSpent      — Game Over's loop guard ("the difference between a
+  //                       card and an infinite loop")
+  //   _obiWanReflecting / _trigonChaining — in-flight re-entrancy guards, not
+  //                       lifetime latches; clearing them mid-cascade is a hang
+  //   _bathroomTriggered / _owSpawned / _sewersTriggered / _wetReleased —
+  //                       environments, which are never revived
+  //   _artExhausted     — Art's exhaust also NULLS his hooks, and applyAbilities
+  //                       restores keyword flags only, so clearing the flag on
+  //                       its own would not give the bag back. Left alone
+  //                       rather than half-fixed.
+  ONCE_PER_LIFE_FLAGS: [
+    'carnageHealed',      // Carnage — heal at Start of Tricks
+    'venomHealed',        // Venom — same shape
+    'dormammuDrained',    // Dormammu
+    'galactusDevoured',   // Galactus
+    'anakinMoved',        // Anakin
+    '_gizmoTriggered',    // Gizmo
+    '_gojoFired',         // Gojo (already cleared in his onPlay; kept for symmetry)
+  ],
+  resetOncePerLifeTriggers(card) {
+    if (!card) return 0;
+    let cleared = 0;
+    this.ONCE_PER_LIFE_FLAGS.forEach((f) => {
+      if (card[f]) { card[f] = false; cleared++; }
+    });
+    return cleared;
+  },
+
   applyAbilities(card) {
     // ENVIRONMENTS NEVER CARRY KEYWORDS. They are a separate category — not
     // attackable, no combat role — so Armor, Evade, Overdrive and the rest are
@@ -14858,6 +15047,36 @@ const Game = {
     const out = [];
     for (let i = 0; i < this.LANE_COUNT; i++) if (!this.state.lanes[i][owner] && !this.state.lanes[i].destroyed) out.push(i);
     return out;
+  },
+
+  // WHICH LANES MAY THIS SIDE PLACE INTO RIGHT NOW — the one answer every
+  // placement surface asks. getOpenLanes says which lanes are physically free;
+  // this adds the rules that sit on top, which today means Moder's compulsion.
+  //
+  // Three placement UIs were each deciding this for themselves and only the 1v1
+  // board knew about Moder, so a compelled player in 2v2 saw every lane button
+  // lit and could aim anywhere — while the engine pulled the card into Moder's
+  // lane regardless. The rule was enforced but never shown. (Owner: "for moder,
+  // his ability works but the opponent needs to only have that lane highlighted
+  // to play.")
+  //
+  // It asks moderCompulsionLane, NOT the raw forcedLane stamp. The stamp
+  // outlives a Moder who left the board silently, and locking a board to a
+  // compeller who is not standing there any more is the same residue that used
+  // to march a guest's cards into lanes 1, 2, 3 with no picker at all.
+  placeableLanesFor(owner, card) {
+    const open = this.getOpenLanes(owner);
+    // An environment lands by its own rule and is never compelled — Moder pulls
+    // the next CARD, and an environment does not occupy the combat slot he is
+    // reaching for.
+    if (card && card.isEnvironment) {
+      return open.filter(i => this.canPlaceEnvironment(owner, i));
+    }
+    const forced = this.moderCompulsionLane ? this.moderCompulsionLane(owner) : -1;
+    // Only narrow when the forced lane is actually free — if this side already
+    // holds it, the compulsion has nowhere to land and must not lock the board.
+    if (forced >= 0 && open.indexOf(forced) >= 0) return [forced];
+    return open;
   },
 
   findCardLane(card) {
@@ -15123,6 +15342,16 @@ const Game = {
   // Offer the next queued block trick to its seat (human → modal stamped to the
   // seat; AI → auto play/keep), or resume combat when the queue is empty. This
   // is what sequences the two teammates' offers and keeps combat paused between.
+  // A block-meter trick is free ONLY in the round it was earned. The block
+  // queue is prompt-gated, so an offer can leak into the next round if a prompt
+  // it chained onto only clears then — and the AI would resolve last round's
+  // free trick mid-round for free (a free Mother Box summon out of nowhere).
+  // (User: "they blocked last round and he was able to play mother box for free
+  // at the start of the next round, that should never happen.") When stale, the
+  // trick is kept in hand at full cost instead of firing free.
+  _blockTrickStale(trick) {
+    return !!(trick && trick._blockRound != null && trick._blockRound !== this.state.round);
+  },
   _2v2NextBlockTrick() {
     const q = this.state._2v2BlockQueue;
     if (!q || !q.length) {
@@ -15137,7 +15366,9 @@ const Game = {
     const side = this._2v2TeamSide[p.team];
     if (p.isAI && (!this._2v2IsAIAuthority || this._2v2IsAIAuthority())) {
       // AI: play free if the team has bodies on the board, else keep at cost.
-      if (this.getAllCardsOf(side).length > 0 && typeof trick.play === 'function') {
+      // A trick that leaked past its earned round is never played free (see
+      // _blockTrickStale) — it drops into hand at full cost.
+      if (!this._blockTrickStale(trick) && this.getAllCardsOf(side).length > 0 && typeof trick.play === 'function') {
         this.log(`  [BLOCK TRICK] ${p.name} plays ${trick.name} for free!`);
         p.playedTrickPile = p.playedTrickPile || [];
         p.playedTrickPile.push({ name: trick.name, cost: trick.cost });
@@ -15154,8 +15385,7 @@ const Game = {
         this.state._inTrick = false; this.state._trickOwner = null; this.state._activeTrickName = null;
         this.cleanupDead();
       } else {
-        p.trickHand.push({ ...trick });   // no _blockFree — full cost later
-        this.log(`  [BLOCK TRICK] ${p.name} keeps ${trick.name} (costs ${trick.cost}).`);
+        this._keepBlockTrick(side, trick, { seat, isAI: true });   // cap-aware
       }
       if (tt.online) this._2v2OnlineBroadcast();
       // Any prompt the AI's trick raised must resolve before the next offer.
@@ -15167,7 +15397,14 @@ const Game = {
     // acting seat too so any prompt the trick raises when played (and the FX
     // reveal) resolve to this player, and so the offer is unambiguously owned.
     this._2v2CurrentActingPlayer = seat;
-    this.state.pendingBlockTrick = { ...trick, _btOwner: side, _2v2ActingPlayer: seat, _2v2Seat: seat };
+    const _armedBT = { ...trick, _btOwner: side, _2v2ActingPlayer: seat, _2v2Seat: seat };
+    this.state.pendingBlockTrick = _armedBT;
+    // On the clock. Timing out KEEPS the trick — the same answer the stall
+    // watchdog gives — so the reward still reaches the player's hand instead of
+    // being dropped by the 45s recovery.
+    this._2v2ArmPromptTimeout('blockTrick', _armedBT, () => {
+      this._2v2ResolveBlockTrick(seat, _armedBT, false);
+    });
     if (tt.online) this._2v2OnlineBroadcast();
     if (typeof UI !== 'undefined' && UI.render) UI.render();
   },
@@ -15180,7 +15417,7 @@ const Game = {
     s.pendingBlockTrick = null;
     if (p && trick) {
       const side = this._2v2TeamSide[p.team];
-      if (play && typeof trick.play === 'function') {
+      if (play && !this._blockTrickStale(trick) && typeof trick.play === 'function') {
         p.playedTrickPile = p.playedTrickPile || [];
         p.playedTrickPile.push({ name: trick.name, cost: trick.cost });
         this.log(`  [BLOCK TRICK] ${p.name} plays ${trick.name} for free!`);
@@ -15193,8 +15430,7 @@ const Game = {
         this.state._inTrick = false; this.state._trickOwner = null; this.state._activeTrickName = null;
         this.cleanupDead();
       } else {
-        p.trickHand.push({ ...trick });   // declined — kept in hand at original cost
-        this.log(`  [BLOCK TRICK] ${p.name} keeps ${trick.name} (costs ${trick.cost}).`);
+        this._keepBlockTrick(side, trick, { seat, isAI: false });   // cap-aware trade
       }
     }
     if (tt && tt.online) this._2v2OnlineBroadcast();
@@ -17652,6 +17888,13 @@ const Game = {
           this.applyBrainiacDrain(drawn, pk, null);
           this.applyBrainiacHarvest(drawn, p);
           this.applyDrawDiscount(drawn, p);
+          // DOOMSDAY SCALING on the round draw. This push bypasses addToHand /
+          // drawCards (which apply it in 1v1), so a Doomsday drawn in 2v2 entered
+          // at his base 1/1 no matter how many cards the team had played. Set his
+          // stats from the team's cardsPlayedCount here, same as every other mode.
+          // (User: "doomsday in 2v2 hasn't kept track of how many cards i've
+          // played — drew him on round 7 and he's a 1/1.")
+          this._applyDoomsdayDrawScaling(drawn, side);
           p.hand.push(drawn);
         }
       }
@@ -18619,6 +18862,13 @@ const Game = {
         if (this.state.pendingJumpOffer && this.state.pendingJumpOffer.cardId === msg.cardId) {
           this.state.pendingJumpOffer = null;
         }
+        // RESUME COMBAT. A jump offer can pop DURING combat (Jason/Ghostface/etc.
+        // free-jump), which parks combat until it's answered. The 1v1 jumpSkip
+        // handler resumes; this 2v2 one only cleared the offer and broadcast, so
+        // a guest skipping a jump left the host's combat parked until the
+        // watchdog force-advanced it. (User: "i skipped the jump for jason and
+        // the combat stalls — the auto fix goes through but it shouldn't stall.")
+        this.resumeCombatIfWaiting();
         this._2v2OnlineBroadcast();
         break;
       }

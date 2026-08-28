@@ -471,6 +471,10 @@ const CARD_ABILITIES = {
     }
   },
   "Jango Fett": {
+    // The roguelite "Jetpack Salvo" upgrade below is a Man-Bat-style
+    // relocation, and Man-Bat's recurs. Without the flag the upgrade
+    // moved him exactly once for the whole run.
+    _recurringBT: true,
     onMoved(G, self, toLane) {
       // Roguelite Text+ override — _jangoSplashOnMove scales the
       // arrival splash. Default 1 (classic); Text+ raises to 2 so
@@ -840,6 +844,9 @@ const CARD_ABILITIES = {
       onTurnStart(G, self) { refreshAura(G, self); },
       // Re-evaluate aura whenever the board changes (cards moving in/out of adjacency)
       onAnyCardPlayed(G, self) { refreshAura(G, self); },
+      // The aura refresh has to run EVERY round, like the two hooks under
+      // it. It is not a one-shot effect; it is upkeep.
+      _recurringBT: true,
       onBeforeTricks(G, self) { refreshAura(G, self); },
       onBeforeAttack(G, self) { refreshAura(G, self); },
       onAllyKilled(G, self) { refreshAura(G, self); },
@@ -1231,7 +1238,7 @@ const CARD_ABILITIES = {
       const stripeDef = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(d => d.name === 'Stripe') : null;
       if (stripeDef) {
         const stripe = G.createCardInstance(stripeDef, self.owner);
-        if (G.addToHand(self.owner, stripe, self) !== false) {
+        if (G.addToHand(self.owner, stripe, self, null, 'Spawned by Gizmo') !== false) {
           G.log(`  [GIZMO] Stripe joins your hand.`);
         }
       }
@@ -1409,9 +1416,25 @@ const CARD_ABILITIES = {
           G.grantTempBuff(G.state.lanes[l][own], { hasDamageImmunity: true });
         }
       });
+      // A LANE SHIELD on the adjacent lanes, exactly like Joker's Playing Card:
+      // lane.protected = own means an UNCONTESTED enemy in that lane can't swing
+      // at Groot's owner this round (resolveUncontestedLane / the bonus-attack
+      // path both honour lane.protected). Reset to null every startRound, so
+      // it's a one-turn shield. (User: "groot also gives the shield thing like
+      // the joker's playing card to the adjacent lanes.") Groot's own lane is
+      // never shielded — adjacent only, matching the immunity grant's shape.
+      [lane - 1, lane + 1].forEach(l => {
+        if (l >= 0 && l < Game.LANE_COUNT && G.state.lanes[l] && !G.state.lanes[l].destroyed) {
+          G.state.lanes[l].protected = own;
+          const foe = G.state.lanes[l][G.opponent(own)];
+          if (foe && foe.currentHealth > 0 && typeof UI !== 'undefined' && UI._fxTrickDebuff) {
+            try { UI._fxTrickDebuff(foe, '#39ff5e', '#0f8a2a'); } catch (e) {}
+          }
+        }
+      });
       G.log(includeSelf
-        ? "Groot protects himself AND adjacent allies for 1 turn!"
-        : "Groot protects adjacent allies for 1 turn!");
+        ? "Groot protects himself AND adjacent allies — and shields the adjacent lanes for 1 turn!"
+        : "Groot protects adjacent allies — and shields the adjacent lanes for 1 turn!");
       if (typeof UI !== 'undefined' && UI._fxGrootGuard) { try { UI._fxGrootGuard(self, lane, own); } catch (e) {} }
     }
   },
@@ -2006,7 +2029,15 @@ const CARD_ABILITIES = {
       // fuzz harness and replay system both depend on the same seed producing
       // the same game.
       const hand = (G.state && G.state[self.owner] && G.state[self.owner].hand) || [];
-      const pool = hand.filter(c => c && c.id !== self.id);
+      // A CARD WITH NO BODY CANNOT BE EMPOWERED. Jigsaw, Brainiac, Professor X
+      // and Mr. Fantastic are discard effects, Iron Giant is never placeable,
+      // and an environment never fights — none of them ever carry the +2/+2 to
+      // a lane, so rolling one is the ability doing nothing at all. Red Skull's
+      // whole job is making a FUTURE PLAY bigger; there is no future play here.
+      // Game.cardHasBody is the canonical answer to "does this card fight?" —
+      // the same one the renderer uses to decide whether to print stats — so
+      // this cannot drift from what the card visibly is.
+      const pool = hand.filter(c => c && c.id !== self.id && G.cardHasBody(c));
       if (pool.length) {
         const pick = pool[Math.floor(G.rng() * pool.length)];
         const pickIdx = hand.indexOf(pick);
@@ -2139,7 +2170,7 @@ const CARD_ABILITIES = {
         } else {
           card = oppDead.splice(idx - ownDead.length, 1)[0];
         }
-        G.addToHand(self.owner, G.createCardInstance(card, self.owner), self);
+        G.addToHand(self.owner, G.createCardInstance(card, self.owner), self, null, 'Scavenged from the Dead Pile');
         G.log(`Solomon Grundy's death draws ${card.name} from the dead pile!`);
       }
     }
@@ -2277,8 +2308,11 @@ const CARD_ABILITIES = {
       // disruption with no self-cost.
       const skipSelf = !!self._symbioteSkipSelf;
       const finish = () => {
+        // Heals ONLY the caster's side (self.owner). The "heals you" wording
+        // fired for all four 2v2 seats regardless of team; healPlayer already
+        // logs a team-accurate [HEAL] line, so this one just names the team.
         G.healPlayer(self.owner, 2, self);
-        G.log("Symbiote Spider-Man heals you for 2!");
+        G.log(`Symbiote Spider-Man heals its own team for 2!`);
       };
       // ANY 2v2, not just an online one. The seat-aware branch below is what
       // gives each of the four players their OWN hand to cycle and lets an AI
@@ -2893,13 +2927,47 @@ const CARD_ABILITIES = {
           try { UI.showAITrickToast("Deadpool's Final Trick", desc, 'trick'); } catch (e) {}
         }
       };
+      // AI-OWNED DEADPOOL — resolve the ENTIRE trade synchronously, no prompts.
+      // The prompt flow schedules the steal and the give-back on two separate
+      // _aiActionDelay setTimeouts during combat; if the round advances (or the
+      // combat watchdog fires) between them, the AI steals but never gives a card
+      // back. Doing both inline here can't be outrun, and the give-back always
+      // picks the LOWEST-cost card. (User: "when the AI steals a card he doesn't
+      // give a card back — if it's a stall issue he should always give the lowest
+      // cost card.") Headless 1v1/2v2 already pass; this hardens the live path.
+      const _dpOwnerIsAI = dpIs2v2
+        ? !!(G.state.twoVTwo && deadpoolOwnerSeat && G.state.twoVTwo.players[deadpoolOwnerSeat] && G.state.twoVTwo.players[deadpoolOwnerSeat].isAI)
+        : (self.owner === 'ai' && !(G.isMultiplayer && G.isMultiplayer()));
+      if (_dpOwnerIsAI) {
+        const victimHand = G.state[opp].hand;
+        if (!victimHand.length) { G.log("Deadpool's final trick fails — the enemy has no cards in hand!"); return; }
+        const stolen = victimHand[Math.floor(Game.rng() * victimHand.length)];
+        const sIdx = victimHand.indexOf(stolen);
+        if (sIdx >= 0) victimHand.splice(sIdx, 1);
+        stolen.owner = self.owner;
+        G.addToHand(self.owner, stolen, self, null, 'Stolen by Deadpool');
+        G.log(`Deadpool steals ${stolen.name} from the enemy's hand!`);
+        if (skipGiveBack) { G.log(`Deadpool keeps ${stolen.name} — no trade!`); showVictimToast(stolen.name, null); if (dpIs2v2 && G._2v2OnlineBroadcast) { try { G._2v2OnlineBroadcast(); } catch (e) {} } return; }
+        const givePool = ownerHand().filter(c => c.id !== stolen.id);
+        if (!givePool.length) { G.log("Deadpool has no cards to give in return."); showVictimToast(stolen.name, null); if (dpIs2v2 && G._2v2OnlineBroadcast) { try { G._2v2OnlineBroadcast(); } catch (e) {} } return; }
+        const given = givePool.slice().sort((a, b) => (a.baseCost || a.cost) - (b.baseCost || b.cost))[0];
+        const gHand = ownerHand();
+        const gIdx = gHand.indexOf(given);
+        if (gIdx >= 0) gHand.splice(gIdx, 1);
+        given.owner = opp;
+        G.addToHand(opp, given, null, null, 'Slipped in by Deadpool');
+        G.log(`Deadpool slips ${given.name} into the enemy's hand!`);
+        showVictimToast(stolen.name, given.name);
+        if (dpIs2v2 && G._2v2OnlineBroadcast) { try { G._2v2OnlineBroadcast(); } catch (e) {} }
+        return;
+      }
       const onStolen = (stolen) => {
           // Back to the OWNER for the trade-back decision (2v2 routing).
           if (dpIs2v2) G._2v2CurrentActingPlayer = deadpoolOwnerSeat;
           const idx = G.state[opp].hand.indexOf(stolen);
           if (idx >= 0) G.state[opp].hand.splice(idx, 1);
           stolen.owner = self.owner;
-          G.addToHand(self.owner, stolen, self);
+          G.addToHand(self.owner, stolen, self, null, 'Stolen by Deadpool');
           G.log(`Deadpool steals ${stolen.name} from the enemy's hand!`);
 
           if (skipGiveBack) {
@@ -2924,7 +2992,7 @@ const CARD_ABILITIES = {
               const gIdx = gHand.indexOf(given);
               if (gIdx >= 0) gHand.splice(gIdx, 1);
               given.owner = opp;
-              G.addToHand(opp, given);
+              G.addToHand(opp, given, null, null, 'Slipped in by Deadpool');
               G.log(`Deadpool slips ${given.name} into the enemy's hand!`);
               showVictimToast(stolen.name, given.name);
             },
@@ -3083,7 +3151,7 @@ const CARD_ABILITIES = {
         pile.push(other);
         const card = G._applyDoomsdayDrawScaling(G.createCardInstance(pick, self.owner), self.owner);
         card.cost = Math.max(0, card.cost - 2);
-        G.addToHand(self.owner, card, self);
+        G.addToHand(self.owner, card, self, null, 'Chosen by Paul Atreides');
         G.state[self.owner]._kangSkipDraw = true;
         G.log(`Paul Atreides keeps ${card.name} (cost reduced to ${card.cost})`);
         if (card.cost <= 2) {
@@ -4049,7 +4117,7 @@ const CARD_ABILITIES = {
           : aDead.splice(idx - pDead.length, 1)[0];
         const drawn = G.createCardInstance(card, self.owner);
         drawn._drawnBy = self;
-        G.addToHand(self.owner, drawn, self);
+        G.addToHand(self.owner, drawn, self, null, 'Raised from the Dead Pile');
         G.log(`Hela's death draws ${card.name} from the dead pile!`);
       }
     }
@@ -4523,7 +4591,7 @@ const CARD_ABILITIES = {
           // so even legendary revives drop to a reasonable curve cost.
           const reviveCut = self._doomReviveDiscount || 3;
           card.cost = Math.max(0, card.cost - reviveCut);
-          G.addToHand(owner, card, self);
+          G.addToHand(owner, card, self, null, 'Revived by Dr. Doom');
           G.log(`Dr. Doom revives ${card.name} to hand! Cost permanently reduced by ${reviveCut} → ${card.cost}.`);
           summonDoombot();
         },
@@ -4947,11 +5015,17 @@ const CARD_ABILITIES = {
         // auto-Untrickable, so Doomsday (skipAutoUntrickable) still
         // qualifies despite his 12 starting cost.
         (holder.hand || []).filter(card =>
-          // Environments are excluded outright — they never fight, so a combat
-          // keyword on one is noise. applyAbilities refuses them too, but doing
-          // it here as well keeps the phantom entry out of card.abilities and
-          // stops the log claiming a grant that never happened.
-          !card.isEnvironment &&
+          // A combat keyword only means something on a card that fights. This
+          // read `!card.isEnvironment`, which is the right idea applied to a
+          // third of the cases: it let Armor / Evade / Bullseye / Overdrive
+          // land on Jigsaw, Brainiac, Professor X, Mr. Fantastic and Iron
+          // Giant, none of which ever reach a lane. cardHasBody is the whole
+          // rule — environments included — and it is the same predicate the
+          // renderer uses to decide whether a card even shows stats.
+          // (applyAbilities refuses environments too, but filtering here also
+          // keeps the phantom entry out of card.abilities and stops the log
+          // claiming a grant that never happened.)
+          G.cardHasBody(card) &&
           (card.skipAutoUntrickable || (card.baseCost || card.cost || 0) < 10)
         ).forEach(card => {
           const kw = KEYWORDS[Math.floor(Game.rng() * KEYWORDS.length)];
@@ -5138,6 +5212,11 @@ const CARD_ABILITIES = {
     }
   },
   "Thor": {
+    // Start of Tricks, EVERY round — the card text says so, and
+    // beforeTricksFired is only cleared in postCombat for cards carrying
+    // this flag. Without it the hook fires once, in the round the card
+    // lands, and never again.
+    _recurringBT: true,
     onPlay(G, self, lane) {
       const opp = G.opponent(self.owner);
       // Let the player pick where the freeze lands — was hardcoded to the
@@ -5486,6 +5565,10 @@ const CARD_ABILITIES = {
     }
   },
   "Yoda": {
+    // The reported bug. His gifts are explicitly re-chosen every Trick
+    // phase (the hook clears the prior mark first) and the Invincible he
+    // hands out lasts "this turn" — both only make sense if it recurs.
+    _recurringBT: true,
     passive: 'yodaShield',
     onPlay(G, self, lane) {
       // Activate the half-damage shield passive on entry (kept). The
@@ -6807,6 +6890,14 @@ const CARD_ABILITIES = {
       // should be immune to."
       self.stunnedTurns = 0; self.isStunned = false;
       self.frozenTurns  = 0; self.isFrozen  = false;
+      // NO TAUNT ON THE REVIVE (see the block below). The revive path never
+      // re-arms Taunt, but it also wasn't CLEARING it — a Doomsday who died
+      // while his arrival Taunt was still ticking (tauntTurns > 0) rose still
+      // taunting, forcing enemies onto him for another turn. Taunt is his
+      // one-time arrival keyword, spent on landing; the revive wipes any
+      // leftover so he comes back without it. (User: "doomsday's taunt should
+      // not be on him when he revives.")
+      self.tauntTurns = 0; self.permanentTaunt = false;
       // He rises with IMMUNITY, the real keyword — not a Doomsday-shaped
       // lookalike. The _doomsdayRevived guard only ever refused Stun and
       // Freeze, so everything else a debuff can do (ATK/HP strip, Fear, Mind

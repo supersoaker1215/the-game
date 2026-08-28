@@ -206,7 +206,7 @@ const CARD_DEFS = [
     desc: "When Played: Splash 1, then Splash 2. Start of Tricks: Move to an empty lane opposite an enemy and Splash 1." },
   { name: "Groot", cost: 3, attack: 4, health: 4, type: "hero",
     abilities: ["Armor 1"],
-    desc: "When Played: Give adjacent allies Damage Immunity for 1 turn." },
+    desc: "When Played: Give adjacent allies Damage Immunity, and shield the adjacent lanes so uncontested enemies there can't attack — for 1 turn." },
   { name: "Jigsaw", cost: 2, attack: 0, health: 0, type: "villain",
     abilities: [],
     desc: "When Discarded: Place The Bathroom and Game Over in empty enemy lanes. Then move an enemy to an empty lane." },
