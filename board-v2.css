@@ -41,7 +41,7 @@ body.board-v2 {
    ------------------------------------------------------------------------- */
 body.board-v2 #game-area {
   display: grid;
-  grid-template-columns: 232px minmax(0, 1fr) 236px;
+  grid-template-columns: 268px minmax(0, 1fr) 252px;
   /* The board takes the slack. Everything else is content-height; giving the
      board row 1fr is what makes the six bays tall instead of leaving a band of
      dead black under the hand. */
@@ -158,23 +158,53 @@ body.board-v2 .info-bar .health-text { display: none; }
 body.board-v2 .info-bar .bar-center { flex: 1 1 auto; justify-content: flex-end; }
 body.board-v2 .info-bar .block-circle { box-shadow: none; }
 
-/* END CARDS — the reference's one solid control, and the only filled button on
-   the board. Chamfered on the same corner as everything else. */
+/* END CARDS. I drew this as a solid cyan slab; the reference is the opposite —
+   an OUTLINED plate, black inside, with the label glowing and the frame lit.
+   That reads as a console control rather than a web button, and it is why the
+   owner said the reference looked better. Chamfered on the same diagonal as the
+   banner so the two corners of the screen rhyme.
+   The arrow is a pseudo-element so the existing button text (which ui.js owns
+   and rewrites per phase — END CARDS / END TRICKS / END TURN) is untouched. */
 body.board-v2 #btn-action {
+  position: relative;
   font-family: var(--font-display, 'Chakra Petch'), system-ui, sans-serif;
-  font-weight: 700; letter-spacing: .16em; font-size: 14px;
-  padding: 13px 30px;
-  color: #001018;
-  background: var(--bv2-ink);
+  font-weight: 700; letter-spacing: .22em; font-size: 15px;
+  padding: 16px 52px 16px 34px;
+  color: #eaf9ff;
+  background: linear-gradient(180deg, rgba(var(--theme-rgb,79,195,247), .09), rgba(0,0,0,.9));
   border: 1px solid var(--bv2-ink);
   border-radius: 0;
-  clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
-  box-shadow: 0 0 22px rgba(var(--theme-rgb,79,195,247), .30);
+  clip-path: polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px);
+  text-shadow: 0 0 12px rgba(var(--theme-rgb,79,195,247), .7);
+  box-shadow:
+    0 0 20px rgba(var(--theme-rgb,79,195,247), .28),
+    inset 0 0 24px rgba(var(--theme-rgb,79,195,247), .10);
+  transition: box-shadow .18s ease, background .18s ease;
 }
-body.board-v2 #btn-action:hover { filter: brightness(1.12); }
+body.board-v2 #btn-action::after {
+  content: '\2192';                      /* → */
+  position: absolute; right: 22px; top: 50%; transform: translateY(-50%);
+  font-size: 17px; letter-spacing: 0;
+  color: var(--bv2-ink);
+  text-shadow: 0 0 10px rgba(var(--theme-rgb,79,195,247), .8);
+}
+body.board-v2 #btn-action:hover {
+  background: linear-gradient(180deg, rgba(var(--theme-rgb,79,195,247), .18), rgba(0,0,0,.9));
+  box-shadow:
+    0 0 30px rgba(var(--theme-rgb,79,195,247), .45),
+    inset 0 0 30px rgba(var(--theme-rgb,79,195,247), .16);
+}
 body.board-v2 #btn-action[disabled] {
-  background: transparent; color: var(--bv2-label);
-  border-color: var(--bv2-line); box-shadow: none;
+  background: #000; color: var(--bv2-label);
+  border-color: var(--bv2-line); box-shadow: none; text-shadow: none;
+}
+body.board-v2 #btn-action[disabled]::after { color: var(--bv2-label); text-shadow: none; }
+/* The other two match, quietly — they are not the primary action. */
+body.board-v2 #btn-undo,
+body.board-v2 #btn-new-game {
+  background: #000; border: 1px solid var(--bv2-line); border-radius: 0;
+  color: var(--bv2-label); box-shadow: none;
+  letter-spacing: .16em; font-size: 11px; padding: 10px 16px;
 }
 
 /* ---------------------------------------------------------------------------
@@ -243,35 +273,75 @@ body.board-v2 #lane-forecast-strip .lf-verdict {
 /* ---------------------------------------------------------------------------
    LEFT RAIL — phase, then the existing "if combat resolves now" + log.
    ------------------------------------------------------------------------- */
+/* THE BANNER. The owner's note: "your turn top left looks way brighter, bigger
+   and better than what you drew up." It was right — mine was a quiet 25px label
+   in a hairline box, and the reference is a lit panel that announces whose turn
+   it is from across the room. So: a bracketed frame with a chamfered corner, a
+   bright rule down the leading edge, a title at 34px with a real glow, and a
+   progress rail under it. It is the loudest thing in the left column on
+   purpose — it is the one piece of state you look for every single turn. */
 body.board-v2 #bv2-phase {
-  border: 1px solid var(--bv2-line);
-  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%);
-  padding: 12px 14px 14px;
-  margin-bottom: 20px;
+  position: relative;
+  background:
+    linear-gradient(135deg, rgba(var(--theme-rgb,79,195,247), .10), transparent 62%),
+    #000;
+  border: 1px solid var(--bv2-ink-dim);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 22px), calc(100% - 22px) 100%, 0 100%);
+  padding: 15px 18px 17px;
+  margin-bottom: 24px;
+  box-shadow:
+    0 0 0 1px rgba(var(--theme-rgb,79,195,247), .08),
+    0 0 26px rgba(var(--theme-rgb,79,195,247), .16),
+    inset 0 0 34px rgba(var(--theme-rgb,79,195,247), .05);
+}
+/* The lit leading edge — the reference's panel is anchored by a bright bar
+   down its left side rather than an even border all the way round. */
+body.board-v2 #bv2-phase::before {
+  content: '';
+  position: absolute; left: 0; top: 0; bottom: 22px; width: 3px;
+  background: var(--bv2-ink);
+  box-shadow: 0 0 12px rgba(var(--theme-rgb,79,195,247), .85);
+}
+/* Not my turn: the same frame, unlit. The panel should not shout when the
+   answer is "wait". */
+body.board-v2 #bv2-phase:not(.is-mine) {
+  border-color: var(--bv2-line);
+  box-shadow: none;
   background: #000;
 }
-body.board-v2 #bv2-phase.is-mine { border-color: var(--bv2-ink-dim); }
+body.board-v2 #bv2-phase:not(.is-mine)::before {
+  background: rgba(255,255,255,.14); box-shadow: none;
+}
 body.board-v2 .bv2-phase-cap {
   font-family: var(--font-mono, ui-monospace), monospace;
-  font-size: 9px; letter-spacing: .22em; color: var(--bv2-label);
-  text-transform: uppercase; margin-bottom: 6px;
+  font-size: 9px; letter-spacing: .30em; color: var(--bv2-label);
+  text-transform: uppercase; margin-bottom: 7px;
 }
 body.board-v2 .bv2-phase-title {
   font-family: var(--font-display, 'Chakra Petch'), system-ui, sans-serif;
-  font-weight: 700; font-size: 25px; letter-spacing: .04em; color: #eaf5fc;
-  line-height: 1;
+  font-weight: 700; font-size: 34px; letter-spacing: .045em;
+  line-height: .96; color: #f2fbff;
+  text-transform: uppercase;
 }
-body.board-v2 #bv2-phase.is-mine .bv2-phase-title { color: var(--bv2-ink); }
+body.board-v2 #bv2-phase.is-mine .bv2-phase-title {
+  color: #eaf9ff;
+  text-shadow:
+    0 0 10px rgba(var(--theme-rgb,79,195,247), .75),
+    0 0 26px rgba(var(--theme-rgb,79,195,247), .38);
+}
 body.board-v2 .bv2-phase-bar {
-  height: 2px; margin: 11px 0 9px;
-  background: rgba(255,255,255,0.07);
+  height: 3px; margin: 14px 0 10px;
+  background: rgba(255,255,255,0.06);
+  overflow: hidden;
 }
 body.board-v2 #bv2-phase.is-mine .bv2-phase-bar i {
-  display: block; width: 62%; height: 100%; background: var(--bv2-ink);
+  display: block; height: 100%; width: 62%;
+  background: linear-gradient(90deg, rgba(var(--theme-rgb,79,195,247), .25), var(--bv2-ink));
+  box-shadow: 0 0 10px rgba(var(--theme-rgb,79,195,247), .7);
 }
 body.board-v2 .bv2-phase-hint {
   font-family: var(--font-mono, ui-monospace), monospace;
-  font-size: 9px; letter-spacing: .18em; color: var(--bv2-label);
+  font-size: 9px; letter-spacing: .24em; color: var(--bv2-label);
   text-transform: uppercase;
 }
 
@@ -289,9 +359,26 @@ body.board-v2 .tricks-section {
   background: transparent; border: 0; box-shadow: none;
   padding: 4px 0 0; margin: 0;
 }
+/* BLOCK, not flex — and scoped through #game-area because a plain
+   `body.board-v2 .tricks-section` (0,2,0) lost to whatever sets flex and the
+   section kept centring the grid at its content width, 132px of a 252px
+   column. Matching the id-scoped selector the grid placement already uses
+   settles it without reaching for !important. */
+body.board-v2 #game-area > .tricks-section { display: block; }
+body.board-v2 #game-area > .tricks-section > #player-tricks { width: 100%; }
 body.board-v2 .tricks-section #player-tricks {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  display: grid; grid-template-columns: 1fr; gap: 14px;
   justify-items: stretch;
+  /* THE SAME CIRCULAR TRAP THE LANES HAD, TWICE IN ONE FILE.
+     .tricks-section is a flex container, so this grid is a flex ITEM and sizes
+     shrink-to-fit — from its children. The children are `width: 100%`, which
+     resolves against the grid. Each waited for the other and both collapsed:
+     the rail measured 21px wide and the trick faces came out 21x27.
+     Giving the grid the container's width makes the PARENT the sizer, exactly
+     as `flex: 1 1 0; min-width: 0` does for a lane. */
+  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 /* Section captions: "HAND 5 / 8", "TRICKS —— 2 HELD". */
@@ -360,4 +447,109 @@ body.board-v2 #board .lane .card {
   --board-card-w: 100%;
   --card-w: 100%;
   max-width: 100%;
+}
+
+/* ---------------------------------------------------------------------------
+   SEAT BADGE. The reference tags each seat with a clipped plate — a hexagon
+   with two corners cut — in that seat's hue. Bigger and brighter than my first
+   pass, and lit on the side that owns it.
+   ------------------------------------------------------------------------- */
+body.board-v2 .bv2-tag {
+  width: 46px; height: 40px;
+  font-size: 15px; letter-spacing: .04em;
+  clip-path: polygon(11px 0, 100% 0, 100% calc(100% - 11px), calc(100% - 11px) 100%, 0 100%, 0 11px);
+  background: #000;
+}
+body.board-v2 .ai-bar .bv2-tag {
+  border-color: var(--bv2-foe);
+  box-shadow: 0 0 16px rgba(255,144,72,.28), inset 0 0 18px rgba(255,144,72,.10);
+  text-shadow: 0 0 10px rgba(255,144,72,.7);
+}
+body.board-v2 .player-bar .bv2-tag {
+  border-color: var(--bv2-ink);
+  box-shadow: 0 0 16px rgba(var(--theme-rgb,79,195,247),.28),
+              inset 0 0 18px rgba(var(--theme-rgb,79,195,247),.10);
+  text-shadow: 0 0 10px rgba(var(--theme-rgb,79,195,247),.7);
+}
+body.board-v2 .bv2-hp { font-size: 25px; }
+body.board-v2 .ai-bar     .bv2-hp { text-shadow: 0 0 14px rgba(255,144,72,.35); }
+body.board-v2 .player-bar .bv2-hp { text-shadow: 0 0 14px rgba(var(--theme-rgb,79,195,247),.35); }
+
+/* Right-hand readouts on each bar: the reference labels them rather than
+   leaving bare glyphs. The elements already exist — this only labels and
+   spaces them. */
+body.board-v2 .info-bar .bar-energy { gap: 10px; }
+body.board-v2 .info-bar .bar-energy::before {
+  content: 'Energy';
+  font-family: var(--font-mono, ui-monospace), monospace;
+  font-size: 9px; letter-spacing: .24em; text-transform: uppercase;
+  color: var(--bv2-label);
+}
+body.board-v2 .info-bar .ai-hand-mini::before {
+  content: 'Hand';
+  font-family: var(--font-mono, ui-monospace), monospace;
+  font-size: 9px; letter-spacing: .24em; text-transform: uppercase;
+  color: var(--bv2-label); margin-right: 8px;
+}
+body.board-v2 .info-bar .energy-display { box-shadow: none; }
+
+/* ---------------------------------------------------------------------------
+   CARDS IN THE BAYS. The mockup's faces were flat only because it had no art —
+   the real faces keep theirs. What they need is to FIT: a bay is now flexible,
+   so the face fills its width and the art holds its shape instead of the tile
+   being a fixed 140 in a 168 lane with dead space either side.
+   ------------------------------------------------------------------------- */
+body.board-v2 #board .lane .card {
+  border-radius: 0;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.04), 0 10px 26px rgba(0,0,0,.55);
+}
+body.board-v2 #board .lane .card .card-portrait {
+  background-size: cover;
+  background-position: center 22%;
+}
+/* The lane frame brightens for the side that holds it, so a glance down the
+   board reads as territory rather than six identical boxes. */
+body.board-v2 #board .lane.occ-both { border-color: rgba(255,255,255,.10); }
+body.board-v2 #board .lane.occ-ai     { box-shadow: inset 0 34px 60px -34px rgba(255,144,72,.22); }
+body.board-v2 #board .lane.occ-player { box-shadow: inset 0 -34px 60px -34px rgba(var(--theme-rgb,79,195,247),.22); }
+body.board-v2 #board .lane.occ-both   { box-shadow: inset 0 34px 60px -34px rgba(255,144,72,.18),
+                                                    inset 0 -34px 60px -34px rgba(var(--theme-rgb,79,195,247),.18); }
+
+/* ---------------------------------------------------------------------------
+   TRICK RAIL. Full-height cards in a single column, as the reference shows —
+   two side by side was my compression, not the design.
+   ------------------------------------------------------------------------- */
+body.board-v2 .tricks-section #player-tricks {
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+body.board-v2 .tricks-section .trick-card {
+  width: 100%;
+  max-width: none;
+  border-radius: 0;
+}
+
+/* `.actions-section .btn` pins height: 34px, so the padding above could not
+   make the plate any taller — it only grew to 44 because the content refused
+   to fit. Released, with a floor instead of a fixed height so the label can
+   never be clipped. */
+body.board-v2 .info-bar .actions-section .btn { height: auto; }
+body.board-v2 #btn-action { min-height: 58px; }
+body.board-v2 #btn-undo,
+body.board-v2 #btn-new-game { min-height: 34px; }
+
+/* The action cluster sits hard right, as the reference has it, with the
+   primary plate last. */
+body.board-v2 .info-bar .actions-section { gap: 10px; align-items: center; }
+
+/* Trick rail. First attempt stretched the section and gave the cards
+   `height: 100%` — the section's grid row resolves from the OTHER columns'
+   content, so that percentage had nothing to resolve against and the cards
+   collapsed to 4x5px. Size them by WIDTH instead and let the face keep its own
+   aspect: the column is a known 252px, so the card is simply full-width. */
+body.board-v2 .tricks-section .trick-card {
+  width: 100%;
+  height: auto;
+  max-width: none;
+  min-height: 0;
 }
