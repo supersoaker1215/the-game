@@ -34302,14 +34302,59 @@ function kangChoicePick(idx) {
   UI.render();
 }
 
+// `owner` names the BAR that was clicked, not a side: 'player' is the bottom
+// bar, 'ai' the top one, and the two buttons are hardcoded that way in
+// index.html. In 1v1 the bar and the side are the same thing. IN 2v2 THEY ARE
+// NOT — a Team B player is rendered flipped so THEY are the bottom bar while
+// their real side is 'ai'. Reading state['player'] for them therefore opened
+// the ENEMY's pile and painted it in "yours" chrome, and the top button did the
+// reverse: their own fallen cards shown in the enemy's red. (Owner: "ryan is the
+// guest and on the enemy team in 2v2 — his dead pile is the red one, it should
+// be his neon on his side of the board.")
+//
+// Resolve the bar to a real side first, then read the pile from the TEAM. The
+// side proxy cannot be trusted here: _render2v2OnlineBoard bridges deadPile onto
+// it for the duration of a render and restores it at the end, so by the time a
+// click happens it holds whatever the engine last left there.
+function _deadPileSideForBar(bar) {
+  const tt = Game.state && Game.state.twoVTwo;
+  if (!tt || !tt.players) return bar;                 // 1v1 — bar IS the side
+  // Whose screen is this? Online it is the fixed seat; in pass-and-play it is
+  // whoever is on the clock, because that is who is looking at it.
+  let seat = tt.online ? tt.you : null;
+  if (!seat) { try { seat = Game._2v2ActivePlayer && Game._2v2ActivePlayer(); } catch (e) {} }
+  const me = (seat && tt.players[seat] && Game._2v2TeamSide[tt.players[seat].team]) || 'player';
+  return bar === 'player' ? me : Game.opponent(me);
+}
 function toggleDeadPile(owner) {
   const overlay = document.getElementById('dead-pile-overlay');
   const title = document.getElementById('dead-pile-title');
   const container = document.getElementById('dead-pile-cards');
-  const pile = Game.state[owner].deadPile;
+  const side = _deadPileSideForBar(owner);
+  const isMine = (owner === 'player');
+  const tt = Game.state && Game.state.twoVTwo;
+  let pile;
+  if (tt && tt.teams && Game._2v2TeamSide) {
+    const team = Game._2v2TeamSide.A === side ? 'A' : 'B';
+    pile = (tt.teams[team] && tt.teams[team].deadPile) || [];
+  } else {
+    pile = Game.state[side].deadPile;
+  }
   // Whose pile it is drives the panel's colour — see .pile-theirs.
-  overlay.classList.toggle('pile-theirs', owner !== 'player');
-  title.textContent = (owner === 'player' ? 'Your' : UI.oppNamePoss()) + ' Dead Pile';
+  overlay.classList.toggle('pile-theirs', !isMine);
+  // NAME THE TEAM, NOT "AI". oppNamePoss reads s._mpNames.ai, which is a 1v1
+  // multiplayer concept — in a 2v2 room it does not exist, so the panel said
+  // "AI's Dead Pile" over two real people's cards. The pile belongs to a TEAM
+  // here, so it is titled with that team's members.
+  let whose = isMine ? 'Your' : UI.oppNamePoss();
+  if (!isMine && tt && tt.players && Game._2v2TeamSide) {
+    const oteam = Game._2v2TeamSide.A === side ? 'A' : 'B';
+    const names = ['p1', 'p2', 'p3', 'p4']
+      .filter(pk => tt.players[pk] && tt.players[pk].team === oteam)
+      .map(pk => tt.players[pk].name || pk);
+    if (names.length) whose = names.join(' & ') + "'s";
+  }
+  title.textContent = whose + ' Dead Pile';
   // Ensure ranks are fresh — viewing the dead pile mid-match should
   // reflect the current MVP standings including cards in this pile.
   // ONE renderer — a fallen card is a full canonical face (art, badges, desc,
@@ -34322,7 +34367,10 @@ function toggleDeadPile(owner) {
     // keyword badges (Revive, Evade…) are stamped — the reset stats it carries
     // are preserved as the instance's base.
     const face = UI._synthFace(c, {});
-    const el = UI.makeCardEl(face, false, c.owner === 'ai' ? 'enemy' : 'ally', {
+    // The FACE colour follows the same rule as the panel: whose pile this is
+    // from the viewer's chair. `c.owner === 'ai'` is the 1v1 assumption again,
+    // and it painted a Team B viewer's own fallen cards as enemies.
+    const el = UI.makeCardEl(face, false, isMine ? 'ally' : 'enemy', {
       static: true, disabled: true,
       extraClass: 'dead-pile-card' + (c.isDiscardEffect ? ' discard-effect' : ''),
     });
