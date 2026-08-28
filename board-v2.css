@@ -1047,3 +1047,17 @@ body.board-v2 #game-area > .turn-hud { border-bottom: 0 !important; }
 body.board-v2 #game-area > .player-hand-section { border-top: 0 !important; }
 body.board-v2 #game-area > .board-section,
 body.board-v2 #game-area > #lane-forecast-strip { border: 0 !important; }
+
+/* ===========================================================================
+   THE LAST LINE: #board::before.
+   A 1px full-width rule sitting at top:258px — dead centre of a 517px board —
+   painted `linear-gradient(90deg, …, rgba(79,195,247,0.2), …)`, the old theme
+   blue. It is the shipping centre seam, and it cuts straight across the field
+   where the two bands' gradients meet, so the light stops at it from both
+   sides. That is the line that survived removing the hud and hand borders.
+   Removed. The midline already reads without it: each lane carries its own
+   rules either side of the lane badge, in the holding player's colour, which
+   is the boundary that means something.
+   =========================================================================== */
+body.board-v2 #board::before { content: none !important; display: none !important; }
+body.board-v2 #board::after  { content: none !important; display: none !important; }
