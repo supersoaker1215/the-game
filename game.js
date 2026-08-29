@@ -5221,7 +5221,7 @@ const Game = {
       // Drain bonus attacks queued during this pass (Anakin's fires NOW,
       // not at end of round — drainBonusAttacks is idempotent) and sweep
       // deaths. Runs once after ALL hooks + their prompts resolved.
-      this.getAllCardsOnBoard().forEach(c => this.drainBonusAttacks(c));
+      this.getAllCardsOnBoard().forEach(c => this.drainBonusAttacks(c, true));
       this.cleanupDead();
     };
     const step = () => {
@@ -7049,7 +7049,7 @@ const Game = {
     // (passive ticks, future card effects, etc.) — drainBonusAttacks
     // is idempotent (clears the flag on entry) so this is a no-op on
     // already-drained cards.
-    this.getAllCardsOnBoard().forEach(c => this.drainBonusAttacks(c));
+    this.getAllCardsOnBoard().forEach(c => this.drainBonusAttacks(c, true));
     this.cleanupDead();
     // Combat phase is done — trick-triggered deaths from here on drain immediately.
     delete this.state._inCombat;
@@ -9746,10 +9746,29 @@ const Game = {
   // Called from postCombat (batched combat deaths) and handleDeath (immediate
   // drain after trick-triggered deaths, so a dying ally can still retaliate).
   // Lex Luthor's aura suppresses all bonus attacks of his enemies while alive.
-  drainBonusAttacks(c) {
+  // Is a bonus attack allowed to RESOLVE right now? Bonus attacks are a combat
+  // concept: they fire during combat, during trick execution (a trick that kills
+  // lets the ally retaliate), and in the explicit before-tricks / post-combat
+  // sweeps. They must NEVER fire during a CARDS phase — a card's On Play that
+  // kills an enemy (Thor's thunder, Peacemaker, etc.) would otherwise drain a
+  // queued bonus attack straight into the opponent's face mid-cards-phase and end
+  // the game out of nowhere. (User: "it was my turn to play cards only, i played
+  // Thor and randomly Mace Windu attacked the opponent's health and killed them.")
+  _bonusAttackWindowOpen() {
+    const s = this.state; if (!s) return true;
+    if (s._inTrick || s._inCombat) return true;
+    const ph = s.phase || '';
+    return ph === 'combat' || ph === '2v2-combat';
+  },
+  // force — the before-tricks / post-combat sweeps drain explicitly and bypass the
+  // window (that IS the window for Anakin's start-of-tricks strike). A death-
+  // triggered drain passes no force, so a cards-phase kill just leaves the bonus
+  // attack QUEUED for the next real window instead of firing now.
+  drainBonusAttacks(c, force) {
     if (!c) return;
     let remaining = typeof c.bonusAttack === 'number' ? c.bonusAttack : (c.bonusAttack ? 1 : 0);
     if (remaining <= 0) return;
+    if (!force && !this._bonusAttackWindowOpen()) return;   // hold it for combat/tricks
     // Frozen / feared cards can't take bonus attacks — same lock that stops
     // them acting in normal combat and moving. (Stun merged into Freeze; feared
     // treated as frozen for extra actions per user direction. This also closed a
