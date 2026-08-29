@@ -1002,10 +1002,16 @@ const CARD_ABILITIES = {
       const debuff = self._nightwingDebuff || 2;
       const enemies = G.getEnemiesOf(self.owner).filter(t => (t.attack || 0) > 0 && G.canEffectLand(t, 'debuff', { owner: self.owner, source: self }));
       if (enemies.length) {
+        // { seat } NAMES the Nightwing owner's seat so the target choice routes
+        // to THEM — an AI owner auto-picks the highest-threat enemy via
+        // _aiThreatPicker (AI.threatScore already values dangerous bodies like
+        // Green Lantern), and only a HUMAN owner is asked. Without it, an
+        // AI-played Nightwing in 2v2 handed the pick to a human TEAMMATE. (User:
+        // "for any card the AI plays, HE should choose, not the human teammate.")
         G.promptCardChoice(self.owner, enemies, "Nightwing — Weaken", `Choose enemy to remove ${debuff} Attack from`, (t) => {
           if (typeof UI !== 'undefined' && UI._fxNightwingStrike) { try { UI._fxNightwingStrike(self, t); } catch (e) {} }
           G.debuffCard(t, debuff, 0, false, self); G.log(`Nightwing weakens ${t.name} by ${debuff} ATK!`);
-        }, _aiThreatPicker);
+        }, _aiThreatPicker, { seat: self._2v2PlayedBy });
       }
     }
   },

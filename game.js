@@ -12248,6 +12248,14 @@ const Game = {
     const onTeam = pk => tt.players[pk] && tt.players[pk].team === team;
     const cur = this._2v2CurrentActingPlayer;
     if (cur && onTeam(cur)) return cur;
+    // AN AI IS ACTIVELY DRIVING A TURN. Its play's decisions are ITS OWN, never a
+    // human teammate's — so prefer the driving AI seat over the human-first
+    // fallback below. Without this, an AI-played card whose owner-seat resolution
+    // reached the fallback (a card with no _2v2PlayedBy stamp, a summon, a
+    // chained prompt after a kill) handed its target choice to the human teammate
+    // instead of the AI deciding for itself. (User: "for any card the AI plays,
+    // HE should choose, not the human teammate.")
+    if (this._2v2AIDriving && onTeam(this._2v2AIDriving)) return this._2v2AIDriving;
     return this._2v2SLOTS.find(pk => onTeam(pk) && !tt.players[pk].isAI)
         || this._2v2SLOTS.find(pk => onTeam(pk)) || null;
   },
@@ -12314,12 +12322,21 @@ const Game = {
       // derive one (preferring an AI seat, which auto-resolves). User: "my
       // Darkseid got teleported and I never got the prompt on who to split my
       // damage on — give that player the prompt, not just auto do it."
+      const onTeam = pk => tt.players[pk] && tt.players[pk].team === team;
       const cur = this._2v2CurrentActingPlayer;
-      if (cur && tt.players[cur] && tt.players[cur].team === team) return;
+      // A driving AI owns its own play's prompts — prefer it even over a stale
+      // acting seat that points at the human teammate. Checked BEFORE the
+      // keep-current-actor line: an AI-played card whose _2v2CurrentActingPlayer
+      // was left on the human partner would otherwise route the AI's decision to
+      // that person. _2v2AIDriving is only set while an AI is actually taking a
+      // turn (and cleared when a human is), so this never steals a real human's
+      // prompt. (User: "for any card the AI plays, HE should choose, not the
+      // human teammate.")
+      if (this._2v2AIDriving && onTeam(this._2v2AIDriving)) { this._2v2CurrentActingPlayer = this._2v2AIDriving; return; }
+      if (cur && onTeam(cur)) return;
       // HUMAN FIRST — see _2v2SeatForSide. Deriving an AI seat here auto-resolves
       // a decision that belongs to a person, which is the bug this whole pass
       // exists to kill.
-      const onTeam = pk => tt.players[pk] && tt.players[pk].team === team;
       seat = this._2v2SLOTS.find(pk => onTeam(pk) && !tt.players[pk].isAI)
           || this._2v2SLOTS.find(pk => onTeam(pk)) || null;
     }
@@ -12438,6 +12455,10 @@ const Game = {
     // AI seat, which is what lets the AI authority auto-pick for it.
     const active = this._2v2ActivePlayer && this._2v2ActivePlayer();
     if (active && onTeam(active)) return active;
+    // A driving AI owns its own play's prompts — never the human teammate. Same
+    // rule as _2v2SeatOwning: prefer the driving AI seat over the human-first
+    // fallback so an AI's decision isn't handed to a person on its team.
+    if (this._2v2AIDriving && onTeam(this._2v2AIDriving)) return this._2v2AIDriving;
     return this._2v2SLOTS.find(pk => onTeam(pk) && !tt.players[pk].isAI)
         || this._2v2SLOTS.find(pk => onTeam(pk)) || null;
   },
