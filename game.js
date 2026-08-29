@@ -276,6 +276,24 @@ const Game = {
         try { r(); } catch (e) { console.error('[resumeCombatIfWaiting] deferred restore threw:', e); }
       }
     }
+    // BLOCK QUEUE DRAINS BEFORE COMBAT RESUMES. Both teammates' block-trick
+    // offers belong to THIS round's combat. The queue advance and combat's own
+    // "resume lane i+1" continuation are both parked, and whichever the LIFO pop
+    // reaches first wins — so combat could resume (and the round end) before the
+    // SECOND seat's offer was ever raised. That seat's offer then leaked to next
+    // round, where _blockTrickStale sends it straight to hand: the player watched
+    // their trick pop up and vanish into their hand without ever getting to use
+    // it in combat. Advancing the queue here, ahead of the combat continuation,
+    // guarantees BOTH offers are made before combat continues. Re-entrancy-guarded
+    // so a queued advance that auto-resolves (AI seat) can't recurse into itself.
+    // (User: "my teammate gets his trick and uses it, combat continues, i never
+    // get mine — next round it pops up and goes straight to my hand.")
+    if (this.state._2v2BlockQueue && this.state._2v2BlockQueue.length && !this._2v2AdvancingBlockQueue) {
+      this._2v2AdvancingBlockQueue = true;
+      try { this._2v2NextBlockTrick(); } catch (e) { console.error('[block queue advance threw]', e); }
+      finally { this._2v2AdvancingBlockQueue = false; }
+      return;
+    }
     // Pop the MOST-RECENTLY parked continuation (LIFO) — see whenPromptCleared.
     // Firing exactly one preserves the old single-slot cadence: the fired
     // continuation drives the next beat (a lane's setTimeout, the next block
