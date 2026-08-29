@@ -1975,19 +1975,32 @@ const Game = {
     return { v: 1, seed: this._replaySeed, mode: this._replayMode, log: (this._replayLog || []).slice() };
   },
   // ===================== REPLAY FRAMES (board playback) =====================
-  // A per-round board snapshot the end-of-match viewer renders in sequence — a
-  // watchable replay of the match on a read-only board, with timeline controls,
-  // instead of a wall of log text. Frames are tiny (card name + atk/hp per lane
-  // + both HP totals), so a full match is a few KB and rides in the saved replay
-  // payload next to the log + HP curve. Mode-agnostic: 1v1 and 2v2 both call it.
-  _captureReplayFrame(roundNum, label) {
-    if (!this.state) return;
+  // Board snapshots the end-of-match viewer renders in sequence — a watchable
+  // replay of the match on a real board (card art + sounds), with timeline
+  // controls, instead of a wall of log text. Frames are tiny (card id/name +
+  // atk/hp per lane + both HP totals), so a whole match is a few KB.
+  //
+  // WHY A CLIENT-LOCAL BUFFER, NOT state. A GUEST never runs the engine — it
+  // only receives broadcasts — so it cannot capture frames from startRound. But
+  // it DOES call UI.render() on every received state, and so does everyone else,
+  // so the capture is driven from there (see UI.render) and lands in this
+  // Game-level buffer, which — unlike anything on state — survives the wholesale
+  // state replacement acceptMultiplayerState does. That is the only shape that
+  // records a full match for the host, a solo player, AND every guest.
+  // (User: "make it work for guest-on-guest games too.") Deduped by a cheap
+  // board signature so the many renders between real changes don't pile up.
+  _liveReplayFrames: null,
+  _liveReplaySig: null,
+  _REPLAY_FRAME_CAP: 400,
+  resetReplayFrames() { this._liveReplayFrames = []; this._liveReplaySig = null; },
+  _buildReplayFrame(roundNum, label) {
+    if (!this.state) return null;
     const snap = (c) => c ? {
       n: c.name, a: c.attack | 0, h: c.currentHealth | 0, mh: c.maxHealth | 0,
-      fd: !!(c._faceDown || c._playFaceDown), env: !!c.isEnvironment
+      fd: !!(c._faceDown || c._playFaceDown), env: !!c.isEnvironment, id: c.id
     } : null;
     const lanes = (this.state.lanes || []).map(L => ({ p: snap(L && L.player), a: snap(L && L.ai) }));
-    const f = {
+    return {
       round: roundNum || this.state.round || 0,
       label: label || null,
       php: this.state.player ? (this.state.player.health | 0) : 0,
@@ -1996,8 +2009,27 @@ const Game = {
       amax: (this.state.ai && this.state.ai.maxHealth) || 30,
       lanes
     };
-    if (!this.state._replayFrames) this.state._replayFrames = [];
-    this.state._replayFrames.push(f);
+  },
+  _replayFrameSig(f) {
+    if (!f) return '';
+    return f.round + '|' + f.php + '|' + f.ahp + '|' + f.lanes.map(L =>
+      (L.p ? L.p.n + ',' + L.p.h : '_') + '/' + (L.a ? L.a.n + ',' + L.a.h : '_')).join(';');
+  },
+  // Capture the current board IF it changed since the last frame. Safe to call
+  // from every UI.render(); the signature dedup makes the no-change case cheap.
+  _captureReplayFrame(roundNum, label) {
+    if (!this.state) return;
+    const f = this._buildReplayFrame(roundNum, label);
+    if (!f) return;
+    const sig = this._replayFrameSig(f);
+    if (sig === this._liveReplaySig) return;   // nothing visible changed
+    this._liveReplaySig = sig;
+    if (!this._liveReplayFrames) this._liveReplayFrames = [];
+    // Keep a labelled keyframe (round start / Final) even if a same-signature
+    // unlabelled frame slipped in; otherwise a labelled frame replaces the tail
+    // only when it is genuinely new (handled by the sig check above).
+    this._liveReplayFrames.push(f);
+    if (this._liveReplayFrames.length > this._REPLAY_FRAME_CAP) this._liveReplayFrames.shift();
   },
   // Re-issue one recorded log entry against the current (re-seeded) state.
   // Returns whatever the underlying door returned.
@@ -3597,7 +3629,7 @@ const Game = {
     this.state.winner = null;
     this.state.voidPile = [];
     this.state._hpHistory = null;
-    this.state._replayFrames = null;   // fresh board-playback frames per match
+    this.resetReplayFrames();   // fresh board-playback frames per match
     this.state._roundStats = null;
     this.state._combatFinishedThisRound = false;
     delete this.state._beforeCombatFired;

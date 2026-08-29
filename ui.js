@@ -7136,6 +7136,19 @@ const UI = {
     if (s.pendingHotseatPass) { this._renderHotseatPass(s); return; }
     this._removeHotseatPass();
 
+    // REPLAY FRAME CAPTURE — record the board whenever it changes, on EVERY
+    // client (host, solo, guest). Reads Game.state, not the DOM, and Game dedups
+    // by board signature, so calling it each render is cheap and captures every
+    // play/combat/death as its own frame. Gated to live match phases so menus,
+    // draft and lobby never bleed into a replay. This is what lets a guest —
+    // which never runs the engine — still record a full watchable match.
+    try {
+      if (s.lanes && s.lanes.length && (s.round | 0) >= 1 && s.phase
+          && !/draft|lobby|menu|deckbuilder|tournament-start/.test(s.phase)) {
+        Game._captureReplayFrame();
+      }
+    } catch (e) { /* never let capture break a render */ }
+
     // Turn-order tracker is a 2v2-game-only overlay — hide it by default each
     // render; the 2v2 board re-shows it below. Keeps it off every other screen.
     { const _tk = document.getElementById('twov2-turn-tracker'); if (_tk) _tk.style.display = 'none'; }
@@ -17608,6 +17621,9 @@ const UI = {
           const _nr = (Game.state && Game.state.round) || 0;
           if ((_np && /draft|deckbuilder|lobby|tournament-start/.test(_np)) || _nr < (this._mpLastRound || 0)) {
             this.closeMatchOverlays();
+            // Fresh match for this guest — clear last game's replay frames so the
+            // new match records cleanly (the guest never runs the engine reset).
+            if (Game.resetReplayFrames) Game.resetReplayFrames();
           }
           this._mpLastRound = _nr;
         } catch (e) {}
@@ -19742,11 +19758,11 @@ const UI = {
         // not store the raw control-char tag either.
         log: (s.log || []).filter(l => this._logLineMine(l)).map(l => Game.logLineText(l)),
         hpHistory: (s._hpHistory || []).slice(),
-        // Board-playback frames for the animated replay viewer (per-round board
-        // snapshots). Capped so a marathon match can't blow the localStorage
-        // quota — the newest frames matter most, but we keep from the start so
-        // the arc reads front-to-back; 60 frames is far more than any real match.
-        frames: (s._replayFrames || []).slice(0, 60)
+        // Board-playback frames for the animated replay viewer. Captured
+        // client-side on every board change (Game._liveReplayFrames), so this
+        // works for the host, a solo player, AND a guest — a guest has no engine
+        // to snapshot from but still renders every state it receives.
+        frames: (Game._liveReplayFrames || []).slice()
       };
       localStorage.setItem(this._REPLAY_KEY, JSON.stringify(payload));
     } catch (e) { /* quota / disabled */ }
@@ -20099,6 +20115,8 @@ const UI = {
     // Board-playback state lives on UI so the control handlers can reach it.
     this._replayFramesData = Array.isArray(r.frames) ? r.frames : [];
     this._replayIdx = 0;
+    this._replayLastRenderedIdx = -1;   // so frame 0 renders silently (see forward check)
+    this._replayDeaths = [];
     this._replaySpeed = 1;
     const hasFrames = this._replayFramesData.length > 0;
     // The log + HP curve stay available as a collapsible "details" strip under
@@ -20135,25 +20153,66 @@ const UI = {
     document.body.appendChild(ov);
     if (hasFrames) this._replayRenderFrame(0);
   },
-  // Render one board frame into #replay-stage — a read-only mini board: enemy
-  // row on top (red), your row on the bottom (green), a lane per column.
+  // Render one board frame into #replay-stage — a read-only board with the real
+  // card art: enemy row on top (red), your row on the bottom (green), a lane per
+  // column. Stepping forward one frame fires the card's own play sound and an
+  // entrance animation for whatever just appeared, and an impact sound for a
+  // card that just died — so it plays like watching the match, not a slideshow.
   _replayRenderFrame(idx) {
     const frames = this._replayFramesData || [];
     if (!frames.length) return;
     idx = Math.max(0, Math.min(frames.length - 1, idx));
-    this._replayIdx = idx;
     const f = frames[idx];
     const stage = document.getElementById('replay-stage');
     if (!stage || !f) return;
-    const cardHtml = (c, side) => {
+    // Forward-by-one = a live step: diff against the previous frame to know what
+    // ENTERED (new card id in a slot) and what DIED (card id gone), and fire art
+    // + sound + animation only then. Scrub/jump renders silently.
+    const forward = (idx === (this._replayLastRenderedIdx | 0) + 1) && idx > 0;
+    const prev = forward ? frames[idx - 1] : null;
+    const keyOf = (c) => c ? (c.id != null ? 'id' + c.id : 'n' + c.n) : null;
+    const entered = {}; // "side:lane" -> true when a new card appeared this step
+    if (prev) {
+      f.lanes.forEach((L, i) => {
+        ['p', 'a'].forEach(sk => {
+          const now = L[sk], was = prev.lanes[i] && prev.lanes[i][sk];
+          if (now && keyOf(now) !== keyOf(was)) entered[(sk === 'p' ? 'player' : 'ai') + ':' + i] = true;
+          if (!now && was) this._replayDeaths = (this._replayDeaths || []).concat([was.n]); // died this step
+        });
+      });
+    }
+    this._replayIdx = idx;
+    this._replayLastRenderedIdx = idx;
+    const cardHtml = (c, side, lane) => {
       if (!c) return `<div class="replay-slot replay-empty"></div>`;
       const name = c.fd ? '???' : (c.n || '');
       const stats = c.env ? '' : `<span class="replay-card-stats">${c.a}/${c.h}</span>`;
       const hurt = (!c.env && c.mh && c.h < c.mh) ? ' replay-hurt' : '';
-      return `<div class="replay-slot replay-card replay-${side}${hurt}${c.env ? ' replay-env' : ''}">
+      const isNew = entered[side + ':' + lane] ? ' replay-just-entered' : '';
+      const art = (!c.fd && this.getCardArtPath) ? this.getCardArtPath(c.n) : null;
+      const bg = art ? `background-image:url('${art.replace(/'/g, '%27')}')` : '';
+      return `<div class="replay-slot replay-card replay-${side}${hurt}${c.env ? ' replay-env' : ''}${isNew}" style="${bg}">
+          <div class="replay-card-shade"></div>
           <span class="replay-card-name">${name}</span>${stats}
         </div>`;
     };
+    // Fire audio for this step (only on a forward live step).
+    if (forward && this.sfx) {
+      const newNames = Object.keys(entered);
+      try {
+        if (newNames.length) {
+          // Play the entering card's own sound (first one — usually just one per step).
+          const firstKey = newNames[0]; const [, li] = firstKey.split(':');
+          const sk = firstKey.startsWith('player') ? 'p' : 'a';
+          const c = f.lanes[+li] && f.lanes[+li][sk];
+          if (c && this.sfx.playCardSfx) this.sfx.playCardSfx(c.n, 'play');
+        }
+        if (this._replayDeaths && this._replayDeaths.length && this.sfx.playEffect) {
+          this.sfx.playEffect('death');
+        }
+      } catch (e) { /* audio is best-effort */ }
+    }
+    this._replayDeaths = [];
     const hpBar = (hp, max, side, label) => {
       const pct = Math.max(0, Math.min(100, (hp / Math.max(1, max)) * 100));
       return `<div class="replay-hp replay-hp-${side}">
@@ -20162,8 +20221,8 @@ const UI = {
           <span class="replay-hp-num">${hp}</span>
         </div>`;
     };
-    const lanesTop = f.lanes.map(L => cardHtml(L.a, 'ai')).join('');
-    const lanesBot = f.lanes.map(L => cardHtml(L.p, 'player')).join('');
+    const lanesTop = f.lanes.map((L, i) => cardHtml(L.a, 'ai', i)).join('');
+    const lanesBot = f.lanes.map((L, i) => cardHtml(L.p, 'player', i)).join('');
     const cols = f.lanes.length || 6;
     const roundLabel = f.label === 'Final' ? 'Final board' : `Round ${f.round}`;
     stage.innerHTML = `
@@ -34978,6 +35037,8 @@ function twov2OnlineJoin() {
                        || (_p && /draft|lobby|tournament-start/.test(_p))
                        || _r < (UI._2v2LastRound || 0))) {
         UI.closeMatchOverlays();
+        // Fresh 2v2 match for this seat — clear last game's replay frames.
+        if (Game.resetReplayFrames) Game.resetReplayFrames();
       }
       UI._2v2LastRound = _r;
       UI._2v2LastGameOver = _isOver;

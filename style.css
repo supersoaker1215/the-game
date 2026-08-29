@@ -19921,9 +19921,9 @@ body.phase-menu .kb-hints { display: none; }
   color: rgba(var(--theme-rgb,79,195,247),0.4);
 }
 .replay-slot {
-  min-height: 52px; border-radius: 5px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 3px; padding: 4px; text-align: center;
+  position: relative; min-height: 74px; border-radius: 5px; overflow: hidden;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  gap: 2px; padding: 4px; text-align: center;
   transition: opacity .25s ease, transform .25s ease;
 }
 .replay-empty {
@@ -19932,22 +19932,39 @@ body.phase-menu .kb-hints { display: none; }
 }
 .replay-card {
   border: 1px solid rgba(255,255,255,0.14);
-  background: rgba(20,28,40,0.9);
-  animation: replayPop .28s ease both;
+  background-color: rgba(20,28,40,0.9);
+  background-size: cover; background-position: center 22%;
 }
-@keyframes replayPop { from { opacity: 0; transform: translateY(4px) scale(0.96); } to { opacity: 1; transform: none; } }
-.replay-card.replay-ai     { border-color: rgba(231,76,60,0.5);  box-shadow: inset 0 0 0 1px rgba(231,76,60,0.12); }
-.replay-card.replay-player { border-color: rgba(var(--theme-rgb,79,195,247),0.5); box-shadow: inset 0 0 0 1px rgba(var(--theme-rgb,79,195,247),0.12); }
-.replay-card.replay-env    { border-style: dashed; opacity: 0.9; }
-.replay-card.replay-hurt   { filter: saturate(0.8) brightness(0.9); }
+/* Readability wash so the name/stats sit over the art. */
+.replay-card-shade {
+  position: absolute; inset: 0;
+  background: linear-gradient(to top, rgba(3,7,12,0.92) 12%, rgba(3,7,12,0.35) 48%, rgba(3,7,12,0.05) 100%);
+  pointer-events: none;
+}
+.replay-card.replay-ai     { border-color: rgba(231,76,60,0.55);  box-shadow: inset 0 0 0 1px rgba(231,76,60,0.18); }
+.replay-card.replay-player { border-color: rgba(var(--theme-rgb,79,195,247),0.55); box-shadow: inset 0 0 0 1px rgba(var(--theme-rgb,79,195,247),0.18); }
+.replay-card.replay-env    { border-style: dashed; }
+.replay-card.replay-hurt   { filter: saturate(0.85) brightness(0.92); }
+/* A card that just appeared this step: pop in + a bright flash of its side color. */
+.replay-just-entered { animation: replayEnter .5s cubic-bezier(.2,.8,.2,1) both; }
+.replay-just-entered.replay-player { box-shadow: 0 0 0 1px rgba(var(--theme-rgb,79,195,247),0.9), 0 0 16px 2px rgba(var(--theme-rgb,79,195,247),0.6); }
+.replay-just-entered.replay-ai     { box-shadow: 0 0 0 1px rgba(231,76,60,0.9), 0 0 16px 2px rgba(231,76,60,0.55); }
+@keyframes replayEnter {
+  0%   { opacity: 0; transform: translateY(8px) scale(0.9); }
+  55%  { opacity: 1; transform: translateY(0) scale(1.05); }
+  100% { transform: scale(1); }
+}
 .replay-card-name {
-  font: 600 9.5px 'Inter',system-ui,sans-serif; line-height: 1.1;
-  color: #e7eef7; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+  position: relative; z-index: 1;
+  font: 700 9.5px 'Inter',system-ui,sans-serif; line-height: 1.05;
+  color: #f2f7fd; text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+  max-width: 100%; overflow: hidden;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
 }
 .replay-card-stats {
+  position: relative; z-index: 1;
   font: 700 10px ui-monospace,monospace;
-  color: #ffd36b; background: rgba(0,0,0,0.4);
+  color: #ffd36b; background: rgba(0,0,0,0.55);
   padding: 0 5px; border-radius: 3px;
 }
 .replay-hp { display: flex; align-items: center; gap: 8px; }
