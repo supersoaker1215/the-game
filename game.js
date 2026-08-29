@@ -13147,8 +13147,9 @@ const Game = {
       if (_actor && !this._2v2SeatOnSide(_actor, owner)) {
         _actor = this._2v2SeatForSide(owner);
       }
-      if (!_laneSeatOpt && _abilitySeat && this._2v2SeatOnSide(_abilitySeat, owner)
-          && !this._2v2SeatIsAI(_abilitySeat)) {
+      const _humanAbilityOwnerLane = !_laneSeatOpt && _abilitySeat
+        && this._2v2SeatOnSide(_abilitySeat, owner) && !this._2v2SeatIsAI(_abilitySeat);
+      if (_humanAbilityOwnerLane) {
         _actor = _abilitySeat;
       }
       // GENERAL AI-STALL SAFETY NET — see the matching block in promptCardChoice.
@@ -13159,8 +13160,9 @@ const Game = {
       if (!_drivingAILane) { const _a = this._2v2ActivePlayer && this._2v2ActivePlayer(); if (_a && this._2v2SeatIsAI(_a)) _drivingAILane = _a; }
       if (!_drivingAILane) { const _o = this._2v2AbilityOwner && this._2v2AbilityOwner(); if (_o && this._2v2SeatIsAI(_o)) _drivingAILane = _o; }
       // !_laneSeatOpt — a declared seat is final. Same defect and same fix as
-      // the promptCardChoice twin; see the long note there.
-      if (!_laneSeatOpt && _drivingAILane && this._2v2SeatIsAI(_drivingAILane)
+      // the promptCardChoice twin; see the long note there. And, as there, never
+      // hand a HUMAN-owned card's lane pick to a bot on a stale drive flag.
+      if (!_laneSeatOpt && !_humanAbilityOwnerLane && _drivingAILane && this._2v2SeatIsAI(_drivingAILane)
           && (!this._2v2IsAIAuthority || this._2v2IsAIAuthority())
           && this._2v2SeatOnSide(_drivingAILane, owner) && !this._2v2SeatIsAI(_actor)) {
         _actor = _drivingAILane;
@@ -13408,8 +13410,9 @@ const Game = {
       // instantly and silently. A caller that DECLARED a seat still wins: that
       // is how a prompt deliberately aimed at an opponent (the Grinch's victim
       // choosing which trick to surrender) keeps its target.
-      if (!_seatOpt && _abilitySeat && this._2v2SeatOnSide(_abilitySeat, owner)
-          && !this._2v2SeatIsAI(_abilitySeat)) {
+      const _humanAbilityOwner = !_seatOpt && _abilitySeat
+        && this._2v2SeatOnSide(_abilitySeat, owner) && !this._2v2SeatIsAI(_abilitySeat);
+      if (_humanAbilityOwner) {
         _actor = _abilitySeat;
       }
       // GENERAL AI-STALL SAFETY NET. While an AI seat is driving its own turn,
@@ -13457,7 +13460,15 @@ const Game = {
       // The net keeps its actual job: an UNNAMED prompt raised on a driving
       // bot's own side is still answered by that bot, which is the stall it was
       // written for.
-      if (!_seatOpt && _drivingAI && this._2v2SeatIsAI(_drivingAI)
+      // …EXCEPT a card a HUMAN actually played. _drivingAI leans on _2v2AIDriving,
+      // a mutable global that can go STALE — a bot teammate's finished turn can
+      // leave it set while the human plays next. The running ability's owner
+      // (_abilitySeat, derived from the card's own _2v2PlayedBy) is the reliable
+      // signal: if a human on this side owns it, this net must NOT hand their
+      // choice to a bot. (User: "i played homelander and it auto clicked who to
+      // kill for me.") The stall this net exists for is an UNNAMED prompt with no
+      // human owner, which _humanAbilityOwner leaves untouched.
+      if (!_seatOpt && !_humanAbilityOwner && _drivingAI && this._2v2SeatIsAI(_drivingAI)
           && (!this._2v2IsAIAuthority || this._2v2IsAIAuthority())
           && this._2v2SeatOnSide(_drivingAI, owner) && !this._2v2SeatIsAI(_actor)) {
         _actor = _drivingAI;
