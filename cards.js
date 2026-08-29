@@ -114,7 +114,7 @@ const CARD_DEFS = [
     _spawnOnly: true,
     abilities: [],
     desc: "While Active: The first enemy card to die in this lane rises on your side as a (2/2), as if newly played. An ally in that lane moves to an empty lane to make room. Game Over is then spent." },
-  { name: "Wetlands", cost: 3, attack: 0, health: 1, type: "environment",
+  { name: "Wetlands", cost: 2, attack: 0, health: 1, type: "environment",
     isEnvironment: true,
     abilities: [],
     desc: "While Active: Each time either player's Block Meter fires, this lane loses 1 Power. At 0, Spinosaurus is released here, destroying the enemy in this lane. An ally there moves to an empty lane — with no empty lane it is destroyed and Spinosaurus adds its stats. The habitat remains until Spinosaurus dies." },
