@@ -3543,26 +3543,15 @@ const CARD_ABILITIES = {
         G.log(`The Grinch finds nothing to steal — stats tripled! ${self.attack}/${self.currentHealth}`);
         return;
       }
-      // A FULL TRICK HAND IS THE SAME AS NOTHING TO STEAL.
-      // User report: "i had 3 tricks already in hand, the enemy had 1, i chose
-      // to steal the trick, it didn't let me." What actually happened is worse
-      // than "didn't let me": keep() called addToTrickHand, which returns false
-      // and DISCARDS when the hand is at maxTrickHandSize — so the opponent
-      // lost the trick, the Grinch's owner never received it, and the Grinch
-      // did not triple either. The trick was destroyed by a prompt that had no
-      // valid outcome.
-      // With a full hand, "keep" is unreachable, so the pick has exactly one
-      // outcome — and a one-outcome pick auto-resolves rather than being asked
-      // (the same forced-choice rule Galactus and the PICK-N abilities follow).
-      // Both prompts are skipped: whichever trick the opponent picked would be
-      // handed straight back, so the steal is a no-op and only the triple
-      // remains. Checked against the OWNER's hand, not the victim's.
-      const gp = G.state[self.owner];
-      if (gp.trickHand.length >= gp.maxTrickHandSize) {
-        self.attack *= 3; self.currentHealth *= 3; self.maxHealth *= 3;
-        G.log(`The Grinch's trick hand is full (${gp.maxTrickHandSize}) — nothing he can carry off, stats tripled! ${self.attack}/${self.currentHealth}`);
-        return;
-      }
+      // A FULL TRICK HAND NO LONGER KILLS THE STEAL. It used to: keep() called
+      // addToTrickHand, which DISCARDS and returns false at maxTrickHandSize, so
+      // the trick was destroyed by a prompt with no valid outcome — the fix then
+      // just skipped the whole steal and tripled. But the owner still wants the
+      // trick: keep() now routes through _gainTrickWithTrade, which offers a
+      // trade (swap one of your current tricks for the stolen one) when full, or
+      // gives it back + triples if you decline. (User: "when i play grinch and my
+      // tricks are at max it won't offer me — i should be offered and be able to
+      // trade one out.") So no early-out here; the normal keep/give-back flow runs.
       // Two choices in sequence, each gated on a different seat's isHuman:
       //   1. OPP picks which trick to give up (human → prompt; AI → lowest cost)
       //   2. Grinch OWNER picks keep-or-give-back (human → prompt; AI → threshold)
@@ -3582,20 +3571,29 @@ const CARD_ABILITIES = {
         // so kept tricks are completely free.
         const keepBump = (self._grinchKeepCostBump != null) ? self._grinchKeepCostBump : 1;
         const keep = () => {
-          // Clamp at 0 — multiple Text+ stacks can drive keepBump
-          // negative (refund), but a trick can't have a sub-zero cost
-          // in the engine. Negative bumps still floor the trick to 0.
-          chosen.cost = Math.max(0, (chosen.cost || 0) + keepBump);
-          // addToTrickHand DISCARDS and returns false on a full hand. Never let
-          // that silently destroy the trick — hand it back and take the triple
-          // instead. The early return above covers the normal case; this covers
-          // the AI-owner branch and any hand that fills between check and
-          // resolve (a queued prompt can resolve much later than it armed).
-          if (!G.addToTrickHand(self.owner, chosen)) { giveBack(); return; }
-          const label = keepBump > 0 ? ` (cost +${keepBump})`
-            : keepBump < 0 ? ` (cost ${keepBump} → ${chosen.cost})`
-            : ' (free!)';
-          G.log(`The Grinch keeps ${chosen.name}${label}!`);
+          // Route through _gainTrickWithTrade so a FULL hand offers a trade
+          // (swap one of your tricks for the stolen one) instead of silently
+          // discarding it — and if you decline the trade, giveBack() runs (the
+          // trick returns and the Grinch triples). The keep cost bump is applied
+          // to the copy that actually LANDS in hand (negative Text+ bumps floor
+          // at 0), so a declined trade never leaves a bumped trick behind.
+          const grinchIs2v2 = !!(G.state.twoVTwo && G.state.twoVTwo.online);
+          G._gainTrickWithTrade(self.owner, chosen, {
+            seat: grinchIs2v2 ? grinchOwnerSeat : null,
+            isAI: grinchOwnerIsAI,
+            title: 'The Grinch — trick hand full',
+            desc: `Choose a trick to discard to keep ${chosen.name}, or give it back.`,
+            declineLabel: 'Give it back (triple stats)',
+            onKept: (landed) => {
+              if (landed) landed.cost = Math.max(0, (landed.cost || 0) + keepBump);
+              const c = landed ? landed.cost : Math.max(0, (chosen.cost || 0) + keepBump);
+              const label = keepBump > 0 ? ` (cost +${keepBump})`
+                : keepBump < 0 ? ` (cost ${keepBump} → ${c})`
+                : ' (free!)';
+              G.log(`The Grinch keeps ${chosen.name}${label}!`);
+            },
+            onDecline: () => giveBack(),
+          });
         };
         const giveBack = () => {
           G.addToTrickHand(opp, chosen);

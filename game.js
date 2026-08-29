@@ -9060,65 +9060,88 @@ const Game = {
   //   owner    — side ('player'/'ai'); in 2v2 the side proxy for the seat.
   //   opts.seat — 2v2 seat key that routes the prompt (null in 1v1).
   //   opts.isAI — true when a bot holds the trick (auto-trade, no prompt).
-  _keepBlockTrick(owner, trick, opts) {
+  // Deliver a trick into a seat/side's hand, respecting the trick-hand cap, with
+  // a TRADE when full. Shared by the block-meter keep and The Grinch's steal so
+  // "you're at the cap" never silently eats a trick you were owed — you're always
+  // offered it, and can swap one of your current tricks for it. (User: "when i
+  // block or play grinch and my tricks are at max it won't offer me the trick —
+  // i should be offered and be able to trade one out.")
+  //   owner       side ('player'/'ai'); in 2v2 the side proxy for the seat.
+  //   opts.seat   2v2 seat key that routes the prompt (null in 1v1).
+  //   opts.isAI   true when a bot holds the trick (auto-trade, no prompt).
+  //   opts.onKept(landed)  after the trick is added — landed is the real copy in
+  //               hand (Grinch applies its keep cost bump to it).
+  //   opts.onDecline()     a human declined the trade, or an AI would drop the
+  //               new trick — lets the caller do something else with it (Grinch
+  //               gives it back and triples). Default: discard the new trick.
+  //   opts.title / desc / declineLabel   prompt text.
+  _gainTrickWithTrade(owner, trick, opts) {
     opts = opts || {};
     const seat = opts.seat || null;
     const tt = this.state.twoVTwo;
     const holder = (seat && tt && tt.players[seat]) ? tt.players[seat] : this.state[owner];
-    if (!holder || !trick) return;
+    if (!holder || !trick) { if (opts.onDecline) opts.onDecline(); return; }
     holder.trickHand = holder.trickHand || [];
     const cap = (holder.maxTrickHandSize != null) ? holder.maxTrickHandSize : 3;
     const nm = holder.name || this.seatLabel(owner);
     const online2v2 = !!(seat && tt && tt.online);
     const mpHost = !!(this.isMultiplayer && this.isMultiplayer() && this.mp && this.mp.role === 'host');
     const sync = () => { try { if (online2v2) this._2v2OnlineBroadcast(); else if (mpHost) this._mpBroadcast(); } catch (e) {} };
-    const addNew = () => { const t = { ...trick }; if (t.id == null) t.id = nextCardId++; holder.trickHand.push(t); };
+    let landed = null;
+    const addNew = () => { const t = { ...trick }; if (t.id == null) t.id = nextCardId++; holder.trickHand.push(t); landed = t; };
+    const kept = () => { addNew(); if (opts.onKept) opts.onKept(landed); sync(); };
+    const declined = () => { if (opts.onDecline) opts.onDecline(); else this.log(`  [TRICK] ${nm}'s trick hand is full — discards ${trick.name}.`); sync(); };
     // Room to spare — just keep it.
-    if (holder.trickHand.length < cap) {
-      addNew();
-      this.log(`  [BLOCK TRICK] ${nm} keeps ${trick.name} in hand.`);
-      sync();
-      return;
-    }
-    // Full — a trade is forced.
+    if (holder.trickHand.length < cap) { kept(); return; }
+    // Full — a trade is forced (or the caller's decline path takes over).
     if (opts.isAI) {
       // Keep the most valuable tricks: drop the lowest-cost of {hand ∪ new}.
       let lowIdx = -1, lowCost = trick.cost || 0, dropNew = true;
       holder.trickHand.forEach((t, i) => { const c = t.cost || 0; if (c < lowCost) { lowCost = c; lowIdx = i; dropNew = false; } });
-      if (dropNew) {
-        this.log(`  [BLOCK TRICK] ${nm}'s trick hand is full — discards ${trick.name}.`);
-      } else {
-        const dropped = holder.trickHand[lowIdx];
-        holder.trickHand.splice(lowIdx, 1);
-        addNew();
-        this.log(`  [BLOCK TRICK] ${nm} trades ${dropped.name} for ${trick.name}.`);
-      }
-      sync();
+      if (dropNew) { declined(); return; }
+      const dropped = holder.trickHand[lowIdx];
+      holder.trickHand.splice(lowIdx, 1);
+      this.log(`  [TRICK] ${nm} trades ${dropped.name} for ${trick.name}.`);
+      kept();
       return;
     }
-    // Human — prompt which existing trick to trade out for the drawn one. Each
+    // Human — prompt which existing trick to trade out for the incoming one. Each
     // choice carries its slot index (_tradeIdx) so the discard resolves to the
     // exact trick even if two tricks share a name or a null id — the trick hand
     // is not mutated while this prompt is open, so the index is stable.
     if (seat) this._2v2CurrentActingPlayer = seat;
     const choices = holder.trickHand.map((t, i) => ({ ...t, _tradeIdx: i }));
     this.promptCardChoice(owner, choices,
-      'Trick hand full',
-      `Choose a trick to discard to keep ${trick.name}.`,
+      opts.title || 'Trick hand full',
+      opts.desc || `Choose a trick to discard to keep ${trick.name}.`,
       (chosen) => {
         const di = (chosen && chosen._tradeIdx != null) ? chosen._tradeIdx : -1;
         if (di >= 0 && di < holder.trickHand.length) {
           const dropped = holder.trickHand[di];
           holder.trickHand.splice(di, 1);
-          addNew();
-          this.log(`  [BLOCK TRICK] ${nm} trades ${dropped.name} for ${trick.name}.`);
-        }
-        sync();
+          this.log(`  [TRICK] ${nm} trades ${dropped.name} for ${trick.name}.`);
+          kept();
+        } else { sync(); }
       },
       cards => cards.slice().sort((a, b) => (a.cost || 0) - (b.cost || 0))[0],
       { inlineTray: true, seat: seat || undefined,
-        declineLabel: `Discard ${trick.name}`,
-        onDecline: () => { this.log(`  [BLOCK TRICK] ${nm} keeps their tricks — discards ${trick.name}.`); sync(); } });
+        declineLabel: opts.declineLabel || `Discard ${trick.name}`,
+        onDecline: () => { declined(); } });
+  },
+  // Block-meter keep — thin wrapper over _gainTrickWithTrade with block wording.
+  _keepBlockTrick(owner, trick, opts) {
+    opts = opts || {};
+    const seat = opts.seat || null;
+    const tt = this.state.twoVTwo;
+    const holder = (seat && tt && tt.players[seat]) ? tt.players[seat] : this.state[owner];
+    const nm = (holder && holder.name) || this.seatLabel(owner);
+    this._gainTrickWithTrade(owner, trick, {
+      seat: opts.seat, isAI: opts.isAI,
+      desc: `Choose a trick to discard to keep ${trick.name}.`,
+      declineLabel: `Discard ${trick.name}`,
+      onKept: () => this.log(`  [BLOCK TRICK] ${nm} keeps ${trick.name} in hand.`),
+      onDecline: () => this.log(`  [BLOCK TRICK] ${nm} keeps their tricks — discards ${trick.name}.`),
+    });
   },
   addToTrickHand(owner, trick) {
     const p = this.state[owner];
