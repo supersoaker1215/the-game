@@ -25411,6 +25411,9 @@ const UI = {
       const m = String(label).match(/^(.+?)(?:\s+(\d+))?$/);
       return this._badgeHTML(cls, m ? m[1] : label, m && m[2] ? m[2] : '', kw);
     };
+    // Pinhead's Chains — both linked cards wear this in hand so the owner sees
+    // they must be played together (both enter at -1/-1). Tooltip via 'Chained'.
+    if (c._chained) b.push(badge('badge-chained', 'Chained', 'Chained'));
     if (c.drawOnPlay > 0) b.push(badge('badge-draw', `Draw ${c.drawOnPlay}`, 'Draw'));
     if (c.evadeCharges > 0) b.push(badge('badge-evade', `Evade ${c.evadeCharges}`, 'Evade'));
     if (c.armorValue > 0) b.push(badge('badge-armor', `Armor ${c.armorValue}`, 'Armor'));

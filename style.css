@@ -7441,6 +7441,9 @@ body.hit-pause .ai-hand * {
 .badge-hollow-purple { color: #a855f7; }
 .badge-invincible { color: var(--kw-invincible); }
 .badge-taunt      { color: var(--kw-taunt); }
+/* Pinhead's Chains — cold iron grey with a faint rattle so a chained pair reads
+   at a glance in hand. */
+.badge-chained    { color: #b8c0cc; text-shadow: 0 0 5px rgba(184,192,204,0.55); }
 .badge-dmg-immune { color: var(--kw-dmg-immune); }
 .badge-untrickable{ color: var(--kw-untrickable); }
 .badge-armor      { color: var(--kw-armor); }

@@ -25,6 +25,7 @@
 // =============================================================================
 
 window.CARD_ART_VARIANTS = {
+  'Pinhead':             ['Pinhead.jpg'],
   // ── Variant-2 promoted (user-picked defaults, 2026-05-18) ──
   'Darth Vader':         ['Darth Vader 2.png'],
   'Dr. Doom':            ['Dr. Doom 3.png', 'Dr. Doom.png'],

@@ -5843,6 +5843,13 @@ const Game = {
       return true;
     }
 
+    // PINHEAD'S CHAINS — a chained card cannot be played alone. Playing one of
+    // the pair drags in its partner too (both -1/-1). _chainResolving guards the
+    // re-entrant playCard calls inside _playChainedCard so this fires once.
+    if (card._chained && !card._chainResolving) {
+      return this._playChainedCard(owner, card, laneIdx);
+    }
+
     // Environments go to the _env sub-slot; normal cards go to the main combat slot.
     // Regular cards block on an occupied main slot; environments block on
     // covering another environment while a free lane still exists — see
@@ -5958,9 +5965,11 @@ const Game = {
 
     this.log(`[PLAY] ${who} play ${card.name} (${card.attack}/${card.currentHealth}) in lane ${laneIdx + 1} for ${cost} energy`);
 
-    // Lone wolf: +1/+1 when played with no other allies on the board (environments don't count)
+    // Lone wolf: +1/+1 when played with no other allies on the board (environments don't count).
+    // A chained pair (Pinhead) is played TOGETHER — the partner arrives with it —
+    // so neither counts as "alone", and Lone Wolf must not cancel the chains' -1/-1.
     const otherAllies = this.getAllCardsOf(owner).filter(c => c.id !== card.id && c.currentHealth > 0 && !c.isEnvironment);
-    if (otherAllies.length === 0) {
+    if (otherAllies.length === 0 && !card._chainResolving) {
       this.buffCard(card, 1, 1);
       this.log(`  [LONE WOLF] ${card.name} enters alone — +1/+1!`);
     }
@@ -10426,6 +10435,55 @@ const Game = {
   },
 
   // General stat buff: +atk ATK, +hp HP (increases maxHealth and currentHealth)
+  // PINHEAD'S CHAINS — play a chained card together with its chained partner.
+  // Both must be affordable together and there must be a second open lane; then
+  // both are seated (running their own On Play) and each takes a permanent -1/-1
+  // "from the chains weakening them on arrival". The chain is then broken.
+  _playChainedCard(owner, card, laneIdx) {
+    // The hand actually holding the pair — a seat in 2v2, the side in 1v1.
+    const holder = (this._2v2HandTarget ? this._2v2HandTarget(owner, card) : this.state[owner]) || this.state[owner];
+    const hand = holder.hand || [];
+    const partner = (card._chainPartnerId != null) ? hand.find(c => c && c.id === card._chainPartnerId) : null;
+    // Partner no longer in this hand (drawn away, discarded, stolen) — the chain
+    // is broken, so the lone card just plays normally, at full stats.
+    if (!partner) {
+      card._chained = false; card._chainPartnerId = null; card._chainPartnerName = null;
+      return this.playCard(owner, card, laneIdx);
+    }
+    const costA = this.getCardCost(owner, card);
+    const costB = this.getCardCost(owner, partner);
+    const _fail = (msg) => {
+      this.log(`  [CHAINED] ${msg}`);
+      if (typeof UI !== 'undefined' && UI.showAITrickToast) { try { UI.showAITrickToast('Chained', msg, 'error'); } catch (e) {} }
+      return false;
+    };
+    if ((this.state[owner].currency || 0) < costA + costB) {
+      return _fail(`${card.name} & ${partner.name} are chained — you need ${costA + costB} energy to play both together.`);
+    }
+    // The partner needs its own open lane (different from the one being used now).
+    const open = (this.getOpenLanes ? this.getOpenLanes(owner) : []).filter(l => l !== laneIdx);
+    if (!open.length) {
+      return _fail(`${card.name} & ${partner.name} are chained — you need a second open lane for ${partner.name}.`);
+    }
+    const partnerLane = open[0];
+    // Break the chain and seat both, guarding against this interception re-firing.
+    card._chained = false; card._chainPartnerId = null; card._chainPartnerName = null;
+    partner._chained = false; partner._chainPartnerId = null; partner._chainPartnerName = null;
+    card._chainResolving = true; partner._chainResolving = true;
+    const okA = this.playCard(owner, card, laneIdx);
+    if (okA) this._chainWeaken(card);
+    const okB = this.playCard(owner, partner, partnerLane);
+    if (okB) this._chainWeaken(partner);
+    delete card._chainResolving; delete partner._chainResolving;
+    this.log(`  [CHAINED] ${card.name} and ${partner.name} enter together, weakened by the chains (-1/-1 each).`);
+    this.cleanupDead();
+    return okA || okB;
+  },
+  _chainWeaken(card) {
+    if (!card) return;
+    // Permanent -1/-1 on arrival (a card reduced to 0 HP dies to cleanupDead).
+    this.buffCard(card, -1, -1);
+  },
   buffCard(card, atk, hp) {
     if (!card) return;
     // A hidden card cannot be affected by anything, and that includes a

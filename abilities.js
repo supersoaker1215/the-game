@@ -607,6 +607,75 @@ const CARD_ABILITIES = {
       G.drawCards(owner, 1);
     }
   },
+  "Pinhead": {
+    // Discard trigger, like Mr. Fantastic / Jigsaw / Brainiac — Pinhead is
+    // isDiscardEffect, so he is never seated on the field; discarding him fires
+    // this. He CHAINS two random cards in one enemy hand together (both get the
+    // chain badge, linked by _chainPartnerId): neither can be played alone, and
+    // when one is played the engine drags in its partner too, both entering at
+    // -1/-1 (see Game._playChainedCard). He also drags a section of Block Meter
+    // off the enemy onto your own.
+    isDiscardEffect: true,
+    onDiscard(G, owner, self) {
+      if (typeof UI !== 'undefined' && UI._fxPinheadChains) { try { UI._fxPinheadChains(); } catch (e) {} }
+      const opp = G.opponent(owner);
+      // Which hand to raid. 1v1: the opponent's. 2v2: a random ENEMY seat that
+      // has ≥2 cards (the two chained cards must share a hand, per "2 random
+      // cards in the opponent's hand"). Falls back to any enemy seat.
+      let victimHand = null, victimName = 'the enemy';
+      const tt = G.state.twoVTwo;
+      if (G.is2v2 && G.is2v2() && tt) {
+        const myTeam = (tt.players[self._2v2PlayedBy] && tt.players[self._2v2PlayedBy].team)
+          || (owner === 'player' ? 'A' : 'B');
+        const foes = ['p1', 'p2', 'p3', 'p4'].filter(pk => tt.players[pk] && tt.players[pk].team !== myTeam);
+        const withTwo = foes.filter(pk => (tt.players[pk].hand || []).length >= 2);
+        const pick = (withTwo.length ? withTwo : foes)[Math.floor(G.rng() * (withTwo.length ? withTwo.length : foes.length))];
+        if (pick && tt.players[pick]) { victimHand = tt.players[pick].hand; victimName = tt.players[pick].name || 'the enemy'; }
+      } else {
+        victimHand = G.state[opp] && G.state[opp].hand;
+      }
+
+      // ── Chain 2 random cards together ──
+      const pool = (victimHand || []).filter(c => c && !c._chained);
+      if (pool.length >= 2) {
+        // Two distinct random cards.
+        const i1 = Math.floor(G.rng() * pool.length);
+        let i2 = Math.floor(G.rng() * (pool.length - 1));
+        if (i2 >= i1) i2++;
+        const a = pool[i1], b = pool[i2];
+        a._chained = true; a._chainPartnerId = b.id; a._chainPartnerName = b.name;
+        b._chained = true; b._chainPartnerId = a.id; b._chainPartnerName = a.name;
+        G.log(`[PINHEAD] Chains bind ${a.name} and ${b.name} in ${victimName}'s hand — they must be played together, each at -1/-1.`);
+      } else {
+        G.log(`[PINHEAD] ${victimName} hasn't enough cards to chain.`);
+      }
+
+      // ── Steal 1 Block Meter from the enemy ──
+      const BLOCK_MAX = G.BLOCK_MAX || 8;
+      try {
+        if (G.is2v2 && G.is2v2() && tt && tt.teams) {
+          const myTeam = (owner === 'player') ? 'A' : 'B';
+          const foeTeam = myTeam === 'A' ? 'B' : 'A';
+          const take = Math.min(1, (tt.teams[foeTeam] && tt.teams[foeTeam].blockMeter) || 0);
+          if (take > 0) {
+            tt.teams[foeTeam].blockMeter = Math.max(0, (tt.teams[foeTeam].blockMeter || 0) - take);
+            tt.teams[myTeam].blockMeter = Math.min(BLOCK_MAX, (tt.teams[myTeam].blockMeter || 0) + take);
+            // Mirror onto the live combat proxies so it shows this turn.
+            if (G.state[owner]) G.state[owner].blockMeter = tt.teams[myTeam].blockMeter;
+            if (G.state[opp]) G.state[opp].blockMeter = tt.teams[foeTeam].blockMeter;
+            G.log(`[PINHEAD] Drags 1 Block Meter from the enemy team onto yours.`);
+          }
+        } else {
+          const take = Math.min(1, (G.state[opp] && G.state[opp].blockMeter) || 0);
+          if (take > 0) {
+            G.state[opp].blockMeter = Math.max(0, (G.state[opp].blockMeter || 0) - take);
+            G.state[owner].blockMeter = Math.min(BLOCK_MAX, (G.state[owner].blockMeter || 0) + take);
+            G.log(`[PINHEAD] Drags 1 Block Meter from the enemy onto yours.`);
+          }
+        }
+      } catch (e) { console.error('[Pinhead block steal]', e); }
+    }
+  },
   "Mr. Freeze": {
     onPlay(G, self, lane) {
       // Targets scale with tier: just front (common/rare), front + 1
