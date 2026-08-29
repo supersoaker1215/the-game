@@ -21745,6 +21745,20 @@ const UI = {
         const t = +(el.dataset && el.dataset.enterAt) || 0;
         if (!t || (now - t) > 1300) { el.classList.remove('card-enter'); if (el.dataset) delete el.dataset.enterAt; }
       });
+      // SAME HAZARD, OTHER DIRECTION. card-exit runs cardDestroy (0.9s) with
+      // animation-fill-mode: forwards and ends fully mask-dissolved — invisible.
+      // The death animation adds it to the REAL board tile; if a re-render reuses
+      // that tile for a live card before the class clears (a new body played into
+      // the same lane the instant something died there — common in Tournament vs
+      // AI, where both sides act fast), the live card inherits the dissolve mask
+      // and vanishes while staying clickable. Strip card-exit from any board tile
+      // whose dissolve window has clearly elapsed (or that carries no stamp), so a
+      // reused tile can never stay invisible. (User: "a card in a lane but
+      // invisible … go through all game modes and fix the rendering glitches.")
+      document.querySelectorAll('#board .card.card-exit').forEach(el => {
+        const t = +(el.dataset && el.dataset.exitAt) || 0;
+        if (!t || (now - t) > 1100) { el.classList.remove('card-exit'); if (el.dataset) delete el.dataset.exitAt; }
+      });
     } catch (e) {}
     try {
       this._renderBoardImpl(s);
@@ -31703,6 +31717,7 @@ const UI = {
     // dissolve any time they're killed... like Tron, dissolve back
     // into the grid." Fires alongside the existing particle burst /
     // shockwave / screen flash.
+    cardEl.dataset.exitAt = String(Date.now());   // swept if it ever gets stuck (see renderBoard)
     cardEl.classList.add('card-exit');
     // Original 8-particle burst (unchanged).
     const host = document.createElement('div');
