@@ -19901,6 +19901,87 @@ body.phase-menu .kb-hints { display: none; }
 }
 .replay-log-line:last-child { border-bottom: none; }
 
+/* ---- Animated board playback (replay viewer) ---- */
+.replay-stage {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 12px; margin: 4px 0 10px;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.25));
+  border-radius: 6px;
+}
+.replay-round {
+  text-align: center; font: 700 12px 'Rajdhani','Inter',sans-serif;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: var(--text-dim, #c6d0db); opacity: 0.85;
+}
+.replay-board { display: grid; gap: 6px; }
+.replay-board-mid { padding: 0 2px; }
+.replay-lane-num {
+  text-align: center; font: 600 9px ui-monospace,monospace;
+  color: rgba(var(--theme-rgb,79,195,247),0.4);
+}
+.replay-slot {
+  min-height: 52px; border-radius: 5px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; padding: 4px; text-align: center;
+  transition: opacity .25s ease, transform .25s ease;
+}
+.replay-empty {
+  border: 1px dashed rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.015);
+}
+.replay-card {
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(20,28,40,0.9);
+  animation: replayPop .28s ease both;
+}
+@keyframes replayPop { from { opacity: 0; transform: translateY(4px) scale(0.96); } to { opacity: 1; transform: none; } }
+.replay-card.replay-ai     { border-color: rgba(231,76,60,0.5);  box-shadow: inset 0 0 0 1px rgba(231,76,60,0.12); }
+.replay-card.replay-player { border-color: rgba(var(--theme-rgb,79,195,247),0.5); box-shadow: inset 0 0 0 1px rgba(var(--theme-rgb,79,195,247),0.12); }
+.replay-card.replay-env    { border-style: dashed; opacity: 0.9; }
+.replay-card.replay-hurt   { filter: saturate(0.8) brightness(0.9); }
+.replay-card-name {
+  font: 600 9.5px 'Inter',system-ui,sans-serif; line-height: 1.1;
+  color: #e7eef7; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.replay-card-stats {
+  font: 700 10px ui-monospace,monospace;
+  color: #ffd36b; background: rgba(0,0,0,0.4);
+  padding: 0 5px; border-radius: 3px;
+}
+.replay-hp { display: flex; align-items: center; gap: 8px; }
+.replay-hp-label { font: 700 10px 'Rajdhani',sans-serif; letter-spacing: 1px; width: 42px; }
+.replay-hp-ai .replay-hp-label     { color: #e74c3c; }
+.replay-hp-player .replay-hp-label { color: rgb(var(--theme-rgb,79,195,247)); }
+.replay-hp-track {
+  flex: 1 1 auto; height: 9px; border-radius: 5px;
+  background: rgba(255,255,255,0.08); overflow: hidden;
+}
+.replay-hp-fill { height: 100%; border-radius: 5px; transition: width .4s ease; }
+.replay-hp-ai .replay-hp-fill     { background: linear-gradient(90deg,#e74c3c,#ff7a6b); }
+.replay-hp-player .replay-hp-fill { background: linear-gradient(90deg,rgb(var(--theme-rgb,79,195,247)),#8fe3ff); }
+.replay-hp-num { font: 700 12px ui-monospace,monospace; width: 30px; text-align: right; color: #e7eef7; }
+.replay-controls { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.replay-ctl {
+  background: rgba(var(--theme-rgb,79,195,247),0.12);
+  border: 1px solid rgba(var(--theme-rgb,79,195,247),0.35);
+  color: #e7eef7; border-radius: 5px; cursor: pointer;
+  font: 600 13px 'Inter',sans-serif; padding: 6px 11px; min-width: 40px;
+  transition: background .15s ease;
+}
+.replay-ctl:hover { background: rgba(var(--theme-rgb,79,195,247),0.24); }
+.replay-play { background: rgba(var(--theme-rgb,79,195,247),0.22); }
+.replay-speed { min-width: 44px; }
+.replay-scrub { flex: 1 1 120px; accent-color: rgb(var(--theme-rgb,79,195,247)); cursor: pointer; }
+.replay-counter { font: 600 11px ui-monospace,monospace; color: var(--text-dim,#c6d0db); min-width: 54px; text-align: right; }
+.replay-details { margin-top: 6px; }
+.replay-details > summary {
+  cursor: pointer; font: 600 11px 'Rajdhani',sans-serif; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--text-dim,#c6d0db);
+  padding: 6px 0; opacity: 0.85;
+}
+
 /* ============================================================
    CARD ENCYCLOPEDIA — full-screen browser for the card/trick
    pool. Reuses deck-builder grid chrome for the card tiles,

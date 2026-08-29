@@ -19741,7 +19741,12 @@ const UI = {
         // resurrect a line this client was never allowed to read, and it must
         // not store the raw control-char tag either.
         log: (s.log || []).filter(l => this._logLineMine(l)).map(l => Game.logLineText(l)),
-        hpHistory: (s._hpHistory || []).slice()
+        hpHistory: (s._hpHistory || []).slice(),
+        // Board-playback frames for the animated replay viewer (per-round board
+        // snapshots). Capped so a marathon match can't blow the localStorage
+        // quota — the newest frames matter most, but we keep from the start so
+        // the arc reads front-to-back; 60 frames is far more than any real match.
+        frames: (s._replayFrames || []).slice(0, 60)
       };
       localStorage.setItem(this._REPLAY_KEY, JSON.stringify(payload));
     } catch (e) { /* quota / disabled */ }
@@ -20080,30 +20085,29 @@ const UI = {
     ctx.fillText('CARD LANE BATTLE', W / 2, H - 40);
   },
   _renderReplayOverlay(r) {
-    // Remove any stale overlay.
+    // Remove any stale overlay + stop any running playback timer.
+    this._replayStop();
     const stale = document.getElementById('replay-overlay');
     if (stale) stale.remove();
     const ov = document.createElement('div');
     ov.id = 'replay-overlay';
     ov.className = 'replay-overlay';
-    // Colorize log entries the same way the in-game drawer does —
-    // preserve the bracketed tags' inline colors.
-    const logLines = (r.log || []).map(line => {
-      // Each log line is either a plain string or already-formatted
-      // HTML; strip basic HTML risks and re-class it. Game.log stores
-      // strings with pre-baked color spans; keeping them is safe here
-      // since we control the source.
-      return `<div class="replay-log-line">${line}</div>`;
-    }).join('');
-    // Build an HP chart as SVG — reuses the same math as renderHpCurveSvg.
-    const hpSvg = this._replayHpChart(r.hpHistory || []);
     const summary = r.summary || {};
     const verdict = summary.winner === 'player' ? 'VICTORY'
                   : summary.winner === 'ai'    ? 'DEFEAT'
                   : 'DRAW';
+    // Board-playback state lives on UI so the control handlers can reach it.
+    this._replayFramesData = Array.isArray(r.frames) ? r.frames : [];
+    this._replayIdx = 0;
+    this._replaySpeed = 1;
+    const hasFrames = this._replayFramesData.length > 0;
+    // The log + HP curve stay available as a collapsible "details" strip under
+    // the board — an older replay saved before frames existed still shows them.
+    const logLines = (r.log || []).map(line => `<div class="replay-log-line">${line}</div>`).join('');
+    const hpSvg = this._replayHpChart(r.hpHistory || []);
     ov.innerHTML = `
       <div class="replay-panel">
-        <button type="button" class="md-back" onclick="document.getElementById('replay-overlay').remove()" title="Close replay">&larr; Back</button>
+        <button type="button" class="md-back" onclick="UI._replayStop(); document.getElementById('replay-overlay').remove()" title="Close replay">&larr; Back</button>
         <div class="encyc-head">
           <div>
             <div class="encyc-tag">Replay</div>
@@ -20111,10 +20115,102 @@ const UI = {
             <div class="encyc-sub">${summary.rounds || 0} rounds · ${summary.mode || 'classic'}</div>
           </div>
         </div>
-        <div class="replay-chart">${hpSvg}</div>
-        <div class="replay-log">${logLines || '<div class="db-grid-empty">No log captured.</div>'}</div>
+        ${hasFrames ? `
+        <div id="replay-stage" class="replay-stage"></div>
+        <div class="replay-controls">
+          <button type="button" class="replay-ctl" onclick="UI._replaySeek(0)" title="Restart">⏮</button>
+          <button type="button" class="replay-ctl" onclick="UI._replayStep(-1)" title="Previous round">◀</button>
+          <button type="button" id="replay-playbtn" class="replay-ctl replay-play" onclick="UI._replayToggle()" title="Play / pause">▶</button>
+          <button type="button" class="replay-ctl" onclick="UI._replayStep(1)" title="Next round">▶▶</button>
+          <button type="button" id="replay-speedbtn" class="replay-ctl replay-speed" onclick="UI._replayCycleSpeed()" title="Playback speed">1×</button>
+          <input type="range" id="replay-scrub" class="replay-scrub" min="0" max="${this._replayFramesData.length - 1}" value="0" oninput="UI._replaySeek(+this.value)">
+          <span id="replay-counter" class="replay-counter"></span>
+        </div>` : `<div class="db-grid-empty" style="margin:16px 0">No board frames in this replay — play a new match to record one. Showing the log instead.</div>`}
+        <details class="replay-details" ${hasFrames ? '' : 'open'}>
+          <summary>HP curve &amp; battle log</summary>
+          <div class="replay-chart">${hpSvg}</div>
+          <div class="replay-log">${logLines || '<div class="db-grid-empty">No log captured.</div>'}</div>
+        </details>
       </div>`;
     document.body.appendChild(ov);
+    if (hasFrames) this._replayRenderFrame(0);
+  },
+  // Render one board frame into #replay-stage — a read-only mini board: enemy
+  // row on top (red), your row on the bottom (green), a lane per column.
+  _replayRenderFrame(idx) {
+    const frames = this._replayFramesData || [];
+    if (!frames.length) return;
+    idx = Math.max(0, Math.min(frames.length - 1, idx));
+    this._replayIdx = idx;
+    const f = frames[idx];
+    const stage = document.getElementById('replay-stage');
+    if (!stage || !f) return;
+    const cardHtml = (c, side) => {
+      if (!c) return `<div class="replay-slot replay-empty"></div>`;
+      const name = c.fd ? '???' : (c.n || '');
+      const stats = c.env ? '' : `<span class="replay-card-stats">${c.a}/${c.h}</span>`;
+      const hurt = (!c.env && c.mh && c.h < c.mh) ? ' replay-hurt' : '';
+      return `<div class="replay-slot replay-card replay-${side}${hurt}${c.env ? ' replay-env' : ''}">
+          <span class="replay-card-name">${name}</span>${stats}
+        </div>`;
+    };
+    const hpBar = (hp, max, side, label) => {
+      const pct = Math.max(0, Math.min(100, (hp / Math.max(1, max)) * 100));
+      return `<div class="replay-hp replay-hp-${side}">
+          <span class="replay-hp-label">${label}</span>
+          <div class="replay-hp-track"><div class="replay-hp-fill" style="width:${pct}%"></div></div>
+          <span class="replay-hp-num">${hp}</span>
+        </div>`;
+    };
+    const lanesTop = f.lanes.map(L => cardHtml(L.a, 'ai')).join('');
+    const lanesBot = f.lanes.map(L => cardHtml(L.p, 'player')).join('');
+    const cols = f.lanes.length || 6;
+    const roundLabel = f.label === 'Final' ? 'Final board' : `Round ${f.round}`;
+    stage.innerHTML = `
+      ${hpBar(f.ahp, f.amax, 'ai', 'Enemy')}
+      <div class="replay-round">${roundLabel}</div>
+      <div class="replay-board" style="grid-template-columns:repeat(${cols},1fr)">${lanesTop}</div>
+      <div class="replay-board replay-board-mid" style="grid-template-columns:repeat(${cols},1fr)">${f.lanes.map((L, i) => `<div class="replay-lane-num">${i + 1}</div>`).join('')}</div>
+      <div class="replay-board" style="grid-template-columns:repeat(${cols},1fr)">${lanesBot}</div>
+      ${hpBar(f.php, f.pmax, 'player', 'You')}`;
+    // Sync the scrubber + counter + play button label.
+    const scrub = document.getElementById('replay-scrub'); if (scrub) scrub.value = String(idx);
+    const counter = document.getElementById('replay-counter'); if (counter) counter.textContent = `${idx + 1} / ${frames.length}`;
+  },
+  _replaySeek(idx) { this._replayPause(); this._replayRenderFrame(idx); },
+  _replayStep(dir) {
+    this._replayPause();
+    this._replayRenderFrame((this._replayIdx || 0) + (dir > 0 ? 1 : -1));
+  },
+  _replayToggle() { this._replayPlaying ? this._replayPause() : this._replayPlay(); },
+  _replayPlay() {
+    const frames = this._replayFramesData || [];
+    if (!frames.length) return;
+    // If we're at the end, restart from the top on play.
+    if (this._replayIdx >= frames.length - 1) this._replayRenderFrame(0);
+    this._replayPlaying = true;
+    const btn = document.getElementById('replay-playbtn'); if (btn) btn.textContent = '⏸';
+    const tick = () => {
+      if (!this._replayPlaying) return;
+      const next = (this._replayIdx || 0) + 1;
+      if (next >= frames.length) { this._replayPause(); return; }
+      this._replayRenderFrame(next);
+      this._replayTimer = setTimeout(tick, 1400 / (this._replaySpeed || 1));
+    };
+    this._replayTimer = setTimeout(tick, 1400 / (this._replaySpeed || 1));
+  },
+  _replayPause() {
+    this._replayPlaying = false;
+    if (this._replayTimer) { clearTimeout(this._replayTimer); this._replayTimer = null; }
+    const btn = document.getElementById('replay-playbtn'); if (btn) btn.textContent = '▶';
+  },
+  _replayStop() { this._replayPause(); this._replayFramesData = null; },
+  _replayCycleSpeed() {
+    const speeds = [1, 1.5, 2, 0.5];
+    const cur = this._replaySpeed || 1;
+    this._replaySpeed = speeds[(speeds.indexOf(cur) + 1) % speeds.length];
+    const btn = document.getElementById('replay-speedbtn'); if (btn) btn.textContent = `${this._replaySpeed}×`;
+    // If playing, the new cadence takes effect on the next tick.
   },
   _replayHpChart(history) {
     if (!history.length) return '<div class="db-grid-empty">No HP history captured.</div>';

@@ -1974,6 +1974,31 @@ const Game = {
   exportReplay() {
     return { v: 1, seed: this._replaySeed, mode: this._replayMode, log: (this._replayLog || []).slice() };
   },
+  // ===================== REPLAY FRAMES (board playback) =====================
+  // A per-round board snapshot the end-of-match viewer renders in sequence — a
+  // watchable replay of the match on a read-only board, with timeline controls,
+  // instead of a wall of log text. Frames are tiny (card name + atk/hp per lane
+  // + both HP totals), so a full match is a few KB and rides in the saved replay
+  // payload next to the log + HP curve. Mode-agnostic: 1v1 and 2v2 both call it.
+  _captureReplayFrame(roundNum, label) {
+    if (!this.state) return;
+    const snap = (c) => c ? {
+      n: c.name, a: c.attack | 0, h: c.currentHealth | 0, mh: c.maxHealth | 0,
+      fd: !!(c._faceDown || c._playFaceDown), env: !!c.isEnvironment
+    } : null;
+    const lanes = (this.state.lanes || []).map(L => ({ p: snap(L && L.player), a: snap(L && L.ai) }));
+    const f = {
+      round: roundNum || this.state.round || 0,
+      label: label || null,
+      php: this.state.player ? (this.state.player.health | 0) : 0,
+      ahp: this.state.ai ? (this.state.ai.health | 0) : 0,
+      pmax: (this.state.player && this.state.player.maxHealth) || 30,
+      amax: (this.state.ai && this.state.ai.maxHealth) || 30,
+      lanes
+    };
+    if (!this.state._replayFrames) this.state._replayFrames = [];
+    this.state._replayFrames.push(f);
+  },
   // Re-issue one recorded log entry against the current (re-seeded) state.
   // Returns whatever the underlying door returned.
   applyReplayEntry(entry) {
@@ -3572,6 +3597,7 @@ const Game = {
     this.state.winner = null;
     this.state.voidPile = [];
     this.state._hpHistory = null;
+    this.state._replayFrames = null;   // fresh board-playback frames per match
     this.state._roundStats = null;
     this.state._combatFinishedThisRound = false;
     delete this.state._beforeCombatFired;
@@ -4458,6 +4484,10 @@ const Game = {
       player: this.state.player.health,
       ai:     this.state.ai.health
     });
+    // REPLAY FRAME — a lightweight snapshot of the board entering this round, so
+    // the end-of-match replay VIEWER can play the whole match back on a real
+    // board (not a text log). Cheap (a few hundred bytes) and mode-agnostic.
+    this._captureReplayFrame(r);
     // Flash override — if someone used Flash's "choose first next turn", honor it.
     if (this.state._nextFirstPlayer === 'player' || this.state._nextFirstPlayer === 'ai') {
       this.state.firstPlayer = this.state._nextFirstPlayer;
@@ -8658,6 +8688,9 @@ const Game = {
         ai: currentA
       });
     }
+    // Final board frame for the replay viewer — the board as the match ended,
+    // after the last combat (the round-start frames stop one round short).
+    this._captureReplayFrame((this.state.round || 1), 'Final');
   },
 
   // ===================== DRAW PHASE =====================
@@ -17442,6 +17475,9 @@ const Game = {
     // (abilities.js has a lock length computed the same way), and a card should
     // not have to know which mode it is in to ask what round it is.
     s.round = tt.round;
+    // Replay frame — 2v2 board entering this round (state.player/ai.health hold
+    // the two TEAM totals here, so the viewer's HP bars read correctly).
+    this._captureReplayFrame(tt.round);
     // THE FLASH MOVES THE ROTATION, HE DOES NOT LEND IT FOR ONE ROUND. The
     // override used to apply to its own round and then vanish, so the round
     // after it snapped back to the schedule as if the Flash had never been
