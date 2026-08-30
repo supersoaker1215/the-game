@@ -1688,7 +1688,18 @@ const Game = {
         type: live.type, abilities: live.abilities, desc: live.desc,
         _sourceInstance: live,
       });
-      this.drawCards(side, 1);
+      // NAME THE SEAT. drawCards routes the drawn card with _2v2HandTarget,
+      // whose fallback chain is the ambient "who is acting" guess
+      // (_2v2CurrentActingPlayer → _2v2AIDriving → active seat), and that chain
+      // only checks the SIDE, not the seat. Plenty of paths set the acting
+      // player and never clear it, so a redraw taken before you have played
+      // anything this turn ran with your AI TEAMMATE still named — same team,
+      // so the guess passed the check and your replacement card landed in their
+      // hand. You paid the energy, lost the card, and got nothing back.
+      // (User: "I tried to use my redraw and it never got a card back.")
+      // The seat is not in doubt here, so say it outright instead of letting it
+      // be inferred: _2v2HandTarget honours source._2v2PlayedBy first.
+      this.drawCards(side, 1, { _2v2PlayedBy: seatKey });
     });
     seat.redrawsUsed = (seat.redrawsUsed | 0) + 1;
     this.log(`${seat.name || seatKey} redraws ${live.name} for ${cost} Energy (next redraw: ${this.getRedrawCost(null, seatKey)}).`);

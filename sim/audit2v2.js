@@ -25,9 +25,43 @@ if (typeof Game._2v2RunOwned !== 'function') Game._2v2RunOwned = function (c, fn
 
 var argv = (typeof arguments !== 'undefined') ? arguments : [];
 var VERBOSE = false;
-for (var i = 0; i < argv.length; i++) if (argv[i] === '--verbose') VERBOSE = true;
+var WANT = 'all';
+for (var i = 0; i < argv.length; i++) {
+  if (argv[i] === '--verbose') VERBOSE = true;
+  if (argv[i] === '--scenario') WANT = String(argv[i + 1] || 'all');
+}
 
 var SEATS = ['p1', 'p2', 'p3', 'p4'];
+
+// ---- WHO IS AT THE TABLE ---------------------------------------------------
+// The audit used to know exactly one seating: a human guest casting, a human
+// teammate, and two AI enemies. That is not the table most games are played
+// at. A seat being AI changes which seats the engine will hand a prompt to and
+// which seat its ambient "who is acting" globals point at, so a card that
+// routes correctly with a human teammate can still hand your ability to an AI
+// one — and nothing here would have seen it. (User: "go through all paths for
+// 2v2 vs AI, and when all 4 humans play".)
+//
+// p1+p3 are one team, p2+p4 the other (start2v2Match's assignment), so the
+// caster's TEAMMATE is the other odd/even seat. `ai` lists every seat the
+// engine should treat as computer-driven.
+var SCENARIOS = {
+  // Today's original seating, kept exactly as it was so its results stay
+  // comparable to every previous run of this script.
+  guest:     { caster: 'p3', ai: { p2: 1, p4: 1 },
+               label: 'human caster + human teammate vs 2 AI' },
+  // THE ONE THE OWNER ACTUALLY PLAYS: you host, everyone else is a bot.
+  hostvsai:  { caster: 'p1', ai: { p2: 1, p3: 1, p4: 1 },
+               label: 'host caster + AI teammate vs 2 AI  (you + 3 AI)' },
+  // Same table, but you are not the host seat — different prompt routing.
+  guestvsai: { caster: 'p3', ai: { p1: 1, p2: 1, p4: 1 },
+               label: 'guest caster + AI teammate vs 2 AI' },
+  // Four people, no bots: nothing may auto-resolve on anyone's behalf.
+  allhuman:  { caster: 'p3', ai: {},
+               label: 'all four seats human' }
+};
+var SCEN = SCENARIOS.guest;      // rebound per scenario by runScenario()
+
 var findings = [];   // { card, kind, detail }
 var stats = { cards: 0, tricks: 0, prompts: 0, clean: 0 };
 
@@ -44,7 +78,7 @@ function room() {
   tt.online = true;
   tt.you = 'p1';                       // this client is the HOST engine
   tt.joinedPlayers = { p1: 1, p2: 1, p3: 1, p4: 1 };
-  SEATS.forEach(function (k) { tt.players[k].isAI = false; tt.players[k].energy = 12; tt.players[k].usedEnergy = 0; });
+  SEATS.forEach(function (k) { tt.players[k].isAI = !!SCEN.ai[k]; tt.players[k].energy = 12; tt.players[k].usedEnergy = 0; });
   tt.round = 4;
   Game.state.round = 4;
   tt.subPhaseIdx = 0;
@@ -155,7 +189,7 @@ function auditCard(def) {
   if (def._spawnOnly) return;   // never dealt or played; only spawned
   stats.cards++;
   var tt = room();
-  var casterSeat = 'p3', casterTeam = tt.players.p3.team;
+  var casterSeat = SCEN.caster, casterTeam = tt.players[casterSeat].team;
   var mySide = Game._2v2TeamSide[casterTeam];
   var oppSide = mySide === 'player' ? 'ai' : 'player';
   populate(mySide, oppSide);
@@ -175,11 +209,15 @@ function auditCard(def) {
   // the card knows who played it — not because a global happened to be right.
   // (User: "the person who played it gets to use the ability and it never goes
   // to the Host or an AI opponent.")
-  tt.players.p2.isAI = true;
-  tt.players.p4.isAI = true;
+  SEATS.forEach(function (k) { tt.players[k].isAI = !!SCEN.ai[k]; });
+  // The wrong-signal seat is an ENEMY that is not the caster, so "the card
+  // knows who played it" is the only thing that can route the prompt home.
+  var decoy = SEATS.filter(function (k) {
+    return k !== casterSeat && tt.players[k].team !== casterTeam;
+  })[0];
   Game._2v2CurrentActingPlayer = null;
-  Game._2v2AIDriving = 'p2';
-  Game._2v2ActivePlayer = function () { return 'p2'; };
+  Game._2v2AIDriving = decoy;
+  Game._2v2ActivePlayer = function () { return decoy; };
 
   var hooks = [];
   ['onPlay', 'onDiscard', 'onBeforeTricks', 'onEndOfTurn', 'onDeath',
@@ -225,7 +263,7 @@ function auditCard(def) {
     // release the blocker into a world where nothing remembers the caster
     Game.state.pendingCardChoice = null;
     Game._2v2CurrentActingPlayer = null;
-    Game._2v2AIDriving = 'p2';
+    Game._2v2AIDriving = decoy;
     try { Game.resumeCombatIfWaiting(); } catch (e) {}
     drainPrompts(def.name + ' (deferred)', casterSeat, casterTeam, mySide);
   })();
@@ -291,7 +329,7 @@ function auditCard(def) {
 function auditTrick(def) {
   stats.tricks++;
   var tt = room();
-  var casterSeat = 'p3', casterTeam = tt.players.p3.team;
+  var casterSeat = SCEN.caster, casterTeam = tt.players[casterSeat].team;
   var mySide = Game._2v2TeamSide[casterTeam];
   var oppSide = mySide === 'player' ? 'ai' : 'player';
   populate(mySide, oppSide);
@@ -309,6 +347,9 @@ function auditTrick(def) {
 }
 
 // ---- run -----------------------------------------------------------------
+// EVERY SEATING, NOT JUST ONE. A finding that only appears in one scenario is
+// the interesting kind: it means the card is leaning on who happens to be
+// human rather than on who played it.
 var _origErr = console.error;
 var swallowed = [];
 console.error = function () {
@@ -317,35 +358,66 @@ console.error = function () {
   swallowed.push(parts.join(' '));
 };
 
-CARD_DEFS.forEach(function (d) {
-  try { auditCard(d); }
-  catch (e) { note(d.name, 'THREW', 'audit harness: ' + (e.message || e)); }
-});
-TRICK_DEFS.forEach(function (t) {
-  try { auditTrick(t); }
-  catch (e) { note('TRICK ' + t.name, 'THREW', 'audit harness: ' + (e.message || e)); }
+var ORDER = ['THREW', 'STUCK', 'UNOWNED', 'ANSWEREDBYAI', 'WRONGSEAT', 'MISROUTED', 'NOFIRE'];
+var summary = [];
+
+function runScenario(name) {
+  SCEN = SCENARIOS[name];
+  findings = [];
+  stats = { cards: 0, tricks: 0, prompts: 0, clean: 0 };
+  swallowed.length = 0;
+
+  CARD_DEFS.forEach(function (d) {
+    try { auditCard(d); }
+    catch (e) { note(d.name, 'THREW', 'audit harness: ' + (e.message || e)); }
+  });
+  TRICK_DEFS.forEach(function (t) {
+    try { auditTrick(t); }
+    catch (e) { note('TRICK ' + t.name, 'THREW', 'audit harness: ' + (e.message || e)); }
+  });
+
+  print('');
+  print('=== 2v2 ABILITY AUDIT — ' + name + ' ===');
+  print('    ' + SCEN.label + '   (caster ' + SCEN.caster + ')');
+  print('cards played: ' + stats.cards + '   tricks played: ' + stats.tricks + '   prompts raised: ' + stats.prompts);
+  var byKind = {};
+  findings.forEach(function (f) { (byKind[f.kind] = byKind[f.kind] || []).push(f); });
+  var total = 0;
+  ORDER.forEach(function (k) {
+    var list = byKind[k] || [];
+    total += list.length;
+    if (!list.length) { print('  ' + k + ': none'); return; }
+    print('  ' + k + ': ' + list.length);
+    list.slice(0, VERBOSE ? 999 : 20).forEach(function (f) { print('      ' + f.card + ' — ' + f.detail); });
+    if (!VERBOSE && list.length > 20) print('      … ' + (list.length - 20) + ' more (--verbose)');
+  });
+  print(total ? ('TOTAL FINDINGS: ' + total)
+              : 'NO FINDINGS — every card and trick resolved and released the table.');
+  if (swallowed.length) {
+    var uniq = {};
+    swallowed.forEach(function (e) { uniq[String(e).slice(0, 120)] = (uniq[String(e).slice(0, 120)] || 0) + 1; });
+    print('--- engine console.error during the run (' + swallowed.length + ') ---');
+    Object.keys(uniq).slice(0, 15).forEach(function (k) { print('  ' + uniq[k] + 'x  ' + k); });
+  }
+  summary.push({ name: name, total: total, cards: stats.cards, tricks: stats.tricks, prompts: stats.prompts });
+}
+
+var TO_RUN = (WANT === 'all') ? Object.keys(SCENARIOS) : [WANT];
+TO_RUN.forEach(function (n) {
+  if (!SCENARIOS[n]) { print('unknown scenario "' + n + '" — have: ' + Object.keys(SCENARIOS).join(', ')); return; }
+  runScenario(n);
 });
 
 console.error = _origErr;
 
-print('=== 2v2 ABILITY AUDIT ===');
-print('cards played: ' + stats.cards + '   tricks played: ' + stats.tricks + '   prompts raised: ' + stats.prompts);
-var byKind = {};
-findings.forEach(function (f) { (byKind[f.kind] = byKind[f.kind] || []).push(f); });
-var order = ['THREW', 'STUCK', 'UNOWNED', 'ANSWEREDBYAI', 'WRONGSEAT', 'MISROUTED', 'NOFIRE'];
-var total = 0;
-order.forEach(function (k) {
-  var list = byKind[k] || [];
-  total += list.length;
-  if (!list.length) { print('  ' + k + ': none'); return; }
-  print('  ' + k + ': ' + list.length);
-  list.slice(0, VERBOSE ? 999 : 20).forEach(function (f) { print('      ' + f.card + ' — ' + f.detail); });
-  if (!VERBOSE && list.length > 20) print('      … ' + (list.length - 20) + ' more (--verbose)');
-});
-print(total ? ('TOTAL FINDINGS: ' + total) : 'NO FINDINGS — every card and trick resolved and released the table.');
-if (swallowed.length) {
-  var uniq = {};
-  swallowed.forEach(function (e) { uniq[String(e).slice(0, 120)] = (uniq[String(e).slice(0, 120)] || 0) + 1; });
-  print('--- engine console.error during the run (' + swallowed.length + ') ---');
-  Object.keys(uniq).slice(0, 15).forEach(function (k) { print('  ' + uniq[k] + 'x  ' + k); });
+if (summary.length > 1) {
+  print('');
+  print('=== SUMMARY ACROSS SEATINGS ===');
+  var grand = 0;
+  summary.forEach(function (r) {
+    grand += r.total;
+    print('  ' + (r.name + '            ').slice(0, 12) + (r.total ? r.total + ' finding(s)' : 'clean')
+      + '   [' + r.cards + ' cards, ' + r.tricks + ' tricks, ' + r.prompts + ' prompts]');
+  });
+  print(grand ? ('GRAND TOTAL: ' + grand) : 'ALL SEATINGS CLEAN.');
 }

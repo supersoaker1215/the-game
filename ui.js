@@ -6110,6 +6110,16 @@ const UI = {
     const RELAY_ALSO = new Set([
       '_freddyHandSlash', '_freddyJumpscare', '_jawsJumpscare', '_pennywiseJumpscare',
       '_spinosaurusRampage', '_spinosaurusRelease', '_screenShake', 'flashLanes',
+      // Combat presentation. Both are fired by resolveCombat, which in 2v2 runs
+      // on the HOST ONLY — so the board-wide combat pulse and every lane's
+      // damage recap happened on one screen out of four. Both anchor to things
+      // that still exist when the guest replays them (the board overlay, the
+      // lane element), which is what makes them safe to carry on this channel.
+      // A DEATH effect is not: by the time the guest drains this queue it has
+      // already re-rendered without the dead card, so there is no element left
+      // to burst. Those ride the pre-swap board diff instead — see
+      // _relay2v2CardFx.
+      'flashCombatReveal', 'showLaneRecap',
     ]);
     Object.keys(this).forEach((key) => {
       if (key.indexOf('_fx') !== 0 && !RELAY_ALSO.has(key)) return;
@@ -6154,7 +6164,7 @@ const UI = {
   // ---- SOUND RELAY ----
   // Guests never run the engine, so a sound an ABILITY fires only ever reaches
   // the host's speakers. Card plays and deaths were already reconstructed on
-  // the guest by diffing the board (_relay2v2CardSounds) and status cues ride
+  // the guest by diffing the board (_relay2v2CardFx) and status cues ride
   // their own event, but the distinctive ones — Homelander's laser, Palpatine's
   // lightning, a trick's own voice — were host-only. (User: "make sure sounds
   // play for everyone as well.")
@@ -11730,11 +11740,21 @@ const UI = {
   },
 
   // 2v2 guest: the three non-host seats never run the engine, so the card-play
-  // and card-death sounds the host fires live never reach them. Diff the board
-  // between the old and incoming broadcast by card id and fire the matching SFX
+  // and card-death FX the host fires live never reach them. Diff the board
+  // between the old and incoming broadcast by card id and fire the matching cue
   // (id-based, so a card that just MOVED lanes stays silent). Mirrors the 1v1
   // guest lane-diff in _mpInit. Called before the state swap on the joiner path.
-  _relay2v2CardSounds(oldState, newState) {
+  //
+  // WHY DEATHS ARE HANDLED HERE AND NOT ON THE FX RELAY. This is the only
+  // moment a guest can animate a death: it runs BEFORE Game.state is swapped,
+  // so the dying card is still on screen. The generic sig relay drains from
+  // showDamageFloats — after the swap and after the re-render — where the
+  // element is already gone and the particle burst would silently find nothing
+  // to burst. So the guests heard the death and never saw it: no dissolve, no
+  // shards, no kill flash, cards just blinked out. (User: "make sure all the
+  // animations ... fire and work ... when 4 people are playing.")
+  // Named ...CardFx, not ...CardSounds, because it is no longer only sound.
+  _relay2v2CardFx(oldState, newState) {
     try {
       if (!oldState || !newState || !this.sfx || !this.sfx.playCardSfx) return;
       const idsOf = (st) => {
@@ -11749,7 +11769,13 @@ const UI = {
         const c = after[id]; try { this.sfx.playCardSfx(c.name, 'play', c); } catch (e) {}
       }
       for (const id in before) if (!(id in after)) {
-        const c = before[id]; try { this.sfx.playCardSfx(c.name, 'death', null); } catch (e) {}
+        const c = before[id];
+        try { this.sfx.playCardSfx(c.name, 'death', null); } catch (e) {}
+        // The card is still in the DOM at this instant — burst it here.
+        // spawnDestroyParticles maps the kill-flash side through _fxDomSide,
+        // so the absolute owner recorded in the board state reads correctly on
+        // whichever team this viewer is on.
+        try { if (this.spawnDestroyParticles) this.spawnDestroyParticles(c.id, c.owner); } catch (e) {}
       }
     } catch (e) {}
   },
@@ -30105,11 +30131,18 @@ const UI = {
     if (stale) stale.remove();
     const panel = document.createElement('div');
     panel.className = 'lane-recap';
+    // ALLY/ENEMY IS A POINT OF VIEW, NOT A SIDE. sum's p*/a* fields are the
+    // ABSOLUTE sides ('player' = Team A), but this panel colors one line as
+    // yours and one as theirs — so on a Team B screen the two tints were
+    // swapped and your own card's hit read as the enemy's. _fxDomSide maps an
+    // absolute side to the viewer's, and is the identity in 1v1.
+    const _pCls = this._fxDomSide('player') === 'player' ? 'lr-ally' : 'lr-enemy';
+    const _aCls = _pCls === 'lr-ally' ? 'lr-enemy' : 'lr-ally';
     const aLine = sum.aAtkBefore > 0
-      ? `<div class="lr-line lr-enemy"><span class="lr-who">${sum.aName}</span> <span class="lr-arrow">→</span> <span class="lr-amt">${aDmg}</span>${sum.pDied ? ' <span class="lr-killed">KILLED</span>' : ''}</div>`
+      ? `<div class="lr-line ${_aCls}"><span class="lr-who">${sum.aName}</span> <span class="lr-arrow">→</span> <span class="lr-amt">${aDmg}</span>${sum.pDied ? ' <span class="lr-killed">KILLED</span>' : ''}</div>`
       : '';
     const pLine = sum.pAtkBefore > 0
-      ? `<div class="lr-line lr-ally"><span class="lr-who">${sum.pName}</span> <span class="lr-arrow">→</span> <span class="lr-amt">${pDmg}</span>${sum.aDied ? ' <span class="lr-killed">KILLED</span>' : ''}</div>`
+      ? `<div class="lr-line ${_pCls}"><span class="lr-who">${sum.pName}</span> <span class="lr-arrow">→</span> <span class="lr-amt">${pDmg}</span>${sum.aDied ? ' <span class="lr-killed">KILLED</span>' : ''}</div>`
       : '';
     panel.innerHTML = aLine + pLine;
     laneEl.appendChild(panel);
@@ -31476,12 +31509,36 @@ const UI = {
     this._drawAnimInstalled = true;
     if (typeof Game === 'undefined' || !Game.drawCards) return;
     const orig = Game.drawCards.bind(Game);
-    Game.drawCards = (owner, count) => {
-      const before = Game.state && Game.state[owner] ? (Game.state[owner].hand || []).length : 0;
-      const r = orig(owner, count);
-      const after  = Game.state && Game.state[owner] ? (Game.state[owner].hand || []).length : before;
+    // FORWARD EVERY ARGUMENT. The engine's signature is
+    // drawCards(owner, count, source) and `source` is what names the SEAT the
+    // card belongs to in 2v2 — this wrapper declared two parameters and called
+    // orig(owner, count), so the third was dropped on the floor for every draw
+    // in the browser. The engine then fell back to its ambient "who is acting"
+    // guess, which only checks the SIDE, and the card could land in a
+    // teammate's hand. Every 2v2 seat-routing fix on a draw path (the redraw
+    // replacement, the cantrip draws at game.js:6030/6227/14045) was silently
+    // undone the moment ui.js loaded, which is why they tested clean in the
+    // headless sim — it stubs UI, so this wrapper is never installed there.
+    // ...rest, not a fixed arity: the next argument added to drawCards must not
+    // repeat this.
+    Game.drawCards = (owner, count, ...rest) => {
+      // MEASURE THE HAND THAT ACTUALLY RECEIVES THE CARD. state[owner] is the
+      // 1v1 side proxy; in 2v2 the card lands in a SEAT's hand, and the proxy
+      // only points at that seat while a bridge is open. A draw outside a
+      // bridge (combat draw-on-kill, a draw routed to a non-active seat) left
+      // this delta at 0, so the ghost-card flight simply never played.
+      // _2v2HandTarget is the same routing the engine itself uses, so the
+      // delta is read off the array the card was really pushed onto.
+      const target = () => (Game._2v2HandTarget
+        ? Game._2v2HandTarget(owner, rest[0])
+        : (Game.state && Game.state[owner]));
+      const t0 = target();
+      const before = t0 ? (t0.hand || []).length : 0;
+      const r = orig(owner, count, ...rest);
+      const t1 = target();
+      const after  = t1 ? (t1.hand || []).length : before;
       const actual = Math.max(0, after - before);
-      if (actual > 0) this._animateCardDraw(owner, actual);
+      if (actual > 0) this._animateCardDraw(owner, actual, t1);
       return r;
     };
   },
@@ -31491,7 +31548,7 @@ const UI = {
   // with a small stagger so multi-draws read as a sequence. AI-side
   // draws use the AI bar position (if we can find one), or fall back
   // to the top-center of the board if there isn't an AI hand element.
-  _animateCardDraw(owner, count) {
+  _animateCardDraw(owner, count, handOwnerObj) {
     if (!count || count <= 0) return;
     if (this._reducedMotion && this._reducedMotion()) return;
     // Skip the deck-to-hand ghost-card flight while the boot
@@ -31514,7 +31571,24 @@ const UI = {
     // target as the player (still looks directional — from the top-
     // center HUD down to the AI hand row).
     const src = document.getElementById('draw-pile-count');
-    const dst = owner === 'player'
+    // WHOSE HAND IS THIS, FROM WHERE THE VIEWER IS SITTING? `owner` is an
+    // ABSOLUTE side ('player' = Team A, 'ai' = Team B), but the 2v2 board
+    // always renders the VIEWER's team on the 'player' bars — so a Team B
+    // player watched their own draws fly to the ENEMY bar, and every Team A
+    // enemy draw flew into their hand. Exactly backwards, and the reason draws
+    // "don't animate" for half the table. Resolve the receiving SEAT and ask
+    // whether it is this client; #player-hand is the local viewer's hand and
+    // nobody else's.
+    const _tt = Game.state && Game.state.twoVTwo;
+    let toMyHand = (owner === 'player');
+    if (_tt && _tt.online) {
+      const seat = (handOwnerObj && Game._2v2SeatOfPlayerObj)
+        ? Game._2v2SeatOfPlayerObj(handOwnerObj) : null;
+      // A resolved seat is the truth; without one fall back to the same
+      // viewer-relative mapping every other 2v2 FX uses.
+      toMyHand = seat ? (seat === _tt.you) : (this._fxDomSide(owner) === 'player');
+    }
+    const dst = toMyHand
       ? document.getElementById('player-hand')
       : document.querySelector('.ai-bar') || document.getElementById('draw-pile-count');
     if (!src || !dst) return;
@@ -31902,7 +31976,11 @@ const UI = {
     // OWNER of the dying card, so an 'ai'-owned death means the PLAYER
     // scored the kill (theme flash); a 'player'-owned death means the
     // AI scored (red flash).
-    const killingSide = owner === 'ai' ? 'player' : 'ai';
+    // Viewer-relative, for the same reason the lane recap is: `owner` is an
+    // absolute side, and on a Team B screen "the player scored" and "the enemy
+    // scored" were exactly inverted — every kill you made flashed as a loss.
+    // _fxDomSide is the identity in 1v1, so this changes nothing there.
+    const killingSide = this._fxDomSide(owner) === 'ai' ? 'player' : 'ai';
     const flashCls = killingSide === 'player' ? 'kill-flash-player' : 'kill-flash-ai';
     document.body.classList.remove(flashCls);
     void document.body.offsetWidth;
@@ -34996,7 +35074,7 @@ function twov2OnlineJoin() {
     // abort the whole handler and the guest never received the state at all —
     // which looks exactly like "my screen never updated". Sound is not worth a
     // dropped state.
-    try { UI._relay2v2CardSounds(Game.state, state); } catch (e) { console.error('[2v2 sound relay]', e); }
+    try { UI._relay2v2CardFx(Game.state, state); } catch (e) { console.error('[2v2 fx relay]', e); }
     Game.state = state;
     // Keep the engine's lane count in lockstep with the received board —
     // 2v2 runs 8 lanes and any joiner whose local LANE_COUNT still says 6

@@ -13,7 +13,18 @@ if (typeof Game._2v2RunOwned !== 'function') Game._2v2RunOwned = function (c, fn
 
 var argv = (typeof arguments !== 'undefined') ? arguments : [];
 var VERBOSE = false;
-for (var i = 0; i < argv.length; i++) if (argv[i] === '--verbose') VERBOSE = true;
+// WHO ELSE IS AT THE TABLE. The original sweep seated three humans around one
+// AI, so a prompt the AI aimed at an OPPONENT was fine — a person was there to
+// answer it. In the seating the owner actually plays (one human, three bots)
+// there is nobody: a prompt handed to an AI seat is answered by no one and the
+// table waits out the 8-second lock. Same cards, opposite verdict, which is
+// why this has to be a separate pass rather than a re-reading of the first.
+// (User: "go through all paths for 2v2 vs AI".)
+var ALLAI = false;
+for (var i = 0; i < argv.length; i++) {
+  if (argv[i] === '--verbose') VERBOSE = true;
+  if (argv[i] === '--allai') ALLAI = true;
+}
 
 function mkCard(name, side) {
   var def = null;
@@ -32,9 +43,11 @@ function room() {
   tt.online = true;
   tt.you = 'p1';
   tt.joinedPlayers = { p1: 1, p2: 1, p3: 1, p4: 1 };
-  // p2 is the AI caster; everyone else human.
+  // p2 is the AI caster. Default: everyone else human. --allai: p1 is the only
+  // human at the table (the owner's seat), p3 is their AI teammate and p2/p4
+  // are the AI enemies.
   ['p1', 'p2', 'p3', 'p4'].forEach(function (k) {
-    tt.players[k].isAI = (k === 'p2');
+    tt.players[k].isAI = ALLAI ? (k !== 'p1') : (k === 'p2');
     tt.players[k].energy = 12; tt.players[k].usedEnergy = 0;
   });
   tt.round = 4; Game.state.round = 4; tt.subPhaseIdx = 0; Game.state.phase = '2v2-play';
@@ -115,7 +128,13 @@ CARD_DEFS.forEach(function (def) {
     var seat = p && p._2v2ActingPlayer;
     var owner = p && p.owner;
     var onCasterSide = owner ? Game._2v2SeatOnSide(casterSeat, owner) : true;
-    stalls.push({ name: def.name, pend: pend, seat: seat || '(none)', owner: owner, onCasterSide: onCasterSide });
+    // CAN ANYONE ACTUALLY ANSWER THIS? A prompt parked on an AI seat has no
+    // one behind it; that is a hang, whichever side it is on. A prompt on a
+    // human seat is just the game waiting for a person, which is correct.
+    var seatIsAI = !!(seat && tt.players[seat] && tt.players[seat].isAI);
+    var unanswerable = !seat || seatIsAI;
+    stalls.push({ name: def.name, pend: pend, seat: seat || '(none)', owner: owner,
+                  onCasterSide: onCasterSide, unanswerable: unanswerable });
   }
 
   // Clean up so the next card starts fresh.
@@ -124,13 +143,19 @@ CARD_DEFS.forEach(function (def) {
   Game.state.pendingKangChoice = null; Game.state.pendingBlockTrick = null; Game.state.pendingJumpOffer = null;
 });
 
-print('=== 2v2 AI-CASTER STALL SWEEP ===');
+print('=== 2v2 AI-CASTER STALL SWEEP ' + (ALLAI ? '— one human, three AI ===' : '— one AI, three humans ===') + '');
 print('cards tested: ' + tested);
 print('THREW: ' + threw.length);
 threw.forEach(function (t) { if (VERBOSE) print('  THREW ' + t.name + ': ' + t.err); });
-print('STALLS (prompt left pending after an AI seat played it): ' + stalls.length);
-stalls.forEach(function (s) {
-  print('  STALL ' + s.name + ' → ' + s.pend + '  actingSeat=' + s.seat
+var hard = stalls.filter(function (s) { return s.unanswerable; });
+var soft = stalls.filter(function (s) { return !s.unanswerable; });
+print('HANGS (prompt left on a seat with nobody behind it): ' + hard.length);
+hard.forEach(function (s) {
+  print('  HANG ' + s.name + ' → ' + s.pend + '  actingSeat=' + s.seat
         + ' owner=' + s.owner + (s.onCasterSide ? ' [caster-side]' : ' [opponent-side]'));
 });
-if (!stalls.length) print('NO STALLS — every card an AI seat played resolved without leaving a prompt.');
+print('waiting on a human (not a bug): ' + soft.length);
+soft.forEach(function (s) {
+  if (VERBOSE) print('  WAIT ' + s.name + ' → ' + s.pend + '  actingSeat=' + s.seat + ' owner=' + s.owner);
+});
+if (!hard.length) print('NO HANGS — every prompt an AI seat raised has someone who can answer it.');
