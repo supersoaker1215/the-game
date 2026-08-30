@@ -2972,7 +2972,22 @@ const CARD_ABILITIES = {
       // _2v2CurrentActingPlayer from the card, so the whole steal + give-back
       // chain routes to the player who owns Deadpool.
       if (dpIs2v2) G._2v2ActFor(self);
-      const deadpoolOwnerSeat = (dpIs2v2 && self._2v2PlayedBy) || G._2v2CurrentActingPlayer || (G._2v2ActivePlayer && G._2v2ActivePlayer());
+      let deadpoolOwnerSeat = (dpIs2v2 && self._2v2PlayedBy) || G._2v2CurrentActingPlayer || (G._2v2ActivePlayer && G._2v2ActivePlayer());
+      // THE GIVE-BACK COMES FROM DEADPOOL'S OWN HAND — never the enemy's, never a
+      // teammate on the wrong side. deadpoolOwnerSeat drives ownerHand(); if it
+      // landed on a seat that ISN'T on self.owner's side (an unstamped card + a
+      // foreign acting seat while he dies in combat), snap it back to a seat that
+      // actually belongs to his team. Without this, an enemy Deadpool raided the
+      // player's OWN hand for the give-back. (User: "deadpool took Revan from ME
+      // and Thanos from my teammate!" — the give-back was pulling from the wrong
+      // team entirely.)
+      if (dpIs2v2 && G.state.twoVTwo) {
+        const _dtt = G.state.twoVTwo;
+        const _onOwnerSide = (pk) => !!(pk && _dtt.players[pk] && G._2v2TeamSide[_dtt.players[pk].team] === self.owner);
+        if (!_onOwnerSide(deadpoolOwnerSeat)) {
+          deadpoolOwnerSeat = ['p1', 'p2', 'p3', 'p4'].find(_onOwnerSide) || deadpoolOwnerSeat;
+        }
+      }
       G.withChosenOpponent(self.owner, "Deadpool — whose hand?", (opp, victimKey) => {
       const enemyHand = G.state[opp].hand;
       // 2v2: the give-back must read/splice the DEADPOOL OWNER's own seat hand,
