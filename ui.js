@@ -11784,6 +11784,29 @@ const UI = {
   // time so a whole combat does not resolve visually in a single frame; events
   // arriving alone play immediately, so nothing outside combat feels laggy.
   _SIG_FX_STEP_MS: 420,
+  // …BUT NOT 420ms x HOWEVER MANY ARRIVED. The host resolves combat over
+  // several seconds on its own timers and broadcasts ONCE at the end, so the
+  // guest receives the entire battle as a single batch. A fixed step means the
+  // guest's replay takes 420ms x N no matter how big N is — a busy combat puts
+  // them twenty seconds behind a host who has already moved on, and the next
+  // prompt sits waiting behind a queue that is still draining. That is the
+  // "everything takes so long for the guests" gap.
+  //
+  // The step exists to stop a batch firing in one frame (which read as combat
+  // "skipping"), and that only needs the events to be SEPARATED — not to be
+  // separated by a fixed amount. So: keep the full 420ms while the queue is
+  // short, and share a fixed budget once it is long. A 20-event combat drains
+  // in ~2.6s instead of 8.4s, and every event still lands on its own beat.
+  _SIG_FX_BUDGET_MS: 2600,
+  _SIG_FX_MIN_STEP_MS: 90,
+  // Sized on the WHOLE batch, not on what is left of it. Dividing the budget by
+  // the shrinking remainder lets the step grow back as the queue drains, so a
+  // 20-event batch still took 5.5s instead of the 2.6s the budget asks for.
+  _sigFxStepMs() {
+    const n = this._sigFxBatchN || (this._sigFxQueue && this._sigFxQueue.length) || 1;
+    const fair = Math.floor(this._SIG_FX_BUDGET_MS / n);
+    return Math.max(this._SIG_FX_MIN_STEP_MS, Math.min(this._SIG_FX_STEP_MS, fair));
+  },
   _queueSigFx(ev) {
     if (!this._sigFxQueue) this._sigFxQueue = [];
     this._sigFxQueue.push(ev);
@@ -11799,11 +11822,17 @@ const UI = {
     setTimeout(() => this._sigFxDrainStep(), 0);
   },
   _sigFxDrainStep() {
-    const next = this._sigFxQueue && this._sigFxQueue.shift();
-    if (!next) { this._sigFxDraining = false; return; }
+    const q = this._sigFxQueue;
+    const next = q && q.shift();
+    if (!next) { this._sigFxDraining = false; this._sigFxBatchN = 0; return; }
+    // Measure the batch on its first step, and re-measure only upward if more
+    // events land mid-drain — so the pace is set by how much there is to show,
+    // and a batch that keeps growing keeps compressing.
+    const remaining = q.length + 1;
+    if (remaining > (this._sigFxBatchN || 0)) this._sigFxBatchN = remaining;
     try { this._replaySigFx(next); } catch (e) { /* one bad effect must not stall the rest */ }
-    if (!this._sigFxQueue.length) { this._sigFxDraining = false; return; }
-    setTimeout(() => this._sigFxDrainStep(), this._SIG_FX_STEP_MS);
+    if (!q.length) { this._sigFxDraining = false; this._sigFxBatchN = 0; return; }
+    setTimeout(() => this._sigFxDrainStep(), this._sigFxStepMs());
   },
   showDamageFloats() {
     const events = Game.flushDmg();
@@ -11841,6 +11870,20 @@ const UI = {
           try { if (this.sfx && this.sfx.playTrickSfx) this.sfx.playTrickSfx(ev.name, 'play'); } catch (e) {}
           if (ev.name !== 'Time Stone' && this.showTrickReveal) {
             try { this.showTrickReveal(ev.name, ev.desc || '', ev.cost, mine); } catch (e) {}
+          }
+        }
+        continue;
+      }
+      // Discard-effect reveal relayed from the host — guests only, the host
+      // already showed it live in playCard's discard branch. Same shape as
+      // trickReveal: `mine` is computed against this client's own seat so your
+      // own discard reads as yours.
+      if (ev.type === 'discardReveal') {
+        if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
+          const tt = Game.state && Game.state.twoVTwo;
+          const mine = !!(tt && ev.seat && ev.seat === tt.you);
+          if (this.showCardReveal) {
+            try { this.showCardReveal(ev.name, ev.desc || '', ev.cost, mine, 'Discarded for Effect'); } catch (e) {}
           }
         }
         continue;

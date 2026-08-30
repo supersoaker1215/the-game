@@ -5762,7 +5762,15 @@ const Game = {
       // team-derived fallback. Falling back to the active seat means a card
       // always knows who played it, which is what keeps its prompts with that
       // player instead of being derived (or auto-resolved) later.
-      const _by = this._2v2CurrentActingPlayer
+      // Ability owner FIRST. A card put into play by another card or a trick
+      // (Mother Box free-playing Catwoman, Ghost Rider playing Darkseid) is
+      // that effect's doing, and _2v2RunOwned already knows whose effect it
+      // is. Reading the global first meant the free-played card was stamped
+      // with whatever seat happened to be current and its own onPlay prompt
+      // then went to that person — measured: p3 plays Mother Box, p1 got
+      // "Catwoman — Steal". summonCard has asked in this order all along.
+      const _by = this._2v2AbilityOwner()
+        || this._2v2CurrentActingPlayer
         || (this._2v2ActivePlayer && this._2v2ActivePlayer()) || null;
       if (_by) card._2v2PlayedBy = _by;
     }
@@ -5841,16 +5849,46 @@ const Game = {
         _sourceInstance: card
       });
       this.log(`[DISCARD] ${who} discard ${card.name} for its effect`);
+      // SHOW WHAT WAS PLAYED, THE WAY A TRICK IS SHOWN. A discard-effect card
+      // never takes a lane, so nothing about it ever appears on the board: it
+      // left a log line and — for the AI's discards only — a corner toast. Your
+      // own discards showed nothing at all, and in a 2v2 room the other three
+      // seats had no way to know one had been played. Same centre-screen reveal
+      // a trick gets (showCardReveal shares showTrickReveal's queue and panel),
+      // labelled so a discard still reads as a discard rather than a trick.
+      // (User: "when discards are played i want them to appear on the screen
+      // like a trick does when its played so people know what was played.")
+      // Fired BEFORE onDiscard so the card is on screen before its effect
+      // starts asking questions.
+      const _dTt = this.state.twoVTwo;
+      const _dSeat = card._2v2PlayedBy || this._2v2AbilityOwner()
+        || this._2v2CurrentActingPlayer || null;
+      // "Mine" is per viewer. owner is an ABSOLUTE side, so in 2v2 it answers
+      // the wrong question for half the table — compare seats instead.
+      const _dMine = (_dTt && _dTt.online) ? (!!_dSeat && _dSeat === _dTt.you) : (owner === 'player');
+      if (typeof UI !== 'undefined') {
+        if (UI.showCardReveal) {
+          UI.showCardReveal(card.name, card.desc || '', card.baseCost || card.cost,
+                            _dMine, 'Discarded for Effect');
+        } else if (owner === 'ai' && UI.showAITrickToast) {
+          UI.showAITrickToast(card.name, card.desc || '', 'discard');
+        }
+      }
+      // 2v2: the other three seats never run this engine path, so relay it the
+      // same way playTrick relays its reveal. The seat travels so each client
+      // can decide whether the play was its own.
+      if (_dTt && _dTt.online && this.emitFX) {
+        try {
+          this.emitFX('discardReveal', {
+            name: card.name, desc: card.desc || '',
+            cost: card.baseCost || card.cost, seat: _dSeat
+          });
+        } catch (e) {}
+      }
       // Pass the card instance into onDiscard so ability hooks can
       // self-reference (e.g. to set discount sources for stats credit).
       if (card.onDiscard) this._2v2RunOwned(card, () => card.onDiscard(this, owner, card));
       this.state[owner].discount = 0;
-      // Surface AI discard plays to the player via the same toast that
-      // announces AI tricks — discards were previously invisible unless
-      // the player was watching the log carefully.
-      if (owner === 'ai' && typeof UI !== 'undefined' && UI.showAITrickToast) {
-        UI.showAITrickToast(card.name, card.desc || '', 'discard');
-      }
       return true;
     }
 
@@ -6125,7 +6163,15 @@ const Game = {
       // team-derived fallback. Falling back to the active seat means a card
       // always knows who played it, which is what keeps its prompts with that
       // player instead of being derived (or auto-resolved) later.
-      const _by = this._2v2CurrentActingPlayer
+      // Ability owner FIRST. A card put into play by another card or a trick
+      // (Mother Box free-playing Catwoman, Ghost Rider playing Darkseid) is
+      // that effect's doing, and _2v2RunOwned already knows whose effect it
+      // is. Reading the global first meant the free-played card was stamped
+      // with whatever seat happened to be current and its own onPlay prompt
+      // then went to that person — measured: p3 plays Mother Box, p1 got
+      // "Catwoman — Steal". summonCard has asked in this order all along.
+      const _by = this._2v2AbilityOwner()
+        || this._2v2CurrentActingPlayer
         || (this._2v2ActivePlayer && this._2v2ActivePlayer()) || null;
       if (_by) card._2v2PlayedBy = _by;
     }
@@ -6417,6 +6463,17 @@ const Game = {
       (owner === 'player' ? rs.playerTricks : rs.aiTricks).push(trick.name);
     }
     const who = this.seatLabel(owner);
+    // 2v2 online: tag the trick with the seat playing it, exactly as playCard
+    // tags a card, so everything downstream can ask the trick who played it
+    // rather than guess. Idempotent — _2v2OnlinePlayTrick sets it from the
+    // authoritative playerKey before we get here, and this catches the other
+    // doors (an AI seat's trick, a Time Stone intercept).
+    if (trick && this.state.twoVTwo && this.state.twoVTwo.online && !trick._2v2PlayedBy) {
+      const _by = this._2v2CurrentActingPlayer
+        || this._2v2AIDriving
+        || (this._2v2ActivePlayer && this._2v2ActivePlayer()) || null;
+      if (_by) trick._2v2PlayedBy = _by;
+    }
     this.log(`[TRICK] ${who} play ${trick.name} for ${cost} energy`);
     // Surface EVERY trick as the center-screen reveal — yours labelled
     // "You play a Trick", the opponent's with their name (user: "I played
@@ -6435,7 +6492,10 @@ const Game = {
     // showed it live above and skips the replay (see showDamageFloats). 1v1
     // guests keep their playedTrickPile-diff reveal, so only emit in 2v2.
     if (this.state.twoVTwo && this.state.twoVTwo.online && this.emitFX) {
-      try { this.emitFX('trickReveal', { name: trick.name, desc: trick.desc || '', cost: trick.cost, seat: this._2v2CurrentActingPlayer || null }); } catch (e) {}
+      // The trick's own stamp first: `seat` is what each guest compares against
+      // their own to decide whether the reveal reads "you" or the caster's
+      // name, and the global is exactly as unreliable here as everywhere else.
+      try { this.emitFX('trickReveal', { name: trick.name, desc: trick.desc || '', cost: trick.cost, seat: trick._2v2PlayedBy || this._2v2CurrentActingPlayer || null }); } catch (e) {}
     }
     if (trick.play) {
       // Flag the trick-execution window so _trickBlocked can gate effects
@@ -6445,7 +6505,20 @@ const Game = {
       this.state._inTrick = true;
       this.state._trickOwner = owner;
       this.state._activeTrickName = trick.name;   // dossier attribution
-      try { trick.play(this, owner); } catch (e) { console.error(e); }
+      // RUN IT AS ITS OWNER. A card's prompts find the person who played it
+      // because playCard stamps _2v2PlayedBy and every hook runs inside
+      // _2v2RunOwned, which puts that seat on the ability-owner stack that
+      // promptCardChoice consults BEFORE any ambient global. Tricks had the
+      // stamp read in a couple of places but nothing ever set it and nothing
+      // pushed an owner — so every prompt a trick raised was routed by
+      // _2v2CurrentActingPlayer, the same drifting global that hands your
+      // redraw to your teammate. Measured: p3 plays Super Soldier Serum, p1
+      // gets the "Place Doombot" prompt. All 31 tricks were routed this way.
+      // (User: "the owner of the card gets to use the abilities not someone
+      // else.") _2v2SeatOwning reads the stamp off any object, so a trick
+      // rides the same machinery a card does, deferred prompt chains included.
+      try { this._2v2RunOwned(trick, () => trick.play(this, owner)); }
+      catch (e) { console.error(e); }
       this.state._inTrick = false;
       this.state._trickOwner = null;
       this.state._activeTrickName = null;
@@ -6460,7 +6533,7 @@ const Game = {
     // checkJumpConditions so jumps stay event-ordered consistently.
     // Pass the SEAT that played the trick too (2v2), so a reactor can tell
     // teammates apart — Darth Maul only fuels off the seat that played HIM.
-    const _trickSeat = this._2v2CurrentActingPlayer || (this._2v2ActivePlayer && this._2v2ActivePlayer()) || null;
+    const _trickSeat = trick._2v2PlayedBy || this._2v2CurrentActingPlayer || (this._2v2ActivePlayer && this._2v2ActivePlayer()) || null;
     this.broadcastHook('onAnyTrickPlayed', null, [owner, trick, _trickSeat]);
     return true;
   },
@@ -13802,14 +13875,21 @@ const Game = {
       // — the fuzzer's prompt-ownership log caught it at roughly 1 in 1,945
       // prompts across 40 games, which is exactly why it survived live play.
       // _2v2SeatForSide prefers a HUMAN on the owning team.
-      if (!this._2v2CurrentActingPlayer && this._2v2SeatForSide) {
-        const _seat = this._2v2SeatForSide(owner);
-        if (_seat) this._2v2CurrentActingPlayer = _seat;
-      }
+      // ASK THE ABILITY OWNER FIRST. _2v2SeatForSide is a TEAM guess — "first
+      // human on that team" — and a guess between two teammates is a coin flip
+      // that lands on the wrong one half the time. The summoning card or trick
+      // is running inside _2v2RunOwned, which knows the exact seat, so use that
+      // and pass it as a DECLARED seat rather than leaving the prompt to
+      // re-derive one later. Measured: p3 plays Bat Signal, p1 got "Place Ant".
+      const _sumSeat = this._2v2AbilityOwner()
+        || this._2v2CurrentActingPlayer
+        || (this._2v2SeatForSide && this._2v2SeatForSide(owner))
+        || null;
+      if (_sumSeat && !this._2v2CurrentActingPlayer) this._2v2CurrentActingPlayer = _sumSeat;
       this.promptLaneChoice(owner, open, `Place ${name}`, `Choose a lane for ${name} (${attack}/${health})`, (lane) => {
         this.summonCard(owner, lane, name, cost, attack, health, abilities, sourceDef);
         if (onComplete) onComplete();
-      }, owner, previewCard);
+      }, owner, previewCard, undefined, _sumSeat ? { seat: _sumSeat } : undefined);
     }
   },
 
@@ -19726,6 +19806,11 @@ const Game = {
     const trick = ap.trickHand[trickIdx];
     if (!trick) return;
     const side = this._2v2TeamSide[ap.team];
+    // WHO PLAYED IT IS NOT IN DOUBT AT THIS DOOR — record it, the same way
+    // _2v2OnlinePlayCard records the seat on a card. Everything the trick does
+    // afterwards routes from this, not from whichever seat a global happens to
+    // be pointing at.
+    trick._2v2PlayedBy = playerKey;
     this._2v2WithSideBridge(() => this.playTrick(side, trick));
     this._2v2StampPendingActor();
     this._pushOnlineState();   // same reasoning as _2v2OnlinePlayCard
