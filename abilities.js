@@ -3248,7 +3248,7 @@ const CARD_ABILITIES = {
         // Revive bypasses Game.playCard, so the registry-based play cue
         // wouldn't auto-fire here — call it explicitly so the ki-ki-ki /
         // ma-ma-ma sting lands on resurrection too.
-        if (typeof UI !== 'undefined' && UI.sfx) UI.sfx.playCardSfx('Jason Voorhees', 'play');
+        try { if (typeof UI !== 'undefined' && UI.sfx) UI.sfx.playCardSfx('Jason Voorhees', 'play'); } catch (e) {}
         const limitText = self._jasonNoOnceLimit ? '' : ' (once per game)';
         G.log(`Jason Voorhees rises again as ${self.attack}/${self.maxHealth}${limitText}`);
         return true;
@@ -3567,7 +3567,7 @@ const CARD_ABILITIES = {
       const enemies = G.getEnemiesOf(self.owner).filter(t => G.canEffectLand(t, 'damage', { owner: self.owner, source: self }));
       if (enemies.length) {
         G.promptCardChoice(self.owner, enemies, "Predator — Strike", `Choose enemy to deal ${dmg} damage`, (t) => {
-          if (typeof UI !== 'undefined' && UI.sfx) UI.sfx.playCardSfx('Predator', 'ability', self);
+          try { if (typeof UI !== 'undefined' && UI.sfx) UI.sfx.playCardSfx('Predator', 'ability', self); } catch (e) {}
           if (typeof UI !== 'undefined' && UI._fxPredatorPlasma) { try { UI._fxPredatorPlasma(self, t); } catch (e) {} }
           G.dealDamage(t, dmg);
           G.log(`Predator strikes ${t.name} for ${dmg}!`);
@@ -4213,7 +4213,7 @@ const CARD_ABILITIES = {
       if (enemies.length) {
         G.promptCardChoice(self.owner, enemies, "Spider-Man — Freeze", `Choose enemy to Freeze ${freezeN}`, (t) => {
           G.freezeCard(t, self, freezeN); G.log(`Spider-Man freezes ${t.name} for ${freezeN}!`);
-          if (typeof UI !== 'undefined' && UI.sfx) UI.sfx.playCardSfx('Spider-Man', 'ability', self);
+          try { if (typeof UI !== 'undefined' && UI.sfx) UI.sfx.playCardSfx('Spider-Man', 'ability', self); } catch (e) {}
           if (typeof UI !== 'undefined' && UI._fxSpiderWeb) { try { UI._fxSpiderWeb(self, t); } catch (e) {} }
         }, _aiThreatPicker);
       }
@@ -4929,7 +4929,7 @@ const CARD_ABILITIES = {
       // (not when Gojo enters play). User spec: "the hollow purple cue is
       // off, it's being played when gojo is played; it should fire when
       // his ability goes off."
-      if (typeof UI !== 'undefined' && UI.sfx) UI.sfx.playCardSfx('Gojo', 'ability', self);
+      try { if (typeof UI !== 'undefined' && UI.sfx) UI.sfx.playCardSfx('Gojo', 'ability', self); } catch (e) {}
       const opp = G.opponent(self.owner);
       const gojoLane = G.findCardLane(self);
       if (gojoLane < 0) return;
@@ -5303,7 +5303,15 @@ const CARD_ABILITIES = {
       const opp = G.opponent(self.owner);
       // Short-hand for per-ability SFX — silent in the headless sim (no UI)
       // and silent if no file is registered in CARD_SFX['Darth Vader'].abilities.
-      const absfx = (key) => { if (typeof UI !== 'undefined' && UI.sfx) UI.sfx.playCardAbility('Darth Vader', key); };
+      // GUARDED. This runs FIRST in each of Vader's three steps, before he
+      // touches the board — so an exception in the audio layer took the move,
+      // the fear AND the chain with it, silently, because _runHookBody catches
+      // whatever an onPlay throws. The sfx bridge now catches this too; both,
+      // because a sound is never worth an ability.
+      const absfx = (key) => {
+        try { if (typeof UI !== 'undefined' && UI.sfx) UI.sfx.playCardAbility('Darth Vader', key); }
+        catch (e) { console.error('[Darth Vader sfx]', e); }
+      };
       // Step 1: Move an enemy to another lane.
       const moveStep = (afterMove) => {
         absfx('move');
@@ -6339,7 +6347,7 @@ const CARD_ABILITIES = {
         }
       }
       G.log(`Thanos snaps! Lanes ${[...rolled].map(n => n + 1).sort().join(', ')} — ${killed} enemies erased!`);
-      if (typeof UI !== 'undefined' && UI.sfx) UI.sfx.playCardSfx('Thanos', 'ability', self);
+      try { if (typeof UI !== 'undefined' && UI.sfx) UI.sfx.playCardSfx('Thanos', 'ability', self); } catch (e) {}
       // Flash the rolled lanes so the player can SEE which 3 lanes got hit
       // (some may have had no target to kill, which the log line alone
       // doesn't make obvious — the flash surfaces the roll transparently).

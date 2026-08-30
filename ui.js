@@ -6156,7 +6156,14 @@ const UI = {
           }
         }
         self._sigFxDepth++;
+        // Same rule as the sound bridge: abilities and tricks call these
+        // signature animations directly, and an exception here would travel up
+        // into the ability and be swallowed by _runHookBody — costing the whole
+        // effect to save a visual. Most call sites already write
+        // `try { UI._fxWhatever(...) } catch (e) {}` by hand; doing it here
+        // means the ones that forgot are covered too.
         try { return fn.apply(self, args); }
+        catch (e) { console.error('[fx ' + key + ']', e); }
         finally { self._sigFxDepth--; }
       };
     });
@@ -6194,7 +6201,19 @@ const UI = {
           const payload = args.map(a => (a && typeof a === 'object') ? undefined : a);
           try { Game.emitFX('sfx', { fn: key, args: payload }); } catch (e) {}
         }
-        return fn.apply(self.sfx, args);
+        // A SOUND MUST NEVER KILL AN ABILITY. Card code calls these straight —
+        // Darth Vader's onPlay opens each of its three steps with
+        // UI.sfx.playCardAbility(...) before it touches the board — and
+        // _runHookBody catches whatever an onPlay throws into console.error.
+        // So a throw in here does not surface as a broken sound: the card is
+        // placed, the log line is already written, and the entire ability
+        // silently never happens. That is indistinguishable, in play, from the
+        // card having no text on it. (User: "i just played vader and his
+        // ability never fired ... and i lost.")
+        // The audio layer has plenty of ways to fail that have nothing to do
+        // with the game — a suspended AudioContext, a file that never loaded,
+        // an autoplay policy — and none of them are worth an ability for.
+        try { return fn.apply(self.sfx, args); } catch (e) { console.error('[sfx ' + key + ']', e); }
       };
     });
   },

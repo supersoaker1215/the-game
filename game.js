@@ -10377,7 +10377,17 @@ const Game = {
     try {
       result = card[hookName](...args);
     } catch (e) {
+      // SAY IT OUT LOUD. This catch is what keeps one broken card from taking
+      // the whole match down with it, and that is worth keeping — but writing
+      // the reason only to console.error means the player sees a card land,
+      // do nothing, and cost them the turn, with no way to tell that anything
+      // went wrong. "The card has no effect" and "the card's effect crashed"
+      // look identical from the board. (User: "i just played vader and his
+      // ability never fired ... and i lost.")
       console.error('[' + hookName + ']', e);
+      try {
+        this.log(`  [ERROR] ${card.name}'s ${hookName === 'onPlay' ? 'When Played' : hookName} effect failed to resolve — this is a bug, not the card's text.`);
+      } catch (_) {}
     } finally {
       this._popSummonSource();
     }
