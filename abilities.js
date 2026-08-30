@@ -1872,7 +1872,7 @@ const CARD_ABILITIES = {
           G.tickBleed(t);            // immediate blood FX + 2 damage, → 1 round left
           G.cleanupDead();
           G.log(`[ART] Hacksaw! ${t.name} bleeds 2 now, and again at the start of the next round.`);
-          if (typeof UI !== 'undefined' && UI.render) UI.render();
+          if (typeof UI !== 'undefined' && UI.render) { try { UI.render(); } catch (e) {} }
           spend();
         });
       } else if (key === 'scissors') {
@@ -2549,7 +2549,7 @@ const CARD_ABILITIES = {
             console.warn('[SSM] still waiting on', blocker, '— a live human, so NOT picking for them');
             G.log(`[SSM] still waiting on ${nm} — their cards will not be chosen for them.`);
             if (G.state.twoVTwo && G.state.twoVTwo.online) { try { G._2v2OnlineBroadcast(); } catch (e) {} }
-            if (typeof UI !== 'undefined' && UI.render) UI.render();
+            if (typeof UI !== 'undefined' && UI.render) { try { UI.render(); } catch (e) {} }
             clearTimer(); stallStartAt = Date.now(); nudged = true;
             timer = setTimeout(tick, GIVEUP_MS);   // ask again later, do not decide
             return;
@@ -2579,7 +2579,7 @@ const CARD_ABILITIES = {
           }
           finishOnce();
           if (G.state.twoVTwo && G.state.twoVTwo.online) { try { G._2v2OnlineBroadcast(); } catch (e) {} }
-          if (typeof UI !== 'undefined' && UI.render) UI.render();
+          if (typeof UI !== 'undefined' && UI.render) { try { UI.render(); } catch (e) {} }
         };
         const tick = () => {
           if (done) return;
@@ -2591,7 +2591,7 @@ const CARD_ABILITIES = {
             console.warn('[SSM] no progress for', stuckFor, 'ms — re-broadcasting the pending pick to the stuck seat.');
             G.log('[SSM] nudging the current seat — re-sending their shuffle pick.');
             if (G.state.twoVTwo && G.state.twoVTwo.online) { try { G._2v2OnlineBroadcast(); } catch (e) {} }
-            if (typeof UI !== 'undefined' && UI.render) UI.render();
+            if (typeof UI !== 'undefined' && UI.render) { try { UI.render(); } catch (e) {} }
             timer = setTimeout(tick, GIVEUP_MS - NUDGE_MS);
             return;
           }
@@ -3331,7 +3331,7 @@ const CARD_ABILITIES = {
           if (typeof G._mpBroadcast === 'function') G._mpBroadcast();
           return;
         }
-        UI.render();
+        try { if (typeof UI !== 'undefined' && UI.render) UI.render(); } catch (e) {}
         G._startPromptTimeout(() => {
           const kc = G.state.pendingKangChoice;
           if (!kc) return;
@@ -3725,7 +3725,7 @@ const CARD_ABILITIES = {
             description: `Stole ${chosen.name}. Keep or discard?`,
             callback(pick) { pick._action === 'keep' ? keep() : giveBack(); }
           };
-          if (typeof UI !== 'undefined' && UI.render) UI.render();
+          if (typeof UI !== 'undefined' && UI.render) { try { UI.render(); } catch (e) {} }
         } else {
           // AI Grinch owner: keep valuable tricks, give back cheap ones
           if (chosen.cost >= 2) keep(); else giveBack();
@@ -4990,7 +4990,7 @@ const CARD_ABILITIES = {
         });
         if (Object.keys(bySeat).length) {
           G.state._gorrBanner = { bySeat, at: Date.now() };
-          if (typeof UI !== 'undefined' && UI.render) UI.render();
+          if (typeof UI !== 'undefined' && UI.render) { try { UI.render(); } catch (e) {} }
         }
         const dd = G.drawFromSummonDeck(c => !c.isDiscardEffect && c.cost >= 2 && c.cost <= 9 && (c.attack || 0) > 0);
         if (dd) G.summonCardChoice(self.owner, dd.name, dd.cost, dd.attack, dd.health, dd.abilities || [], null, null, dd);
@@ -5041,7 +5041,7 @@ const CARD_ABILITIES = {
           ai:     killed.ai     ? { name: killed.ai.name,     cost: killed.ai.cost     } : null,
           at: Date.now()
         };
-        if (typeof UI !== 'undefined' && UI.render) UI.render();
+        if (typeof UI !== 'undefined' && UI.render) { try { UI.render(); } catch (e) {} }
       }
       // Pull from the shared summon deck. With duplicates now allowed
       // (user spec: "if you summon Ant-Man from Mother Box you could
@@ -5391,7 +5391,7 @@ const CARD_ABILITIES = {
           absfx('throw');
           G.startVaderChain(self.owner, () => {
             G.cleanupDead();
-            if (typeof UI !== 'undefined' && UI.render) UI.render();
+            if (typeof UI !== 'undefined' && UI.render) { try { UI.render(); } catch (e) {} }
           }, self);
         });
       });
@@ -6351,8 +6351,13 @@ const CARD_ABILITIES = {
       // Flash the rolled lanes so the player can SEE which 3 lanes got hit
       // (some may have had no target to kill, which the log line alone
       // doesn't make obvious — the flash surfaces the roll transparently).
+      // GUARDED, like every other presentation call in card code. This is the
+      // LAST statement of Thanos's onPlay, so a throw here cost nothing
+      // observable — the snap had already resolved — but it still aborted the
+      // hook, and "the effect happens to be finished" is not a safety property.
+      // Anything added after it would silently never run.
       if (typeof UI !== 'undefined' && UI.flashLanes) {
-        UI.flashLanes([...rolled], 'lane-thanos-snap', 2600);
+        try { UI.flashLanes([...rolled], 'lane-thanos-snap', 2600); } catch (e) {}
       }
     }
   },
@@ -6788,7 +6793,7 @@ const CARD_ABILITIES = {
         }
         G.log(`Freddy Krueger rises from the Boiler Room in lane ${laneIdx + 1}!`);
         if (typeof UI !== 'undefined' && UI._freddyJumpscare) {
-          setTimeout(() => UI._freddyJumpscare(laneIdx, owner), 60);
+          setTimeout(() => { try { UI._freddyJumpscare(laneIdx, owner); } catch (e) {} }, 60);
         }
       };
 
@@ -7035,7 +7040,7 @@ const CARD_ABILITIES = {
         }
       }
       if (typeof UI !== 'undefined' && UI._freddyHandSlash) {
-        setTimeout(() => UI._freddyHandSlash(t.name, dmg, t.id, handIdx, opp, destroyed), 60);
+        setTimeout(() => { try { UI._freddyHandSlash(t.name, dmg, t.id, handIdx, opp, destroyed); } catch (e) {} }, 60);
       }
     },
     _offRound(G, self, opp, targets) {
@@ -7063,7 +7068,7 @@ const CARD_ABILITIES = {
           G.log(`[FREDDY] ${t.name} withers away in the enemy's hand!`);
         }
         if (typeof UI !== 'undefined' && UI._freddyHandSlash) {
-          setTimeout(() => UI._freddyHandSlash(t.name, 1, t.id, handIdx, opp, destroyed), 60);
+          setTimeout(() => { try { UI._freddyHandSlash(t.name, 1, t.id, handIdx, opp, destroyed); } catch (e) {} }, 60);
         }
       });
     },
@@ -7590,7 +7595,7 @@ const CARD_ABILITIES = {
         }
         G.log(`Pennywise rises from the Sewers in lane ${laneIdx + 1}!`);
         if (typeof UI !== 'undefined' && UI._pennywiseJumpscare) {
-          setTimeout(() => UI._pennywiseJumpscare(laneIdx, owner), 60);
+          setTimeout(() => { try { UI._pennywiseJumpscare(laneIdx, owner); } catch (e) {} }, 60);
         }
       };
 
@@ -7784,7 +7789,7 @@ const CARD_ABILITIES = {
         // slot is NOT cleared here — Spinosaurus's onDeath is what drains it.
         G.log(`Spinosaurus is released into lane ${laneIdx + 1}!`);
         if (typeof UI !== 'undefined' && UI._spinosaurusRelease) {
-          setTimeout(() => UI._spinosaurusRelease(laneIdx, owner), 60);
+          setTimeout(() => { try { UI._spinosaurusRelease(laneIdx, owner); } catch (e) {} }, 60);
         }
       };
 
@@ -7982,7 +7987,7 @@ const CARD_ABILITIES = {
         }
       }
 
-      if (typeof UI !== 'undefined' && UI.render) UI.render();
+      if (typeof UI !== 'undefined' && UI.render) { try { UI.render(); } catch (e) {} }
     },
   },
 };
