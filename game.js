@@ -5102,6 +5102,10 @@ const Game = {
   },
 
   endPhase1() {
+    // No skipping past MC Ballyhoo either — the lock is a deadline, so a
+    // click during his entrance is refused rather than queued, and the
+    // button works again the moment the show ends.
+    if (this.ballyhooLocked && this.ballyhooLocked()) return;
     // Guest forwards Done to the host — host is authoritative on the
     // engine. Without this, the guest's local engine would advance
     // independently and then get clobbered by the next state broadcast,
@@ -5264,6 +5268,10 @@ const Game = {
   },
 
   endPhase3() {
+    // No skipping past MC Ballyhoo either — the lock is a deadline, so a
+    // click during his entrance is refused rather than queued, and the
+    // button works again the moment the show ends.
+    if (this.ballyhooLocked && this.ballyhooLocked()) return;
     // Guest forwards Done to host (same as endPhase1/2).
     if (this.isMultiplayer() && this.mp && this.mp.role === 'guest') {
       if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'doneTurn' });
@@ -5731,6 +5739,8 @@ const Game = {
 
   playCard(owner, card, laneIdx) {
     if (this.state.gameOver) return false;
+    // Nobody plays through MC Ballyhoo's entrance.
+    if (this.ballyhooLocked && this.ballyhooLocked()) return false;
     // Same anti-duplication guard as playCardFree: never place a card that is
     // already on the board (see the comment there for how 2v2 bridging let the
     // hand removal silently miss).
@@ -6346,6 +6356,7 @@ const Game = {
 
   playTrick(owner, trick) {
     if (this.state.gameOver) return false;
+    if (this.ballyhooLocked && this.ballyhooLocked()) return false;
     // Multiplayer guest: forward and bail. _silentSim guard — see playCard:
     // a preview/prediction sim must run locally on the clone, never forward.
     if (this.isMultiplayer() && this.mp.role === 'guest' && owner === this.mp.you && !(this.state && this.state._silentSim)) {
@@ -16135,6 +16146,27 @@ const Game = {
     s._ballyhoo = { shows: this.rng() < 0.5, fired: false };
   },
 
+  // HOW LONG THE TABLE IS HELD. The arrival is a 10s lead-in plus two 3.2s
+  // panels with a 240ms exit each — 16.9s of show. This is the wall-clock
+  // window during which nobody may play a card, spend a trick, or end their
+  // turn. (Owner: "when the game knows hes gonna spawn in everyones cards
+  // should be shut down and cant skip your turn until the event is over".)
+  //
+  // It is a DEADLINE, not a flag a callback has to clear. A flag that some
+  // client is responsible for un-setting is a flag that eventually sticks —
+  // a dropped connection or a thrown renderer during those 17 seconds would
+  // freeze the match permanently, which is a far worse bug than the one this
+  // fixes. A timestamp expires on its own no matter what happens to anybody's
+  // UI, and it rides the state broadcast so all four seats hold and release
+  // together.
+  _BALLYHOO_LOCK_MS: 17500,
+  ballyhooLocked() {
+    const s = this.state;
+    if (!s || !s._ballyhooLockUntil) return false;
+    if (Date.now() >= s._ballyhooLockUntil) { s._ballyhooLockUntil = 0; return false; }
+    return true;
+  },
+
   // Called at the top of every round in BOTH modes. Cheap and idempotent —
   // fires at most once per match.
   _maybeBallyhoo(roundNow) {
@@ -16197,6 +16229,15 @@ const Game = {
 
     this.log('[MC BALLYHOO] MC Ballyhoo bursts in with a tray of candy!');
     handed.forEach(h => this.log('  [CANDY] ' + h));
+
+    // HOLD THE TABLE — but only when there is actually a show to wait for.
+    // Armed off UI.showBallyhoo existing, which is the one thing that is true
+    // in a browser and false in the headless sim: the sim plays hundreds of
+    // matches per second against a stubbed UI, and a 17-second wall-clock lock
+    // there would stall every run for no benefit, since nothing is watching.
+    if (typeof UI !== 'undefined' && typeof UI.showBallyhoo === 'function') {
+      s._ballyhooLockUntil = Date.now() + this._BALLYHOO_LOCK_MS;
+    }
 
     // Announce it on every screen. The reveal is the same centre-screen panel
     // a trick uses; the FX event is what carries it to the three 2v2 seats
@@ -19417,6 +19458,10 @@ const Game = {
   _2v2ActionsLocked() {
     const tt = this.state && this.state.twoVTwo;
     if (!tt) return false;
+    // MC Ballyhoo's entrance holds all four seats. This is the door every 2v2
+    // action and the end-turn button already ask, so one line covers playing a
+    // card, spending a trick, answering a prompt and skipping the turn.
+    if (this.ballyhooLocked && this.ballyhooLocked()) return true;
     // A LOCK THAT CANNOT STICK. The boundary flag is cleared on every exit
     // path now, but a lock is a thing that stops four people playing, so it
     // also expires: 8 seconds is far longer than any ability chain and far

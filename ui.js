@@ -3545,14 +3545,30 @@ const UI = {
     // and he can only turn up once a match anyway.
     playBallyhooFanfare() {
       try {
+        // MASTER MUTE ONLY. This used to bail on `menuMusic === false` and fade
+        // to _musicTargetVol(), both inherited from playMatchIntro — and both
+        // wrong here. menuMusic is a preference about background music in the
+        // MENU; MC Ballyhoo's theme is a gameplay event cue, so anyone with that
+        // toggle off got the card and the voice with dead silence where the
+        // 10-second lead-in should be. And _musicTargetVol() is musicVolume x
+        // 0.35 — about 0.19 at defaults — a level chosen to sit UNDER a menu,
+        // not to announce anything. (Owner: "never heard his theme play".)
         if (!UI.settings || UI.settings.sfxVolume === 0) return;
-        if (UI.settings.menuMusic === false) return;
         this.stopBallyhooFanfare();
         const a = new Audio(this.BALLYHOO_SRC);
         a.loop = false;
         a.preload = 'auto';
         this._ballyhoo = a;
-        const target = this._musicTargetVol();
+        // Mixed like a card cue, not like background music, with a floor so it
+        // can never come in as a whisper.
+        const sv = (UI.settings.sfxVolume != null) ? UI.settings.sfxVolume : 0.55;
+        const target = Math.max(0.4, Math.min(1, sv * 0.95));
+        // GET THE MENU LOOP OUT OF THE WAY. If it is playing, two pieces of
+        // music fight for the same ten seconds and neither reads. Paused, not
+        // stopped, so it picks up where it left off when he is done.
+        try {
+          if (this._music && !this._music.paused) { this._music.pause(); this._ballyhooDuckedMusic = true; }
+        } catch (e) {}
         a.volume = 0;
         try { a.currentTime = 0; } catch (e) {}
         const p = a.play();
@@ -3584,6 +3600,17 @@ const UI = {
       try {
         if (this._ballyhooTimer) { clearTimeout(this._ballyhooTimer); this._ballyhooTimer = null; }
         if (this._ballyhoo) { this._ballyhoo.pause(); this._ballyhoo.currentTime = 0; this._ballyhoo = null; }
+      } catch (e) {}
+      // Hand the menu loop back if we took it. Guarded on the flag so this can
+      // never start music that was not playing to begin with.
+      try {
+        if (this._ballyhooDuckedMusic) {
+          this._ballyhooDuckedMusic = false;
+          if (this._music && this._music.paused && this._musicWantPlay
+              && UI.settings && UI.settings.menuMusic !== false) {
+            const p = this._music.play(); if (p && p.catch) p.catch(() => {});
+          }
+        }
       } catch (e) {}
     },
 
@@ -6348,7 +6375,7 @@ const UI = {
       // card will pop up over so you can see it."
       if (kw && kw.indexOf('card:') === 0) {
         const cardName = kw.slice(5);
-        const trickDef = (typeof TRICK_DEFS !== 'undefined') ? TRICK_DEFS.find(t => t.name === cardName) : null;
+        const trickDef = this._trickDefByName(cardName);
         const cardDef  = !trickDef && (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(d => d.name === cardName) : null;
         const def = trickDef || cardDef;
         if (!def) return false;
@@ -12595,6 +12622,36 @@ const UI = {
       // stat orbs, desc. (User: "it should just be the card there like seen on
       // board, the same exact one.") Synthetic action tiles fall through to
       // the labeled-tile markup below.
+      // A TRICK OPTION GETS ITS REAL FACE TOO. isRealCard only ever matched
+      // CARD_DEFS, so every prompt that offers TRICKS — the Grinch asking which
+      // one you give up is the one people see — fell through to the labelled
+      // text tile below: no art, and the rules squeezed into a caption. You
+      // were choosing between names. makeTrickEl is the same renderer the hand
+      // and the codex use, so the option now looks like the trick it is, art
+      // and description included, candies among them. (Owner: "for the grinch
+      // i want the image of all tricks to show up even the new candys ... so
+      // you can see the art of the trick and then a description of what it
+      // does as well.")
+      // NOT _hasBody — that asks "does this thing stand in a lane", and for a
+      // plain trick object (no isDiscardEffect / isEnvironment flag) it answers
+      // TRUE, so gating on it skipped every trick this branch exists for.
+      // Identity by name against the trick tables, and never for something that
+      // is also a real card.
+      const trickDef = (card.name && !(typeof CARD_DEFS !== 'undefined' && CARD_DEFS.some(d => d.name === card.name)))
+        ? this._trickDefByName(card.name) : null;
+      if (trickDef) {
+        try {
+          const wrapT = document.createElement('div');
+          // Merge so a live instance's own cost/desc wins over the printed def,
+          // while a def-only option still renders fully.
+          wrapT.innerHTML = this.makeTrickEl(Object.assign({}, trickDef, card), { extraClass: 'choice-real flip-host' });
+          const elT = wrapT.firstElementChild;
+          if (elT) {
+            elT.setAttribute('data-idx', idx);
+            return `<div class="choice-opt">${elT.outerHTML}${pickBtn(idx, card)}</div>`;
+          }
+        } catch (e) { /* fall through to the labelled tile */ }
+      }
       const isRealCard = card.attack !== undefined ||
         (typeof CARD_DEFS !== 'undefined' && card.name && CARD_DEFS.some(d => d.name === card.name));
       if (isRealCard) {
@@ -12630,8 +12687,11 @@ const UI = {
       // `<Name>.png` for a name no file exists for, so every action tile looked
       // like it had a portrait (and requested a 404). A tile is an ACTION when
       // its name belongs to no real card and no real trick.
-      const isTrickName = typeof TRICK_DEFS !== 'undefined' && artName &&
-        TRICK_DEFS.some(td => td.name === artName);
+      // Candies are tricks too — asking TRICK_DEFS alone classified one as an
+      // ACTION tile, which is the branch that deliberately suppresses art. That
+      // is why a candy in this tray drew no portrait at all while every other
+      // trick did.
+      const isTrickName = !!(artName && this._trickDefByName(artName));
       const isActionTile = !isRealCard && !isTrickName && !stats;
       const trayArtPath = (artName && !isActionTile) ? this.getCardArtPath(artName) : null;
       const safeTrayUrl = trayArtPath ? trayArtPath.replace(/'/g, '%27') : '';
@@ -20927,6 +20987,18 @@ const UI = {
     const bot = isAI || raw !== clean;
     const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     return (bot ? this.BOT_ICON_SVG : '') + esc(clean || raw);
+  },
+
+  // Tricks live in TRICK_DEFS; MC Ballyhoo's candies deliberately do not (see
+  // CANDY_DEFS in tricks.js — four separate places build a trick pool off
+  // TRICK_DEFS and none of them filter). Anything that asks "is this a trick"
+  // has to ask both, or a candy is a trick everywhere except the places that
+  // matter: the picker that draws its face, and the tap that reads its rules.
+  _trickDefByName(name) {
+    if (!name) return null;
+    const t = (typeof TRICK_DEFS !== 'undefined') ? TRICK_DEFS.find(d => d.name === name) : null;
+    if (t) return t;
+    return (typeof CANDY_DEFS !== 'undefined') ? (CANDY_DEFS.find(d => d.name === name) || null) : null;
   },
 
   makeTrickEl(trick, opts) {
@@ -32049,10 +32121,15 @@ const UI = {
     const name = cardEl.dataset.cardName || cardEl.dataset.trickName
               || cardEl.querySelector('.card-name, .db-grid-name, .trick-name')?.textContent;
     if (!name) return;
+    // Candies resolve here too, or tapping one to read it did nothing at all —
+    // the lookup found no def and returned before opening anything. (Owner: "i
+    // want to be able to click on the trick he gives like an actual trick in
+    // order to read what it does.")
+    const trickHit = this._trickDefByName(name);
     const def = (typeof CARD_DEFS !== 'undefined' ? CARD_DEFS.find(c => c.name === name) : null)
-             || (typeof TRICK_DEFS !== 'undefined' ? TRICK_DEFS.find(t => t.name === name) : null);
+             || trickHit;
     if (!def) return;
-    const isTrick = !!(typeof TRICK_DEFS !== 'undefined' && TRICK_DEFS.find(t => t.name === name));
+    const isTrick = !!trickHit;
 
     // Non-trick cards go to THE inspect, the same one every other surface
     // opens. This used to build a `.ci-panel` by hand — a second, art-less
