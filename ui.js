@@ -8006,7 +8006,10 @@ const UI = {
     if (!realEl || !fromRect) return;
     const slot = realEl.closest('.player-slot');
     const lane = realEl.closest('.lane');
-    const bail = () => { realEl.classList.remove('card-flying'); };
+    const bail = () => {
+      realEl.classList.remove('card-flying');
+      if (realEl.dataset) delete realEl.dataset.flyAt;
+    };
     if (this._reducedMotion && this._reducedMotion()) { bail(); return; }
     if (!realEl.classList.contains('ally-card')) { bail(); return; }
     const toRect = realEl.getBoundingClientRect();
@@ -8016,6 +8019,7 @@ const UI = {
     // Barely moved (re-render with no real travel) — just land in place.
     if (Math.hypot(dx, dy) < 24) {
       realEl.classList.remove('card-flying');
+      if (realEl.dataset) delete realEl.dataset.flyAt;
       this._spawnPlayerLandFx(realEl, lane, slot, true);
       return;
     }
@@ -8039,6 +8043,7 @@ const UI = {
     const DUR = this._FLY_DUR_MS || 460;
     ghost.style.animation = `cardFlightArc ${DUR}ms cubic-bezier(0.33,0.85,0.31,1) forwards`;
     document.body.appendChild(ghost);
+    realEl.dataset.flyAt = String(Date.now());   // swept if it sticks (see renderBoard)
     realEl.classList.add('card-flying');     // belt-and-braces (placement already hid it)
     realEl.classList.remove('card-enter');
     let done = false;
@@ -8046,6 +8051,7 @@ const UI = {
       if (done) return; done = true;
       try { ghost.remove(); } catch (e) {}
       realEl.classList.remove('card-flying');
+      if (realEl.dataset) delete realEl.dataset.flyAt;
       this._spawnPlayerLandFx(realEl, lane, slot, true);
     };
     ghost.addEventListener('animationend', land, { once: true });
@@ -21983,6 +21989,33 @@ const UI = {
         const t = +(el.dataset && el.dataset.exitAt) || 0;
         if (!t || (now - t) > 1100) { el.classList.remove('card-exit'); if (el.dataset) delete el.dataset.exitAt; }
       });
+      // THIRD OF THE SAME FAMILY — card-flying is flat `opacity: 0` with no
+      // animation to end, so a stuck one never recovers on its own. It is
+      // cleared by land() in _animateFly, which holds the element from when the
+      // flight began; a re-render mid-flight (makeCardElCached reuses tiles)
+      // leaves that call clearing a node no longer on the board while the live
+      // tile stays invisible and clickable. The flight is 460ms + a 90ms
+      // fallback, so anything still flying after 900ms is stuck by definition.
+      // This query runs against the LIVE DOM, which is what makes it catch the
+      // reused-tile case the timeouts structurally cannot.
+      document.querySelectorAll('#board .card.card-flying').forEach(el => {
+        const t = +(el.dataset && el.dataset.flyAt) || 0;
+        if (!t || (now - t) > 900) { el.classList.remove('card-flying'); if (el.dataset) delete el.dataset.flyAt; }
+      });
+      // FOURTH OF THE FAMILY — card-pre-derez. Not an invisible card: an 80ms
+      // pre-flash that ends at brightness(2.5) and persists, so a stuck one is
+      // a permanently blown-out white tile. Same reused-tile cause.
+      document.querySelectorAll('#board .card.card-pre-derez').forEach(el => {
+        const t = +(el.dataset && el.dataset.derezAt) || 0;
+        if (!t || (now - t) > 400) { el.classList.remove('card-pre-derez'); if (el.dataset) delete el.dataset.derezAt; }
+      });
+      // FIFTH — card-killcam-target. Ends visible, so nothing disappears; what
+      // it leaves behind is z-index:7 on a tile whose kill-cam was cut short by
+      // the next kill taking the single shared timer.
+      document.querySelectorAll('#board .card.card-killcam-target').forEach(el => {
+        const t = +(el.dataset && el.dataset.kcAt) || 0;
+        if (!t || (now - t) > 500) { el.classList.remove('card-killcam-target'); if (el.dataset) delete el.dataset.kcAt; }
+      });
     } catch (e) {}
     try {
       this._renderBoardImpl(s);
@@ -22654,7 +22687,23 @@ const UI = {
           const pv = this._prevRects && this._prevRects.get(plDisplayCard.id);
           const willFly = pv && pv.inHand && !(this._reducedMotion && this._reducedMotion());
           if (willFly) {
+            // THE THIRD MEMBER OF THE INVISIBLE-CARD FAMILY. card-enter and
+            // card-exit each carry a stamp, a self-removing timeout AND a
+            // sweep in renderBoard; card-flying had none of the three. Its
+            // only removal was land() inside _animateFly, which holds the
+            // element captured when the flight STARTED — and makeCardElCached
+            // reuses board tiles across renders, so a re-render during the
+            // ~460ms flight leaves land() clearing a detached node while the
+            // live tile keeps `opacity: 0` forever. Invisible, still
+            // clickable, and on the card you just played. (User: "the cards
+            // played would go invisible and you could click on them but on the
+            // board they were invisible.")
+            cardEl.dataset.flyAt = String(Date.now());   // swept if it sticks (see renderBoard)
             cardEl.classList.add('card-flying');
+            setTimeout(() => {
+              cardEl.classList.remove('card-flying');
+              if (cardEl.dataset) delete cardEl.dataset.flyAt;
+            }, 900);
           } else {
             this._spawnPlayerLandFx(cardEl, el, pSlot, false);
           }
@@ -30623,9 +30672,19 @@ const UI = {
       const cardEl = document.querySelector(`[data-card-id="${card.id}"]`);
       if (cardEl) {
         cardEl.classList.add('card-pre-derez');
-        // The class is removed naturally when renderBoard rebuilds
-        // the lane DOM (which fires from the engine's death
-        // bookkeeping); no explicit cleanup needed.
+        // "REMOVED NATURALLY WHEN renderBoard REBUILDS THE LANE DOM" — which it
+        // does not. makeCardElCached REUSES a tile whose visual state is
+        // unchanged rather than rebuilding it, so the rebuild this relied on
+        // may simply never happen. The animation is 80ms with fill-mode
+        // forwards ending at brightness(2.5), so a reused tile keeps a
+        // blown-out white card for the rest of the match. Same family as
+        // card-enter / card-exit / card-flying, so it gets the same three
+        // defences: stamp, self-removal, and the sweep in renderBoard.
+        cardEl.dataset.derezAt = String(Date.now());   // swept if it sticks (see renderBoard)
+        setTimeout(() => {
+          cardEl.classList.remove('card-pre-derez');
+          if (cardEl.dataset) delete cardEl.dataset.derezAt;
+        }, 400);
       }
 
       // Perspective container, sized to match the card's rect.
@@ -33099,11 +33158,24 @@ const UI = {
     if (cardEl) {
       cardEl.classList.remove('card-killcam-target');
       void cardEl.offsetWidth;
+      // Stamped like the rest of the family. _killcamTimer is a SINGLE timer
+      // that gets cleared and replaced on every kill, so it only ever cleans up
+      // the most recent tile — two kills inside 320ms and the first one keeps
+      // the class, and with it z-index:7, quietly floating an ordinary card
+      // above its neighbours for the rest of the match. The sweep in
+      // renderBoard is what catches the ones the timer drops.
+      cardEl.dataset.kcAt = String(Date.now());   // swept if it sticks (see renderBoard)
       cardEl.classList.add('card-killcam-target');
     }
     if (this._killcamTimer) clearTimeout(this._killcamTimer);
     this._killcamTimer = setTimeout(() => {
       document.body.classList.remove('killcam');
+      // …and take the class off the TILE too. killcamPop ends back at scale(1)
+      // brightness(1) so a stuck one is invisible-to-the-eye rather than a
+      // visible defect, but it also carries z-index:7 — which on a reused tile
+      // silently lifts an ordinary card above its neighbours for the rest of
+      // the match. The timer that ends the effect is the place to end all of it.
+      if (cardEl) { cardEl.classList.remove('card-killcam-target'); if (cardEl.dataset) delete cardEl.dataset.kcAt; }
       this._killcamTimer = null;
     }, 320);
   },
