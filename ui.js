@@ -2327,6 +2327,19 @@ const UI = {
         hover: 'audio/cards/mind-stone-hover.mp3',
         play:  'audio/cards/mind-stone-play.mp3'
       },
+      // MC BALLYHOO HIMSELF — his theme, on hover. He is not a playable trick,
+      // but the codex's Random Event tab renders him with the trick chrome
+      // (a .trick-card carrying data-trick-name), and the hover handler routes
+      // anything without data-card-name through playTrickSfx — so registering
+      // him here is all it takes to let you hold the cursor on his card and
+      // hear the carnival. (Owner: "if you hover over MC ballyhoo in the codex
+      // that main theme plays.")
+      //
+      // `hover` and not `play`: hover cues are deliberately full-length and
+      // resume-from-pause, which is what a 60-second theme wants, while `play`
+      // is capped at 1.5s and would clip it to a stub. Moving the cursor off
+      // stops it through the same _stopHover every other hover cue uses.
+      'MC Ballyhoo': { hover: 'audio/ballyhoo-fanfare.mp3' },
       // MC BALLYHOO'S CANDIES — one cue, all four. They are unwrapped the same
       // way whatever is inside them does, so they share a sound rather than
       // each getting a near-identical one. Registered per name because the
