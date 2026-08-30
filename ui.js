@@ -29463,7 +29463,13 @@ const UI = {
   onRedrawClick() {
     const s = Game.state;
     const blocked = Game.redrawBlockedReason('player');
-    if (blocked) { this.toast ? this.toast(blocked) : null; return; }
+    // `this.toast` does not exist and never has, so this branch swallowed the
+    // reason and returned in silence — the button simply did nothing and did
+    // not say why. Route it to the notice the game actually shows.
+    if (blocked) {
+      try { if (this.showAITrickToast) this.showAITrickToast('Redraw', blocked, 'error'); } catch (e) {}
+      return;
+    }
     // 2v2: your cards live in YOUR SEAT's hand, not the side proxy (which is
     // whichever teammate the bridge last pointed at), and the pick has to be
     // asked of your seat so the host's copy of the prompt cannot answer it.
@@ -29473,6 +29479,20 @@ const UI = {
     const hand = ((_seat ? _seat.hand : s.player.hand) || []).slice();
     if (!hand.length) return;
     const cost = Game.getRedrawCost('player');
+    // ONE CARD IS NOT A CHOICE. Asking "which card do you want to bin?" about a
+    // single card routed a non-question through the whole prompt system —
+    // options.forced, localOnly, a seat stamp, a queued callback — and every
+    // one of those is a place the answer can be dropped without a word to the
+    // player. (User: "trying to redraw my only card in hand and it gives me the
+    // notice but never lets me do it.") Nothing here is a decision, so nothing
+    // here needs a prompt: bin it and draw.
+    if (hand.length === 1) {
+      const only = hand[0];
+      if (_seat) Game.redrawCard(_side, only, _tt.you);
+      else Game.submitCommand({ type: 'redraw', payload: { card: only } });
+      this.render();
+      return;
+    }
     if (_seat) {
       Game.promptCardChoice(_side, hand, 'Redraw',
         `Choose a card to bin and replace — ${cost} Energy`,
@@ -29486,7 +29506,7 @@ const UI = {
         // to bin" is a question only this client armed, so forwarding the
         // ANSWER would name a prompt the host has never heard of. The answer
         // travels as the redraw action itself instead.
-        { forced: hand.length === 1, localOnly: true, inlineTray: true, seat: _tt.you });
+        { localOnly: true, inlineTray: true, seat: _tt.you });
       return;
     }
     Game.promptCardChoice('player', hand, 'Redraw',
@@ -29507,7 +29527,7 @@ const UI = {
       // {t:'redraw'} message, which the host DOES understand.
       // It looked shipped because forced:true auto-resolves locally, so a
       // one-card hand worked on the guest — and every real hand did not.
-      { forced: hand.length === 1, localOnly: true });
+      { localOnly: true });
   },
 
   // Dismiss every end-of-match / end-of-round panel. Called when a rematch

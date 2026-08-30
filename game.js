@@ -1594,11 +1594,31 @@ const Game = {
     return null;
   },
 
+  // A REFUSED REDRAW SAYS WHY, ON SCREEN. Both refusal paths wrote only to the
+  // battle log, so a redraw that was rejected AFTER the button's own pre-check
+  // — the window between clicking and resolving, where energy can be spent or a
+  // prompt can open — looked exactly like a button that does nothing. That is
+  // the same silent-failure shape that made Darth Vader's dead ability so hard
+  // to place: the player cannot tell "refused, and here is the rule" from
+  // "broken". (User: "it gives me the notice but never lets me do it.")
+  _redrawRefused(reason) {
+    this.log(`[REDRAW] ${reason}.`);
+    // showAITrickToast is the on-screen notice this codebase actually has —
+    // there is no UI.toast, which is why onRedrawClick's own blocked pre-check
+    // (`this.toast ? this.toast(blocked) : null`) has always been a no-op and a
+    // refused redraw told the player nothing whatsoever.
+    try {
+      if (typeof UI !== 'undefined' && UI.showAITrickToast) {
+        UI.showAITrickToast('Redraw', reason, 'error');
+      }
+    } catch (e) {}
+  },
+
   redrawCard(owner, card, seatKey) {
     const pk = this._redrawSeat(seatKey);
     if (pk) return this._2v2RedrawCard(pk, card);
     const reason = this.redrawBlockedReason(owner);
-    if (reason) { this.log(`[REDRAW] ${reason}.`); return false; }
+    if (reason) { this._redrawRefused(reason); return false; }
     const p = this.state[owner];
     if (!card || p.hand.indexOf(card) === -1) return false;
 
@@ -1665,7 +1685,7 @@ const Game = {
       return true;
     }
     const reason = this.redrawBlockedReason(null, seatKey);
-    if (reason) { this.log(`[REDRAW] ${reason}.`); return false; }
+    if (reason) { this._redrawRefused(reason); return false; }
     // Resolve against the SEAT's own hand — a card id off the wire must never
     // be trusted to be the object the host is holding.
     const idx = (seat.hand || []).findIndex(c => c && c.id === card.id);
