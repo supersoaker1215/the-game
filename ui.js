@@ -22295,9 +22295,25 @@ const UI = {
     const isMyCardChoice = Game.promptIsMine(cc, 'card');
     const isMyLaneChoice = Game.promptIsMine(lc, 'lane');
     const targetCardIds = new Set();
-    // inlineTray prompts show the choices in the tray, not by lighting up the
-    // board/hand — skip the target highlight for them (see the hand version).
-    if (cc && isMyCardChoice && !cc.inlineTray) cc.cards.forEach(c => { if (c.id !== undefined) targetCardIds.add(c.id); });
+    // EVERY PICK-A-CARD PROMPT LIGHTS UP ITS TARGETS ON THE BOARD, tray or no
+    // tray. This used to skip inlineTray prompts on the grounds that the tray
+    // already shows the options — but the tray shows them as a row of tiles
+    // divorced from the lanes, so "choose an enemy" left the actual board dark
+    // and gave no clue WHICH of the cards in front of you were legal. Twelve
+    // abilities pass inlineTray, so twelve of them asked you to pick a target
+    // without indicating any. (User: "it says pick an enemy card to target, it
+    // should highlight all the cards that are available for that, and this
+    // should happen for all cards that you must click on a card.")
+    //
+    // The tray still shows and still answers — this only adds the glow (and the
+    // direct click) on the board copy. In 2v2 nothing changes either way: the
+    // 2v2 board renderers paint no target-highlight at all, which is exactly
+    // why the tray exists there.
+    //
+    // The HAND is deliberately left out of this — see the targetHandIds rule in
+    // renderPlayerHand, where suppressing the highlight for tray prompts was
+    // itself a request ("not highlight the hand cards").
+    if (cc && isMyCardChoice) cc.cards.forEach(c => { if (c.id !== undefined) targetCardIds.add(c.id); });
     const lcTargetSide = (lc && isMyLaneChoice) ? (lc.targetSide || lc.owner) : null;
     // ABILITY TARGET PREVIEW — when a card is SELECTED in hand (and no pick
     // prompt is currently open) glow the enemies its onPlay ability could hit,
