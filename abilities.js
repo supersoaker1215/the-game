@@ -3063,7 +3063,12 @@ const CARD_ABILITIES = {
         const gIdx = gHand.indexOf(given);
         if (gIdx >= 0) gHand.splice(gIdx, 1);
         given.owner = opp;
-        G.addToHand(opp, given, null, null, 'Slipped in by Deadpool');
+        // GIVE BACK TO THE SAME PLAYER HE STOLE FROM. Routing by victimKey (not a
+        // bare side) so the card lands in the exact seat Deadpool raided — without
+        // it, addToHand fell back to "first player on that team" and handed the
+        // trade to the WRONG teammate. (User: "he stole from my teammate then gave
+        // ME a card — whoever he steals from he has to give that player a card.")
+        G.addToHand(opp, given, null, victimKey ? { _2v2PlayedBy: victimKey } : null, 'Slipped in by Deadpool');
         G.log(`Deadpool slips ${given.name} into the enemy's hand!`);
         showVictimToast(stolen.name, given.name);
         if (dpIs2v2 && G._2v2OnlineBroadcast) { try { G._2v2OnlineBroadcast(); } catch (e) {} }
@@ -3100,7 +3105,9 @@ const CARD_ABILITIES = {
               const gIdx = gHand.indexOf(given);
               if (gIdx >= 0) gHand.splice(gIdx, 1);
               given.owner = opp;
-              G.addToHand(opp, given, null, null, 'Slipped in by Deadpool');
+              // Same-seat give-back — route to victimKey so the trade returns to
+              // the exact player Deadpool stole from, not a random teammate.
+              G.addToHand(opp, given, null, victimKey ? { _2v2PlayedBy: victimKey } : null, 'Slipped in by Deadpool');
               G.log(`Deadpool slips ${given.name} into the enemy's hand!`);
               showVictimToast(stolen.name, given.name);
             },
