@@ -6943,7 +6943,12 @@ const Game = {
     // the mid-combat idle budget. (Already armed at the top of resolveCombat.)
     this._armCombatWatchdog();
     // Board-wide circuit reveal — one-shot opacity pulse on a pre-drawn grid overlay
-    if (typeof UI !== 'undefined' && UI.flashCombatReveal) UI.flashCombatReveal();
+    // Same rule — a forecast resolving combat on a clone must not flash the
+    // real board. Cheaper to see than the dissolve above, and just as wrong.
+    if (typeof UI !== 'undefined' && UI.flashCombatReveal
+        && !(this.state && this.state._silentSim)) {
+      UI.flashCombatReveal();
+    }
 
     // Poison Ivy charm moved from PRE-combat to post-combat (see
     // postCombat). Running pre-combat killed Ivy's opposite before
@@ -9549,7 +9554,26 @@ const Game = {
     // Spawn destroy particles at the card's current DOM location so the
     // board reads as "the card shattered here" before the next render
     // sweeps the DOM. No-op in sim mode where UI is stubbed.
-    if (typeof UI !== 'undefined' && UI.spawnDestroyParticles) UI.spawnDestroyParticles(card.id, card.owner);
+    // A DRY RUN MUST NOT TOUCH THE SCREEN. previewCombatNow ("IF COMBAT
+    // RESOLVES NOW"), previewPlacement and the drag forecast deep-clone the
+    // state, stamp it _silentSim and resolve combat on the COPY. Every engine
+    // path that talks to the wire already guards on that flag; this one talked
+    // to the DOM and did not — and spawnDestroyParticles looks its target up by
+    // data-card-id in the REAL document, so a card the forecast merely
+    // PREDICTED would die had the Tron dissolve applied to its live board tile.
+    // The dissolve ends fully masked out with fill-mode forwards, and the
+    // forecast re-runs on every render, re-stamping exitAt — so the sweep that
+    // exists for stuck dissolves never got a window to fire and the card stayed
+    // invisible for as long as the lane stayed contested. It came back during
+    // combat because the forecast stops running then, and flickered back for an
+    // instant when a card was lifted because previewPlacement forces a rebuild.
+    // (User: "the card is gone in front of flash ... during the combat phase
+    // then you can see the art again ... if i lift a card they all spawn back
+    // in for a second but then go away again.")
+    if (typeof UI !== 'undefined' && UI.spawnDestroyParticles
+        && !(this.state && this.state._silentSim)) {
+      UI.spawnDestroyParticles(card.id, card.owner);
+    }
     if (card.statsLeftRound == null) card.statsLeftRound = this.state.round || 1;
     // Victory-panel stat: count kills on the killer's side. Every death
     // of an enemy card counts toward the opposing side's total — even if
