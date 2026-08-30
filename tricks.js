@@ -943,3 +943,153 @@ const TRICK_DEFS = [
   }
 ];
 
+
+// ============================================================
+// MC BALLYHOO'S CANDIES
+// ============================================================
+// Four one-shot tricks handed out by MC Ballyhoo, who is not a card: he is a
+// round-start EVENT (see Game._maybeBallyhoo). Roughly half of all matches he
+// turns up once, at a random round, and gives every player at the table one
+// candy — a different one each, dealt at random from these four.
+//
+// DELIBERATELY NOT IN TRICK_DEFS. Four separate places build a trick pool
+// straight off that array (the 1v1 shared pile, the deckbuilder piles, the 2v2
+// deal and the 2v2 draft) and none of them filter, so anything living there is
+// draftable and drawable. Candies must only ever arrive from Ballyhoo's hand,
+// so they live in their own table and nothing that reads TRICK_DEFS can see
+// them. Multiplayer._rehydrateState looks them up here as well, so a candy
+// still comes back with its `play` function after crossing the wire.
+//
+// Cost 0: they are a gift, not a purchase, and the player already paid for
+// them by being at the table when Ballyhoo showed up.
+const CANDY_DEFS = [
+  {
+    name: "Twice Candy", cost: 0, _isCandy: true,
+    desc: "Give an ally Overdrive and +2/+2 for 1 turn.",
+    canPlay(G, owner) { return G.getAlliesOf(owner).length > 0; },
+    play(G, owner) {
+      const allies = G.getAlliesOf(owner).filter(a => a.currentHealth > 0);
+      if (!allies.length) { G.log('Twice Candy: no ally to feed it to.'); return; }
+      G.promptCardChoice(owner, allies, "Twice Candy — Sugar Rush",
+        "Choose an ally to gain Overdrive and +2/+2 for a turn",
+        (t) => {
+          if (!t) return;
+          if (typeof UI !== 'undefined' && UI._fxTrickBuff) { try { UI._fxTrickBuff(t, '#ffd34a', '#ff8a00'); } catch (e) {} }
+          // ONE TURN, per the house rule: a buff granted to ANOTHER card with
+          // no stated duration lasts a turn. grantTempBuff takes the numeric
+          // props additively and the boolean set-and-revert, so Overdrive
+          // arrives and leaves with the stats rather than sticking forever.
+          G.grantTempBuff(t, { attack: 2, currentHealth: 2, maxHealth: 2, isOverdrive: true }, 1,
+            { name: 'Twice Candy' });
+          G.log(`Twice Candy: ${t.name} gains Overdrive and +2/+2 for a turn!`);
+        },
+        // AI: the biggest attacker gets the most out of Overdrive, since it
+        // only pays out when the card kills.
+        cards => cards.slice().sort((a, b) => (b.attack | 0) - (a.attack | 0))[0]);
+    }
+  },
+  {
+    name: "Cashzap Candy", cost: 0, _isCandy: true,
+    desc: "Steal 1 Energy from every other player.",
+    play(G, owner) {
+      if (typeof UI !== 'undefined' && UI._fxTrickStrike) { try { UI._fxTrickStrike(null, '#4ad9ff', '#0090c8'); } catch (e) {} }
+      const tt = G.state.twoVTwo;
+      // 2v2 keeps energy on the SEAT, not on the side proxy, so a side-level
+      // spend would take it from whichever teammate the bridge happens to be
+      // pointing at. Walk the seats instead.
+      //
+      // "Every other player" INCLUDES YOUR TEAMMATE, confirmed by the owner
+      // after playtesting — so in a 2v2 room the caster takes 3 and their own
+      // partner is down 1. That is the card working as written, not a bug to
+      // be tidied up later: it is a free candy nobody paid for, and the cost of
+      // taking it is that your partner feels it too.
+      if (tt && tt.online && tt.players) {
+        const me = G._2v2SeatOfPlay ? G._2v2SeatOfPlay(null) : null;
+        const caster = (me && tt.players[me]) ? me : (G._2v2CurrentActingPlayer || null);
+        let taken = 0;
+        (G._2v2SLOTS || ['p1', 'p2', 'p3', 'p4']).forEach(pk => {
+          const p = tt.players[pk];
+          if (!p || pk === caster) return;
+          const avail = (p.energy | 0) - (p.usedEnergy | 0);
+          if (avail <= 0) return;
+          p.usedEnergy = (p.usedEnergy | 0) + 1;   // spend it out from under them
+          taken++;
+        });
+        const mine = caster && tt.players[caster];
+        if (mine && taken) mine.energy = (mine.energy | 0) + taken;
+        G.log(`Cashzap Candy: stole ${taken} Energy from the rest of the table!`);
+        return;
+      }
+      const opp = G.opponent(owner);
+      const avail = G.state[opp].currency | 0;
+      const take = Math.min(1, Math.max(0, avail));
+      G.state[opp].currency = avail - take;
+      G.state[owner].currency = (G.state[owner].currency | 0) + take;
+      G.log(take ? `Cashzap Candy: stole ${take} Energy!` : 'Cashzap Candy: they had no Energy to steal.');
+    }
+  },
+  {
+    name: "Vampire Candy", cost: 0, _isCandy: true,
+    desc: "Steal 5 health from the enemy team. It cannot reduce them below 1.",
+    play(G, owner) {
+      const opp = G.opponent(owner);
+      // FLOORED, NOT SKIPPED. "Can't kill the enemy team" has to clamp the
+      // amount — refusing the whole effect when they are under 5 would make
+      // the candy do nothing precisely when it matters most.
+      const theirHp = G.state[opp].health | 0;
+      const drain = Math.max(0, Math.min(5, theirHp - 1));
+      if (drain <= 0) {
+        G.log('Vampire Candy: the enemy team is already down to 1 — nothing left to drain.');
+        return;
+      }
+      if (typeof UI !== 'undefined' && UI._fxDrainSiphon) { try { UI._fxDrainSiphon(null, '#c81e1e'); } catch (e) {} }
+      // Straight through damagePlayer/healPlayer so block meters, damage
+      // tracking and the 2v2 team read-back all behave as they do for any
+      // other hit. You gain exactly what they lost.
+      G.damagePlayer(opp, drain, false, { name: 'Vampire Candy' });
+      G.healPlayer(owner, drain, { name: 'Vampire Candy' });
+      G.log(`Vampire Candy: drained ${drain} health from the enemy team!`);
+    }
+  },
+  {
+    name: "Bloway Candy", cost: 0, _isCandy: true,
+    desc: "Bounce a RANDOM enemy card. If it is played again, its abilities do not fire.",
+    canPlay(G, owner) { return G.getEnemiesOf(owner).some(e => G.canTrickLand(e, 'trick', owner)); },
+    play(G, owner) {
+      const enemies = G.getEnemiesOf(owner).filter(e => G.canTrickLand(e, 'trick', owner));
+      if (!enemies.length) { G.log('Bloway Candy: no enemy on the board to blow away.'); return; }
+      // RANDOM, not chosen — through G.rng so a seeded run stays reproducible.
+      const t = enemies[Math.floor(G.rng() * enemies.length)];
+      const l = G.findCardLane(t);
+      if (typeof UI !== 'undefined' && UI._fxTrickBurst) { try { UI._fxTrickBurst(t, '#8a5cff', '#d7c4ff'); } catch (e) {} }
+      G.removeFromLane(t, l);
+      // Fresh instance at base stats, exactly as Phantom Zone does.
+      const def = (typeof CARD_DEFS !== 'undefined' && CARD_DEFS.find(d => d.name === t.name)) || t;
+      const fresh = G.createCardInstance(def, t.owner);
+      // THE SILENCE. Null every hook on the returning copy, the same set the
+      // face-down play suppresses — that is what "doesn't get to fire its
+      // abilities" means, and it has to be baked into the instance rather than
+      // checked at play time so no play path can forget to look.
+      // Deliberately NOT Moder's strip: addToHand calls _unstripModer() on
+      // anything entering a hand, so a Moder-style strip would be undone by
+      // the very bounce that applied it.
+      fresh._blowaySilenced = true;
+      ['onPlay', 'onDeath', 'onDamaged', 'onKill', 'onBeforeTricks', 'onBeforeAttack',
+       'onEndOfTurn', 'onAnyCardPlayed', 'onAllyKilled', 'onEnemyKilled', 'onEvade',
+       'onDamagePlayer', 'onTurnStart', 'onLaneResolved', 'onLaneCombat',
+       'onAnyCardDamaged', 'onBlockMeterFired', 'onRevive', 'onDiscard', 'onMoved']
+        .forEach(h => { fresh[h] = null; });
+      fresh.passive = null;
+      // Back to the seat that owned it, not just their side — same routing
+      // Phantom Zone uses, for the same reason.
+      const _tt = G.state.twoVTwo, _saved = G._2v2CurrentActingPlayer;
+      if (_tt && _tt.online && t._2v2PlayedBy && _tt.players[t._2v2PlayedBy]) {
+        G._2v2CurrentActingPlayer = t._2v2PlayedBy;
+      }
+      G.addToHand(t.owner, fresh, null, null, 'Blown away by Bloway Candy');
+      if (_tt && _tt.online) G._2v2CurrentActingPlayer = _saved;
+      G.log(`Bloway Candy: blows ${t.name} back to hand — it will come back silenced!`);
+    }
+  }
+];
+if (typeof window !== 'undefined') window.CANDY_DEFS = CANDY_DEFS;

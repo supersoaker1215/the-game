@@ -25,6 +25,18 @@
 // =============================================================================
 
 window.CARD_ART_VARIANTS = {
+  // ── MC Ballyhoo and his candies ──
+  // Listed because the default filename a card falls back to is
+  // `<CardName>.png`, and these five shipped as JPEG. One entry each, no
+  // variants — the manifest is the only way to name a .jpg without renaming
+  // the file. MC Ballyhoo is not a card at all (he is the round-start event in
+  // Game._maybeBallyhoo) but his announcement goes through the same
+  // showCardReveal panel, which asks getCardArtPath for a portrait by name.
+  'MC Ballyhoo':         ['MC Ballyhoo.jpg'],
+  'Twice Candy':         ['Twice Candy.jpg'],
+  'Cashzap Candy':       ['Cashzap Candy.jpg'],
+  'Vampire Candy':       ['Vampire Candy.jpg'],
+  'Bloway Candy':        ['Bloway Candy.jpg'],
   'Pinhead':             ['Pinhead.jpg'],
   // ── Variant-2 promoted (user-picked defaults, 2026-05-18) ──
   'Darth Vader':         ['Darth Vader 2.png'],

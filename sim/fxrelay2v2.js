@@ -68,6 +68,7 @@ var HAS_OWN_PATH = {
   // re-renders, so the dying element is already gone. Fired from the pre-swap
   // board diff instead, which is the last moment the card is still on screen.
   spawnDestroyParticles: 'ui.js _relay2v2CardFx fires it from the pre-swap board diff',
+  showBallyhoo:          "dedicated 'ballyhoo' FX event — the guests run the same arrival",
 };
 // Sounds that reach the other seats on a dedicated FX event rather than through
 // installSfxBridge's four-name list.

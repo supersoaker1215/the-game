@@ -35154,6 +35154,19 @@ body.dragging-trick .tut-callout { pointer-events: none; }
   text-shadow: 0 0 10px rgba(155, 89, 182, 0.9);
   z-index: 2;
 }
+/* NAME PINNED TO THE TOP, for reveals whose art is a face.
+   .tr-name floats at bottom:34% by default, which reads well over a busy
+   scene and badly over a portrait — on MC Ballyhoo it landed straight across
+   his mouth. Opt-in via a modifier rather than moving it for every trick
+   reveal in the game, because the default placement is right for the art most
+   of them use. (Owner: "make the name not cover his face and either at the
+   top or right above the text".) */
+.trick-reveal-card.tr-name-top .tr-name {
+  top: 0;
+  bottom: auto;
+  padding: 6px 8px 8px;
+  background: linear-gradient(rgba(10,2,16,0.92), rgba(10,2,16,0.82) 60%, rgba(10,2,16,0));
+}
 .trick-reveal-card .tr-desc {
   position: absolute; left: 0; right: 0; bottom: 0;
   max-height: 32%;

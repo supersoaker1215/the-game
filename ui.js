@@ -13,7 +13,7 @@ const UI = {
   // cached PNGs (which don't have built-in cache busters since they're
   // referenced via background-image url() and not the index.html
   // version-suffix system). Bump this every time you regen art.
-  _CARD_ART_VERSION: 90,
+  _CARD_ART_VERSION: 92,
 
   // Per-card background-position overrides. Default is "center center".
   // Use when an image crops poorly at the default — e.g. a head gets cut
@@ -2326,7 +2326,18 @@ const UI = {
       'Mind Stone': {
         hover: 'audio/cards/mind-stone-hover.mp3',
         play:  'audio/cards/mind-stone-play.mp3'
-      }
+      },
+      // MC BALLYHOO'S CANDIES — one cue, all four. They are unwrapped the same
+      // way whatever is inside them does, so they share a sound rather than
+      // each getting a near-identical one. Registered per name because the
+      // lookup is by trick name; there is no "family" key to hang it on.
+      // Reaches every seat: Game.playTrick fires playTrickSfx on a successful
+      // play, and that is one of the four calls installSfxBridge relays, so the
+      // other three players in a 2v2 room hear it too.
+      'Twice Candy':   { play: 'audio/cards/candy-play.mp3' },
+      'Cashzap Candy': { play: 'audio/cards/candy-play.mp3' },
+      'Vampire Candy': { play: 'audio/cards/candy-play.mp3' },
+      'Bloway Candy':  { play: 'audio/cards/candy-play.mp3' }
     },
     DEFAULT_TRICK_SFX: { hover: null, play: null },
 
@@ -2944,6 +2955,27 @@ const UI = {
     MATCH_INTRO_SRC: 'audio/match_intro.mp3?v=2',
     MATCH_INTRO_MS: 20000,   // total on-screen time before it's fully faded
 
+    // MC Ballyhoo's fanfare. He is announced by his MUSIC — the song runs for
+    // BALLYHOO_LEAD_MS on its own, and only then does his card drop in, so the
+    // table hears him coming before they see him. Length covers the lead-in
+    // plus the reveal's 2.1s hold, with a tail so the music outlives the card
+    // rather than being cut off by it.
+    BALLYHOO_SRC: 'audio/ballyhoo-fanfare.mp3?v=1',
+    // Long enough that the carnival theme is still at full volume across the
+    // whole lead-in — the arrival cuts it explicitly when his voice lands, so
+    // this only needs to outlast that moment, never to time it. Kept ahead of
+    // BALLYHOO_LEAD_MS (10s) so the fade-out never starts before the cut and
+    // the song is still at full level when he interrupts it.
+    BALLYHOO_MS: 16000,
+    // …and his voice. The fanfare is the fairground starting up; this is the
+    // man himself, and it lands on the beat the card drops. The fanfare is cut
+    // at that moment rather than ducked — he is talking over it otherwise, and
+    // two pieces of Mario Party audio fighting each other is worse than
+    // either alone. (Owner: "this sound fires and the other music stops".)
+    BALLYHOO_VOICE_SRC: 'audio/ballyhoo-voice.mp3',
+    // His sign-off, on the second text beat.
+    BALLYHOO_VOICE2_SRC: 'audio/ballyhoo-voice-2.mp3',
+
     _init() {
       if (this._ctx) return true;
       try {
@@ -3508,6 +3540,53 @@ const UI = {
     // SFX still cut through. Respects the same toggles as the menu music.
     _matchIntro: null,
     _matchIntroTimer: null,
+    // Same shape as playMatchIntro: its own Audio element, faded in, faded out
+    // on a timer, and never stacked — two Ballyhoos overlapping would be a mess
+    // and he can only turn up once a match anyway.
+    playBallyhooFanfare() {
+      try {
+        if (!UI.settings || UI.settings.sfxVolume === 0) return;
+        if (UI.settings.menuMusic === false) return;
+        this.stopBallyhooFanfare();
+        const a = new Audio(this.BALLYHOO_SRC);
+        a.loop = false;
+        a.preload = 'auto';
+        this._ballyhoo = a;
+        const target = this._musicTargetVol();
+        a.volume = 0;
+        try { a.currentTime = 0; } catch (e) {}
+        const p = a.play();
+        if (p && p.catch) p.catch(() => {});
+        this._fadeVolume(a, target, 400, '_ballyhooFade');
+        const total = this.BALLYHOO_MS || 9000;
+        const fadeOutMs = 2000;
+        this._ballyhooTimer = setTimeout(() => {
+          this._ballyhooTimer = null;
+          if (this._ballyhoo !== a) return;
+          this._fadeVolume(a, 0, fadeOutMs, '_ballyhooFade', () => {
+            try { a.pause(); a.currentTime = 0; } catch (e) {}
+            if (this._ballyhoo === a) this._ballyhoo = null;
+          });
+        }, Math.max(0, total - fadeOutMs));
+      } catch (e) { /* a fanfare is never worth an exception */ }
+    },
+    playBallyhooVoice() {
+      // Through _playSample so it rides the master bus (and its limiter) like
+      // every other one-shot, instead of being a second uncontrolled <audio>.
+      try { return this._playSample(this.BALLYHOO_VOICE_SRC, { fadeIn: 0, fadeOut: 150 }); }
+      catch (e) { return null; }
+    },
+    playBallyhooVoice2() {
+      try { return this._playSample(this.BALLYHOO_VOICE2_SRC, { fadeIn: 0, fadeOut: 150 }); }
+      catch (e) { return null; }
+    },
+    stopBallyhooFanfare() {
+      try {
+        if (this._ballyhooTimer) { clearTimeout(this._ballyhooTimer); this._ballyhooTimer = null; }
+        if (this._ballyhoo) { this._ballyhoo.pause(); this._ballyhoo.currentTime = 0; this._ballyhoo = null; }
+      } catch (e) {}
+    },
+
     playMatchIntro() {
       try {
         if (!UI.settings || UI.settings.sfxVolume === 0) return;
@@ -11913,6 +11992,14 @@ const UI = {
         }
         continue;
       }
+      // MC Ballyhoo's arrival, relayed to the seats that do not run the engine.
+      if (ev.type === 'ballyhoo') {
+        if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
+          // The same arrival the host just ran — music, lead-in and all.
+          try { if (this.showBallyhoo) this.showBallyhoo(); } catch (e) {}
+        }
+        continue;
+      }
       // Brainiac's scan — guests only (the caster's own client already showed it
       // live). Everyone is told a scan is RUNNING and whose hand it reads; the
       // cards themselves stay with the caster. Same shape as trickReveal.
@@ -14996,7 +15083,10 @@ const UI = {
       try {
         const c = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.length : 0;
         const t = (typeof TRICK_DEFS !== 'undefined') ? TRICK_DEFS.length : 0;
-        return c + t;
+        // + the Random Event tab: the four candies and MC Ballyhoo himself,
+        // none of which live in CARD_DEFS or TRICK_DEFS.
+        const e = (typeof CANDY_DEFS !== 'undefined') ? CANDY_DEFS.length + 1 : 0;
+        return c + t + e;
       } catch (e) { return 0; }
     })();
     const metaBtn = (id, label, sub, icon, onClick, meta) =>
@@ -16800,9 +16890,15 @@ const UI = {
     if (!ov) return;
     const f = this._encyc;
     const section = f.section || 'cards';
-    const isTricks = section === 'tricks';
+    // RANDOM EVENT — MC Ballyhoo and the four candies he hands out. They are
+    // not in CARD_DEFS or TRICK_DEFS on purpose (nothing that reads those
+    // arrays may ever deal a candy), so the codex has to name them directly.
+    // Rendered with the TRICK layout because that is what the candies are.
+    const isEvents = section === 'events';
+    const isTricks = section === 'tricks' || isEvents;
     const isCards = !isTricks;   // 'cards' / 'summons' / 'environments' all use the card layout
-    const sectionNoun = isTricks ? 'tricks'
+    const sectionNoun = isEvents ? 'random events'
+      : isTricks ? 'tricks'
       : section === 'summons' ? 'summons'
       : section === 'environments' ? 'environments' : 'cards';
     // Filter out roguelite-only cards (Goon/Thug/Brute, Soldier/Mercenary/
@@ -16817,12 +16913,28 @@ const UI = {
     // Battle Droid and Doombot ended up absent from the encyclopedia.
     const SUMMON_TOKENS = (typeof SUMMON_TOKEN_DEFS !== 'undefined') ? SUMMON_TOKEN_DEFS : [];
     let rawPool;
-    if (isTricks)                        rawPool = (typeof TRICK_DEFS !== 'undefined' ? TRICK_DEFS : []);
+    if (isEvents) {
+      // MC Ballyhoo is an EVENT, not a card or a trick — he has no def
+      // anywhere, so the codex row is synthesised here. Cost is null so the
+      // renderer draws no cost pill: he is never played and never paid for.
+      const ballyhoo = {
+        name: 'MC Ballyhoo', cost: null, _isEvent: true,
+        desc: "Not a card — he turns up on his own. Roughly half of all matches, "
+            + "once, at a random round from 3 onward, he bursts in and hands every "
+            + "player a different candy.",
+      };
+      rawPool = [ballyhoo].concat(typeof CANDY_DEFS !== 'undefined' ? CANDY_DEFS : []);
+    }
+    else if (isTricks)                   rawPool = (typeof TRICK_DEFS !== 'undefined' ? TRICK_DEFS : []);
     else if (section === 'environments') rawPool = CARD_DEFS.filter(c => c.isEnvironment);
     else if (section === 'summons')      rawPool = CARD_DEFS.filter(c => c._spawnOnly).concat(SUMMON_TOKENS);
     else                                 rawPool = CARD_DEFS.filter(c => !c.isEnvironment && !c._spawnOnly);
     const pool = rawPool.filter(c => !isRL(c.name));
-    const costBuckets = isCards
+    // Every candy is free and Ballyhoo has no cost at all, so a cost filter on
+    // this tab would be five buttons that all show the same five rows.
+    const costBuckets = isEvents
+      ? [ ['all','All'] ]
+      : isCards
       ? [ ['all','All'], ['0-3','0-3'], ['4-6','4-6'], ['7-8','7-8'], ['9-10','9-10'] ]
       : [ ['all','All'], ['0-2','0-2'], ['3-4','3-4'], ['5+','5+'] ];
     const inRange = (c) => {
@@ -16840,6 +16952,11 @@ const UI = {
     const q = (f.query || '').trim().toLowerCase();
     const filtered = pool.filter(c => inRange(c) && (!q || c.name.toLowerCase().includes(q)))
       .slice().sort((a, b) => {
+        // On the Random Event tab the cost sort has nothing to work with (every
+        // candy is 0, Ballyhoo has none), and alphabetical would file the man
+        // himself between Cashzap and Twice. He comes first; the candies are
+        // what he hands out.
+        if (a._isEvent !== b._isEvent) return a._isEvent ? -1 : 1;
         if ((a.cost || 0) !== (b.cost || 0)) return (a.cost || 0) - (b.cost || 0);
         return a.name.localeCompare(b.name);
       });
@@ -16911,6 +17028,7 @@ const UI = {
             <button type="button" class="db-tab ${section==='summons'?'db-filter-active':''}" onclick="UI._encycSetSection('summons')">Summons</button>
             <button type="button" class="db-tab ${section==='environments'?'db-filter-active':''}" onclick="UI._encycSetSection('environments')">Environments</button>
             <button type="button" class="db-tab ${section==='tricks'?'db-filter-active':''}" onclick="UI._encycSetSection('tricks')">Tricks</button>
+            <button type="button" class="db-tab ${section==='events'?'db-filter-active':''}" onclick="UI._encycSetSection('events')">Random Event</button>
           </div>
         </div>
         <div class="encyc-toolbar">
@@ -20841,7 +20959,7 @@ const UI = {
     // would have rendered as a label is left alone.
     if (desc && !/^[1-9A-Z][^:.]{0,28}:/.test(desc)) desc = 'When Played: ' + desc;
     return `<div class="${cls}" data-trick-name="${trick.name}"${onclick}>
-      <span class="card-cost">${trick.cost}</span>
+      ${trick.cost != null ? `<span class="card-cost">${trick.cost}</span>` : ''}
       <div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay"><span class="cn-text">${trick.name}</span></div><i class="pt-shine" aria-hidden="true"></i></div>
       ${badges}
       <div class="trick-desc">${this.formatDesc(desc) || ''}</div>
@@ -24526,14 +24644,86 @@ const UI = {
   // showTrickReveal; `label` replaces the "plays a Trick" line. (Owner: "along
   // with the audio cue could the iron giant card show up like tricks do so
   // people know what happened for both 2v2 and 1v1.")
-  showCardReveal(name, desc, cost, mine, label) {
+  // opts.onShow fires when THIS panel actually goes up, not when it was queued.
+  // Reveals are a queue — each holds 2.1s and the next starts when it exits —
+  // so anything that has to land WITH the second panel (MC Ballyhoo's sign-off
+  // voice line) cannot be scheduled by the caller without duplicating the
+  // queue's timing constants and drifting the moment either changes.
+  showCardReveal(name, desc, cost, mine, label, opts) {
     if (this._reducedMotion && this._reducedMotion()) {
       try { this.showAITrickToast(label || name, desc || ''); } catch (e) {}
+      // Still owed its cue — reduced motion trades the animation, not the sound.
+      if (opts && typeof opts.onShow === 'function') { try { opts.onShow(); } catch (e) {} }
       return;
     }
-    this._trickRevealQueue.push({ name, desc: desc || '', cost, mine: !!mine, label: label || '' });
+    this._trickRevealQueue.push({
+      name, desc: desc || '', cost, mine: !!mine, label: label || '',
+      onShow: (opts && typeof opts.onShow === 'function') ? opts.onShow : null,
+      // Extra class on the card itself — used to pin the name to the top when
+      // the art is a portrait the centred name would sit across.
+      cardClass: (opts && opts.cardClass) || '',
+      // Per-panel hold. The default 2100ms is tuned for a trick reveal mid-turn
+      // (and was already doubled once on feedback that it read too fast); MC
+      // Ballyhoo's two beats are an announcement people are meant to READ, so
+      // they ask for longer. Per-item rather than raising the shared constant,
+      // which would slow every trick reveal in the game to fix one event.
+      holdMs: (opts && opts.holdMs) || null,
+    });
     if (!this._trickRevealActive) this._nextTrickReveal();
   },
+  // MC BALLYHOO'S ARRIVAL — music first, then the man.
+  //
+  // The song plays alone for BALLYHOO_LEAD_MS before his card drops in, so the
+  // table hears the carnival start up and then sees who brought it. (Owner:
+  // "i want this song to play first for like 3 seconds and then his card
+  // appears".) Purely presentational: the candies are already in everyone's
+  // trick hand by the time this runs, so nothing waits on the animation and a
+  // player who clicks straight through misses nothing but the show.
+  //
+  // ONE function for every client. The host calls it from _maybeBallyhoo and
+  // the three 2v2 guests call it from the relayed 'ballyhoo' FX event, so the
+  // lead-in, the wording and the music are identical on all four screens
+  // instead of the guests getting a bare card with no fanfare.
+  // The song plays alone this long before his card drops. (Owner: "the first
+  // song needs to play for like 10 seconds".)
+  BALLYHOO_LEAD_MS: 10000,
+  // …and each of his two beats stays up this long, rather than the 2.1s a
+  // mid-turn trick reveal gets. ("each text should stay for at least 3
+  // seconds" — 3.2s, so it clears three full seconds before the exit starts.)
+  BALLYHOO_HOLD_MS: 3200,
+  showBallyhoo() {
+    try { if (this.sfx && this.sfx.playBallyhooFanfare) this.sfx.playBallyhooFanfare(); } catch (e) {}
+    // Reduced motion still gets the announcement, just without the theatrical
+    // wait — the delay is the effect here, so skipping it is the accommodation.
+    const lead = (this._reducedMotion && this._reducedMotion()) ? 0 : (this.BALLYHOO_LEAD_MS || 3000);
+    setTimeout(() => {
+      // HIS VOICE TAKES THE ROOM. The fanfare is cut on the same beat rather
+      // than left playing underneath — he is shouting over it otherwise.
+      try { if (this.sfx && this.sfx.stopBallyhooFanfare) this.sfx.stopBallyhooFanfare(); } catch (e) {}
+      try { if (this.sfx && this.sfx.playBallyhooVoice) this.sfx.playBallyhooVoice(); } catch (e) {}
+      // TWO BEATS, NOT ONE. He says hello, and THEN he says what he brought.
+      // Both go through showCardReveal, which queues: _nextTrickReveal holds
+      // each panel 2.1s and starts the next when it exits, so pushing two here
+      // plays them back to back with no timer of our own to keep in sync.
+      try {
+        // Beat one: he arrives and says what he brought. His voice fired above,
+        // on this same beat.
+        this.showCardReveal('MC Ballyhoo',
+          "Hobadahe! Step right up — a free candy for everyone, and no two the same!",
+          null, true, "IT'S MC BALLYHOO!",
+          { holdMs: this.BALLYHOO_HOLD_MS, cardClass: 'tr-name-top' });
+        // Beat two: the sign-off, with its own line landing as the panel goes
+        // up rather than on a timer of ours that would drift the moment the
+        // reveal's hold changes.
+        this.showCardReveal('MC Ballyhoo',
+          "Now go on and enjoy 'em — good luck out there!",
+          null, true, 'GOOD LUCK!',
+          { holdMs: this.BALLYHOO_HOLD_MS, cardClass: 'tr-name-top',
+            onShow: () => { try { if (this.sfx && this.sfx.playBallyhooVoice2) this.sfx.playBallyhooVoice2(); } catch (e) {} } });
+      } catch (e) {}
+    }, lead);
+  },
+
   _nextTrickReveal() {
     const item = this._trickRevealQueue.shift();
     if (!item) { this._trickRevealActive = false; return; }
@@ -24546,7 +24736,7 @@ const UI = {
     wrap.id = 'trick-reveal';
     wrap.className = 'trick-reveal';
     wrap.innerHTML = `
-      <div class="trick-reveal-card" style="${artStyle}">
+      <div class="trick-reveal-card${item.cardClass ? ' ' + item.cardClass : ''}" style="${artStyle}">
         ${item.cost != null ? `<span class="tr-cost">${item.cost}</span>` : ''}
         <div class="tr-name">${String(item.name).replace(/</g, '&lt;')}</div>
         ${item.desc ? `<div class="tr-desc">${this.formatDesc ? this.formatDesc(item.desc) : String(item.desc).replace(/</g, '&lt;')}</div>` : ''}
@@ -24554,12 +24744,13 @@ const UI = {
       </div>
       <div class="tr-label">${item.label ? String(item.label).replace(/</g, '&lt;') : (item.mine ? 'You play a Trick' : this.oppName() + ' plays a Trick')}</div>`;
     document.body.appendChild(wrap);
+    if (item.onShow) { try { item.onShow(); } catch (e) {} }
     // Hold, then exit + advance the queue. Hold doubled from 1050ms per
     // user feedback ("the new trick screen is too fast — double it").
     setTimeout(() => {
       wrap.classList.add('tr-exit');
       setTimeout(() => { wrap.remove(); this._nextTrickReveal(); }, 240);
-    }, 2100);
+    }, item.holdMs || 2100);
   },
 
   // ===================== TITAN ENTRANCE (cost 9-10) =====================

@@ -4618,6 +4618,8 @@ const Game = {
     this.getAllCardsOnBoard().forEach(c => this.rerollCrazyInsane(c));
     // Apply Magneto debuffs each round
     this.applyMagnetoDebuffs();
+    // MC Ballyhoo — same seam, both modes.
+    this._maybeBallyhoo(this.state.round);
     this.state.lanes.forEach(l => l.protected = null);
     // Clear Parlay — one-round effect from Jack Sparrow (per-card flag;
     // legacy side-wide key deleted too for old saves)
@@ -6013,6 +6015,10 @@ const Game = {
     }
 
     this.log(`[PLAY] ${who} play ${card.name} (${card.attack}/${card.currentHealth}) in lane ${laneIdx + 1} for ${cost} energy`);
+    // Bloway Candy blew this one off the board and it came back hollow. Its
+    // hooks were nulled on the way into hand, so nothing will fire — say so,
+    // or it reads exactly like the swallowed-exception bug that cost a match.
+    if (card._blowaySilenced) this.log(`  [SILENCED] ${card.name} was blown away by Bloway Candy — its abilities do not fire.`);
 
     // Lone wolf: +1/+1 when played with no other allies on the board (environments don't count).
     // A chained pair (Pinhead) is played TOGETHER — the partner arrives with it —
@@ -16083,6 +16089,132 @@ const Game = {
 
   // ===================== MAGNETO WHILE ACTIVE =====================
 
+  // ============================================================
+  // MC BALLYHOO
+  // ============================================================
+  // Not a card — an EVENT. He is never drafted, never drawn, never in a pool:
+  // roughly half of all matches he turns up exactly once, at a round decided
+  // when the match starts, and hands every player at the table one candy.
+  //
+  // THE COIN IS FLIPPED ONCE, AT MATCH START, NOT EVERY ROUND. Rolling per
+  // round would make "does he show up in this match" a function of how long
+  // the match ran, so long games would almost always get him and short ones
+  // almost never. Deciding up front means the 50/50 is a real 50/50 and the
+  // chosen round is genuinely unpredictable. It also rides the state, so in
+  // multiplayer only the host ever rolls and every client agrees on the answer.
+  // (Owner: "like a 50/50 he shows up in your match and at a random round".)
+  // From round 3 to whenever the match ends — no upper bound. (Owner: "for
+  // ballyhoo's window i want round 3-until the end of the game".)
+  _BALLYHOO_FIRST_ROUND: 3,
+  // …which is why the round is NOT picked up front any more. Drawing a fixed
+  // round out of a range needs a top end, and any top end either cuts the
+  // window short or names a round a shorter match never reaches — in which
+  // case the coin said yes and he silently never came. A per-round chance has
+  // no ceiling: it can land on round 3 or round 15.
+  //
+  // THE CHANCE RISES WITH THE ROUND, and that is the difference between a
+  // window and a bias. A flat per-round chance is front-loaded by nature —
+  // measured at a flat 0.3, a THIRD of all his appearances landed on round 3
+  // and anything past round 8 was a 1-2% curiosity, so "until the end of the
+  // game" was true on paper and false in play. Starting lower and climbing
+  // spreads him across the whole match instead, and still converges on
+  // certainty in a long one, so the 50/50 above stays the number that decides
+  // it. Measured over 3000 matches: ~9% per round across rounds 3-7 rather
+  // than 16% collapsing to 3%.
+  _BALLYHOO_ROUND_CHANCE: 0.18,
+  _BALLYHOO_CHANCE_RAMP: 0.05,
+
+  _rollBallyhoo() {
+    const s = this.state;
+    if (!s || s._ballyhoo) return;
+    // THE COIN IS STILL FLIPPED ONCE, AT MATCH START. Only the ROUND is left
+    // open. Deciding "does this match get him" up front is what keeps the
+    // 50/50 honest — fold it into the per-round roll and a long match would
+    // almost always get him while a short one almost never would, which is a
+    // different game entirely.
+    s._ballyhoo = { shows: this.rng() < 0.5, fired: false };
+  },
+
+  // Called at the top of every round in BOTH modes. Cheap and idempotent —
+  // fires at most once per match.
+  _maybeBallyhoo(roundNow) {
+    const s = this.state;
+    if (!s) return;
+    if (!s._ballyhoo) this._rollBallyhoo();
+    const b = s._ballyhoo;
+    if (!b || b.fired || !b.shows) return;
+    // Rounds 1-2 are the opening: hands are small and a free trick there reads
+    // as part of the deal rather than as an event.
+    if ((roundNow | 0) < this._BALLYHOO_FIRST_ROUND) return;
+    const chance = Math.min(0.6, this._BALLYHOO_ROUND_CHANCE
+      + this._BALLYHOO_CHANCE_RAMP * ((roundNow | 0) - this._BALLYHOO_FIRST_ROUND));
+    if (this.rng() >= chance) return;
+    b.fired = true;
+
+    // One candy per player, all different, dealt at random. With four seats
+    // that is the whole set; in 1v1 two of the four turn up and which two is
+    // part of the draw.
+    const candies = (typeof CANDY_DEFS !== 'undefined' ? CANDY_DEFS.slice() : []);
+    if (!candies.length) return;
+    this.shuffle(candies);
+
+    // A CANDY IGNORES THE TRICK-HAND CAP, ON PURPOSE.
+    // maxTrickHandSize is 3 and addToTrickHand refuses anything over it — which
+    // is right for a trick you EARNED (a block-meter reward, a card's draw) and
+    // wrong for one nobody asked for. Ballyhoo turns up unannounced; a player
+    // holding three tricks would simply be told "TRICKS FULL" and get nothing,
+    // so the event would quietly skip whoever was doing best at holding cards.
+    // The candy pushes straight onto the hand instead, taking it to 4.
+    // (Owner: "make sure for the tricks these can extend the trick hand to 4 if
+    // someone has 3 tricks.")
+    //
+    // The cap itself is deliberately NOT raised. Left at 3 it keeps doing its
+    // real job — refusing the NEXT ordinary trick while the hand is over — and
+    // the overflow drains on its own as the candy gets played. Nothing trims a
+    // trick hand back down to the cap (every trickHand.splice in the engine
+    // removes one named trick that was played or discarded), so the fourth card
+    // sits there safely until its owner spends it.
+    const give = (holder, def, label) => {
+      if (!holder || !def) return;
+      if (!Array.isArray(holder.trickHand)) holder.trickHand = [];
+      const over = holder.trickHand.length >= (holder.maxTrickHandSize != null ? holder.maxTrickHandSize : 3);
+      holder.trickHand.push({ ...def, id: nextCardId++ });
+      handed.push(label + ' → ' + def.name + (over ? ' (over the usual 3)' : ''));
+    };
+
+    const tt = s.twoVTwo;
+    const handed = [];
+    if (this.is2v2 && this.is2v2() && tt && tt.players) {
+      (this._2v2SLOTS || ['p1', 'p2', 'p3', 'p4']).forEach((pk, i) => {
+        const p = tt.players[pk];
+        give(p, candies[i % candies.length], (p && p.name) || pk);
+      });
+    } else {
+      ['player', 'ai'].forEach((side, i) => {
+        give(s[side], candies[i % candies.length], this.seatLabel(side));
+      });
+    }
+
+    this.log('[MC BALLYHOO] MC Ballyhoo bursts in with a tray of candy!');
+    handed.forEach(h => this.log('  [CANDY] ' + h));
+
+    // Announce it on every screen. The reveal is the same centre-screen panel
+    // a trick uses; the FX event is what carries it to the three 2v2 seats
+    // that never run this engine (see showDamageFloats), exactly as the trick
+    // and discard reveals do.
+    // UI.showBallyhoo owns the whole arrival — the fanfare, the ~3s lead-in and
+    // the reveal — so the host and the three relayed guests all run the same
+    // sequence instead of the engine describing it twice.
+    if (typeof UI !== 'undefined' && UI.showBallyhoo) {
+      try { UI.showBallyhoo(); } catch (e) {}
+    }
+    if (tt && tt.online && this.emitFX) {
+      try { this.emitFX('ballyhoo', { handed: handed }); } catch (e) {}
+    }
+    if (this._pushOnlineState) { try { this._pushOnlineState(); } catch (e) {} }
+    if (typeof UI !== 'undefined' && UI.render) { try { UI.render(); } catch (e) {} }
+  },
+
   applyMagnetoDebuffs() {
     // Legacy name — every historical call site (moveCard, summonCard,
     // startRound, Magneto's own On Play) routes into the generic aura
@@ -17819,6 +17951,9 @@ const Game = {
     this.cleanupDead();
 
     this.log(`=== 2v2 Round ${tt.round} begins ===`);
+    // MC Ballyhoo — before the first seat acts, so a candy is in hand for the
+    // round it arrives in rather than the one after.
+    this._maybeBallyhoo(tt.round);
     this._2v2StartSubPhase();
   },
 

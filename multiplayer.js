@@ -209,7 +209,13 @@ const Multiplayer = {
   _rehydrateState(state) {
     if (!state || typeof state !== 'object') return state;
     const cardDefs = (typeof CARD_DEFS !== 'undefined' ? CARD_DEFS : []);
-    const trickDefs = (typeof TRICK_DEFS !== 'undefined' ? TRICK_DEFS : []);
+    // Candies are deliberately absent from TRICK_DEFS (they must never enter a
+    // draft or draw pool), but a candy sitting in a player's trick hand still
+    // has to come back with its `play` function after crossing the wire —
+    // otherwise it arrives on the other three screens as an inert object that
+    // does nothing when clicked.
+    const trickDefs = (typeof TRICK_DEFS !== 'undefined' ? TRICK_DEFS : [])
+      .concat(typeof CANDY_DEFS !== 'undefined' ? CANDY_DEFS : []);
     const cardAbilities = (typeof CARD_ABILITIES !== 'undefined' ? CARD_ABILITIES : {});
 
     // Build a card-id → card-instance map so _summonedById
