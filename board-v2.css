@@ -2072,3 +2072,38 @@ body.board-v2 #lane-forecast-strip .lf-cell {
 body.board-v2 .forecast-hp.forecast-hp-hero {
   transform: translate(-50%, calc(60 * var(--u))) !important;
 }
+
+
+/* ===========================================================================
+   A PROMPT'S VALID TARGETS HAVE TO BE VISIBLE ON THIS BOARD TOO.
+   Owner: "for the winter soldier, or any abilities similar, the cards should be
+   highlighted just like classic."
+
+   .target-highlight WAS being applied — two cards carried it, with the shipping
+   board's gold `outline: 2px`. An outline is painted OUTSIDE the border box,
+   and every card here is chamfered with clip-path, which clips everything the
+   element paints INCLUDING its outline. So the highlight was drawn and then cut
+   away, on every card, every time.
+
+   Restated in the two things that survive a clip: an inset ring (inside the
+   box, so the clip never reaches it) and a drop-shadow filter, which runs AFTER
+   the clip and therefore traces the chamfer instead of a rectangle — the same
+   reason this file already moved the card frame's glow onto a filter.
+   =========================================================================== */
+body.board-v2 #board .card.target-highlight {
+  outline: 0 !important;
+  /* !important IS REQUIRED, and it costs the pulse. `.card.card` sets
+     `box-shadow: none !important`, so without it this ring computes to none —
+     measured. And an animation cannot drive an !important property, so the
+     shipping board's pulse has no way through on this board: a keyframe on
+     box-shadow sits frozen on frame one, and one on `filter` never applies
+     either because every card's frame glow is itself an !important filter.
+     Both were tried and measured before settling here. A steady ring is the
+     honest version of this; a "pulse" that does not move is worse than none. */
+  box-shadow:
+    inset 0 0 0 calc(2 * var(--u)) rgba(245,191,28,0.95),
+    inset 0 0 calc(16 * var(--u)) rgba(245,191,28,0.32) !important;
+  cursor: pointer;
+}
+body.board-v2 #board .card.targetable,
+body.board-v2 #board .card.forecast-target.target-highlight { outline: 0 !important; }

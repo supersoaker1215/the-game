@@ -705,6 +705,22 @@ const BoardV2 = {
     list.innerHTML = want.map(function (t, i) {
       return '<div class="bv2-log-line' + (i === 0 ? ' is-latest' : '') + '">' + esc(t) + '</div>';
     }).join('');
+    // TRIM TO WHOLE LINES — THE ZONE DOES NOT BLEED.
+    //
+    // How many lines fit cannot be calculated: a log line is one row or three
+    // depending on how its text wraps at this width, so the estimate above
+    // (room / lineHeight) is only ever a starting guess. Left at the guess the
+    // panel rendered more than it could show and overflow:hidden chopped the
+    // last one mid-sentence at the zone's edge. (Owner: "the log is way too
+    // long, it cuts off at the line — remember 4 zones, no bleed.")
+    //
+    // So it is MEASURED instead: drop the oldest line until the content fits
+    // its box. Newest is first, so removing from the end always removes the
+    // least interesting one, and the panel ends on a complete line.
+    var guard = 0;
+    while (list.children.length > 1 && list.scrollHeight > list.clientHeight && guard++ < 200) {
+      list.removeChild(list.lastElementChild);
+    }
   },
   // Installed lazily on the first render, so UI is guaranteed to exist. Same
   // wrap-the-method pattern ui.js already uses on undo/playCardFree/killCard -
