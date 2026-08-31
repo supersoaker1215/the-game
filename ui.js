@@ -2392,7 +2392,21 @@ const UI = {
       'Twice Candy':   { play: 'audio/cards/candy-play.mp3' },
       'Cashzap Candy': { play: 'audio/cards/candy-play.mp3' },
       'Vampire Candy': { play: 'audio/cards/candy-play.mp3' },
-      'Bloway Candy':  { play: 'audio/cards/candy-play.mp3' }
+      'Bloway Candy':  { play: 'audio/cards/candy-play.mp3' },
+      // THE WONDER WEAPONS FIRE DOWN THE CANDY PATH. They are cards, so they
+      // were registered in CARD_SFX and played through playCardSfx from the
+      // Game.playCard wrapper — and reported as silent, while the candies
+      // beside them (same author, same folder, playTrickSfx) were audible.
+      // Rather than keep guessing at why one path is quieter than the other in
+      // a hidden test pane I cannot measure volume in, they now use the path
+      // that is known to work. (Owner: "just make the sounds play for the guns
+      // like you make the sound play for the candies".) The CARD_SFX entries
+      // stay for hover and any other card-path lookup.
+      'Ray Gun':             { play: 'audio/cards/ray-gun-play.mp3' },
+      'Thundergun':          { play: 'audio/cards/thundergun-play.mp3' },
+      'Lightning Bow':       { play: 'audio/cards/lightning-bow-play.mp3' },
+      'Wunderwaffe DG-3 JZ': { play: 'audio/cards/wunderwaffe-play.mp3' },
+      'Apothicon Servant':   { play: 'audio/cards/apothicon-servant-play.mp3' }
     },
     DEFAULT_TRICK_SFX: { hover: null, play: null },
 
@@ -5230,7 +5244,11 @@ const UI = {
           // triggered them. So Superman's flow is: placement cue → freeze
           // SFX (after target 1 picked) → freeze SFX (after target 2) →
           // damage SFX (after final target).
-          const _playSfxEl = this.sfx.playCardSfx(card.name, 'play', card);
+          // A Wonder Weapon takes the trick route — the one the candies use and
+          // the owner can actually hear. Everything else is unchanged.
+          const _playSfxEl = (card.type === 'wonder' && this.sfx.playTrickSfx)
+            ? this.sfx.playTrickSfx(card.name, 'play')
+            : this.sfx.playCardSfx(card.name, 'play', card);
           // Track when the play SFX ends so the AI queue and player click
           // handler can stagger the next card play until the audio finishes.
           if (_playSfxEl) {
@@ -5326,7 +5344,7 @@ const UI = {
           const lane = Game.state && Game.state.lanes && Game.state.lanes[laneIdx];
           const card = lane && lane[owner];
           if (card && card.name === name) {
-            this.sfx.playCardSfx(card.name, 'play', card);
+            if (card.type === 'wonder' && this.sfx.playTrickSfx) this.sfx.playTrickSfx(card.name, 'play'); else this.sfx.playCardSfx(card.name, 'play', card);
           }
         }
         return r;
@@ -5370,7 +5388,7 @@ const UI = {
       const origPF = Game.playCardFree.bind(Game);
       Game.playCardFree = (owner, card, laneIdx, ...rest) => {
         const r = origPF(owner, card, laneIdx, ...rest);
-        if (card && card.name) this.sfx.playCardSfx(card.name, 'play', card);
+        if (card && card.name) { if (card.type === 'wonder' && this.sfx.playTrickSfx) this.sfx.playTrickSfx(card.name, 'play'); else this.sfx.playCardSfx(card.name, 'play', card); }
         return r;
       };
     }
@@ -9772,7 +9790,11 @@ const UI = {
   // drawn as a return stroke rather than just another hit.
   _fxRayGun(targetCard, sideCards, ownCard) {
     if (this._reducedMotion() || !targetCard) return;
-    const tEl = this._fxCardElById(targetCard.id);
+    // WAIT FOR THE CARD TO EXIST. Looking the element up immediately meant that
+    // if the board had not painted yet the effect returned silently — the
+    // reported "animations never fired", and worse online where render timing
+    // is looser. Every older card effect uses this helper; these now do too.
+    this._fxWhenPainted(targetCard, (tEl) => {
     const to = this._fxCenter(tEl);
     if (!to) return;
     this._fxDrawBolt({ x: to.x, y: to.y + 260 }, to, { color: '#7dff5a', glow: '#1f8f2f', thickness: 6 });
@@ -9798,13 +9820,15 @@ const UI = {
       }, 200);
     }
     this._screenShake('medium');
+    });
   },
 
   // THUNDERGUN — a wall of air. A wide beam along the direction of travel, a
   // wind ring on each card it is driven through, and a heavy hit where it lands.
   _fxThundergun(targetCard, pathCards, landCard) {
     if (this._reducedMotion() || !targetCard) return;
-    const from = this._fxCenter(this._fxCardElById(targetCard.id));
+    this._fxWhenPainted(targetCard, (_srcEl) => {
+    const from = this._fxCenter(_srcEl);
     if (!from) return;
     const endEl = landCard ? this._fxCardElById(landCard.id) : null;
     const end = endEl ? this._fxCenter(endEl) : { x: from.x + 260, y: from.y };
@@ -9826,25 +9850,28 @@ const UI = {
         this._screenShake('heavy');
       }, 180);
     } else this._screenShake('medium');
+    });
   },
 
   // LIGHTNING BOW — the Mark is a slow blue pulse that SITS on the card, so a
   // player can see which one the storm is coming for.
   _fxStormMark(card) {
     if (this._reducedMotion() || !card) return;
-    const el = this._fxCardElById(card.id);
+    this._fxWhenPainted(card, (el) => {
     if (!el) return;
     this._fxRing(el, { color: '#3fa9ff' });
     el.classList.remove('fx-storm-mark'); void el.offsetWidth; el.classList.add('fx-storm-mark');
     setTimeout(() => el.classList.remove('fx-storm-mark'), 4200);
     const c = this._fxCenter(el);
     if (c) this._fxSparks(c, { color: '#9be0ff', glow: '#3fa9ff', count: 8, angle: -Math.PI / 2, cone: 1.2, spread: 40, size: 2.2 });
+    });
   },
   // …and the strike itself comes DOWN from above, growing with each jump the
   // way the damage does.
   _fxStormStrike(card, jump) {
     if (this._reducedMotion() || !card) return;
-    const el = this._fxCardElById(card.id), p = this._fxCenter(el);
+    this._fxWhenPainted(card, (el) => {
+    const p = this._fxCenter(el);
     if (!p) return;
     const n = (jump | 0);
     setTimeout(() => {
@@ -9854,6 +9881,7 @@ const UI = {
       if (el) this._fxRing(el, { color: '#3fa9ff' });
       this._screenShake(n === 0 ? 'medium' : 'heavy');
     }, n * 160);
+    });
   },
 
   // WUNDERWAFFE — the current runs the LINE, card to card, and then earths
@@ -9898,12 +9926,14 @@ const UI = {
   // TWICE — the card is briefly doubled: two rings out of one centre.
   _fxCandyTwice(card) {
     if (this._reducedMotion() || !card) return;
-    const el = this._fxCardElById(card.id), c = this._fxCenter(el);
+    this._fxWhenPainted(card, (el) => {
+    const c = this._fxCenter(el);
     if (!c) return;
     this._fxRing(el, { color: '#ffd23f' });
     setTimeout(() => this._fxRing(el, { color: '#fff2a8' }), 150);
     this._fxSparks(c, { color: '#fff2a8', glow: '#ffb300', count: 14, angle: -Math.PI / 2, cone: 2.2, spread: 58, size: 2.8 });
     this._fxImpact(c, { color: '#ffd23f', core: '#fffbe6', size: 0.8 });
+    });
   },
   // CASHZAP — energy pulled UP and away from everyone else.
   _fxCandyCash(card) {
@@ -9935,7 +9965,8 @@ const UI = {
   // BLOWAY — a gust that throws the card sideways out of frame.
   _fxCandyBloway(card) {
     if (this._reducedMotion() || !card) return;
-    const el = this._fxCardElById(card.id), c = this._fxCenter(el);
+    this._fxWhenPainted(card, (el) => {
+    const c = this._fxCenter(el);
     if (!c) return;
     this._fxDrawBeam({ x: c.x - 240, y: c.y }, { x: c.x + 240, y: c.y }, { color: '#dff3ff', core: '#ffffff', thickness: 7 });
     this._fxSparks(c, { color: '#ffffff', glow: '#8fd0ff', count: 14, angle: 0, cone: 0.8, spread: 96, size: 2.6 });
@@ -9944,6 +9975,7 @@ const UI = {
       setTimeout(() => el.classList.remove('fx-blown'), 520);
     }
     this._screenShake('light');
+    });
   },
 
   _fxTrickBuff(card, color, glow) {
