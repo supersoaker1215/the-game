@@ -2325,24 +2325,18 @@ body.board-v2 .ai-bar     .bv2-name { color: rgba(255,211,205,0.82); }
    because that is what the subtree actually paints.
    =========================================================================== */
 
-/* ---- A CHAMFERED TUBE IS THREE CLIPPED SHAPES, NOT A SHADOW -------------
-   What was here before drew the tube with `box-shadow: inset`. An inset shadow
-   is a RECTANGLE inset from the border box, which is then clipped by the
-   chamfer — so at both cut corners the ring was simply sliced off and the tube
-   stopped. Magnified 7x it is unmistakable: a fat cyan slab with the white on
-   the OUTSIDE of it and two broken corners, against a reference whose border is
-   thin, continuous around the cut, and white on the inside.
+/* ---- TWO LAYERS: A NEON LINE OUTSIDE, A BLUE GRADIENT INSIDE ------------
+   Owner: "there's an inside blue gradient and a blue neon line on the outside,
+   that's all — you're overthinking it." Correct. The previous version had a
+   third near-white core ring between them, which at this size just thickened
+   the border and made it read as a slab.
 
-   Drawn as three stacked shapes instead, each with its own chamfer polygon,
-   each one step smaller than the last:
+   Two clipped shapes:
+     line   inset 0    the neon edge, glowing
+     fill   inset 2u   a blue gradient, not flat black
 
-       tube   inset 0     chamfer 13u    saturated
-       core   inset 2u    chamfer 11u    near-white
-       fill   inset 3.4u  chamfer 10u    near-black
-
-   Every edge including the diagonal is then a real boundary between two filled
-   shapes, so the core follows the cut corner exactly the way it follows a
-   straight edge. The glow stays on the unclipped parent.
+   The glow stays on the unclipped parent so it traces the chamfer rather than
+   being cut away by it.
    ------------------------------------------------------------------------- */
 body.board-v2 .bv2-tag {
   position: relative;
@@ -2352,68 +2346,63 @@ body.board-v2 .bv2-tag {
   box-shadow: none !important;
   overflow: visible;
 }
-body.board-v2 .bv2-tag .bv2-face { position: absolute; inset: 0; z-index: 0; }
-body.board-v2 .bv2-tag .bv2-face,
-body.board-v2 .bv2-tag .bv2-face::before,
-body.board-v2 .bv2-tag .bv2-face::after { content: ''; display: block; position: absolute; }
 body.board-v2 .bv2-tag .bv2-face {
+  content: ''; display: block; position: absolute; inset: 0; z-index: 0;
   clip-path: polygon(calc(13 * var(--u)) 0, 100% 0,
                      100% calc(100% - 13 * var(--u)),
                      calc(100% - 13 * var(--u)) 100%, 0 100%, 0 calc(13 * var(--u)));
 }
-body.board-v2 .bv2-tag .bv2-face::before {
-  inset: calc(2 * var(--u)); background: #e8f7ff;
+body.board-v2 .bv2-tag .bv2-face::after {
+  content: ''; display: block; position: absolute;
+  inset: calc(2 * var(--u));
   clip-path: polygon(calc(11 * var(--u)) 0, 100% 0,
                      100% calc(100% - 11 * var(--u)),
                      calc(100% - 11 * var(--u)) 100%, 0 100%, 0 calc(11 * var(--u)));
 }
-body.board-v2 .bv2-tag .bv2-face::after {
-  inset: calc(3.4 * var(--u)); background: #04060a;
-  clip-path: polygon(calc(10 * var(--u)) 0, 100% 0,
-                     100% calc(100% - 10 * var(--u)),
-                     calc(100% - 10 * var(--u)) 100%, 0 100%, 0 calc(10 * var(--u)));
-}
 body.board-v2 .player-bar .bv2-tag .bv2-face { background: #35c9ff; }
-body.board-v2 .ai-bar     .bv2-tag .bv2-face { background: var(--or); }
+body.board-v2 .player-bar .bv2-tag .bv2-face::after {
+  /* OPAQUE. A translucent fill sits on top of the neon line layer, so at 0.30
+     it composited to almost solid cyan and the whole tile read as a blob —
+     the line disappeared into it. These are the mixed colours, flattened. */
+  background: linear-gradient(150deg, #12384d 0%, #0a1c28 46%, #04060a 100%);
+}
+body.board-v2 .ai-bar .bv2-tag .bv2-face { background: var(--or); }
+body.board-v2 .ai-bar .bv2-tag .bv2-face::after {
+  background: linear-gradient(150deg, #4a201d 0%, #22100e 46%, #04060a 100%);
+}
 body.board-v2 .bv2-tag .bv2-tag-txt { position: relative; z-index: 1; font: inherit; }
 body.board-v2 .player-bar .bv2-tag {
   color: #eafaff !important; text-shadow: 0 0 4px rgba(53,201,255,0.5);
-  filter: drop-shadow(0 0 1px rgba(232,247,255,0.9)) drop-shadow(0 0 5px rgba(53,201,255,0.7));
+  filter: drop-shadow(0 0 2px rgba(53,201,255,0.9)) drop-shadow(0 0 7px rgba(53,201,255,0.55));
 }
 body.board-v2 .ai-bar .bv2-tag {
   color: #fff1ee !important; text-shadow: 0 0 4px rgba(var(--or-rgb),0.5);
-  filter: drop-shadow(0 0 1px rgba(255,235,232,0.9)) drop-shadow(0 0 5px rgba(var(--or-rgb),0.7));
+  filter: drop-shadow(0 0 2px rgba(var(--or-rgb),0.9)) drop-shadow(0 0 7px rgba(var(--or-rgb),0.55));
 }
 
-/* ---- the primary button, same three shapes at its own scale ------------- */
+/* ---- the primary button, the same two layers at its own scale ----------- */
 body.board-v2 .bv2-btn-glow {
   display: inline-flex; position: relative;
   filter:
-    drop-shadow(0 0 2px rgba(224,246,255,0.80))
+    drop-shadow(0 0 2px rgba(53,201,255,0.9))
     drop-shadow(0 0 11px rgba(53,201,255,0.55))
     drop-shadow(0 0 30px rgba(40,180,240,0.24));
 }
 body.board-v2 .bv2-btn-face { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
 body.board-v2 .bv2-btn-face > i { position: absolute; display: block; }
+body.board-v2 .bv2-btn-core { display: none !important; }   /* the third ring, retired */
 body.board-v2 .bv2-btn-tube {
   inset: 0; background: #35c9ff;
   clip-path: polygon(calc(16 * var(--u)) 0, 100% 0,
                      100% calc(100% - 16 * var(--u)),
                      calc(100% - 16 * var(--u)) 100%, 0 100%, 0 calc(16 * var(--u)));
 }
-body.board-v2 .bv2-btn-core {
-  inset: calc(2 * var(--u)); background: #e8f7ff;
+body.board-v2 .bv2-btn-fill {
+  inset: calc(2 * var(--u));
+  background: linear-gradient(105deg, #123a50 0%, #0a1e2b 45%, #04060a 100%);
   clip-path: polygon(calc(14 * var(--u)) 0, 100% 0,
                      100% calc(100% - 14 * var(--u)),
                      calc(100% - 14 * var(--u)) 100%, 0 100%, 0 calc(14 * var(--u)));
-}
-body.board-v2 .bv2-btn-fill {
-  inset: calc(3.4 * var(--u));
-  background: linear-gradient(105deg, rgba(53,201,255,0.22) 0%,
-              rgba(53,201,255,0.07) 45%, rgba(4,6,10,0.94) 100%), #04060a;
-  clip-path: polygon(calc(13 * var(--u)) 0, 100% 0,
-                     100% calc(100% - 13 * var(--u)),
-                     calc(100% - 13 * var(--u)) 100%, 0 100%, 0 calc(13 * var(--u)));
 }
 body.board-v2 .bv2-btn-glow > #btn-action {
   position: relative; z-index: 1;
