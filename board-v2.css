@@ -2257,3 +2257,54 @@ body.board-v2 .player-hand-section .card.cost-10 {
   --frame-rgb: 255, 210, 74;
   --frame-color: #ffd24a;
 }
+
+
+/* ===========================================================================
+   THE SEAT PLATE, TO THE REFERENCE.
+   Name and HP on one row; the health bar spans the full width of that row
+   beneath them, so the bar measures the thing it belongs to instead of being
+   tucked under half of it. The HP numeral is the emphasis tier — saturated and
+   lightly lit — while its "HP" suffix stays a label: 0.62 alpha, no glow.
+   =========================================================================== */
+body.board-v2 .bv2-id { width: calc(300 * var(--u)); gap: calc(6 * var(--u)); }
+body.board-v2 .bv2-idrow {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: calc(14 * var(--u)); min-width: 0;
+}
+body.board-v2 .bv2-idrow .bv2-name {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis;
+}
+body.board-v2 .bv2-idrow .bv2-hp { flex: 0 0 auto; line-height: 1; }
+/* Saturated, not the pale tint — this is one of the four things on the screen
+   that is allowed to be bright. One glow stop, not three. */
+body.board-v2 .player-bar .bv2-idrow .bv2-hp .bv2-hpn {
+  color: var(--cy); text-shadow: 0 0 4px rgba(53,201,255,0.45);
+}
+body.board-v2 .ai-bar .bv2-idrow .bv2-hp .bv2-hpn {
+  color: var(--or); text-shadow: 0 0 4px rgba(var(--or-rgb),0.45);
+}
+body.board-v2 .bv2-idrow .bv2-hp i {
+  color: rgba(143,224,255,0.62) !important; text-shadow: none !important;
+}
+body.board-v2 .ai-bar .bv2-idrow .bv2-hp i { color: rgba(255,211,205,0.62) !important; }
+/* The bar is a thin lit rail on a near-black track, full width of the row. */
+body.board-v2 .bv2-id .health-container {
+  height: calc(4 * var(--u)); width: 100%;
+  background: rgba(4,6,10,0.85);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05);
+}
+body.board-v2 .player-bar .bv2-id .health-bar,
+body.board-v2 .player-bar .bv2-id .health-fill {
+  background: linear-gradient(to right, #35c9ff, #8fe0ff) !important;
+  filter: drop-shadow(0 0 3px rgba(53,201,255,0.55));
+}
+body.board-v2 .ai-bar .bv2-id .health-bar,
+body.board-v2 .ai-bar .bv2-id .health-fill {
+  background: linear-gradient(to right, var(--or), rgba(255,211,205,0.95)) !important;
+  filter: drop-shadow(0 0 3px rgba(var(--or-rgb),0.55));
+}
+/* The name is a label, not a headline — the reference keeps it quiet so the
+   number beside it is the thing that reads. */
+body.board-v2 .bv2-name { text-shadow: none !important; }
+body.board-v2 .player-bar .bv2-name { color: rgba(234,250,255,0.82); }
+body.board-v2 .ai-bar     .bv2-name { color: rgba(255,211,205,0.82); }

@@ -275,10 +275,27 @@ const BoardV2 = {
       // Build the skeleton once, then write text into stable nodes. The adopted
       // health bar sits inside .bv2-id and is never touched again.
       if (!plate.firstChild) {
+        // THE HP NUMBER SITS ON THE NAME'S LINE, AND THE BAR RUNS UNDER BOTH.
+        //
+        // It used to be a third column beside the name, with the health bar
+        // tucked under the name alone — so the bar measured something narrower
+        // than the thing it belonged to, and the number floated off to one side
+        // of it. In the reference the identity is one block: name and HP on one
+        // row, the bar spanning the full width of that row beneath them.
+        // (Owner, pointing at the reference: "the you, the phase, opponent, the
+        // health bar, HP number, the subtle gradient — can we move to the
+        // screenshot redesign.")
+        //
+        // .bv2-id is still the health bar's home, so the adoption below drops it
+        // in as the second row without needing to know any of this.
         plate.innerHTML =
           '<span class="bv2-tag"></span>' +
-          '<span class="bv2-id"><b class="bv2-name"></b></span>' +
-          '<span class="bv2-hp"><b class="bv2-hpn"></b><i>HP</i></span>';
+          '<span class="bv2-id">' +
+            '<span class="bv2-idrow">' +
+              '<b class="bv2-name"></b>' +
+              '<span class="bv2-hp"><b class="bv2-hpn"></b><i>HP</i></span>' +
+            '</span>' +
+          '</span>';
       }
       const _tagEl  = plate.querySelector('.bv2-tag');
       const _nameEl = plate.querySelector('.bv2-name');
