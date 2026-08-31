@@ -2793,3 +2793,42 @@ body.board-v2 #bv2-decision .prompt-waiting {
   text-align: center; font-family: var(--fm);
   font-size: calc(10 * var(--u)); color: rgba(255,232,180,0.7);
 }
+
+/* ===========================================================================
+   A SLOT MUST NOT CLIP THE CARD THAT GROWS OUT OF IT.
+   Owner: "the cards hover on board isn't working, it should be just like
+   classic."
+
+   The shipping board grows a hovered board card with `transform: scale(1.4)`
+   from `center top` and a z-index spike, and it grows OUT of its slot on
+   purpose. Here the slot carried the chamfer as a `clip-path` — and a clip-path
+   clips every descendant, so the card was scaled up and then cut back down to
+   the slot's outline. Measured: the enlarged card reaches 68px past the board's
+   bottom edge and was being sliced off at the slot boundary.
+
+   The chamfer moves to a pseudo-element, which is the same move the seat tile
+   and the panels needed for their glow. The SHAPE is unchanged; it is simply no
+   longer applied to the card's ancestor.
+   =========================================================================== */
+body.board-v2 #board .card-slot {
+  clip-path: none !important;
+  background: transparent !important;
+  overflow: visible !important;
+}
+body.board-v2 #board .card-slot::before {
+  content: ''; position: absolute; inset: 0; z-index: -1;
+  clip-path: polygon(calc(11 * var(--u)) 0, 100% 0,
+                     100% calc(100% - 11 * var(--u)),
+                     calc(100% - 11 * var(--u)) 100%, 0 100%, 0 calc(11 * var(--u)));
+}
+/* The empty-slot tint rides the pseudo now, so it keeps the chamfered shape. */
+body.board-v2 #board .card-slot.player-slot:not(:has(.card))::before {
+  background: rgba(53,201,255,0.07);
+}
+body.board-v2 #board .card-slot.ai-slot:not(:has(.card))::before {
+  background: rgba(var(--or-rgb),0.07);
+}
+/* And the hovered card has to out-rank its neighbours to be seen at all. */
+body.board-v2 #board .lane .card:hover { z-index: 200 !important; }
+body.board-v2 #board .card-slot:has(.card:hover) { z-index: 200; }
+body.board-v2 #board .lane:has(.card:hover) { z-index: 200; }
