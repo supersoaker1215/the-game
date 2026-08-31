@@ -443,22 +443,14 @@ const BoardV2 = {
       if (ah.nextSibling !== cnt) ah.parentNode.insertBefore(cnt, ah.nextSibling);
       if (cnt.textContent !== String(n)) cnt.textContent = String(n);
     }
-    // The flag lives on whichever band is on the clock, so the board answers
-    // "whose turn" from the seat itself rather than only from the left rail.
-    const ph = String(s.phase || '');
-    const mine = /^player-/.test(ph);
-    const theirs = /^ai-/.test(ph);
-    const bar = document.querySelector(mine ? '.info-bar.player-bar'
-                                            : (theirs ? '.info-bar.ai-bar' : null));
-    const old = document.getElementById('bv2-turnflag');
-    if (!bar) { if (old) old.remove(); return; }
-    const flag = this._el('bv2-turnflag', 'bv2-turnflag', bar);
-    const centre = bar.querySelector('.bar-center');
-    if (centre && flag.nextSibling !== centre) bar.insertBefore(flag, centre);
-    else if (!centre && flag.parentNode !== bar) bar.appendChild(flag);
-    const label = mine ? 'Your turn' : 'Their turn';
-    if (flag.textContent !== label) flag.textContent = label;
-    flag.classList.toggle('is-mine', mine);
+    // THE TURN FLAG IS GONE. "YOUR TURN" in the band said what the phase panel
+    // in zone 1 already says in larger type two inches away, and what the
+    // primary button says a third time by being lit — three answers to one
+    // question, in one glance. (Owner: "get rid of your turn.")
+    // Any flag left over from a previous render is removed here rather than in
+    // teardown, because the band it was parked on is not a bv2- node.
+    const _old = document.getElementById('bv2-turnflag');
+    if (_old) _old.remove();
   },
 
   // THE ROSTER FAN BECOMES A NUMBER. 2v2 prints one small rectangle per card

@@ -1915,3 +1915,86 @@ body.board-v2 #game-area > .info-bar {
    =========================================================================== */
 body.board-v2 #bv2-rail-left,
 body.board-v2 #bv2-rail-right { padding-top: calc(16 * var(--u)); }
+
+
+/* ===========================================================================
+   THE FORECAST READS LIKE THE LANE STRIP.
+   Owner: "the combat resolve now, it should be the arrows like below the lanes."
+   The strip under the board already says this in one glyph and one number —
+   .lf-face-red carries a ▼ and .lf-face-green a ▲ — while zone 1 said the same
+   thing in three numbers under three word-captions. Same grammar in both
+   places now: ▲ is damage going out, ▼ is damage coming in, and the captions
+   go because the glyph is the caption.
+   Done in CSS on the classes renderBoardAside already emits, so the shipping
+   board's aside keeps its wording untouched.
+   =========================================================================== */
+body.board-v2 #bv2-rail-left .ba-cap { display: none; }
+body.board-v2 #bv2-rail-left .ba-fc {
+  display: flex; align-items: baseline;
+  gap: calc(16 * var(--u));
+  padding-top: calc(2 * var(--u));
+}
+body.board-v2 #bv2-rail-left .ba-fc-cell {
+  display: flex; align-items: baseline; gap: calc(3 * var(--u));
+}
+body.board-v2 #bv2-rail-left .ba-num::before {
+  font-size: calc(13 * var(--u));
+  line-height: 1;
+  opacity: .95;
+}
+/* Out, and in — the same two glyphs the lane strip uses. */
+body.board-v2 #bv2-rail-left .ba-deal::before { content: '\25B2'; }
+body.board-v2 #bv2-rail-left .ba-take::before { content: '\25BC'; }
+/* Net keeps its sign rather than taking a third arrow: it is a total, not a
+   direction, and two arrows plus a signed number reads as three directions. */
+body.board-v2 #bv2-rail-left .ba-good::before,
+body.board-v2 #bv2-rail-left .ba-bad::before { content: none; }
+
+/* ===========================================================================
+   A HELD TRICK LOOKS LIKE THE TRICK YOU DRAFTED.
+   Owner: "the tricks need to look like their draft counterparts."
+   The draft prints a trick in purple — frame, corner ticks, glow and cost gem
+   all on 155,89,182 — and the tray was printing the same card in the ice-white
+   system frame, so the two did not read as the same object. The draft is the
+   first time you see the card and is where the association is formed, so the
+   tray moves to match it.
+   Chamfer, size and layout are untouched; this is the colour and the ticks.
+   =========================================================================== */
+body.board-v2 { --trick-rgb: 155, 89, 182; }
+body.board-v2 .tricks-section .trick-card {
+  border: 1px solid rgba(var(--trick-rgb), 0.70) !important;
+  background:
+    linear-gradient(180deg, rgba(var(--trick-rgb), 0.10) 0%, rgba(var(--trick-rgb), 0) 48%),
+    #000000 !important;
+  box-shadow: 0 0 10px rgba(var(--trick-rgb), 0.28) !important;
+  --portrait-frame-rgb: var(--trick-rgb);
+  --rarity-rgb: var(--trick-rgb);
+}
+body.board-v2 .tricks-section .trick-card:hover {
+  border-color: rgb(var(--trick-rgb)) !important;
+  box-shadow: 0 0 18px rgba(var(--trick-rgb), 0.52) !important;
+}
+/* The draft's corner ticks, at the tray's scale. Drawn on ::after so the
+   chamfer clip on the card itself still governs the silhouette. */
+body.board-v2 .tricks-section .trick-card::after {
+  content: ''; position: absolute; inset: 0;
+  pointer-events: none; z-index: 3;
+  background:
+    linear-gradient(rgba(var(--trick-rgb),0.75), rgba(var(--trick-rgb),0.75)) top    left  / calc(11 * var(--u)) 1px no-repeat,
+    linear-gradient(rgba(var(--trick-rgb),0.75), rgba(var(--trick-rgb),0.75)) top    left  / 1px calc(11 * var(--u)) no-repeat,
+    linear-gradient(rgba(var(--trick-rgb),0.75), rgba(var(--trick-rgb),0.75)) top    right / calc(11 * var(--u)) 1px no-repeat,
+    linear-gradient(rgba(var(--trick-rgb),0.75), rgba(var(--trick-rgb),0.75)) top    right / 1px calc(11 * var(--u)) no-repeat,
+    linear-gradient(rgba(var(--trick-rgb),0.75), rgba(var(--trick-rgb),0.75)) bottom left  / calc(11 * var(--u)) 1px no-repeat,
+    linear-gradient(rgba(var(--trick-rgb),0.75), rgba(var(--trick-rgb),0.75)) bottom left  / 1px calc(11 * var(--u)) no-repeat,
+    linear-gradient(rgba(var(--trick-rgb),0.75), rgba(var(--trick-rgb),0.75)) bottom right / calc(11 * var(--u)) 1px no-repeat,
+    linear-gradient(rgba(var(--trick-rgb),0.75), rgba(var(--trick-rgb),0.75)) bottom right / 1px calc(11 * var(--u)) no-repeat;
+}
+/* The cost gem is the draft's purple bead, not the system chip. */
+body.board-v2 .tricks-section .trick-card .card-cost {
+  background: #000 !important;
+  color: #d7b3e6 !important;
+  border: 1px solid rgba(var(--trick-rgb), 0.95) !important;
+  box-shadow: 0 0 10px rgba(var(--trick-rgb), 0.55) !important;
+  text-shadow: 0 0 6px rgba(var(--trick-rgb), 0.60);
+}
+body.board-v2 .tricks-section .trick-card .cn-text { color: #e6cdf2; }
