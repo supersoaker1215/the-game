@@ -17300,25 +17300,48 @@ const UI = {
       // renderer draws no cost pill: he is never played and never paid for.
       const ballyhoo = {
         name: 'MC Ballyhoo', cost: null, _isEvent: true,
-        // The text has to track the engine. It said "roughly half of all
-        // matches" from when he WAS a coin flip; he is guaranteed now, so that
-        // line had become the codex telling players something untrue about the
-        // game they are playing. Says every match outright rather than dropping
-        // the frequency — "every match, at an unpredictable round" is the whole
-        // shape of him, and leaving it implied makes a reader guess.
-        desc: "Not a card — he turns up on his own. Every match, once, at an "
-            + "unpredictable round, he bursts in and hands every player a "
-            + "different candy.",
+        // THE TEXT HAS TO TRACK THE ENGINE, and it has now been wrong in both
+        // directions: it said "roughly half of all matches" when he was a coin
+        // flip, then "every match" when he was made guaranteed. He is a coin
+        // flip again — one match rolls him, the next rolls the Shadow Man — so
+        // "every match" is once more the codex telling players something untrue
+        // about the game in front of them. (Owner: "make sure it doesnt say
+        // anything like you always get me in the game because thats not true
+        // anymore".)
+        desc: "Not a card — he turns up on his own. One of two random events: "
+            + "when the match rolls him, he bursts in at an unpredictable round "
+            + "and hands every player a different candy.",
       };
       // Shadow Man is an event like Ballyhoo — no cost, never played — and the
       // Wonder Weapons are his prizes, so the whole family lives on this tab.
       const shadow = {
         name: 'Shadow Man', cost: null, _isEvent: true,
-        desc: "Not a card — he turns up on his own. He opens the match by naming "
-            + "four challenges, tracks all four players separately, and returns "
-            + "on a later round to hand a Wonder Weapon to whoever leads each one.",
+        // Same rule as Ballyhoo above — a coin flip, not a guarantee. Also no
+        // longer "all four players": he runs in 1v1 and solo now, where the two
+        // sides are the competitors.
+        desc: "Not a card — he turns up on his own. One of two random events: "
+            + "when the match rolls him, he opens by naming four challenges, "
+            + "tracks every player separately, and returns on a later round to "
+            + "hand a Wonder Weapon to whoever leads each one. A tie pays "
+            + "everyone tied — a fifth weapon is held back for exactly that.",
       };
-      rawPool = [ballyhoo, shadow]
+      // The Rift is a LANE STATE, not a card — no def carries this name, so
+      // like the two events above its codex row is synthesised. It was missing
+      // entirely: the Apothicon Servant's card text refers to a Rift the codex
+      // never explained. (Owner: "you never put the Apothicon Rift into the
+      // codex in the random event category with its description".) Art already
+      // resolves — card-art-manifest has carried an entry for it since the lane
+      // overlay needed one.
+      const rift = {
+        name: 'Apothicon Rift', cost: null, _isEvent: true,
+        desc: "Not a card — the Apothicon Servant tears one open in an enemy "
+            + "lane, and it stays for 2 rounds. Enemies must be played into it. "
+            + "The first card in is swallowed whole; everything after arrives at "
+            + "\u22124/\u22124. Anything inside takes 2 at each round end, and "
+            + "whatever dies in there is consumed — no When Killed. Once it has "
+            + "eaten twice it is gorged, and closes.",
+      };
+      rawPool = [ballyhoo, shadow, rift]
         .concat(typeof CANDY_DEFS !== 'undefined' ? CANDY_DEFS : [])
         .concat(typeof WONDER_DEFS !== 'undefined' ? WONDER_DEFS : []);
     }

@@ -8670,9 +8670,10 @@ const Game = {
           if (this.state.twoVTwo.teams[_bt]) this.state.twoVTwo.teams[_bt].blockMeter = 0;
         }
         blockedByMeter = true;
-        // SHADOW MAN — most damage BLOCKED. Credited to the seat whose attack
-        // was stopped: the category is "damage you caused the enemy to block",
-        // so it is the attacker's doing even though nothing landed.
+        // SHADOW MAN — most damage BLOCKED. Credited to the ATTACKER: the
+        // category is "damage you caused the enemy to block", so it is the
+        // attacker's doing even though nothing landed. (Confirmed by the owner:
+        // "the most damage blocked goes to the attacker not defender".)
         if (!(this.state && this.state._silentSim) && this._shadowActive && this._shadowActive()) {
           this._shadowTrack(this._shadowSeatOf(source), 'blocked', amount);
         }
@@ -16513,6 +16514,14 @@ const Game = {
         this._SHADOW_CATEGORIES.forEach((k, i) => {
           if (pool.length) sh.prizes[k] = pool[i % pool.length].name;
         });
+        // THE FIFTH GUN IS THE SPARE. Four challenges, five weapons — the one
+        // left over is what a tie is paid with, so tied players both walk away
+        // armed instead of one of them losing a coin flip. (Owner: "if there is
+        // a tie in 2v2 then they both get one since there is 5 guns".) Which
+        // four are on the challenges, and therefore which one is spare, is a
+        // fresh shuffle every match.
+        sh.spare = (pool.length > this._SHADOW_CATEGORIES.length)
+          ? pool[this._SHADOW_CATEGORIES.length].name : null;
       }
       this._shadowSeats().forEach(pk => {
         sh.stats[pk] = { kills: 0, played: 0, heroDmg: 0, blocked: 0 };
@@ -16560,33 +16569,33 @@ const Game = {
     sh.returned = true;
     this._armEventHold(this._SHADOW_HOLD_MS);
     this.log('[SHADOW MAN] Shadow Man returns to settle the score.');
-    const awards = [];   // { key, seat }
-    const duels = [];    // { key, seats }
+    // A TIE PAYS EVERY LEADER. There used to be a sudden-death round to break
+    // it; with five weapons and four challenges there is a spare sitting there,
+    // so tied players are simply both armed. The first takes the weapon that
+    // challenge was carrying, the next takes the spare, and any beyond that
+    // (only possible with 3+ tied seats, or a second tied category) fall back
+    // to a random weapon rather than going home empty.
+    const awards = [];   // { key, seat, force }
+    let spare = sh.spare || null;
     this._SHADOW_CATEGORIES.forEach(key => {
       const leaders = this._shadowLeaders(key);
       if (!leaders.length) { this.log(`  [SHADOW MAN] ${this._shadowLabel(key)} — nobody scored. No prize.`); return; }
-      if (leaders.length === 1) { awards.push({ key, seat: leaders[0] }); return; }
-      duels.push({ key, seats: leaders });
+      if (leaders.length > 1) {
+        this.log(`  [SHADOW MAN] ${this._shadowLabel(key)} is tied between `
+          + leaders.map(pk => this._shadowName(pk)).join(' and ')
+          + ' — they are all paid.');
+      }
+      leaders.forEach((seat, i) => {
+        let force = null;
+        if (i > 0) { force = spare; spare = null; }   // spare goes to the first runner-up only
+        awards.push({ key, seat, force });
+      });
     });
-    awards.forEach(a => this._shadowAward(a.seat, a.key));
-    // SUDDEN DEATH, NOT A COIN FLIP. A tie leaves that category open for the
-    // tied seats only; whoever gains the most in the SAME stat over the next
-    // round takes the weapon. It reuses the counting already running and stays
-    // individual, which a random pick would not be. (Owner's call.)
-    if (duels.length) {
-      sh.duels = duels.map(d => ({
-        key: d.key, seats: d.seats,
-        // the mark to beat: everything from here on is what decides it
-        base: d.seats.reduce((m, pk) => { m[pk] = sh.stats[pk][d.key] | 0; return m; }, {}),
-      }));
-      sh.duelUntil = (s.round | 0) + 1;
-      duels.forEach(d => this.log(`  [SUDDEN DEATH] ${this._shadowLabel(d.key)} is tied between `
-        + d.seats.map(pk => this._shadowName(pk)).join(' and ')
-        + ' — next round decides it.'));
-      // Tied categories keep counting, so the window stays open for them.
-      sh.returned = false;
-      sh.settling = true;
-    }
+    awards.forEach(a => this._shadowAward(a.seat, a.key, a.force));
+    // No sudden-death round any more — ties are paid above, so he settles
+    // everything in one visit and never leaves a category hanging.
+    sh.duels = null;
+    sh.settling = false;
     if (typeof UI !== 'undefined' && UI.showShadowMan) { try { UI.showShadowMan('return', sh); } catch (e) {} }
     if (s.twoVTwo && s.twoVTwo.online && this.emitFX) {
       try { this.emitFX('shadowman', { phase: 'return' }); } catch (e) {}
@@ -16628,7 +16637,7 @@ const Game = {
   // It ignores the hand cap for the same reason a candy ignores the trick cap:
   // losing a prize you just earned because your hand happened to be full would
   // be the worst possible moment for that rule to apply.
-  _shadowAward(seat, key) {
+  _shadowAward(seat, key, forceName) {
     const s = this.state, tt = s && s.twoVTwo;
     const p = this._shadowHolder(seat);
     const pool = (typeof WONDER_DEFS !== 'undefined') ? WONDER_DEFS : [];
@@ -16637,7 +16646,9 @@ const Game = {
     // the challenge wins the prize that was on it. Falls back to a random one
     // only if the mapping is somehow missing.
     const sh0 = s._shadow;
-    const named = sh0 && sh0.prizes && sh0.prizes[key];
+    // forceName is the tie path handing over the spare; otherwise it is the
+    // weapon this challenge was advertised as carrying.
+    const named = forceName || (sh0 && sh0.prizes && sh0.prizes[key]);
     const def = (named && pool.find(w => w.name === named)) || pool[Math.floor(this.rng() * pool.length)];
     if (!Array.isArray(p.hand)) p.hand = [];
     // Through createCardInstance so it arrives as a real card instance —
@@ -16788,7 +16799,7 @@ const Game = {
               heroDmg: 'Most Hero damage', blocked: 'Most damage blocked' })[key] || key;
   },
 
-  // HOW LONG THE TABLE IS HELD. The arrival is a 10s lead-in plus two 3.2s
+  // HOW LONG THE TABLE IS HELD. The arrival is a 10s lead-in plus two 5s
   // panels with a 240ms exit each — 16.9s of show. This is the wall-clock
   // window during which nobody may play a card, spend a trick, or end their
   // turn. (Owner: "when the game knows hes gonna spawn in everyones cards

@@ -1170,7 +1170,7 @@ const WONDER_DEFS = [
   {
     name: "Thundergun", cost: 3, attack: 0, health: 0, type: "wonder",
     isDiscardEffect: true, _isWonder: true,
-    desc: "Blast an enemy 3 lanes sideways for 4. Every enemy it passes through takes 3 and is Stunned. If it crashes into an enemy they collide — each takes damage equal to the other's remaining health, and a survivor is Stunned.",
+    desc: "Blast an enemy 2 lanes sideways for 4. Every enemy it passes through takes 3 and is Stunned. If it crashes into an enemy they collide — each takes damage equal to the other's remaining health, and a survivor is Stunned.",
     canPlay(G, owner) { return G.getEnemiesOf(owner).length > 0; },
     onDiscard(G, owner) {
       const enemies = G.getEnemiesOf(owner).filter(e => e.currentHealth > 0);
@@ -1184,11 +1184,13 @@ const WONDER_DEFS = [
           // Two lanes, preferring the direction that HAS a lane. Falling back to
           // the opposite side rather than fizzling is the spec's own rule — a
           // card at the edge still gets blasted, just the other way.
-          // THREE LANES, NOT TWO. (Owner: "make it move 3 lanes please instead
-          // of 2".) The direction is still a coin flip, with the far side tried
-          // as a fallback when the first is off the board or collapsed.
+          // TWO LANES. (Owner asked for 3, then "make thundergun jump 2 lanes
+          // not 3" — three put it well over the cost-3 line because it passed
+          // through two bodies every cast.) The direction is still a coin flip,
+          // with the far side tried as a fallback when the first is off the
+          // board or collapsed.
           const dir = G.rng() < 0.5 ? -1 : 1;
-          const tryLanes = [from + 3 * dir, from - 3 * dir];
+          const tryLanes = [from + 2 * dir, from - 2 * dir];
           let to = -1;
           for (const cand of tryLanes) {
             if (cand >= 0 && cand < Game.LANE_COUNT && !G.state.lanes[cand].destroyed) { to = cand; break; }
