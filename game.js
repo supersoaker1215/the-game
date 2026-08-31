@@ -16243,10 +16243,55 @@ const Game = {
   // UI, and it rides the state broadcast so all four seats hold and release
   // together.
   _BALLYHOO_LOCK_MS: 17500,
+
+  // EVERY CLIENT TIMES THIS LOCK ON ITS OWN CLOCK.
+  //
+  // The first version stored an absolute deadline — Date.now() + 17500 — on the
+  // state, which then rode the broadcast to the other three seats. Each of them
+  // compared it against THEIR OWN Date.now(). Two browsers do not agree on the
+  // time, so the difference between the host's clock and a guest's became the
+  // lock's duration on that guest: a machine two minutes behind the host was
+  // frozen for two minutes, not seventeen seconds. That is the "after MC
+  // Ballyhoo appeared I couldn't play" report, and it would have been worse the
+  // further apart the clocks were.
+  //
+  // What travels now is a plain ID with no time in it. The first time a client
+  // sees an ID it has not seen before, it starts its OWN seventeen seconds from
+  // its OWN clock. Nobody reads anybody else's time, so skew cannot leak in,
+  // and the lock still expires on its own without anything having to clear it.
   ballyhooLocked() {
     const s = this.state;
-    if (!s || !s._ballyhooLockUntil) return false;
-    if (Date.now() >= s._ballyhooLockUntil) { s._ballyhooLockUntil = 0; return false; }
+    const id = s && s._ballyhooLockId;
+    if (!id) return false;
+    if (this._ballyhooLocalId !== id) {
+      // First sight of this lock on this machine — start the clock here.
+      this._ballyhooLocalId = id;
+      this._ballyhooLocalUntil = Date.now() + this._BALLYHOO_LOCK_MS;
+      // …and make sure something happens when it lifts. The queue below is
+      // drained by whenPromptCleared, which is about PROMPTS — and this lock is
+      // not a prompt, so a play made during Ballyhoo's entrance was queued and
+      // then waited for a prompt-clear that was never coming. The player was
+      // left having clicked with nothing to show for it, which reads exactly
+      // like a dead button.
+      try {
+        this._schedule(() => {
+          // DELIBERATELY DOES NOT TOUCH THE DEADLINE. Only the time comparison
+          // below decides when the lock is over. Zeroing it here made the lock
+          // hostage to the scheduler: a _schedule that runs its callback
+          // immediately — which is exactly what the headless shim does — wiped
+          // the deadline the instant it was set and the lock never engaged at
+          // all. The timer's whole job is to wake things up once the window has
+          // passed, not to define when it passes.
+          try { if (this._2v2DrainLockedActions) this._2v2DrainLockedActions(); } catch (e) {}
+          try { if (this.resumeCombatIfWaiting) this.resumeCombatIfWaiting(); } catch (e) {}
+          try { if (typeof UI !== 'undefined' && UI.render) UI.render(); } catch (e) {}
+        }, this._BALLYHOO_LOCK_MS + 60);
+      } catch (e) { /* no scheduler (sim) — the deadline below still expires */ }
+    }
+    if (!this._ballyhooLocalUntil || Date.now() >= this._ballyhooLocalUntil) {
+      this._ballyhooLocalUntil = 0;
+      return false;
+    }
     return true;
   },
 
@@ -16327,7 +16372,9 @@ const Game = {
     // matches per second against a stubbed UI, and a 17-second wall-clock lock
     // there would stall every run for no benefit, since nothing is watching.
     if (typeof UI !== 'undefined' && typeof UI.showBallyhoo === 'function') {
-      s._ballyhooLockUntil = Date.now() + this._BALLYHOO_LOCK_MS;
+      // An identity, not a time — see ballyhooLocked. Derived from the match's
+      // own round rather than a clock so it is stable across the broadcast.
+      s._ballyhooLockId = ((s.round | 0) + 1) * 1000 + 7;
     }
 
     // Announce it on every screen. The reveal is the same centre-screen panel
