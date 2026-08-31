@@ -622,6 +622,11 @@ const Game = {
   _combatWatchdogTimer: null,
   _combatProgressAt: 0,
   _bumpCombatProgress() { this._combatProgressAt = Date.now(); },
+  // Held time is not idle time. The combat watchdog's budget (45s) is longer
+  // than Ballyhoo's hold, so it cannot force-end on the hold alone — but a hold
+  // landing mid-combat would still eat 17.5s of a budget meant for real
+  // stalls. Kept as its own call so the reason is legible at the tick.
+  _combatProgressPausedByHold() { return !!(this.ballyhooLocked && this.ballyhooLocked()); },
   _armCombatWatchdog() {
     // Headless sim resolves combat synchronously and has no setInterval —
     // it can't stall, so skip. Browser only.
@@ -674,6 +679,10 @@ const Game = {
       }
       // Never judge a hidden tab — see the visibilitychange note above.
       if (typeof document !== 'undefined' && document.hidden) { this._bumpCombatProgress(); return; }
+      if (this._combatProgressPausedByHold && this._combatProgressPausedByHold()) {
+        this._bumpCombatProgress();   // a deliberate hold never counts as a stall
+        return;
+      }
       if (Date.now() - (this._combatProgressAt || 0) < this._COMBAT_WATCHDOG_MS) return;
       // Stalled longer than any real prompt could last — recover.
       const s = this.state;
@@ -954,6 +963,21 @@ const Game = {
     }
     if (!this._2v2IsAIAuthority || !this._2v2IsAIAuthority()) return;   // only the authority recovers
     if (typeof document !== 'undefined' && document.hidden) { this._ai2v2StallAt = Date.now(); this._ai2v2GlobalAt = Date.now(); return; }  // never judge a hidden tab
+    // NOR A TABLE THAT IS DELIBERATELY HELD. MC Ballyhoo's entrance stops every
+    // seat acting for 17.5s — and this watchdog's tiers fire at 3s and 15s, both
+    // INSIDE that window. So the pause it was told to create read to it as a
+    // frozen table, and its last-resort recovery force-ended sub-phase after
+    // sub-phase: the whole cards turn vanished and the round dropped straight
+    // into combat. (User: "i just had a round skip the whole cards turn and go
+    // straight into combat", twice.)
+    // Same treatment as a hidden tab, and for the same reason — the clock is
+    // reset rather than merely skipped, so the moment he is done the seats get
+    // their full stall budget instead of a few leftover milliseconds.
+    if (this.ballyhooLocked && this.ballyhooLocked()) {
+      this._ai2v2StallAt = Date.now(); this._ai2v2GlobalAt = Date.now();
+      this._ai2v2StallSig = null; this._ai2v2GlobalSig = null;
+      return;
+    }
     // A HUMAN IS NEVER AUTO-SKIPPED. If ANY pending prompt/offer belongs to a
     // human seat, NOTHING here may fire — not tier 1, not the last-resort tier 2.
     // A human deciding (or reading a long prompt) is not a stall; force-resolving
@@ -1581,6 +1605,10 @@ const Game = {
     }
     const p = s[owner];
     if (!p) return 'Not now';
+    // Same hold as every other action during MC Ballyhoo's entrance. The 2v2
+    // branch above inherits this through _2v2ActionsLocked; 1v1 had no idea the
+    // lock existed, so the redraw button stayed lit while the engine refused.
+    if (this.ballyhooLocked && this.ballyhooLocked()) return 'MC Ballyhoo is here';
     if (!this.redrawPhaseOk(owner)) return 'Only on your turn';
     if (!p.hand || !p.hand.length) return 'No cards to redraw';
     if (!this.getDrawPile(owner).length) return 'Draw pile empty';
@@ -16174,7 +16202,7 @@ const Game = {
   // MC BALLYHOO
   // ============================================================
   // Not a card — an EVENT. He is never drafted, never drawn, never in a pool:
-  // roughly half of all matches he turns up exactly once, at a round decided
+  // he turns up exactly once every match, at a round decided
   // when the match starts, and hands every player at the table one candy.
   //
   // THE COIN IS FLIPPED ONCE, AT MATCH START, NOT EVERY ROUND. Rolling per

@@ -47217,3 +47217,23 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 @media (max-width: 640px) {
   .decision-modal .decision-hero-desc { max-width: 88vw; font-size: 11px; }
 }
+
+
+/* MC Ballyhoo has the room — the hand is held for his entrance.
+   Reads as "not right now", deliberately distinct from the flat grey of a card
+   you cannot afford: this one lifts again in a few seconds on its own. */
+.hand-cards .card.ballyhoo-locked {
+  cursor: default;
+  filter: grayscale(0.55) brightness(0.62);
+  opacity: 0.72;
+  transition: filter 220ms ease, opacity 220ms ease;
+}
+.hand-cards .card.ballyhoo-locked::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 211, 74, 0.45);
+  background: linear-gradient(rgba(255, 211, 74, 0.06), rgba(255, 138, 0, 0.05));
+}

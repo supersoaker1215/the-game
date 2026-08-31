@@ -948,9 +948,10 @@ const TRICK_DEFS = [
 // MC BALLYHOO'S CANDIES
 // ============================================================
 // Four one-shot tricks handed out by MC Ballyhoo, who is not a card: he is a
-// round-start EVENT (see Game._maybeBallyhoo). Roughly half of all matches he
-// turns up once, at a random round, and gives every player at the table one
-// candy — a different one each, dealt at random from these four.
+// round-start EVENT (see Game._maybeBallyhoo). Every match he turns up once, at
+// an unpredictable round, and gives every player at the table one candy — a
+// different one each, dealt at random from these four. (He was a coin flip when
+// this was written; _BALLYHOO_MATCH_CHANCE is the one number that decides it.)
 //
 // DELIBERATELY NOT IN TRICK_DEFS. Four separate places build a trick pool
 // straight off that array (the 1v1 shared pile, the deckbuilder piles, the 2v2

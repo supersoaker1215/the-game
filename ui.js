@@ -16992,9 +16992,15 @@ const UI = {
       // renderer draws no cost pill: he is never played and never paid for.
       const ballyhoo = {
         name: 'MC Ballyhoo', cost: null, _isEvent: true,
-        desc: "Not a card — he turns up on his own. Roughly half of all matches, "
-            + "once, at a random round from 3 onward, he bursts in and hands every "
-            + "player a different candy.",
+        // The text has to track the engine. It said "roughly half of all
+        // matches" from when he WAS a coin flip; he is guaranteed now, so that
+        // line had become the codex telling players something untrue about the
+        // game they are playing. Says every match outright rather than dropping
+        // the frequency — "every match, at an unpredictable round" is the whole
+        // shape of him, and leaving it implied makes a reader guess.
+        desc: "Not a card — he turns up on his own. Every match, once, at an "
+            + "unpredictable round, he bursts in and hands every player a "
+            + "different candy.",
       };
       rawPool = [ballyhoo].concat(typeof CANDY_DEFS !== 'undefined' ? CANDY_DEFS : []);
     }
@@ -26862,6 +26868,13 @@ const UI = {
           // was gone (the rule needs both), and wrong the instant a prompt of
           // your OWN opened. Same trap the afford/playable pairs are here for.
           'table-waiting',
+          // Same trap again, and it caught me on the way in: ballyhoo-locked is
+          // decided fresh every render, so leaving it off this list meant the
+          // class and its title survived the lock lifting — the card became
+          // playable and clickable while still wearing the greyed-out chrome
+          // that says it is not. A held card must stop looking held the moment
+          // it is released.
+          'ballyhoo-locked',
           'card-draw-in', 'card-enter', 'card-exit',
           'hit-flash', 'armor-burst', 'stat-changed', 'cant-afford'
         );
@@ -26972,8 +26985,26 @@ const UI = {
         // below: the reason belongs on a genuine play ATTEMPT, not on a read.
         // Reading still works — the delegated flip listener turns the card over
         // independently of el.onclick, on both mouse and touch.
+        // A title set last render must not outlive the reason for it — the
+        // class list above is rebuilt each pass, but `title` is a property and
+        // nothing was clearing it.
+        let _ballyTitled = false;
+        if (el.title === 'MC Ballyhoo is handing out candy — hold on.') el.title = '';
         if (card._neverPlayable) {
           el.classList.add('unplayable', 'hand-guard');
+        } else if (Game.ballyhooLocked && Game.ballyhooLocked()) {
+          // MC BALLYHOO HAS THE ROOM. The engine already refuses every play for
+          // the length of his entrance, but the hand went on glowing green with
+          // live click handlers — so the cards said "play me" while the engine
+          // said no, and a click during those seconds did nothing at all. A
+          // rule the player cannot see is indistinguishable from a broken
+          // button. (User: "i just saw him and my cards were still lit up that
+          // i could play.")
+          // Titled like the Batman lock, which is the other transient "not
+          // right now" state, so the reason is one hover away.
+          el.classList.add('unplayable', 'ballyhoo-locked');
+          el.title = 'MC Ballyhoo is handing out candy — hold on.';
+          _ballyTitled = true;
         } else if (batBlocked) {
           el.classList.add('unplayable');
           el.title = 'Blocked by Batman — card is locked this turn.';
