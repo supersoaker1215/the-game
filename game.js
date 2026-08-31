@@ -16335,7 +16335,7 @@ const Game = {
   // and a match that ended early could still finish without him even at 100%.
   // If he has not turned up by this round he simply turns up. So: varied
   // between rounds 3 and 5, certain by 5, in every match that reaches it.
-  _BALLYHOO_LATEST_ROUND: 5,
+  _BALLYHOO_LATEST_ROUND: 7,
 
   _rollBallyhoo() {
     const s = this.state;
@@ -16349,8 +16349,12 @@ const Game = {
     // gates him on top of it, so setting it to 0 disables him without touching
     // the slot, and the sim can force either event by setting _matchEvent.
     if (!s._matchEvent) this._rollMatchEvent();
+    // THE ROUND IS CHOSEN NOW, NOT ROLLED EACH TICK. See _maybeBallyhoo.
+    const first = this._BALLYHOO_FIRST_ROUND | 0;
+    const last = Math.max(first, this._BALLYHOO_LATEST_ROUND | 0);
     s._ballyhoo = {
       shows: s._matchEvent === 'ballyhoo' && this.rng() < this._BALLYHOO_MATCH_CHANCE,
+      appearAt: first + Math.floor(this.rng() * (last - first + 1)),
       fired: false,
     };
   },
@@ -16932,17 +16936,19 @@ const Game = {
     // Rounds 1-2 are the opening: hands are small and a free trick there reads
     // as part of the deal rather than as an event.
     if ((roundNow | 0) < this._BALLYHOO_FIRST_ROUND) return;
-    // EVEN ODDS ACROSS THE WINDOW. Now that he is guaranteed, the question is
-    // only WHICH of rounds 3-5 he takes, and it should be a fair third each.
-    // A fixed per-round chance cannot do that with a backstop on the end: at a
-    // flat 18-28% the first two rounds rarely fired and the backstop swept up
-    // 63% of all arrivals onto round 5, which is not a surprise appearance, it
-    // is a scheduled one. 1/(rounds left) gives each remaining round an equal
-    // share — 1/3 at round 3, 1/2 at round 4, certain at 5 — so the spread is
-    // uniform and the backstop is just the last term rather than a dumping
-    // ground.
-    const roundsLeft = (this._BALLYHOO_LATEST_ROUND || Infinity) - (roundNow | 0) + 1;
-    if (roundsLeft > 1 && this.rng() >= (1 / roundsLeft)) return;
+    // EVEN ODDS ACROSS THE WINDOW — decided at roll time, in _rollBallyhoo.
+    // This used to roll 1/(rounds left) on EVERY call, which is a uniform pick
+    // only if that happens exactly once per round. In 2v2 it happens twice, at
+    // the shared round seam and the 2v2 one, so the window got two rolls a
+    // round and collapsed toward the front: measured 57% round 3 / 33% / 11%
+    // rather than a third each, which is why he seemed to always turn up on
+    // round 3. (Owner: "make sure MC Ballyhoo doesnt only spawn on round 3 it
+    // seems like he does".) Picking the round up front, the way the Shadow Man
+    // already picks his return, makes the spread immune to call count.
+    //
+    // >= and not ===, so a skipped round (or a seam that misses a tick) still
+    // gets him out rather than losing him for the whole match.
+    if ((roundNow | 0) < (b.appearAt != null ? b.appearAt : this._BALLYHOO_FIRST_ROUND)) return;
     b.fired = true;
 
     // One candy per player, all different, dealt at random. With four seats
