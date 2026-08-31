@@ -2308,3 +2308,121 @@ body.board-v2 .ai-bar .bv2-id .health-fill {
 body.board-v2 .bv2-name { text-shadow: none !important; }
 body.board-v2 .player-bar .bv2-name { color: rgba(234,250,255,0.82); }
 body.board-v2 .ai-bar     .bv2-name { color: rgba(255,211,205,0.82); }
+
+
+/* ===========================================================================
+   THE TWO LIT OBJECTS, BUILT THE WAY A NEON TUBE IS BUILT.
+   Owner, with the reference crops: the YO tile and the primary button.
+
+   ONE RULE BEHIND BOTH FAULTS: clip-path is applied AFTER filter and it clips
+   box-shadow too, so a chamfered element can never show its own glow — the
+   halo is by definition outside the shape being clipped. Every chamfered thing
+   on this board that "looked dim" was drawing its glow and then cutting it off.
+
+   The fix is the same shape twice: the element itself is NOT clipped and
+   carries the filter; a pseudo-element inside it carries the chamfer, the tube
+   border and the fill. The drop-shadow then traces the chamfered silhouette
+   because that is what the subtree actually paints.
+   =========================================================================== */
+
+/* ---- the YO / OP tile --------------------------------------------------- */
+body.board-v2 .bv2-tag {
+  position: relative;
+  clip-path: none !important;          /* moved onto ::before */
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  overflow: visible;
+}
+body.board-v2 .bv2-tag::before {
+  /* z-index -1, NOT 0. A positioned pseudo at z-index 0 paints ABOVE its
+     parent's own inline content, so an opaque fill there hid the YO/OP letters
+     completely — measured as two empty boxes. Behind the text is where a fill
+     belongs. */
+  content: ''; position: absolute; inset: 0; z-index: -1;
+  background: rgba(4,6,10,0.92);
+  clip-path: polygon(calc(13 * var(--u)) 0, 100% 0,
+                     100% calc(100% - 13 * var(--u)),
+                     calc(100% - 13 * var(--u)) 100%, 0 100%, 0 calc(13 * var(--u)));
+}
+/* the tube, and the near-white core one pixel inside it */
+body.board-v2 .bv2-tag::after {
+  content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  clip-path: polygon(calc(13 * var(--u)) 0, 100% 0,
+                     100% calc(100% - 13 * var(--u)),
+                     calc(100% - 13 * var(--u)) 100%, 0 100%, 0 calc(13 * var(--u)));
+}
+body.board-v2 .player-bar .bv2-tag::after {
+  box-shadow: inset 0 0 0 2px #35c9ff, inset 0 0 0 3px rgba(232,247,255,0.9);
+}
+body.board-v2 .ai-bar .bv2-tag::after {
+  box-shadow: inset 0 0 0 2px var(--or), inset 0 0 0 3px rgba(255,235,232,0.9);
+}
+/* The tag's label is a bare text node, so `> *` matched nothing — the stacking
+   is handled by the pseudos instead: fill behind (-1), rings in front (1),
+   text in the middle where it lands naturally. */
+body.board-v2 .bv2-tag { z-index: 2; }
+body.board-v2 .player-bar .bv2-tag {
+  color: #eafaff !important;
+  text-shadow: 0 0 4px rgba(53,201,255,0.55);
+  filter: drop-shadow(0 0 1px rgba(232,247,255,0.85)) drop-shadow(0 0 4px rgba(53,201,255,0.6));
+}
+body.board-v2 .ai-bar .bv2-tag {
+  color: #fff1ee !important;
+  text-shadow: 0 0 4px rgba(var(--or-rgb),0.55);
+  filter: drop-shadow(0 0 1px rgba(255,235,232,0.85)) drop-shadow(0 0 4px rgba(var(--or-rgb),0.6));
+}
+
+/* ---- the primary button ------------------------------------------------- */
+/* Wrapping it in #bv2-btn-glow moved it down one level and broke whichever
+   ancestor-scoped rule had been giving it its face: measured after the wrap it
+   had NO border, NO chamfer, NO fill and the old theme blue for text. Restated
+   here explicitly so it no longer depends on where in the tree it sits. */
+body.board-v2 .bv2-btn-glow { display: inline-flex; position: relative; }
+body.board-v2 .bv2-btn-glow > #btn-action {
+  position: relative;
+  min-width: calc(200 * var(--u));
+  height: calc(52 * var(--u));
+  padding: 0 calc(26 * var(--u));
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  clip-path: none !important;
+  filter: none !important;
+  border-radius: 0 !important;
+  font-family: var(--fd) !important; font-weight: 700 !important;
+  font-size: calc(18 * var(--u)) !important;
+  letter-spacing: .14em !important;
+  color: #eafaff !important;
+  text-shadow: 0 0 1px rgba(255,255,255,0.6), 0 0 12px rgba(53,201,255,0.5) !important;
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: calc(10 * var(--u));
+}
+/* fill — the reference's 105deg ramp, ending on near-black */
+body.board-v2 .bv2-btn-glow > #btn-action::before {
+  content: ''; position: absolute; inset: 0; z-index: -1;   /* see .bv2-tag::before */
+  background: linear-gradient(105deg, rgba(53,201,255,0.22) 0%,
+              rgba(53,201,255,0.07) 45%, rgba(4,6,10,0.9) 100%);
+  clip-path: polygon(calc(16 * var(--u)) 0, 100% 0,
+                     100% calc(100% - 16 * var(--u)),
+                     calc(100% - 16 * var(--u)) 100%, 0 100%, 0 calc(16 * var(--u)));
+}
+/* tube + hot core, as two inset rings so the white continues around the
+   chamfer instead of stopping at the corner */
+body.board-v2 .bv2-btn-glow > #btn-action::after {
+  content: '' !important; position: absolute; inset: 0; z-index: 1;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 2px #35c9ff, inset 0 0 0 3px #e8f7ff;
+  clip-path: polygon(calc(16 * var(--u)) 0, 100% 0,
+                     100% calc(100% - 16 * var(--u)),
+                     calc(100% - 16 * var(--u)) 100%, 0 100%, 0 calc(16 * var(--u)));
+}
+/* the label rides above both layers */
+body.board-v2 .bv2-btn-glow > #btn-action > * { position: relative; z-index: 2; }
+/* the glow lives on the unclipped wrapper and traces what the button paints */
+body.board-v2 .bv2-btn-glow {
+  filter:
+    drop-shadow(0 0 2px rgba(224,246,255,0.80))
+    drop-shadow(0 0 11px rgba(53,201,255,0.55))
+    drop-shadow(0 0 30px rgba(40,180,240,0.24));
+}
