@@ -2425,3 +2425,63 @@ body.board-v2 .bv2-btn-glow > #btn-action::after {
   background: none !important; box-shadow: none !important; clip-path: none !important;
   font-size: calc(15 * var(--u)); color: inherit;
 }
+
+
+/* ===========================================================================
+   THE PHASE PANEL AND THE LOG GET THE SAME TWO LAYERS.
+   Owner: "now do the same for the phase panel and the log."
+
+   Both were a `border` plus a `clip-path`, which is the same fault the tile
+   had one step removed: a border follows the BORDER BOX and the chamfer then
+   cuts it, so the line simply stopped at each cut corner — and the panel had
+   no glow at all, because a filter on a clipped element is clipped with it.
+
+   Neon line outside, dark blue gradient inside, glow on the unclipped element:
+
+     ::before   inset 0    z-index -2   the line
+     ::after    inset 2u   z-index -1   the fill
+
+   Negative z-index keeps both behind the panel's own text without needing a
+   wrapper — the filter on the panel makes it a stacking context, so they stay
+   inside it. (A pseudo at z-index 0 would paint OVER the text; that is the
+   trap the seat tiles hit.)
+   =========================================================================== */
+body.board-v2 #bv2-phase,
+body.board-v2 #bv2-log {
+  position: relative;
+  background: transparent !important;
+  border: 0 !important;
+  clip-path: none !important;
+  filter: drop-shadow(0 0 2px rgba(53,201,255,0.55))
+          drop-shadow(0 0 9px rgba(53,201,255,0.26));
+}
+body.board-v2 #bv2-phase::before,
+body.board-v2 #bv2-log::before {
+  content: ''; display: block !important; position: absolute; inset: 0; z-index: -2;
+  background: #35c9ff;
+  clip-path: polygon(calc(16 * var(--u)) 0, 100% 0,
+                     100% calc(100% - 16 * var(--u)),
+                     calc(100% - 16 * var(--u)) 100%, 0 100%, 0 calc(16 * var(--u)));
+}
+body.board-v2 #bv2-phase::after,
+body.board-v2 #bv2-log::after {
+  content: ''; display: block; position: absolute; inset: calc(2 * var(--u)); z-index: -1;
+  background: linear-gradient(150deg, #12384d 0%, #0a1c28 46%, #04060a 100%);
+  clip-path: polygon(calc(14 * var(--u)) 0, 100% 0,
+                     100% calc(100% - 14 * var(--u)),
+                     calc(100% - 14 * var(--u)) 100%, 0 100%, 0 calc(14 * var(--u)));
+}
+/* Not your turn: the same panel, turned down rather than restyled. */
+body.board-v2 #bv2-phase:not(.is-mine) {
+  background: transparent !important;
+  filter: drop-shadow(0 0 2px rgba(143,224,255,0.20));
+}
+body.board-v2 #bv2-phase:not(.is-mine)::before { background: rgba(143,224,255,0.30); }
+body.board-v2 #bv2-phase:not(.is-mine)::after {
+  background: linear-gradient(150deg, #0b1620 0%, #070d13 46%, #04060a 100%);
+}
+/* Room inside the line for the content to breathe. */
+body.board-v2 #bv2-log {
+  padding: calc(14 * var(--u)) calc(14 * var(--u)) calc(12 * var(--u));
+  box-sizing: border-box;
+}
