@@ -764,10 +764,16 @@ const BoardV2 = {
       ? UI.readableLog(Game.state && Game.state.log)
       : ((Game.state && Game.state.log) || [])
     ).filter(l => !_setup.test(String(l)));
-    const lineH = parseFloat(getComputedStyle(list).lineHeight) || 16;
-    const room  = list.clientHeight || 0;
-    const fit = Math.max(6, Math.floor(room / (lineH * 1.9)));
-    const want = lines.slice(-fit).reverse();
+    // START GENEROUS, LET THE MEASURE CUT BACK.
+    //
+    // This used to estimate how many lines would fit and take exactly that many
+    // — and the estimate is a guess, because a line is one row or three
+    // depending on where it wraps. Guessing low meant the panel rendered fewer
+    // lines than it had room for and stopped partway down, leaving the bottom
+    // of the box empty. (Owner: "the log can go to the bottom of the box.")
+    // The trim below only ever REMOVES, so the fix is to hand it more than can
+    // fit and let the measurement decide. 60 is a ceiling, not a target.
+    const want = lines.slice(-60).reverse();
     const sig = want.length + '|' + (want[0] || '');
     if (list.dataset.sig === sig) return;
     list.dataset.sig = sig;

@@ -2590,3 +2590,130 @@ body.board-v2 .ai-bar .energy-display {
   filter: drop-shadow(0 0 3px rgba(var(--or-rgb),0.65));
   color: #fff1ee !important;
 }
+
+
+/* ===========================================================================
+   THE DECISION PANEL IS THE SAME PANEL AS YOUR TRICKS.
+   Owner: "give the choice system the same style as your tricks."
+   =========================================================================== */
+body.board-v2 #bv2-decision {
+  position: relative;
+  background: transparent !important;
+  border: 0 !important;
+  clip-path: none !important;
+  padding: calc(14 * var(--u)) calc(14 * var(--u)) calc(12 * var(--u));
+  box-sizing: border-box;
+  filter: drop-shadow(0 0 2px rgba(53,201,255,0.55))
+          drop-shadow(0 0 9px rgba(53,201,255,0.26));
+}
+body.board-v2 #bv2-decision::before,
+body.board-v2 #bv2-decision::after { content: ''; display: block; position: absolute; }
+body.board-v2 #bv2-decision::before {
+  inset: 0; z-index: -2; background: #35c9ff;
+  clip-path: polygon(calc(16 * var(--u)) 0, 100% 0,
+                     100% calc(100% - 16 * var(--u)),
+                     calc(100% - 16 * var(--u)) 100%, 0 100%, 0 calc(16 * var(--u)));
+}
+body.board-v2 #bv2-decision::after {
+  inset: calc(2 * var(--u)); z-index: -1;
+  background: linear-gradient(150deg, #12384d 0%, #0a1c28 46%, #04060a 100%);
+  clip-path: polygon(calc(14 * var(--u)) 0, 100% 0,
+                     100% calc(100% - 14 * var(--u)),
+                     calc(100% - 14 * var(--u)) 100%, 0 100%, 0 calc(14 * var(--u)));
+}
+
+/* ===========================================================================
+   A CHOICE READS ACROSS, NOT DOWN.
+   Owner: "NOT VERTICAL IT SHOULD BE HORIZONTAL."
+   Each option was a tall narrow strip — a card face squeezed into an 80px
+   column with its label stacked under it, which is the worst shape this rail
+   can make. Each option is a full-width horizontal BAR now: the face at a fixed
+   small size on the left, the label and its button reading across to the right.
+   =========================================================================== */
+body.board-v2 #bv2-decision .choice-tray-cards {
+  display: flex !important; flex-direction: column !important;
+  flex-wrap: nowrap !important; gap: calc(9 * var(--u)) !important;
+  align-items: stretch !important;
+}
+body.board-v2 #bv2-decision .choice-opt {
+  display: flex !important; flex-direction: row !important;
+  align-items: center !important; gap: calc(9 * var(--u)) !important;
+  width: 100% !important; max-width: 100% !important;
+  text-align: left !important;
+}
+/* A CARD FACE CANNOT BE A BAR. Squeezed to the 28px this rail can spare, the
+   card component still measured 130px TALL — art, name, badges and stats have
+   a floor and simply do not compress. So in this panel the option stops being
+   a card face and becomes what a bar needs: cost, name, and the button, all
+   reading across. The name comes from the data attribute the element already
+   carries, so nothing has to be threaded through the renderer for it. */
+body.board-v2 #bv2-decision .choice-opt .card {
+  flex: 1 1 auto !important;
+  display: flex !important; align-items: center !important;
+  gap: calc(8 * var(--u)) !important;
+  width: auto !important; max-width: none !important;
+  height: auto !important; min-height: 0 !important;
+  background: transparent !important; border: 0 !important;
+  box-shadow: none !important; clip-path: none !important;
+  filter: none !important; padding: 0 !important; margin: 0 !important;
+  aspect-ratio: auto !important;
+}
+body.board-v2 #bv2-decision .choice-opt .card > * { display: none !important; }
+body.board-v2 #bv2-decision .choice-opt .card > .card-cost {
+  display: inline-flex !important;
+  position: static !important; inset: auto !important;
+  flex: 0 0 auto; width: calc(18 * var(--u)); height: calc(18 * var(--u));
+  font-size: calc(10 * var(--u));
+}
+body.board-v2 #bv2-decision .choice-opt .card::before { content: none !important; }
+body.board-v2 #bv2-decision .choice-opt .card::after {
+  content: attr(data-card-name) !important;
+  /* opacity 1 — a card rule elsewhere sets .card::after to opacity 0 (it is a
+     decorative corner cut there), so the label rendered at the right size, in
+     the right colour, in a 98px box, and was completely invisible. */
+  opacity: 1 !important; animation: none !important;
+  display: block !important; position: static !important; inset: auto !important;
+  background: none !important; box-shadow: none !important; border: 0 !important;
+  font-family: var(--fd); font-weight: 700;
+  /* 12u computed to 7.6px — legible in a spec sheet, not on a screen. */
+  font-size: calc(17 * var(--u)); letter-spacing: .02em;
+  color: #eafaff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  min-width: 0; flex: 1 1 auto;
+}
+/* ONE HEADER, NOT TWO. A tray-based prompt raises the tray AND the prompt
+   banner, and both carry the same title and the same instruction — docked in
+   the same panel they printed it twice, one under the other. The tray is the
+   one with the options attached, so it keeps the header and the banner stands
+   down whenever a tray is present. */
+body.board-v2 #bv2-decision:has(.bv2-dec-slot #choice-tray) .bv2-dec-body #prompt-banner {
+  display: none !important;
+}
+body.board-v2 #bv2-decision .choice-opt .choice-pick-btn {
+  flex: 0 0 auto !important;
+  height: calc(26 * var(--u)) !important; width: auto !important;
+  padding: 0 calc(10 * var(--u)) !important;
+  font-family: var(--fm) !important; font-size: calc(9 * var(--u)) !important;
+  letter-spacing: .18em !important;
+}
+
+/* ===========================================================================
+   THE LANES TAKE THE SAME LANGUAGE.
+   Owner: "and the lanes."
+   A lane spans BOTH players, so its edge cannot be one colour — the two side
+   tubes stay a vertical gradient from the opponent's hue at the top to yours at
+   the bottom. They go from a 1px hairline to a real 2px line with a glow, and
+   the interior takes the same dark blue fall the panels use. No clip-path is
+   involved on a lane, so the glow is not cut.
+   =========================================================================== */
+body.board-v2 #board .lane {
+  background: linear-gradient(to bottom,
+    rgba(var(--or-rgb),0.10) 0%, rgba(4,6,10,0.96) 42%,
+    rgba(4,6,10,0.96) 58%, rgba(53,201,255,0.10) 100%) !important;
+}
+body.board-v2 #board .lane::before,
+body.board-v2 #board .lane::after {
+  width: 2px;
+  background: linear-gradient(to bottom,
+    rgba(var(--or-rgb),0.85) 0%, rgba(143,224,255,0.18) 50%, rgba(53,201,255,0.85) 100%) !important;
+  filter: drop-shadow(0 0 3px rgba(53,201,255,0.35));
+}
