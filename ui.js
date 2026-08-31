@@ -17545,8 +17545,8 @@ const UI = {
         desc: "Not a card — he turns up on his own. One of two random events: "
             + "when the match rolls him, he opens by naming four challenges, "
             + "tracks every player separately, and returns on a later round to "
-            + "hand a Wonder Weapon to whoever leads each one. A tie pays "
-            + "everyone tied — a fifth weapon is held back for exactly that.",
+            + "hand a Wonder Weapon to whoever leads each one. Lead it "
+            + "outright — a tied challenge pays nobody.",
       };
       // The Rift is a LANE STATE, not a card — no def carries this name, so
       // like the two events above its codex row is synthesised. It was missing

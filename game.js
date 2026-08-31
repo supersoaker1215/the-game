@@ -16400,12 +16400,22 @@ const Game = {
     if (!s || s._matchEvent) return;
     // 'none' is a real outcome, and it is sticky: both _rollBallyhoo and
     // _rollShadowMan compare against this, so neither can show.
-    if (!this._randomEventsEnabled()) { s._matchEvent = 'none'; return; }
+    if (!this._randomEventsEnabled()) {
+      s._matchEvent = 'none';
+      this.log('[EVENT] Random events are switched off for this mode — no event this match.');
+      return;
+    }
     // EVERY MODE, EVEN ODDS. He used to be 2v2-only, so 1v1 and solo always got
     // Ballyhoo; his four challenges are contested between the two sides now.
     // (Owner: "make sure for each game its a random chance on if you get a MC or
     // shadow man random event and make sure this works for 2v2, 1v1 and solo".)
     s._matchEvent = (this.rng() < 0.5) ? 'shadowman' : 'ballyhoo';
+    // SAY WHICH ONE IT IS, IN THE LOG. A player who does not see the Shadow Man
+    // all match has no way to tell whether he was rolled and something ate him,
+    // or the coin simply came up Ballyhoo — which made a report of "he never
+    // showed up in 2v2 online" impossible to act on, because every path I could
+    // test produced him correctly. One line makes the next report answerable.
+    this.log(`[EVENT] This match rolled: ${s._matchEvent === 'shadowman' ? 'Shadow Man' : 'MC Ballyhoo'}.`);
   },
 
   // ============================================================
@@ -16551,12 +16561,11 @@ const Game = {
         this._SHADOW_CATEGORIES.forEach((k, i) => {
           if (pool.length) sh.prizes[k] = pool[i % pool.length].name;
         });
-        // THE FIFTH GUN IS THE SPARE. Four challenges, five weapons — the one
-        // left over is what a tie is paid with, so tied players both walk away
-        // armed instead of one of them losing a coin flip. (Owner: "if there is
-        // a tie in 2v2 then they both get one since there is 5 guns".) Which
-        // four are on the challenges, and therefore which one is spare, is a
-        // fresh shuffle every match.
+        // THE FIFTH GUN SITS OUT. Four challenges, five weapons: the leftover
+        // is recorded but no longer handed to anyone — ties pay nobody now, so
+        // there is nothing to pay them WITH. Kept because which four are on
+        // offer is a fresh shuffle each match, and that is the part that makes
+        // the challenges worth choosing between.
         sh.spare = (pool.length > this._SHADOW_CATEGORIES.length)
           ? pool[this._SHADOW_CATEGORIES.length].name : null;
       }
@@ -16606,29 +16615,27 @@ const Game = {
     sh.returned = true;
     this._armEventHold(this._SHADOW_HOLD_MS);
     this.log('[SHADOW MAN] Shadow Man returns to settle the score.');
-    // A TIE PAYS EVERY LEADER. There used to be a sudden-death round to break
-    // it; with five weapons and four challenges there is a spare sitting there,
-    // so tied players are simply both armed. The first takes the weapon that
-    // challenge was carrying, the next takes the spare, and any beyond that
-    // (only possible with 3+ tied seats, or a second tied category) fall back
-    // to a random weapon rather than going home empty.
-    const awards = [];   // { key, seat, force }
-    let spare = sh.spare || null;
+    // A TIE PAYS NOBODY. This has been through three shapes: a sudden-death
+    // round, then paying every tied seat out of the spare fifth weapon, and now
+    // the simplest reading — lead it outright or you do not get it. (Owner: "if
+    // there is a tie for the challenges then no one gets the wonder weapon".)
+    // The prize is simply not handed out, exactly like a category nobody
+    // scored in. The five-weapon shuffle is kept: which FOUR are on offer still
+    // varies per match, which is the part that makes the challenges worth
+    // choosing between.
+    const awards = [];   // { key, seat }
     this._SHADOW_CATEGORIES.forEach(key => {
       const leaders = this._shadowLeaders(key);
       if (!leaders.length) { this.log(`  [SHADOW MAN] ${this._shadowLabel(key)} — nobody scored. No prize.`); return; }
       if (leaders.length > 1) {
         this.log(`  [SHADOW MAN] ${this._shadowLabel(key)} is tied between `
           + leaders.map(pk => this._shadowName(pk)).join(' and ')
-          + ' — they are all paid.');
+          + ' — nobody takes it.');
+        return;
       }
-      leaders.forEach((seat, i) => {
-        let force = null;
-        if (i > 0) { force = spare; spare = null; }   // spare goes to the first runner-up only
-        awards.push({ key, seat, force });
-      });
+      awards.push({ key, seat: leaders[0] });
     });
-    awards.forEach(a => this._shadowAward(a.seat, a.key, a.force));
+    awards.forEach(a => this._shadowAward(a.seat, a.key));
     // No sudden-death round any more — ties are paid above, so he settles
     // everything in one visit and never leaves a category hanging.
     sh.duels = null;
