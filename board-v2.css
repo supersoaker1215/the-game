@@ -3089,3 +3089,84 @@ body.board-v2 #board .card-slot.player-slot:not(:has(.card))::before {
 body.board-v2 #bv2-handrow > .player-hand-section { padding-top: 0 !important; }
 body.board-v2 #bv2-handrow > .tricks-section { padding-top: 0 !important; }
 body.board-v2 #bv2-handrow .bv2-cap { margin-bottom: calc(3 * var(--u)) !important; }
+
+/* ===========================================================================
+   THE ASK COLOUR REACHES THE BOARD.
+   Owner, with an arrow drawn from the yellow DECISION panel to the three enemy
+   cards it was asking about: "this yellow should be applied to all cards that
+   this ability can hit, it should always be like that."
+
+   The panel already established the rule — "yellow is the ask colour ...
+   --timer (#ffd24a) is the one hue that belongs to neither player" — and then
+   stopped at the panel's own border. On the board the ask was invisible.
+
+   IT WAS NOT MISSING, IT WAS TOO SMALL AND THE WRONG GOLD. .target-highlight
+   was applied correctly to all three cards; the rule above at :2084 gave it
+   `inset 0 0 0 calc(2 * var(--u))`, which computes to a 1.33px ring sitting
+   INSIDE the card's own 2px side-coloured border, in rgba(245,191,28) — a
+   different gold from the panel's #ffd24a. So the one thing the player had to
+   notice was the thinnest line on the card, in a colour that matched nothing.
+
+   THREE PARTS.
+
+   1. THE FRAME COLOUR, not a ring on top of it. Every layer of a board card
+      now reads --frame-rgb (that is what fixed the ribbon and the name), so
+      pointing that one variable at the ask colour turns the border, the energy
+      ribbon's diagonal and the name yellow together. One variable, every layer
+      — instead of stacking a fourth gold on top of a red frame that is still
+      shouting "enemy".
+
+   2. THE BLOOM GOES ON THE SLOT. The card is chamfered with clip-path, which
+      clips its own outline and box-shadow — the reason the shipping board's
+      `outline: 2px` was invisible here in the first place. The slot is not
+      clipped (see the hover fix) and already carries the frame glow, so the
+      ask's glow rides the same filter and traces the chamfer instead of being
+      cut to a rectangle.
+
+   3. AND IT PULSES, which the ring could not. The note at :2084 is right that
+      a keyframe cannot drive an !important property, and every attempt to
+      pulse the card itself died on that. The slot's filter is NOT !important —
+      it is this file's own rule — so the animation goes there, where nothing
+      is fighting it. Reduced motion holds it at the bright end rather than the
+      dim one: a still frame of a "pick me" cue should be the loud frame.
+
+   Lane prompts mark empty slots rather than cards, so .card-slot.target-
+   highlight gets the same treatment — this is the generic prompt path, so
+   "always" means every ability that asks, not Fear Toxin alone.
+   =========================================================================== */
+body.board-v2 #board .lane .card.target-highlight {
+  --frame-rgb: 255, 210, 74;
+  --frame-color: var(--timer);
+  --portrait-frame-rgb: 255, 210, 74;
+  border-color: var(--timer) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,210,74,0.55),
+    inset 0 0 calc(18 * var(--u)) rgba(255,210,74,0.22) !important;
+  cursor: pointer;
+}
+/* The bloom, on the unclipped slot, in place of that side's frame glow. */
+body.board-v2 #board .card-slot:has(.card.target-highlight),
+body.board-v2 #board .card-slot.target-highlight {
+  --slot-glow: 255, 210, 74;
+  animation: bv2AskPulse 1.25s var(--ease-pulse-organic, ease-in-out) infinite;
+}
+/* An empty slot offered by a lane prompt has no card to carry the frame, so it
+   draws the ask on its own chamfered pseudo. */
+body.board-v2 #board .card-slot.target-highlight::before {
+  background: rgba(255,210,74,0.14) !important;
+  box-shadow: inset 0 0 0 1px rgba(255,210,74,0.85);
+}
+@keyframes bv2AskPulse {
+  0%, 100% { filter: drop-shadow(0 0 2px rgba(255,210,74,1))
+                     drop-shadow(0 0 10px rgba(255,210,74,0.75)); }
+  50%      { filter: drop-shadow(0 0 1px rgba(255,210,74,0.75))
+                     drop-shadow(0 0 5px rgba(255,210,74,0.35)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.board-v2 #board .card-slot:has(.card.target-highlight),
+  body.board-v2 #board .card-slot.target-highlight {
+    animation: none;
+    filter: drop-shadow(0 0 2px rgba(255,210,74,1))
+            drop-shadow(0 0 10px rgba(255,210,74,0.75));
+  }
+}
