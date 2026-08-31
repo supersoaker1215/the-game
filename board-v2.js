@@ -289,7 +289,7 @@ const BoardV2 = {
         // .bv2-id is still the health bar's home, so the adoption below drops it
         // in as the second row without needing to know any of this.
         plate.innerHTML =
-          '<span class="bv2-tag"></span>' +
+          '<span class="bv2-tag"><i class="bv2-face"></i><b class="bv2-tag-txt"></b></span>' +
           '<span class="bv2-id">' +
             '<span class="bv2-idrow">' +
               '<b class="bv2-name"></b>' +
@@ -297,7 +297,10 @@ const BoardV2 = {
             '</span>' +
           '</span>';
       }
-      const _tagEl  = plate.querySelector('.bv2-tag');
+      // The LETTERS live in their own node now. This used to write
+      // .textContent straight onto .bv2-tag, which would wipe the face layers
+      // added beside them on the very next render.
+      const _tagEl  = plate.querySelector('.bv2-tag-txt');
       const _nameEl = plate.querySelector('.bv2-name');
       const _hpEl   = plate.querySelector('.bv2-hpn');
       const _name40 = String(name).slice(0, 40);
@@ -430,6 +433,16 @@ const BoardV2 = {
       wrap = document.createElement('div');
       wrap.id = 'bv2-btn-glow';
       wrap.className = 'bv2-btn-glow';
+    }
+    if (!wrap.querySelector('.bv2-btn-face')) {
+      // Three stacked clipped shapes, not a shadow: tube, core, fill. They are
+      // SIBLINGS of the button rather than pseudo-elements on it, because
+      // ui.js rewrites the button's label and a pseudo cannot carry a third
+      // layer anyway.
+      const face = document.createElement('i');
+      face.className = 'bv2-btn-face';
+      face.innerHTML = '<i class="bv2-btn-tube"></i><i class="bv2-btn-core"></i><i class="bv2-btn-fill"></i>';
+      wrap.insertBefore(face, wrap.firstChild);
     }
     if (btn.parentNode !== wrap) {
       if (!this._btnHome) this._btnHome = { parent: btn.parentNode, next: btn.nextSibling };
