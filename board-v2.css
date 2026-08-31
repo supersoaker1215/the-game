@@ -97,9 +97,9 @@ body.board-v2 #game-area > .info-bar.ai-bar     { grid-area: foebar; }
 body.board-v2 #game-area > .board-section       { grid-area: board; }
 body.board-v2 #game-area > #lane-forecast-strip { grid-area: strip; }
 body.board-v2 #game-area > .info-bar.player-bar { grid-area: mebar; }
-body.board-v2 #game-area > .player-hand-section { grid-area: hand; }
-body.board-v2 #game-area > .tricks-section      { grid-area: right; }
+body.board-v2 #game-area > #bv2-handrow         { grid-area: hand; }
 body.board-v2 #bv2-rail-left                    { grid-area: left; }
+body.board-v2 #bv2-rail-right                   { grid-area: right; }
 body.board-v2 #game-area > #round-track         { display: none; }
 
 /* ---------------------------------------------------------------------------
@@ -528,20 +528,42 @@ body.board-v2 #bv2-rail-left .ba-log-more {
 }
 
 /* ---------------------------------------------------------------------------
-   9. RIGHT PANEL — tricks are CARDS WITH ART, 152 x 218, chamfer 13, ice-white
-   frame. Same construction as a hand card at a different size, which is what
-   makes a trick read as a card of a different type rather than as UI.
+   9. TRICKS SIT AT THE END OF THE HAND — the shipping board's arrangement.
+   They were a vertical stack in the right rail, level with the enemy's board
+   and 1300px from the cards you were choosing between. A trick is played on
+   your turn, from your hand, so it belongs in that row: "have the tricks next
+   to the cards, just at the end."
+   Still CARDS WITH ART, chamfer 13, ice-white frame — the construction is what
+   makes a trick read as a card of a different type rather than as UI; only the
+   address changed.
    ------------------------------------------------------------------------- */
-body.board-v2 #game-area > .tricks-section {
-  display: block; background: transparent; border: 0; box-shadow: none;
-  padding: 0; margin: 0; align-self: stretch; min-height: 0; overflow: hidden;
+body.board-v2 #bv2-handrow {
+  display: flex; align-items: flex-start; justify-content: center;
+  gap: calc(30 * var(--u)); min-width: 0; min-height: 0;
 }
-body.board-v2 #game-area > .tricks-section > #player-tricks {
-  display: flex; flex-direction: column; gap: calc(14 * var(--u));
-  width: 100%; align-items: flex-start;
+/* The hand keeps its own centring inside whatever width is left, and gives way
+   first — the tricks are two or three cards and never need to shrink. */
+body.board-v2 #bv2-handrow > .player-hand-section { flex: 0 1 auto; min-width: 0; }
+body.board-v2 #bv2-handrow > .tricks-section {
+  flex: 0 0 auto; background: transparent; border: 0; box-shadow: none;
+  padding: calc(10 * var(--u)) 0 0; margin: 0; min-height: 0; overflow: visible;
+  display: flex; flex-direction: column;
+  /* A hairline so the two groups read as separate zones. Same reasoning as the
+     shipping board's divider, drawn in the rail colour this design uses. */
+  border-left: 1px solid rgba(219,234,245,0.20);
+  padding-left: calc(28 * var(--u));
+}
+body.board-v2 #bv2-handrow > .tricks-section > #player-tricks {
+  display: flex; flex-direction: row; flex-wrap: nowrap;
+  gap: calc(14 * var(--u)); width: auto;
+  /* A trick card is height:auto over its rules text, so stacked in a column
+     nobody could tell. Side by side they bottomed out at different heights and
+     the row read as ragged — stretch settles them on the tallest, which is what
+     a row of cards has to do. */
+  align-items: stretch;
 }
 body.board-v2 .tricks-section .trick-card {
-  width: calc(152 * var(--u)); max-width: calc(152 * var(--u)); height: auto;
+  width: calc(118 * var(--u)); max-width: calc(118 * var(--u)); height: auto;
   border-radius: 0;
   border: 1px solid rgba(219,234,245,0.55) !important;
   box-shadow: 0 0 5px rgba(219,234,245,0.16);
@@ -621,8 +643,10 @@ body.board-v2 .card .stat-hp  { color: var(--hp)  !important; }
     padding: calc(8 * var(--u)) calc(16 * var(--u));
   }
   body.board-v2 #bv2-rail-left { display: none; }
-  body.board-v2 #game-area > .tricks-section > #player-tricks { flex-direction: row; }
-  body.board-v2 .tricks-section .trick-card { width: calc(110 * var(--u)); max-width: calc(110 * var(--u)); }
+  /* Tight enough that the divider and its gutter are the first thing to go. */
+  body.board-v2 #bv2-handrow { gap: calc(14 * var(--u)); }
+  body.board-v2 #bv2-handrow > .tricks-section { padding-left: calc(14 * var(--u)); }
+  body.board-v2 .tricks-section .trick-card { width: calc(96 * var(--u)); max-width: calc(96 * var(--u)); }
 }
 
 
@@ -823,8 +847,10 @@ body.board-v2 .info-bar .pile-badge   { transform: none; }
 body.board-v2 .info-bar .energy-display { width: calc(40 * var(--u)); height: calc(40 * var(--u)); }
 /* Hand cards 144 x 264. */
 body.board-v2 .player-hand-section .hand-card-wrapper .card { --card-w: calc(144 * var(--u)); }
-/* Trick cards 155 x 224, chamfer 13. */
-body.board-v2 .tricks-section .trick-card { width: calc(155 * var(--u)); max-width: calc(155 * var(--u)); }
+/* Trick cards 118 wide, chamfer 13 — narrower than a hand card (144) so the
+   row still fits a full hand plus three tricks without a horizontal scroll.
+   They were 155 when they had a 340px column to themselves. */
+body.board-v2 .tricks-section .trick-card { width: calc(118 * var(--u)); max-width: calc(118 * var(--u)); }
 
 /* ===========================================================================
    THE HEALTH BAR WAS NOT THICK — IT WAS OVERFLOWING.
@@ -1395,13 +1421,11 @@ body.board-v2 #bv2-decision .bv2-dec-echo {
    answer had already left. Here the answer stays. Newest at the top, brightest
    at the top, fading down — the same reading order the log already teaches.
    =========================================================================== */
-body.board-v2 #game-area > .tricks-section {
-  display: flex; flex-direction: column; min-height: 0;
+body.board-v2 #bv2-rail-right {
+  display: flex; flex-direction: column; align-self: stretch; min-height: 0;
 }
-body.board-v2 #game-area > .tricks-section > #player-tricks { flex: 0 0 auto; }
 body.board-v2 #bv2-notices {
   display: none; flex: 1 1 auto; min-height: 0;
-  margin-top: calc(16 * var(--u));
   overflow: hidden;
 }
 body.board-v2 #bv2-notices.is-live { display: flex; flex-direction: column; }

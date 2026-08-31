@@ -72,6 +72,17 @@ const BoardV2 = {
           else home.parent.appendChild(box);
         });
       }
+      // THE HAND AND TRICKS GO HOME BEFORE ANYTHING IS REMOVED. They live
+      // inside #bv2-handrow while V2 is on, and the sweep below deletes every
+      // bv2- node — with the hand still inside it, turning the redesign off
+      // would delete the shipping board's hand. Restored in reverse document
+      // order so each one's recorded next sibling is already back in place.
+      [['_tricksHome', '.tricks-section'], ['_handHome', '.player-hand-section']].forEach(([key, sel]) => {
+        const home = this[key], node = document.querySelector(sel);
+        if (!node || !home || node.parentNode === home.parent) return;
+        if (home.next && home.next.parentNode === home.parent) home.parent.insertBefore(node, home.next);
+        else home.parent.appendChild(node);
+      });
       document.querySelectorAll('[id^="bv2-"], .bv2-lane-no').forEach(el => el.remove());
     } catch (e) { console.error('[BoardV2] teardown', e); }
   },
@@ -289,11 +300,45 @@ const BoardV2 = {
   // chamfered square instead — fewer nodes, and the number stays whatever the
   // engine says it is.
 
+  // TRICKS BELONG BESIDE THE HAND, NOT IN A COLUMN OF THEIR OWN.
+  //
+  // V2 put .tricks-section in the right rail, so the two cards you can actually
+  // play sat 1330px away from the five you were choosing between — at the top of
+  // the screen, level with the enemy's board, while your hand was at the bottom.
+  // The shipping board settled this a while ago and the reasoning still holds:
+  // "have the tricks next to the cards, just at the end." A trick is something
+  // you play on your turn; it reads with the hand or it reads as chrome.
+  // (Owner, on the redesign: "can you place the tricks down like the classic
+  // board.")
+  //
+  // Done the way classic does it — one row holding both, centred as a group, so
+  // the tricks land immediately after the last hand card at every hand size.
+  // The nodes are MOVED and put back by teardown(), the same contract the aside
+  // and the turn tracker already use, because teardown removes every bv2- node
+  // and would otherwise take the hand with it.
+  _ensureHandRow() {
+    const ga = document.getElementById('game-area');
+    if (!ga) return;
+    const hand = document.querySelector('.player-hand-section');
+    const tricks = document.querySelector('.tricks-section');
+    if (!hand || !tricks) return;
+    if (hand.parentNode === ga) this._handHome = this._handHome || { parent: ga, next: hand.nextSibling };
+    if (tricks.parentNode === ga) this._tricksHome = this._tricksHome || { parent: ga, next: tricks.nextSibling };
+    const row = this._el('bv2-handrow', 'bv2-handrow', ga);
+    if (hand.parentNode !== row) row.appendChild(hand);
+    if (tricks.parentNode !== row) row.appendChild(tricks);
+  },
+
   // The rails themselves. Created inside #game-area so the grid can place them.
   _ensureRails() {
     const ga = document.getElementById('game-area');
     if (!ga) return;
     const left = this._el('bv2-rail-left', 'bv2-rail bv2-rail-left', ga);
+    // The right rail used to BE the trick column — the notice feed was parented
+    // to .tricks-section and inherited its place in the grid. With the tricks
+    // gone to the hand row it needs a column of its own, or the feed (and every
+    // prompt that docks in it) travels down there with them.
+    this._el('bv2-rail-right', 'bv2-rail bv2-rail-right', ga);
     // The existing aside already carries the reference's "if combat resolves
     // now" block and the last log lines — reuse it rather than building a
     // second one that could disagree with it.
@@ -511,8 +556,12 @@ const BoardV2 = {
     if (panel) panel.classList.remove('is-live');
   },
   _paintNotices() {
-    const ts = document.querySelector('.tricks-section');
-    if (!ts) return;
+    // The right rail, not the trick section — the tricks moved to the hand row
+    // and the feed has to stay where the eye already looks for "what happened".
+    const ga = document.getElementById('game-area');
+    if (!ga) return;
+    const ts = document.getElementById('bv2-rail-right')
+            || this._el('bv2-rail-right', 'bv2-rail bv2-rail-right', ga);
     const panel = this._el('bv2-notices', 'bv2-notices', ts);
     if (panel.parentNode !== ts) ts.appendChild(panel);
     if (!panel.firstChild) {
@@ -612,6 +661,7 @@ const BoardV2 = {
     this.apply();
     try {
       this._ensureRails();
+      this._ensureHandRow();
       this._renderPhase(s);
       this._renderSeats(s);
       this._renderCounts(s);
