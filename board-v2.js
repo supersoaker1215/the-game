@@ -86,6 +86,14 @@ const BoardV2 = {
       // The slot dimensions are inline custom properties on #board — not a
       // bv2- node, so the sweep below cannot reach them, and left behind they
       // would size the shipping board's slots too.
+      // The primary button lives inside a bv2- wrapper; the sweep below would
+      // take the button with it.
+      const _btn = document.getElementById('btn-action');
+      if (_btn && this._btnHome && _btn.parentNode && _btn.parentNode.id === 'bv2-btn-glow') {
+        const h = this._btnHome;
+        if (h.next && h.next.parentNode === h.parent) h.parent.insertBefore(_btn, h.next);
+        else h.parent.appendChild(_btn);
+      }
       const _b = document.getElementById('board');
       if (_b) { ['--bv2-slot-w', '--bv2-slot-h', '--bv2-board-card-w']
         .forEach(p => _b.style.removeProperty(p)); }
@@ -383,6 +391,38 @@ const BoardV2 = {
     const row = this._el('bv2-handrow', 'bv2-handrow', ga);
     if (hand.parentNode !== row) row.appendChild(hand);
     if (tricks.parentNode !== row) row.appendChild(tricks);
+  },
+
+  // THE PRIMARY BUTTON'S GLOW WAS BEING CLIPPED OFF THE BUTTON.
+  //
+  // #btn-action carries BOTH the chamfer clip-path and the three-stop
+  // drop-shadow. clip-path is applied AFTER filter, so every pixel of that
+  // bloom that fell outside the chamfer — which is all of it, a glow being
+  // entirely outside the shape — was cut away. The button had the right glow
+  // and showed none of it.
+  //
+  // The fix is the one the spec names: the filter goes on a WRAPPER that is
+  // not clipped, and the clipped element sits inside it. Wrapping is safe here
+  // because the click handler is on the button itself, so it travels with the
+  // node.
+  _ensureButtonGlow() {
+    const btn = document.getElementById('btn-action');
+    if (!btn) return;
+    let wrap = document.getElementById('bv2-btn-glow');
+    if (!wrap) {
+      wrap = document.createElement('div');
+      wrap.id = 'bv2-btn-glow';
+      wrap.className = 'bv2-btn-glow';
+    }
+    if (btn.parentNode !== wrap) {
+      if (!this._btnHome) this._btnHome = { parent: btn.parentNode, next: btn.nextSibling };
+      const home = this._btnHome;
+      if (wrap.parentNode !== home.parent) {
+        if (home.next && home.next.parentNode === home.parent) home.parent.insertBefore(wrap, home.next);
+        else home.parent.appendChild(wrap);
+      }
+      wrap.appendChild(btn);
+    }
   },
 
   // The rails themselves. Created inside #game-area so the grid can place them.
@@ -780,6 +820,7 @@ const BoardV2 = {
     try {
       this._ensureRails();
       this._ensureHandRow();
+      this._ensureButtonGlow();
       this._renderPhase(s);
       this._renderSeats(s);
       this._renderCounts(s);

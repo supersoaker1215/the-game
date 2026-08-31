@@ -2107,3 +2107,153 @@ body.board-v2 #board .card.target-highlight {
 }
 body.board-v2 #board .card.targetable,
 body.board-v2 #board .card.forecast-target.target-highlight { outline: 0 !important; }
+
+
+/* ===========================================================================
+   NEON PASS — four faults, in the order they have to be fixed.
+   From a design review of the board against the reference. Each numbered
+   section below is one of them.
+
+   NOTE ON HUE: the review says the opponent must be orange, "never red — red
+   is health". The owner overruled exactly that two changes ago ("the enemy
+   color should be red not orange") and it shipped in clb-v629. Their call
+   stands; --or-rgb is left alone here. Everything else in the review is
+   applied. Health keeps --hp (#ff6b6b), a lighter pinker red, so the two are
+   still distinguishable.
+   =========================================================================== */
+
+/* --- 1. NEAR-BLACK BEHIND EVERYTHING ------------------------------------- */
+/* Neon only reads against near-black, and the play area had a coloured wash
+   sitting on top of it at nearly double the reference weight — a comment in
+   this file records it being "lifted a little" on purpose. That lift is the
+   contrast the glow is then trying to win back, and it cannot. */
+body.board-v2 #game-area { background: #04060a; }
+body.board-v2 #game-area > .board-section { background-color: #04060a !important; }
+body.board-v2 #game-area::after {
+  background:
+    radial-gradient(56% 40% at 50% 50%, transparent 0%, rgba(4,6,10,0.92) 76%),
+    radial-gradient(88% 40% at 50% 0%,   rgba(var(--or-rgb),0.10), transparent 64%),
+    radial-gradient(88% 40% at 50% 100%, rgba(53,201,255,0.10), transparent 64%),
+    repeating-linear-gradient(to bottom, rgba(0,0,0,0.18) 0 1px, transparent 1px 3px);
+}
+/* The band is the ONLY other coloured layer, and it is thin. The rail line on
+   its edge stays at full strength — the line is what reads as neon, the wash is
+   what greys the screen. */
+body.board-v2 #game-area > .info-bar.ai-bar {
+  background-image: linear-gradient(to top, rgba(var(--or-rgb),0.07), transparent) !important;
+}
+body.board-v2 #game-area > .info-bar.player-bar {
+  background-image: linear-gradient(to bottom, rgba(53,201,255,0.07), transparent) !important;
+}
+body.board-v2 #game-area > .info-bar.ai-bar::before {
+  background: linear-gradient(to top, rgba(var(--or-rgb),0.06), transparent 70%) !important;
+}
+body.board-v2 #game-area > .info-bar.player-bar::before {
+  background: linear-gradient(to bottom, rgba(53,201,255,0.06), transparent 70%) !important;
+}
+/* An empty slot is a TINT OF BLACK, not a grey panel.
+   NOT `:empty` — an empty slot still contains .empty-lane-glyph (hidden by
+   this file, but present), so :empty matched nothing and the old fill stayed.
+   That fill was also a `rgba(255,90,74,...)` salmon that is on no palette here.
+   `:not(:has(.card))` asks the question that was actually meant: is there a
+   card in it. */
+body.board-v2 #board .card-slot.player-slot:not(:has(.card)) {
+  background: rgba(53,201,255,0.07) !important; background-image: none !important;
+}
+body.board-v2 #board .card-slot.ai-slot:not(:has(.card)) {
+  background: rgba(var(--or-rgb),0.07) !important; background-image: none !important;
+}
+/* And the card body itself. */
+body.board-v2 #board .lane .card,
+body.board-v2 .player-hand-section .card { background-color: #04060a; }
+
+/* --- 2. SMALLER GLOWS ---------------------------------------------------- */
+/* The same light over fewer pixels is a higher peak. Board card frames were
+   already at the reference's 1px/4px; these are the rest. */
+body.board-v2 #board .lane-sep .lane-number,
+body.board-v2 .info-bar .energy-display,
+body.board-v2 .info-bar .block-circle {
+  box-shadow: none !important;
+  filter: drop-shadow(0 0 2px rgba(53,201,255,0.55));
+}
+body.board-v2 #game-area > .info-bar.ai-bar::after {
+  filter: drop-shadow(0 0 3px rgba(var(--or-rgb),0.75)) !important;
+  box-shadow: none !important;
+}
+body.board-v2 #game-area > .info-bar.player-bar::after {
+  filter: drop-shadow(0 0 3px rgba(53,201,255,0.75)) !important;
+  box-shadow: none !important;
+}
+
+/* --- 3. THE VALUE LADDER: near-white core, saturated tube, near-black ----- */
+/* A 2px coloured line is a coloured line. The same 2px with a 1px near-white
+   core inside it is a lit tube, and the eye reads "glowing" from the jump
+   between the three values rather than from the middle one.
+   .cf-frame is the card's own inset overlay — already positioned, already
+   above the art — so the core goes there rather than on a new node. */
+body.board-v2 #board .lane .card .cf-frame {
+  border: 1px solid rgba(232,247,255,0.55) !important;
+}
+body.board-v2 #board .card-slot.ai-slot .card .cf-frame {
+  border-color: rgba(255,235,232,0.5) !important;
+}
+/* The primary button: its three stops were always right, they were being
+   clipped. The filter now sits on #bv2-btn-glow, which has no clip-path. */
+body.board-v2 .bv2-btn-glow {
+  display: inline-flex; position: relative;
+  filter:
+    drop-shadow(0 0 2px rgba(224,246,255,0.80))
+    drop-shadow(0 0 11px rgba(53,201,255,0.55))
+    drop-shadow(0 0 30px rgba(40,180,240,0.24));
+}
+body.board-v2 .bv2-btn-glow > #btn-action { filter: none !important; }
+
+/* --- 4. FOUR BRIGHTNESS LEVELS, NOT ONE ---------------------------------- */
+/* Pop is relative. With every label, value and border at full strength the
+   screen averages to flat mid-cyan. Three glow tiers, never four: the primary
+   button gets three stops; frames, rails and discs get one or two; body text,
+   labels and log lines get NONE. Glowing body text is the usual cause of a
+   screen that is bright but not sharp. */
+body.board-v2 .bv2-cap-label,
+body.board-v2 #bv2-rail-left .ba-cap,
+body.board-v2 #bv2-rail-left .ba-rule-label,
+body.board-v2 .bv2-log-line-label,
+body.board-v2 .hud-pill .hud-label {
+  color: rgba(143,224,255,0.62) !important;
+  text-shadow: none !important;
+}
+body.board-v2 #bv2-log .bv2-log-line,
+body.board-v2 #bv2-rail-left .ba-log-line,
+body.board-v2 .card-desc,
+body.board-v2 .cd-body { text-shadow: none !important; }
+/* Values are full colour and unglowed — the number is the signal, not a halo. */
+body.board-v2 .hud-pill .hud-val,
+body.board-v2 .bv2-cap-val,
+body.board-v2 .info-bar .bv2-hpn { text-shadow: none !important; }
+
+/* --- 5. A HAND FRAME CARRIES RARITY, NOTHING ELSE ------------------------- */
+/* --rarity-rgb is a COST ramp in the shipping palette: 0-3 green, 4-6 blue,
+   7-8 white, 9-10 gold. Two of those collide head-on with this board's other
+   meanings — green is ATTACK, and it sits directly above the attack bracket on
+   the same card, and blue is YOU. So a cheap card wore an attack-coloured
+   frame. Rarity here is the reference's two steps, ice and gold, and neither
+   is any player's colour or any stat's. Affordability stays opacity alone. */
+body.board-v2 .player-hand-section .card.cost-0,
+body.board-v2 .player-hand-section .card.cost-1,
+body.board-v2 .player-hand-section .card.cost-2,
+body.board-v2 .player-hand-section .card.cost-3,
+body.board-v2 .player-hand-section .card.cost-4,
+body.board-v2 .player-hand-section .card.cost-5,
+body.board-v2 .player-hand-section .card.cost-6,
+body.board-v2 .player-hand-section .card.cost-7,
+body.board-v2 .player-hand-section .card.cost-8 {
+  --rarity-rgb: 219, 234, 245;
+  --frame-rgb: 219, 234, 245;
+  --frame-color: #dbeaf5;
+}
+body.board-v2 .player-hand-section .card.cost-9,
+body.board-v2 .player-hand-section .card.cost-10 {
+  --rarity-rgb: 255, 210, 74;
+  --frame-rgb: 255, 210, 74;
+  --frame-color: #ffd24a;
+}
