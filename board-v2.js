@@ -170,8 +170,33 @@ const BoardV2 = {
   // per-TEAM or per-SEAT fact in 2v2, and s.player / s.ai are combat proxies
   // that carry neither. These three answer it once so no panel guesses.
   _tt() { const s = (typeof Game !== 'undefined' && Game.state) || null; return (s && s.twoVTwo && s.twoVTwo.players) ? s.twoVTwo : null; },
+  // WHICH TEAM IS ON THIS BAR — FROM THE CHAIR OF WHOEVER IS LOOKING.
+  //
+  // 'player' and 'ai' name the BOTTOM and TOP bar. Game._2v2TeamSide is the
+  // engine's fixed A->player / B->ai map, which is the right answer for the
+  // ENGINE and the wrong one for a screen: it made the bottom bar always
+  // Team A, so every player on Team B saw their own team on top and the enemy
+  // on the bottom, under their own health bar. (Owner: "so im fd and cortex is
+  // my teammate — my healthbar should be switched.")
+  //
+  // Worse than merely swapped: _render2v2OnlineBoard writes the VIEWER's team
+  // health into #player-health, which this plate adopts, so the bottom bar
+  // carried the enemy's names with your own HP bar inside them.
+  //
+  // Bottom is always MINE. Same rule the dead pile already follows
+  // (_deadPileSideForBar in ui.js) — resolve the bar to a side through the
+  // viewer, never through the engine's map. Online that is the fixed seat; in
+  // pass-and-play it is whoever is on the clock, because that is who is looking
+  // at the screen. With no seat to go on, fall back to the engine's map.
   _teamOf(side) {
     const map = (typeof Game !== 'undefined' && Game._2v2TeamSide) || { A: 'player', B: 'ai' };
+    const tt = this._tt();
+    const seat = tt ? this._mySeat() : null;
+    const mine = seat && tt.players[seat] && tt.players[seat].team;
+    if (mine) {
+      const other = mine === 'A' ? 'B' : 'A';
+      return side === 'player' ? mine : other;
+    }
     return map.A === side ? 'A' : 'B';
   },
   _seatsOnSide(side) {
@@ -481,7 +506,10 @@ const BoardV2 = {
   _fillRailLog(s) {
     const box = document.querySelector('#bv2-rail-left .ba-log');
     if (!box) return;
-    const lines = (s && s.log) || [];
+    // Through the same viewer filter every other log surface uses — this rail
+    // was printing private lines verbatim, tag characters and all.
+    const lines = (typeof UI !== 'undefined' && UI.readableLog)
+      ? UI.readableLog(s && s.log) : ((s && s.log) || []);
     if (!lines.length) return;
     const lineH = parseFloat(getComputedStyle(box).lineHeight) || 16;
     const room  = box.clientHeight || 0;

@@ -500,6 +500,59 @@ t('AT-17 a face-down card cannot be copied, so it is not a target', function () 
   eq('readable lane scores as the copy', asSeen.attack + '/' + asSeen.currentHealth, '5/5');
 });
 
+// ============================================================
+// AT-18/19 — a bounce is worth what it UNDOES, not what it cost.
+//
+// Phantom Zone's picker was `cards.sort((a,b) => b.cost - a.cost)[0]`. On the
+// reported board that is off by one: Emperor Palpatine at cost 8 beats Silver
+// Surfer at 7, so the bot bounced the body and left the tax running. Surfer's
+// passive makes every card the bouncing side plays cost 1 more, which is the
+// whole reason to remove him. (Owner: "he bounced the Palpatine, which is
+// terrible because the enemy had silver surfer on the field — if he bounced
+// surfer we could play high cards.")
+// ============================================================
+t('AT-18 the bounce takes the standing tax over the bigger body', function () {
+  clearBoard();
+  var surfer = mk('Silver Surfer', 'player');
+  var palp   = mk('Emperor Palpatine', 'player');
+  eq('Surfer is the CHEAPER of the two', (surfer.baseCost || surfer.cost) < (palp.baseCost || palp.cost), true);
+  eq('and he is the one carrying the tax', surfer.passive, 'enemyCostIncrease');
+  Game.state.lanes[1].player = palp;
+  Game.state.lanes[3].player = surfer;
+
+  var pick = Game.pickBounceTarget([palp, surfer], 'ai');
+  eq('so he is the bounce', pick && pick.name, 'Silver Surfer');
+  // And the ordering is not an accident of the list order.
+  eq('either way round', (Game.pickBounceTarget([surfer, palp], 'ai') || {}).name, 'Silver Surfer');
+  // The picker must not reorder the caller's array — it is the live prompt list.
+  var arr = [palp, surfer];
+  Game.pickBounceTarget(arr, 'ai');
+  eq('and the list handed in is untouched', arr[0] === palp && arr[1] === surfer, true);
+});
+
+t('AT-19 with nothing standing, the bounce falls back to tempo and buffs', function () {
+  clearBoard();
+  var small = mk('Sabertooth', 'player');
+  var big   = mk('Emperor Palpatine', 'player');
+  Game.state.lanes[0].player = small;
+  Game.state.lanes[2].player = big;
+  eq('the expensive body wins when neither has a passive',
+     (Game.pickBounceTarget([small, big], 'ai') || {}).name, 'Emperor Palpatine');
+
+  // A buff above base is erased by the return, so it counts toward the pick.
+  // Compared against ANOTHER COPY OF ITSELF, deliberately: Palpatine is not the
+  // vanilla control he looks like — he carries doubleFrozenDamage, so bouncing
+  // him genuinely undoes something and the scorer is right to pay for it. Two
+  // identical cards isolate the buff term and nothing else.
+  var plain  = mk('Sabertooth', 'player');
+  var pumped = mk('Sabertooth', 'player');
+  pumped.attack = (pumped.baseAttack || pumped.attack) + 12;
+  Game.state.lanes[4].player = plain;
+  Game.state.lanes[5].player = pumped;
+  eq('the buffed copy is the bounce', Game.pickBounceTarget([plain, pumped], 'ai') === pumped, true);
+  eq('and order does not decide it', Game.pickBounceTarget([pumped, plain], 'ai') === pumped, true);
+});
+
 // ---- run ----------------------------------------------------
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];

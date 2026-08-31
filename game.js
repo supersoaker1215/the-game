@@ -1686,7 +1686,9 @@ const Game = {
     });
 
     p.redrawsUsed = (p.redrawsUsed | 0) + 1;
-    this.log(`${this.seatLabel(owner)} redraws ${card.name} for ${cost} Energy (next redraw: ${this.getRedrawCost(owner)}).`);
+    this.logEither(owner,
+      `${this.seatLabel(owner)} redraws ${card.name} for ${cost} Energy (next redraw: ${this.getRedrawCost(owner)}).`,
+      `${this.seatLabel(owner)} redraws a card for ${cost} Energy.`);
     // Through drawCards, NOT addToHand — that is the documented trap. Foresee
     // once bypassed the Lex guard by calling addToHand directly, and a redraw
     // reaching into the pile itself would repeat it.
@@ -1751,7 +1753,12 @@ const Game = {
       this.drawCards(side, 1, { _2v2PlayedBy: seatKey });
     });
     seat.redrawsUsed = (seat.redrawsUsed | 0) + 1;
-    this.log(`${seat.name || seatKey} redraws ${live.name} for ${cost} Energy (next redraw: ${this.getRedrawCost(null, seatKey)}).`);
+    // Named for the seat that spent the energy, a bare count for everyone else
+    // — this is the exact line the owner caught leaking ("Ryan redraws Wonder
+    // Woman"), and seatKey is stable across clients where a side is not.
+    this.logEither(seatKey,
+      `${seat.name || seatKey} redraws ${live.name} for ${cost} Energy (next redraw: ${this.getRedrawCost(null, seatKey)}).`,
+      `${seat.name || seatKey} redraws a card for ${cost} Energy.`);
     if (typeof UI !== 'undefined' && UI.render) UI.render();
     this._pushOnlineState();
     return true;
@@ -9181,11 +9188,16 @@ const Game = {
       drawn.push(card.name);
     }
     if (drawn.length) {
-      if (owner === 'player') {
-        this.log(`[DRAW] ${who} draw ${drawn.length}: ${drawn.join(', ')}`);
-      } else {
-        this.log(`[DRAW] ${who} draw ${drawn.length} cards`);
-      }
+      // WHAT you drew is yours; THAT you drew is the table's. The old test was
+      // `owner === 'player'`, which is the 1v1 assumption: in 2v2 'player' is
+      // Team A no matter who is looking, so one team's draws were named in
+      // everyone's log and the other team's were hidden from their own owners.
+      // (Owner: "the log shouldnt show drawn cards, that would be cheating —
+      // i should see that he redrew WW.")
+      const _n = drawn.length;
+      this.logEither(this._logHandSeat(owner, source),
+        `[DRAW] ${who} draw ${_n}: ${drawn.join(', ')}`,
+        `[DRAW] ${who} draw ${_n} card${_n > 1 ? 's' : ''}`);
     }
     this.log(`  Draw pile: ${this.getDrawPile(owner).length} cards remaining`);
   },
@@ -10318,7 +10330,49 @@ const Game = {
   logLineText(line) {
     if (typeof line !== 'string' || line.charCodeAt(0) !== 1) return line;
     const end = line.indexOf('\u0001', 1);
-    return end > 1 ? line.slice(end + 1) : line;
+    const body = end > 1 ? line.slice(end + 1) : line;
+    const cut = body.indexOf('\u0002');
+    return cut >= 0 ? body.slice(0, cut) : body;
+  },
+  // A LINE WITH TWO FORMS: what its owner reads, and what the table reads.
+  //
+  // logPrivate hides a line completely, which is right for a jump warning —
+  // there is nothing about it anyone else should see. A draw is different: THAT
+  // you drew is public, WHAT you drew is not. Written as one entry with both
+  // forms so the log still reads as a single event, and so the redactor can
+  // hand a guest the public half instead of dropping the beat entirely.
+  //
+  //   \u0001seat\u0001<what the owner reads>\u0002<what everyone else reads>
+  //
+  // Same in-band tagging as logPrivate, for the same reason: every path that
+  // copies, trims, serializes or replays the log keeps working untouched.
+  logEither(seat, privateText, publicText) {
+    if (!seat) return this.log(publicText != null ? publicText : privateText);
+    this.log('\u0001' + seat + '\u0001' + privateText + '\u0002' + publicText);
+  },
+  // What a viewer who may NOT read this line should see — null when the line
+  // has no public half and must be dropped outright.
+  logLinePublic(line) {
+    if (typeof line !== 'string' || line.charCodeAt(0) !== 1) return line;
+    const cut = line.indexOf('\u0002');
+    return cut >= 0 ? line.slice(cut + 1) : null;
+  },
+  // Which seat's hand did this gain land in? 2v2 routes by seat, so the tag has
+  // to be the seat key — a side is a TEAM and would show your opponent's draws
+  // to their teammate's opponent. Outside 2v2 the side is the identity.
+  _logHandSeat(owner, source) {
+    const tt = this.state && this.state.twoVTwo;
+    if (tt && tt.players && this.is2v2 && this.is2v2()) {
+      try {
+        const t = this._2v2HandTarget && this._2v2HandTarget(owner, source);
+        if (t) {
+          const k = this._2v2SLOTS.find(pk => tt.players[pk] === t);
+          if (k) return k;
+        }
+      } catch (e) {}
+      return null;                      // unresolved: public count only
+    }
+    return owner || null;
   },
   // A jump line belongs to whoever is HOLDING the card — the seat in 2v2, the
   // side in 1v1. Resolved by looking for the card rather than by threading a
@@ -12476,6 +12530,80 @@ const Game = {
     const p = this.state[side];
     return (p && p.health != null) ? p.health : null;
   },
+  // WHAT IS THIS ENEMY DOING TO ME *EVERY TURN*?
+  //
+  // threatOf prices the swing. It says nothing about a card whose damage is
+  // zero and whose whole job is a standing tax, and those are exactly the cards
+  // worth removing. `passive` is the engine's own marker for one — getCardCost
+  // reads `passive === 'enemyCostIncrease'`, canDrawToHand reads 'preventDraw'
+  // — so the AI can ask the same question the rules do instead of naming cards.
+  // Weighted by how much the passive costs the side doing the picking; anything
+  // else standing is still doing work for its owner, so it is worth a little.
+  _HOSTILE_PASSIVE_VALUE: {
+    preventDraw:         8,   // Lex — no draws at all
+    enemyCostIncrease:   6,   // Silver Surfer — every card I play costs more
+    trickCostIncrease:   4,
+    absorbPlayerDamage:  4,
+    splashWeaken:        3,
+  },
+  disruptionValue(card) {
+    if (!card || card.currentHealth <= 0) return 0;
+    const p = card.passive;
+    if (!p) return 0;
+    const v = this._HOSTILE_PASSIVE_VALUE[p];
+    return v != null ? v : 2;
+  },
+
+  // THE PICK FOR "SEND ONE ENEMY BACK TO THEIR HAND".
+  //
+  // Phantom Zone sorted by cost and took the top, which answers "which is their
+  // most expensive card" — a different question, and off by one on the board
+  // that surfaced it: Emperor Palpatine at 8 beat Silver Surfer at 7, so the
+  // bot bounced the body and left the tax running. (Owner: "my AI teammate got
+  // phantom zone, he bounced the Palpatine, which is terrible because the enemy
+  // had silver surfer on the field — if he bounced surfer we could play high
+  // cards.") Exactly right: Surfer makes every card we play cost 1 more, so
+  // removing him is what lets the expensive cards out of our hand.
+  //
+  // A bounce is worth the sum of what it undoes:
+  //   • the standing passive stops (the thing cost alone cannot see)
+  //   • they paid the cost once and have to pay it again — tempo
+  //   • it returns at BASE stats, so every buff above base is erased
+  //   • and if their hand is full it is not a bounce at all, it is a kill
+  pickBounceTarget(cards, owner) {
+    if (!cards || !cards.length) return null;
+    let best = cards[0], bestScore = -Infinity;
+    for (let i = 0; i < cards.length; i++) {
+      const c = cards[i];
+      if (!c) continue;
+      let s = this.disruptionValue(c) * 3;
+      s += (c.baseCost != null ? c.baseCost : (c.cost || 0));
+      // WHAT "BASE" MEANS HERE IS THE CARD DEF, not the instance. Most board
+      // instances never carry baseAttack/baseHealth at all — only cards that
+      // rewrite their own stats set them — so reading the instance made the
+      // delta zero for almost everything and the whole term dead. Phantom Zone
+      // rebuilds the returned card from CARD_DEFS, so the picker asks the same
+      // source the effect does and the two cannot disagree about what is lost.
+      const _def = (typeof CARD_DEFS !== 'undefined')
+        ? CARD_DEFS.find(d => d.name === c.name) : null;
+      const bAtk = c.baseAttack != null ? c.baseAttack
+                 : (_def ? (_def.attack || 0) : (c.attack || 0));
+      const bHp  = c.baseHealth != null ? c.baseHealth
+                 : (_def ? (_def.health || 0) : (c.maxHealth || 0));
+      s += Math.max(0, (c.attack || 0) - bAtk);
+      s += Math.max(0, (c.maxHealth || 0) - bHp);
+      // A full hand turns the return into a removal — see the card's own text,
+      // "if their hand is full, it is lost".
+      try {
+        const holder = this._2v2HandTarget ? this._2v2HandTarget(c.owner, c) : this.state[c.owner];
+        const cap = (holder && holder.maxHandSize) || 7;
+        if (holder && (holder.hand || []).length >= cap) s += 25;
+      } catch (e) {}
+      if (s > bestScore) { bestScore = s; best = c; }
+    }
+    return best;
+  },
+
   // The AI picker every enemy-neutralising effect should hand to
   // promptCardChoice. Ties keep board order, which is stable.
   pickBiggestThreat(cards, owner) {
@@ -20907,7 +21035,11 @@ const Game = {
     }
     // Private log lines never leave the host for a seat that may not read them.
     if (Array.isArray(out.log) && out.log.some(l => this.logLineSeat(l))) {
-      out.log = out.log.filter(l => { const o = this.logLineSeat(l); return !o || o === seat; });
+      // A line this seat may not read is replaced by its PUBLIC half, or
+      // dropped when it has none. Either way the private bytes never leave.
+      out.log = out.log
+        .map(l => { const o = this.logLineSeat(l); return (!o || o === seat) ? l : this.logLinePublic(l); })
+        .filter(l => l != null);
     }
     out.twoVTwo = Object.assign({}, tt, {
       players, you: seat,

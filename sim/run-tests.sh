@@ -94,6 +94,9 @@ run_suite sim/absorbed-hit.js
 echo ""
 echo "=== seat-scope.js (your cards, not your team's) ==="
 run_suite sim/seat-scope.js
+echo ""
+echo "=== log-secrecy.js (what you drew is yours) ==="
+run_suite sim/log-secrecy.js
 
 echo ""
 if [ "$FAIL" -ne 0 ]; then

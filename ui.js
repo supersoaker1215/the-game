@@ -20613,7 +20613,7 @@ const UI = {
         // Same filter the live drawer applies — a saved replay must not
         // resurrect a line this client was never allowed to read, and it must
         // not store the raw control-char tag either.
-        log: (s.log || []).filter(l => this._logLineMine(l)).map(l => Game.logLineText(l)),
+        log: this.readableLog(s.log),
         hpHistory: (s._hpHistory || []).slice(),
         // Board-playback frames for the animated replay viewer. Captured
         // client-side on every board change (Game._liveReplayFrames), so this
@@ -28365,6 +28365,23 @@ const UI = {
   // public. This is what keeps a private line off the host's screen: the host
   // holds the authoritative state, so redaction cannot help there — the render
   // has to decline to show it.
+  // THE VIEWER-SAFE LOG, IN ONE PLACE.
+  //
+  // THREE surfaces print state.log — the full drawer, the board aside, and the
+  // redesign's left rail — and only the drawer ever filtered it. The other two
+  // took `s.log` raw, so every private line was rendered verbatim, control
+  // characters and all, on the two surfaces that are ALWAYS on screen. The jump
+  // secrecy this channel exists for ("make sure when a character is jumping the
+  // host cant see who") was being defeated by the board it was protecting.
+  //
+  // Untagged lines pass straight through, a line addressed to this screen shows
+  // its private form, and anyone else gets the public half or nothing.
+  readableLog(log) {
+    const arr = log || [];
+    if (!Game.logLineSeat || !arr.some(l => Game.logLineSeat(l))) return arr;
+    return arr.map(l => this._logLineMine(l) ? Game.logLineText(l) : Game.logLinePublic(l))
+              .filter(l => l != null);
+  },
   _logLineMine(line) {
     const seat = Game.logLineSeat && Game.logLineSeat(line);
     if (!seat) return true;
@@ -28424,7 +28441,7 @@ const UI = {
         <div class="ba-fc-cell"><b class="ba-num ba-take">${f.youTake}</b><span class="ba-cap">You take</span></div>
         <div class="ba-fc-cell"><b class="ba-num ${f.net >= 0 ? 'ba-good' : 'ba-bad'}">${sign(f.net)}</b><span class="ba-cap">Net</span></div>
       </div>` : '';
-    const lines = (s.log || []).slice(-3).reverse()
+    const lines = this.readableLog(s.log).slice(-3).reverse()
       .map((t, i) => `<div class="ba-log-line${i === 0 ? ' is-latest' : ''}">${t}</div>`).join('');
     const lg = lines ? `
       <div class="ba-rule"><span class="ba-rule-label">Log</span><span class="ba-rule-line"></span></div>
@@ -28468,9 +28485,7 @@ const UI = {
     // PRIVATE LINES FIRST, before the tail is taken — otherwise a run of
     // another seat's hidden lines would eat into the 80 this client can see.
     // A line nobody claims is public and passes straight through.
-    const readable = s.log.some(l => Game.logLineSeat && Game.logLineSeat(l))
-      ? s.log.filter(l => this._logLineMine(l)).map(l => Game.logLineText(l))
-      : s.log;
+    const readable = this.readableLog(s.log);
     const visible = readable.length > LOG_TAIL ? readable.slice(-LOG_TAIL) : readable;
     const tagColors = {
       'HIT': '#e74c3c', 'KILLED': '#c0392b', 'DEAD': '#c0392b',

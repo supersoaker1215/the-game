@@ -682,7 +682,10 @@ const TRICK_DEFS = [
           G.addToHand(t.owner, fresh, null, null, 'Bounced by Phantom Zone');
           if (_dpTt && _dpTt.online) G._2v2CurrentActingPlayer = _savedActor;
           G.log(`Phantom Zone bounces ${t.name}!`);
-        }, cards => cards.sort((a, b) => b.cost - a.cost)[0]);
+          // Highest cost is not the same question as "what does removing this
+          // buy me" — see Game.pickBounceTarget. It also SORTED the array it
+          // was handed, which is the prompt's own list.
+        }, cards => G.pickBounceTarget(cards, owner));
       }
     }
   },
