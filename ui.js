@@ -1920,11 +1920,11 @@ const UI = {
       // an entry there only ever fires on codex hover.
       // 'play' and not 'ability': the play hook always fires 'play'; 'ability'
       // is never auto-fired, only when an ability calls it explicitly.
-      'Ray Gun':             { play: 'audio/cards/ray-gun-play.mp3' },
-      'Thundergun':          { play: 'audio/cards/thundergun-play.mp3' },
-      'Lightning Bow':       { play: 'audio/cards/lightning-bow-play.mp3' },
-      'Wunderwaffe DG-3 JZ': { play: 'audio/cards/wunderwaffe-play.mp3' },
-      'Apothicon Servant':   { play: 'audio/cards/apothicon-servant-play.mp3' },
+      'Ray Gun':               { play: { src: 'audio/cards/ray-gun-play.mp3', noFade: true, fullDuration: true } },
+      'Thundergun':            { play: { src: 'audio/cards/thundergun-play.mp3', noFade: true, fullDuration: true } },
+      'Lightning Bow':         { play: { src: 'audio/cards/lightning-bow-play.mp3', noFade: true, fullDuration: true } },
+      'Wunderwaffe DG-3 JZ':   { play: { src: 'audio/cards/wunderwaffe-play.mp3', noFade: true, fullDuration: true } },
+      'Apothicon Servant':     { play: { src: 'audio/cards/apothicon-servant-play.mp3', noFade: true, fullDuration: true } },
       // Vader hover = imperial breath; death = injured-breath sting
       // (3s, longer than the 1.5s default cap — `maxDur: 3.5` lets the
       // dying breath play out fully rather than getting clipped). Not
@@ -2402,11 +2402,11 @@ const UI = {
       // that is known to work. (Owner: "just make the sounds play for the guns
       // like you make the sound play for the candies".) The CARD_SFX entries
       // stay for hover and any other card-path lookup.
-      'Ray Gun':             { play: 'audio/cards/ray-gun-play.mp3' },
-      'Thundergun':          { play: 'audio/cards/thundergun-play.mp3' },
-      'Lightning Bow':       { play: 'audio/cards/lightning-bow-play.mp3' },
-      'Wunderwaffe DG-3 JZ': { play: 'audio/cards/wunderwaffe-play.mp3' },
-      'Apothicon Servant':   { play: 'audio/cards/apothicon-servant-play.mp3' }
+      'Ray Gun':             { play: { src: 'audio/cards/ray-gun-play.mp3', noFade: true, fullDuration: true } },
+      'Thundergun':          { play: { src: 'audio/cards/thundergun-play.mp3', noFade: true, fullDuration: true } },
+      'Lightning Bow':       { play: { src: 'audio/cards/lightning-bow-play.mp3', noFade: true, fullDuration: true } },
+      'Wunderwaffe DG-3 JZ': { play: { src: 'audio/cards/wunderwaffe-play.mp3', noFade: true, fullDuration: true } },
+      'Apothicon Servant':   { play: { src: 'audio/cards/apothicon-servant-play.mp3', noFade: true, fullDuration: true } }
     },
     DEFAULT_TRICK_SFX: { hover: null, play: null },
 
@@ -4111,8 +4111,18 @@ const UI = {
         pick.addEventListener('ended', () => this._activeNonHover.delete(pick), { once: true });
         pick.addEventListener('pause', () => this._activeNonHover.delete(pick), { once: true });
       }
-      const fadeInMs = (opts && opts.fadeIn) ? opts.fadeIn : 130;
-      this._fadeVolume(pick, vol, fadeInMs, '_fadeInInterval');
+      // NO FADE, FOR CUES THAT MUST SIMPLY BE HEARD. The ramp is driven by
+      // requestAnimationFrame, so anywhere rAF is throttled — a background tab,
+      // a hidden pane — the volume never leaves 0 and the cue plays silently.
+      // Setting it outright removes both the fade-in and that failure mode.
+      // (Owner: "make sure for all the gun sounds there is no fade out but it
+      // works".) The fade-out is skipped through the same flag below.
+      if (opts && opts.noFade) {
+        pick.volume = vol;
+      } else {
+        const fadeInMs = (opts && opts.fadeIn) ? opts.fadeIn : 130;
+        this._fadeVolume(pick, vol, fadeInMs, '_fadeInInterval');
+      }
       // Fade OUT — schedule an ease-out ramp that lands at the clip's
       // natural end OR at the requested `maxDur` cap, whichever is
       // shorter. Per-event tail duration via opts.fadeOut (hover 2000ms,
@@ -4181,6 +4191,7 @@ const UI = {
         const opts = { maxDur: entry.maxDur };
         if (entry.fullDuration !== undefined) opts.fullDuration = entry.fullDuration;
         if (entry.gain !== undefined) opts.gain = entry.gain;
+        if (entry.noFade !== undefined) opts.noFade = entry.noFade;
         return { src: entry.src, opts };
       }
       return null;

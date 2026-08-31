@@ -13639,6 +13639,7 @@ const Game = {
   },
 
   promptLaneChoice(owner, lanes, title, desc, callback, targetSide, previewCard, previewDamage, options) {
+    callback = this._bindTrickWindow(callback);
     // PROMPT QUEUE — a prompt is already open, so defer this arm instead of
     // clobbering the slot. The thunk re-enters this function on drain with
     // destroyed lanes filtered out; callbacks with stricter needs (summon
@@ -13851,7 +13852,30 @@ const Game = {
     }
   },
 
+  // KEEP THE TRICK'S OWNERSHIP ALIVE ACROSS THE PROMPT. A trick that asks a
+  // question resolves its effect inside the callback, which runs long after
+  // playTrick returned and cleared state._inTrick — so any kill it caused was
+  // attributed to nobody and the Shadow Man's "most cards killed" ignored it.
+  // Measured: a one-target trick credited the kill, the same trick with a
+  // target prompt credited nothing. 2v2 never had this because its prompts
+  // re-bind the seat (_2v2WithSeatBound); this is the 1v1 equivalent, and it
+  // wraps the callback at CREATION so every resolution path inherits it rather
+  // than each invocation site needing to remember.
+  _bindTrickWindow(callback) {
+    if (typeof callback !== 'function') return callback;
+    const owner = this.state && this.state._inTrick ? this.state._trickOwner : null;
+    if (!owner) return callback;
+    const self = this;
+    return function (...args) {
+      const wasIn = self.state._inTrick, wasOwner = self.state._trickOwner;
+      self.state._inTrick = true; self.state._trickOwner = owner;
+      try { return callback.apply(this, args); }
+      finally { self.state._inTrick = wasIn; self.state._trickOwner = wasOwner; }
+    };
+  },
+
   promptCardChoice(owner, cards, title, desc, callback, aiPicker, options) {
+    callback = this._bindTrickWindow(callback);
     // PROMPT QUEUE — see promptLaneChoice. The thunk drops board cards that
     // died while waiting (entries WITHOUT currentHealth — synthetic choices
     // like Darkseid's lane list or Kang's defs — pass through untouched).
@@ -16689,13 +16713,24 @@ const Game = {
     const tt = this.state.twoVTwo;
     if (!tt || !tt.players) {
       // 1v1 / solo: no seat table — the card's own side identifies the scorer.
-      const side = (source && source.owner) || null;
+      // A TRICK HAS NO SIDE OF ITS OWN. Tricks hand `{ name: 'Seismic Charge' }`
+      // to dealDamage/killCard as the source, and that object carries no owner,
+      // so a kill a trick caused credited nobody — measured as 0 while the same
+      // kill from a card source scored 1. (Owner: "the tricks should count
+      // towards cards killed if you played a trick to cause that".) state._
+      // trickOwner is set for exactly the window a trick is resolving, which is
+      // when any kill it causes lands, so it is the right thing to fall back to.
+      const side = (source && source.owner)
+        || (this.state._inTrick ? this.state._trickOwner : null)
+        || null;
       return (side === 'player' || side === 'ai') ? side : null;
     }
     const pick = (source && (source._2v2PlayedBy || source._mcSeat))
       || this._2v2AbilityOwner()
       || this._2v2CurrentActingPlayer
       || null;
+    // (2v2 needs no _trickOwner fallback: playTrick runs the body inside
+    // _2v2RunOwned, so _2v2AbilityOwner() above already names the caster.)
     return (pick && tt.players && tt.players[pick]) ? pick : null;
   },
 
