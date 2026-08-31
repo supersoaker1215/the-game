@@ -16176,8 +16176,21 @@ const Game = {
   // certainty in a long one, so the 50/50 above stays the number that decides
   // it. Measured over 3000 matches: ~9% per round across rounds 3-7 rather
   // than 16% collapsing to 3%.
+  // Superseded by the even-odds pick in _maybeBallyhoo once he became
+  // guaranteed; kept because they are what an OCCASIONAL Ballyhoo would use
+  // again if _BALLYHOO_MATCH_CHANCE ever drops below 1.
   _BALLYHOO_ROUND_CHANCE: 0.18,
   _BALLYHOO_CHANCE_RAMP: 0.05,
+  // HE ALWAYS COMES NOW. Was a 50/50 per match; the owner asked for 100%.
+  // Kept as a constant rather than deleting the roll, so dialling him back to
+  // an occasional event is one number rather than restoring machinery.
+  _BALLYHOO_MATCH_CHANCE: 1.0,
+  // …and a floor under it. The per-round chance above still decides WHICH
+  // round, which keeps him unpredictable — but a chance is not a guarantee,
+  // and a match that ended early could still finish without him even at 100%.
+  // If he has not turned up by this round he simply turns up. So: varied
+  // between rounds 3 and 5, certain by 5, in every match that reaches it.
+  _BALLYHOO_LATEST_ROUND: 5,
 
   _rollBallyhoo() {
     const s = this.state;
@@ -16187,7 +16200,7 @@ const Game = {
     // 50/50 honest — fold it into the per-round roll and a long match would
     // almost always get him while a short one almost never would, which is a
     // different game entirely.
-    s._ballyhoo = { shows: this.rng() < 0.5, fired: false };
+    s._ballyhoo = { shows: this.rng() < this._BALLYHOO_MATCH_CHANCE, fired: false };
   },
 
   // HOW LONG THE TABLE IS HELD. The arrival is a 10s lead-in plus two 3.2s
@@ -16222,9 +16235,17 @@ const Game = {
     // Rounds 1-2 are the opening: hands are small and a free trick there reads
     // as part of the deal rather than as an event.
     if ((roundNow | 0) < this._BALLYHOO_FIRST_ROUND) return;
-    const chance = Math.min(0.6, this._BALLYHOO_ROUND_CHANCE
-      + this._BALLYHOO_CHANCE_RAMP * ((roundNow | 0) - this._BALLYHOO_FIRST_ROUND));
-    if (this.rng() >= chance) return;
+    // EVEN ODDS ACROSS THE WINDOW. Now that he is guaranteed, the question is
+    // only WHICH of rounds 3-5 he takes, and it should be a fair third each.
+    // A fixed per-round chance cannot do that with a backstop on the end: at a
+    // flat 18-28% the first two rounds rarely fired and the backstop swept up
+    // 63% of all arrivals onto round 5, which is not a surprise appearance, it
+    // is a scheduled one. 1/(rounds left) gives each remaining round an equal
+    // share — 1/3 at round 3, 1/2 at round 4, certain at 5 — so the spread is
+    // uniform and the backstop is just the last term rather than a dumping
+    // ground.
+    const roundsLeft = (this._BALLYHOO_LATEST_ROUND || Infinity) - (roundNow | 0) + 1;
+    if (roundsLeft > 1 && this.rng() >= (1 / roundsLeft)) return;
     b.fired = true;
 
     // One candy per player, all different, dealt at random. With four seats
