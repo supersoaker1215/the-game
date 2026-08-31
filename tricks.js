@@ -975,7 +975,7 @@ const CANDY_DEFS = [
         "Choose an ally to gain Overdrive and +2/+2 for a turn",
         (t) => {
           if (!t) return;
-          if (typeof UI !== 'undefined' && UI._fxTrickBuff) { try { UI._fxTrickBuff(t, '#ffd34a', '#ff8a00'); } catch (e) {} }
+          if (typeof UI !== 'undefined' && UI._fxCandyTwice) { try { UI._fxCandyTwice(t); } catch (e) {} }
           // ONE TURN, per the house rule: a buff granted to ANOTHER card with
           // no stated duration lasts a turn. grantTempBuff takes the numeric
           // props additively and the boolean set-and-revert, so Overdrive
@@ -993,7 +993,7 @@ const CANDY_DEFS = [
     name: "Cashzap Candy", cost: 0, _isCandy: true,
     desc: "Steal 1 Energy from every other player.",
     play(G, owner) {
-      if (typeof UI !== 'undefined' && UI._fxTrickStrike) { try { UI._fxTrickStrike(null, '#4ad9ff', '#0090c8'); } catch (e) {} }
+      if (typeof UI !== 'undefined' && UI._fxCandyCash) { try { UI._fxCandyCash(null); } catch (e) {} }
       const tt = G.state.twoVTwo;
       // 2v2 keeps energy on the SEAT, not on the side proxy, so a side-level
       // spend would take it from whichever teammate the bridge happens to be
@@ -1043,7 +1043,7 @@ const CANDY_DEFS = [
         G.log('Vampire Candy: the enemy team is already down to 1 — nothing left to drain.');
         return;
       }
-      if (typeof UI !== 'undefined' && UI._fxDrainSiphon) { try { UI._fxDrainSiphon(null, '#c81e1e'); } catch (e) {} }
+      if (typeof UI !== 'undefined' && UI._fxCandyVampire) { try { UI._fxCandyVampire(); } catch (e) {} }
       // Straight through damagePlayer/healPlayer so block meters, damage
       // tracking and the 2v2 team read-back all behave as they do for any
       // other hit. You gain exactly what they lost.
@@ -1062,7 +1062,8 @@ const CANDY_DEFS = [
       // RANDOM, not chosen — through G.rng so a seeded run stays reproducible.
       const t = enemies[Math.floor(G.rng() * enemies.length)];
       const l = G.findCardLane(t);
-      if (typeof UI !== 'undefined' && UI._fxTrickBurst) { try { UI._fxTrickBurst(t, '#8a5cff', '#d7c4ff'); } catch (e) {} }
+      // Fired BEFORE removeFromLane, or there is no card element left to blow.
+      if (typeof UI !== 'undefined' && UI._fxCandyBloway) { try { UI._fxCandyBloway(t); } catch (e) {} }
       G.removeFromLane(t, l);
       // Fresh instance at base stats, exactly as Phantom Zone does.
       const def = (typeof CARD_DEFS !== 'undefined' && CARD_DEFS.find(d => d.name === t.name)) || t;
@@ -1134,7 +1135,17 @@ const WONDER_DEFS = [
           const opp = G.opponent(owner);
           const at = G.findCardLane(t);
           if (at < 0) return;
-          if (typeof UI !== 'undefined' && UI._fxChainArc) { try { UI._fxChainArc(t, '#7dff5a', '#1f8f2f'); } catch (e) {} }
+          // FX fires before the damage so the bolt lands on cards that are
+          // still on screen — and it is handed the exact splash targets and the
+          // recoil victim, so the animation shows what actually resolves.
+          if (typeof UI !== 'undefined' && UI._fxRayGun) {
+            try {
+              const _sides = [-1, 1].map(d => { const l = G.state.lanes[at + d]; return l && l[opp]; })
+                .filter(c => c && c.currentHealth > 0);
+              const _own = G.state.lanes[at] && G.state.lanes[at][owner];
+              UI._fxRayGun(t, _sides, (_own && _own.currentHealth > 0) ? _own : null);
+            } catch (e) {}
+          }
           G.log(`Ray Gun: a green bolt slams into ${t.name} for 7.`);
           G.dealDamage(t, 7, { name: 'Ray Gun' });
           [-1, 1].forEach(dir => {
@@ -1196,7 +1207,17 @@ const WONDER_DEFS = [
             if (cand >= 0 && cand < Game.LANE_COUNT && !G.state.lanes[cand].destroyed) { to = cand; break; }
           }
           if (to < 0) { G.log('Thundergun: nowhere to blast it to.'); return; }
-          if (typeof UI !== 'undefined' && UI._fxTrickStrike) { try { UI._fxTrickStrike(t, '#ffe27a', '#ff8a00'); } catch (e) {} }
+          if (typeof UI !== 'undefined' && UI._fxThundergun) {
+            try {
+              const _step = (to > from) ? 1 : -1;
+              const _path = [];
+              for (let i = from + _step; i !== to; i += _step) {
+                const l = G.state.lanes[i], c = l && l[opp];
+                if (c && c !== t && c.currentHealth > 0) _path.push(c);
+              }
+              UI._fxThundergun(t, _path, G.state.lanes[to] && G.state.lanes[to][opp]);
+            } catch (e) {}
+          }
           // EVERYTHING IN THE PATH IS HIT ON THE WAY PAST. Previously the card
           // flew straight over an occupied lane and left it untouched, which is
           // not what being blasted through a line of bodies should look like.
@@ -1266,7 +1287,7 @@ const WONDER_DEFS = [
       G.promptCardChoice(owner, enemies, "Lightning Bow — STORM MARK",
         "Choose an enemy to shoot and Mark", (t) => {
           if (!t) return;
-          if (typeof UI !== 'undefined' && UI._fxChainArc) { try { UI._fxChainArc(t, '#9ad8ff', '#3aa0ff'); } catch (e) {} }
+          if (typeof UI !== 'undefined' && UI._fxStormMark) { try { UI._fxStormMark(t); } catch (e) {} }
           G.dealDamage(t, 4, { name: 'Lightning Bow' });
           // The mark carries its OWNER so the delayed strike can still be
           // credited to the player who fired it — the strike lands at end of
@@ -1301,8 +1322,8 @@ const WONDER_DEFS = [
       }
       if (!row.length) { G.log('Wunderwaffe DG-3 JZ: nothing to conduct through.'); return; }
       G.log(`Wunderwaffe DG-3 JZ: the current runs the line through ${row.length} card${row.length === 1 ? '' : 's'}.`);
+      if (typeof UI !== 'undefined' && UI._fxGroundCurrent) { try { UI._fxGroundCurrent(row); } catch (e) {} }
       row.forEach(c => {
-        if (typeof UI !== 'undefined' && UI._fxChainArc) { try { UI._fxChainArc(c, '#d8ff7a', '#7ad8ff'); } catch (e) {} }
         G.log(`  [CURRENT] It passes through ${c.name} for 2.`);
         G.dealDamage(c, 2, { name: 'Wunderwaffe DG-3 JZ' });
       });
@@ -1339,7 +1360,9 @@ const WONDER_DEFS = [
       const tear = (lane) => {
         if (lane == null || !G.state.lanes[lane]) return;
         G.state.lanes[lane]._rift = { rounds: 2, side: opp, owner, eaten: 0, firstClaimed: false };
-        if (typeof UI !== 'undefined' && UI._fxStrangePortal) { try { UI._fxStrangePortal(null, lane); } catch (e) {} }
+        // Its own effect rather than the shared portal: a rift is a hole that
+        // pulls inward, so everything contracts instead of bursting outward.
+        if (typeof UI !== 'undefined' && UI._fxRiftTear) { try { UI._fxRiftTear(lane, opp); } catch (e) {} }
         G.log(`Apothicon Servant: an Apothicon Rift tears open in lane ${lane + 1}!`);
         // Anything already standing in it is pulled in immediately — and being
         // first, it is the one swallowed whole.

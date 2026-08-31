@@ -9750,6 +9750,191 @@ const UI = {
     this._fxSparks(c, { color: color || '#ffd27a', glow: glow || '#ff5a2e', count: 12, spread: 58, size: 2.6 });
     if (el) this._fxRing(el, { color: color || '#ff5a2e' });
   },
+  // ══ SHADOW MAN'S WONDER WEAPONS AND MC BALLYHOO'S CANDIES ══════════════
+  // One effect per card, each shaped to what that card actually does, so the
+  // animation reads as the rule rather than as generic sparkle. All are _fx-
+  // prefixed, which is what puts them on the 2v2 relay so every seat sees them
+  // (see installFxBridge), and every one bails on reduced motion.
+
+  // RAY GUN — a green plasma bolt in, splash either side, and the blast washing
+  // BACK over your own card. The recoil is the card's whole identity, so it is
+  // drawn as a return stroke rather than just another hit.
+  _fxRayGun(targetCard, sideCards, ownCard) {
+    if (this._reducedMotion() || !targetCard) return;
+    const tEl = this._fxCardElById(targetCard.id);
+    const to = this._fxCenter(tEl);
+    if (!to) return;
+    this._fxDrawBolt({ x: to.x, y: to.y + 260 }, to, { color: '#7dff5a', glow: '#1f8f2f', thickness: 6 });
+    this._fxImpact(to, { color: '#7dff5a', core: '#eaffe0', size: 1.15 });
+    this._fxSparks(to, { color: '#b6ff9a', glow: '#1f8f2f', count: 16, spread: 70, size: 3 });
+    if (tEl) this._fxRing(tEl, { color: '#7dff5a' });
+    (sideCards || []).forEach((c, i) => {
+      if (!c) return;
+      setTimeout(() => {
+        const el = this._fxCardElById(c.id), p = this._fxCenter(el);
+        if (!p) return;
+        this._fxImpact(p, { color: '#7dff5a', core: '#eaffe0', size: 0.7 });
+        if (el) this._fxRing(el, { color: '#9dff7a' });
+      }, 90 + i * 60);
+    });
+    if (ownCard) {
+      setTimeout(() => {
+        const el = this._fxCardElById(ownCard.id), p = this._fxCenter(el);
+        if (!p) return;
+        this._fxDrawBolt(to, p, { color: '#9dff7a', glow: '#1f8f2f', thickness: 4 });
+        this._fxSparks(p, { color: '#d8ffcc', glow: '#1f8f2f', count: 9, spread: 44, size: 2.2 });
+        if (el) this._fxRing(el, { color: '#9dff7a', contract: true });
+      }, 200);
+    }
+    this._screenShake('medium');
+  },
+
+  // THUNDERGUN — a wall of air. A wide beam along the direction of travel, a
+  // wind ring on each card it is driven through, and a heavy hit where it lands.
+  _fxThundergun(targetCard, pathCards, landCard) {
+    if (this._reducedMotion() || !targetCard) return;
+    const from = this._fxCenter(this._fxCardElById(targetCard.id));
+    if (!from) return;
+    const endEl = landCard ? this._fxCardElById(landCard.id) : null;
+    const end = endEl ? this._fxCenter(endEl) : { x: from.x + 260, y: from.y };
+    this._fxDrawBeam(from, end, { color: '#eef3f8', core: '#ffffff', thickness: 9 });
+    (pathCards || []).forEach((c, i) => {
+      if (!c) return;
+      setTimeout(() => {
+        const el = this._fxCardElById(c.id), p = this._fxCenter(el);
+        if (!p) return;
+        if (el) this._fxRing(el, { color: '#eef3f8' });
+        this._fxSparks(p, { color: '#ffffff', glow: '#9fb3c8', count: 10, spread: 52, size: 2.4 });
+      }, 80 + i * 90);
+    });
+    if (landCard) {
+      setTimeout(() => {
+        const p = this._fxCenter(this._fxCardElById(landCard.id));
+        if (!p) return;
+        this._fxImpact(p, { color: '#ffffff', core: '#eef3f8', size: 1.3 });
+        this._screenShake('heavy');
+      }, 180);
+    } else this._screenShake('medium');
+  },
+
+  // LIGHTNING BOW — the Mark is a slow blue pulse that SITS on the card, so a
+  // player can see which one the storm is coming for.
+  _fxStormMark(card) {
+    if (this._reducedMotion() || !card) return;
+    const el = this._fxCardElById(card.id);
+    if (!el) return;
+    this._fxRing(el, { color: '#3fa9ff' });
+    el.classList.remove('fx-storm-mark'); void el.offsetWidth; el.classList.add('fx-storm-mark');
+    setTimeout(() => el.classList.remove('fx-storm-mark'), 4200);
+    const c = this._fxCenter(el);
+    if (c) this._fxSparks(c, { color: '#9be0ff', glow: '#3fa9ff', count: 8, angle: -Math.PI / 2, cone: 1.2, spread: 40, size: 2.2 });
+  },
+  // …and the strike itself comes DOWN from above, growing with each jump the
+  // way the damage does.
+  _fxStormStrike(card, jump) {
+    if (this._reducedMotion() || !card) return;
+    const el = this._fxCardElById(card.id), p = this._fxCenter(el);
+    if (!p) return;
+    const n = (jump | 0);
+    setTimeout(() => {
+      this._fxDrawBolt({ x: p.x, y: p.y - 320 }, p, { color: '#9be0ff', glow: '#3fa9ff', thickness: 5 + n * 2 });
+      this._fxImpact(p, { color: '#3fa9ff', core: '#eaf6ff', size: 0.9 + n * 0.25 });
+      this._fxSparks(p, { color: '#cfeaff', glow: '#3fa9ff', count: 12 + n * 4, spread: 60 + n * 12, size: 2.6 });
+      if (el) this._fxRing(el, { color: '#3fa9ff' });
+      this._screenShake(n === 0 ? 'medium' : 'heavy');
+    }, n * 160);
+  },
+
+  // WUNDERWAFFE — the current runs the LINE, card to card, and then earths
+  // itself past the last one into the enemy. The grounding stroke is what makes
+  // the face damage legible.
+  _fxGroundCurrent(cards) {
+    if (this._reducedMotion() || !cards || !cards.length) return;
+    const pts = cards.map(c => this._fxCenter(this._fxCardElById(c.id))).filter(Boolean);
+    if (!pts.length) return;
+    pts.forEach((p, i) => {
+      setTimeout(() => {
+        if (i > 0) this._fxDrawBolt(pts[i - 1], p, { color: '#d8ff7a', glow: '#7ad8ff', thickness: 4 });
+        this._fxImpact(p, { color: '#d8ff7a', core: '#ffffff', size: 0.7 });
+        this._fxSparks(p, { color: '#eaffb0', glow: '#7ad8ff', count: 8, spread: 46, size: 2.2 });
+      }, i * 110);
+    });
+    const last = pts[pts.length - 1];
+    setTimeout(() => {
+      this._fxDrawBolt(last, { x: last.x, y: last.y - 300 }, { color: '#7ad8ff', glow: '#d8ff7a', thickness: 8 });
+      this._fxImpact({ x: last.x, y: last.y - 260 }, { color: '#7ad8ff', core: '#ffffff', size: 1.4 });
+      this._screenShake('heavy');
+    }, pts.length * 110 + 90);
+  },
+
+  // APOTHICON SERVANT — a hole, not a hit. Everything contracts inward.
+  _fxRiftTear(laneIdx, side) {
+    if (this._reducedMotion()) return;
+    const lane = document.querySelector('.lane[data-lane="' + laneIdx + '"]')
+      || document.querySelectorAll('.lane')[laneIdx];
+    if (!lane) return;
+    const c = this._fxCenter(lane);
+    if (!c) return;
+    this._fxRing(lane, { color: '#8e44d0', contract: true });
+    setTimeout(() => this._fxRing(lane, { color: '#c07bff', contract: true }), 120);
+    setTimeout(() => this._fxRing(lane, { color: '#5a1f8f', contract: true }), 240);
+    this._fxSparks(c, { color: '#c07bff', glow: '#5a1f8f', count: 18, spread: 74, size: 3 });
+    this._fxImplode(lane, { color: '#8e44d0' });
+    this._screenShake('medium');
+  },
+
+  // ── MC BALLYHOO'S CANDIES ────────────────────────────────────────────────
+  // TWICE — the card is briefly doubled: two rings out of one centre.
+  _fxCandyTwice(card) {
+    if (this._reducedMotion() || !card) return;
+    const el = this._fxCardElById(card.id), c = this._fxCenter(el);
+    if (!c) return;
+    this._fxRing(el, { color: '#ffd23f' });
+    setTimeout(() => this._fxRing(el, { color: '#fff2a8' }), 150);
+    this._fxSparks(c, { color: '#fff2a8', glow: '#ffb300', count: 14, angle: -Math.PI / 2, cone: 2.2, spread: 58, size: 2.8 });
+    this._fxImpact(c, { color: '#ffd23f', core: '#fffbe6', size: 0.8 });
+  },
+  // CASHZAP — energy pulled UP and away from everyone else.
+  _fxCandyCash(card) {
+    if (this._reducedMotion()) return;
+    const el = card ? this._fxCardElById(card.id) : null;
+    const c = el ? this._fxCenter(el) : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    if (!c) return;
+    for (let i = 0; i < 3; i++) {
+      setTimeout(() => this._fxSparks(c, {
+        color: '#ffc046', glow: '#ff8a00', count: 10, angle: -Math.PI / 2, cone: 0.9, spread: 90, size: 3.2
+      }), i * 110);
+    }
+    this._fxImpact(c, { color: '#ff8a00', core: '#ffe9c0', size: 0.9 });
+  },
+  // VAMPIRE — a red draw from THEM to YOU, so the direction of the theft shows.
+  _fxCandyVampire() {
+    if (this._reducedMotion()) return;
+    const w = window.innerWidth, h = window.innerHeight;
+    const from = { x: w / 2, y: h * 0.22 }, to = { x: w / 2, y: h * 0.78 };
+    for (let i = 0; i < 3; i++) {
+      setTimeout(() => this._fxDrawBeam(
+        { x: from.x + (i - 1) * 46, y: from.y }, { x: to.x + (i - 1) * 26, y: to.y },
+        { color: '#c1121f', core: '#ff8a94', thickness: 5 }), i * 90);
+    }
+    this._fxImpact(to, { color: '#ff2d4a', core: '#ffd0d6', size: 1.2 });
+    this._fxSparks(to, { color: '#ff8a94', glow: '#c1121f', count: 16, spread: 66, size: 2.8 });
+    this._screenShake('medium');
+  },
+  // BLOWAY — a gust that throws the card sideways out of frame.
+  _fxCandyBloway(card) {
+    if (this._reducedMotion() || !card) return;
+    const el = this._fxCardElById(card.id), c = this._fxCenter(el);
+    if (!c) return;
+    this._fxDrawBeam({ x: c.x - 240, y: c.y }, { x: c.x + 240, y: c.y }, { color: '#dff3ff', core: '#ffffff', thickness: 7 });
+    this._fxSparks(c, { color: '#ffffff', glow: '#8fd0ff', count: 14, angle: 0, cone: 0.8, spread: 96, size: 2.6 });
+    if (el) {
+      el.classList.remove('fx-blown'); void el.offsetWidth; el.classList.add('fx-blown');
+      setTimeout(() => el.classList.remove('fx-blown'), 520);
+    }
+    this._screenShake('light');
+  },
+
   _fxTrickBuff(card, color, glow) {
     if (this._reducedMotion() || !card) return;
     const el = this._fxCardElById(card.id);

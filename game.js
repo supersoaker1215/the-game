@@ -16772,7 +16772,9 @@ const Game = {
       delete c._stormMarkOwner; delete c._stormMark;
       let dmg = 4;
       this.log(`  [STORM MARK] Lightning strikes ${c.name} for ${dmg}.`);
-      if (typeof UI !== 'undefined' && UI._fxChainArc) { try { UI._fxChainArc(c, '#9ad8ff', '#3aa0ff'); } catch (e) {} }
+      // The storm comes DOWN on the Mark, and each jump is drawn bigger than
+      // the last because the damage escalates the same way.
+      if (typeof UI !== 'undefined' && UI._fxStormStrike) { try { UI._fxStormStrike(c, 0); } catch (e) {} }
       this.dealDamage(c, dmg, { name: 'Lightning Bow', _2v2PlayedBy: c._stormSeat || null });
       // …then it jumps, +2 each hop — TWO jumps, one direction. The brief's own
       // example is three targets (4, 6, 8) and stops there; walking the whole
@@ -16787,6 +16789,7 @@ const Game = {
         const n = this.state.lanes[i] && this.state.lanes[i][side];
         if (!n || n.currentHealth <= 0) break;
         d += 2; jumps++;
+        if (typeof UI !== 'undefined' && UI._fxStormStrike) { try { UI._fxStormStrike(n, jumps); } catch (e) {} }
         this.log(`  [STORM MARK] The bolt jumps to ${n.name} for ${d}.`);
         this.dealDamage(n, d, { name: 'Lightning Bow' });
       }

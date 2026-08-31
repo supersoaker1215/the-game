@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=1323">
+  <link rel="stylesheet" href="style.css?v=1331">
   <!-- BOARD V2 — the redesign, off by default. Every rule inside is scoped to
        body.board-v2 so it is inert until BoardV2.set(true). -->
   <link rel="stylesheet" href="board-v2.css?v=66">
@@ -876,7 +876,7 @@
   </div>
 
   <script src="cards.js?v=259"></script>
-  <script src="tricks.js?v=114"></script>
+  <script src="tricks.js?v=115"></script>
   <script src="abilities.js?v=472"></script>
   <!-- Combat-rule helpers shared by resolver + predictor (Phase 1
        extraction). Loaded BEFORE game.js so Game.* methods can
@@ -884,7 +884,7 @@
   <script src="engine/combat.js?v=4"></script>
   <!-- (game.js / ui.js / roguelite.js cache bumps follow) -->
   <script src="decks.js?v=6"></script>
-  <script src="game.js?v=711"></script>
+  <script src="game.js?v=712"></script>
   <script src="ai.js?v=59"></script>
   <script src="roguelite.js?v=131"></script>
   <!-- PeerJS for WebRTC peer-to-peer multiplayer. Uses the public
@@ -900,7 +900,7 @@
        shared). Loaded BEFORE leaderboard.js so the client sees it on boot. -->
   <script>window.CLB_STATS_URL = "https://card-lane-battle-stats.ryanvtagle.workers.dev";</script>
   <script src="leaderboard.js?v=4"></script>
-  <script src="ui.js?v=1513"></script>
+  <script src="ui.js?v=1514"></script>
   <script src="board-v2.js?v=21"></script>
   <!-- Party voice chat. Loads after ui.js because it paints its own panel and
        reads Game/Multiplayer state; it asks for nothing until you press Join. -->

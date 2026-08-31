@@ -47424,3 +47424,78 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .trick-reveal-card[data-reveal-name="Apothicon Servant"] .tr-desc {
   border-top: 1px solid var(--ww-glow);
 }
+
+
+/* ── CODEX TILES GROW FOR LONG TEXT ────────────────────────────────────────
+   The codex caps a tile's description at --read-desc-h (176px) and hides the
+   overflow, which is fine for a one-line trick and cuts the Random Event
+   entries off mid-sentence: the Apothicon Rift's text needed 1106px of the
+   176 it was given, the Shadow Man's 991. The codex is the one place a player
+   goes to READ what something does, so a tile that truncates its own rules is
+   the worst place for this. (Owner: "extend the length for the rift it cuts
+   off the card and make it readable please".)
+   Scoped to the codex grid on purpose — .trick-desc is shared with the draft
+   picker and the tray, where the cap is doing real layout work. */
+#encyclopedia-overlay .encyc-grid .trick-card.enc-trick {
+  /* Content-sized, as it already was — deliberately NO min-height here. Setting
+     one to --read-card-h forced every tile to 614px and left up to 300px of
+     empty frame under the short entries; the tile was 296px of its own accord
+     and only needs permission to grow past that. */
+  /* An explicit floor, deliberately not fit-content. The grid sizes its rows
+     with max-content, and that would not resolve through this tile: rows 1-2
+     grew correctly while rows 3-4 stayed pinned at 296px with their rules text
+     hanging 125px outside the frame, through reflows and both auto and
+     fit-content. So the floor has to clear the LONGEST entry rather than the
+     average: the Shadow Man needs 469px of portrait plus rules and the
+     Apothicon Rift 467, so 500 fits every one of them with a margin. Short
+     entries carry some empty frame underneath — the trade for a codex where
+     nothing is cut off, which is the whole point of the page. */
+  height: auto;
+  min-height: 500px;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+}
+#encyclopedia-overlay .encyc-grid .trick-card.enc-trick .card-portrait { flex: 0 0 auto; }
+#encyclopedia-overlay .encyc-grid .trick-card.enc-trick .trick-desc { flex: 0 0 auto; }
+#encyclopedia-overlay .encyc-grid .trick-card.enc-trick .trick-desc {
+  max-height: none;
+  overflow: visible;
+}
+/* The decorative frame is absolutely positioned against the tile, so it has to
+   be told to follow the new height rather than staying at the old one. */
+#encyclopedia-overlay .encyc-grid .trick-card.enc-trick .cf-frame {
+  height: auto;
+  inset: 0;
+}
+
+
+/* ── WONDER WEAPON / CANDY CARD ANIMATIONS ─────────────────────────────────
+   Two of the nine effects need the CARD itself to move rather than just paint
+   over it, so they get classes. Both are stamped and removed on a timeout by
+   the _fx call that adds them — the same self-clearing pattern the rest of the
+   FX family uses, so a reused board tile can never keep the class. */
+
+/* Lightning Bow's Storm Mark SITS on the card until the end of the round, so
+   it is a slow pulse rather than a one-shot flash: the player needs to be able
+   to look away and still find which card the storm is coming for. */
+@keyframes fx-storm-mark-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(63, 169, 255, 0.0); }
+  50%      { box-shadow: 0 0 18px 4px rgba(63, 169, 255, 0.75); }
+}
+.fx-storm-mark {
+  animation: fx-storm-mark-pulse 1.05s ease-in-out 4;
+  border-color: #3fa9ff !important;
+}
+
+/* Bloway Candy physically throws the card off sideways before it bounces. */
+@keyframes fx-blown-away {
+  0%   { transform: translateX(0) rotate(0deg); opacity: 1; }
+  55%  { transform: translateX(38px) rotate(9deg); opacity: 0.55; }
+  100% { transform: translateX(0) rotate(0deg); opacity: 1; }
+}
+.fx-blown { animation: fx-blown-away 0.5s cubic-bezier(.2,.9,.3,1) 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-storm-mark, .fx-blown { animation: none !important; }
+}
