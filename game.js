@@ -16702,7 +16702,13 @@ const Game = {
       });
       // He holds the table while he talks, exactly as Ballyhoo does — through the
       // shared hold, so the clock-skew and queue-drain fixes come with it.
-      this._armEventHold(this._SHADOW_HOLD_MS);
+      // HOLD ONLY WHEN THERE IS A SHOW TO WAIT FOR — copied from Ballyhoo,
+      // which guards on his reveal function existing. That is the one thing
+      // true in a browser and false in the headless sim, where a wall-clock
+      // lock would stall hundreds of matches a second for nobody's benefit.
+      if (typeof UI !== 'undefined' && typeof UI.showShadowMan === 'function') {
+        this._armEventHold(this._SHADOW_HOLD_MS);
+      }
       this.log('[SHADOW MAN] Shadow Man steps out of the dark and names four challenges.');
       this._SHADOW_CATEGORIES.forEach(k => {
         this.log(`  [CHALLENGE] ${this._shadowLabel(k)} — ${(sh.prizes && sh.prizes[k]) || 'a Wonder Weapon'}`);
@@ -16713,6 +16719,11 @@ const Game = {
       if (typeof UI !== 'undefined' && UI.showShadowMan) { try { UI.showShadowMan('arrive', sh); } catch (e) {} }
       if (tt && tt.online && this.emitFX) { try { this.emitFX('shadowman', { phase: 'arrive', returnAt: sh.returnAt }); } catch (e) {} }
       if (this._pushOnlineState) { try { this._pushOnlineState(); } catch (e) {} }
+      // AND REPAINT. Ballyhoo's arrival ends on a render and this one did not,
+      // so nothing forced the board to redraw at the moment he turned up — his
+      // tracker and the reveal waited on whatever happened to render next.
+      // (Owner: "just make him work how you did MC".)
+      if (typeof UI !== 'undefined' && UI.render) { try { UI.render(); } catch (e) {} }
       return;
     }
 
@@ -16741,7 +16752,9 @@ const Game = {
     const s = this.state, sh = s && s._shadow;
     if (!sh || sh.returned) return;
     sh.returned = true;
-    this._armEventHold(this._SHADOW_HOLD_MS);
+    if (typeof UI !== 'undefined' && typeof UI.showShadowMan === 'function') {
+      this._armEventHold(this._SHADOW_HOLD_MS);
+    }
     this.log('[SHADOW MAN] Shadow Man returns to settle the score.');
     // A TIE PAYS NOBODY. This has been through three shapes: a sudden-death
     // round, then paying every tied seat out of the spare fifth weapon, and now
@@ -16763,15 +16776,27 @@ const Game = {
       }
       awards.push({ key, seat: leaders[0] });
     });
-    awards.forEach(a => this._shadowAward(a.seat, a.key));
-    // No sudden-death round any more — ties are paid above, so he settles
-    // everything in one visit and never leaves a category hanging.
+    // HE SPEAKS FIRST, THEN HANDS THEM OVER. _shadowAward queues a reveal per
+    // weapon, and this ran BEFORE his own line — so the prize cards came up
+    // first and "Time is up. Let us see who earned something" arrived after the
+    // ceremony it was introducing. The reveal queue is FIFO, so ordering the
+    // calls correctly is the whole fix.
     sh.duels = null;
     sh.settling = false;
     if (typeof UI !== 'undefined' && UI.showShadowMan) { try { UI.showShadowMan('return', sh); } catch (e) {} }
     if (s.twoVTwo && s.twoVTwo.online && this.emitFX) {
       try { this.emitFX('shadowman', { phase: 'return' }); } catch (e) {}
     }
+    // THE HOLD HAS TO OUTLAST THE WHOLE CEREMONY, not just his line. The return
+    // is one text beat (~6.4s) and then a reveal per weapon at 2.6s each, so
+    // four prizes run ~16.8s against a flat 11.5s hold — the table came back to
+    // life while the weapons were still being handed out. Re-armed here now
+    // that the count is known.
+    if (typeof UI !== 'undefined' && typeof UI.showShadowMan === 'function') {
+      this._armEventHold((this._SHADOW_HOLD_MS | 0) + awards.length * 2600);
+    }
+    awards.forEach(a => this._shadowAward(a.seat, a.key));
+    if (typeof UI !== 'undefined' && UI.render) { try { UI.render(); } catch (e) {} }
     if (this._pushOnlineState) { try { this._pushOnlineState(); } catch (e) {} }
   },
 
