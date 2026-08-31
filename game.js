@@ -16361,9 +16361,29 @@ const Game = {
   // is 2v2-only — in 1v1 there is no such thing as a third and fourth player
   // and the slot always lands on Ballyhoo. That is a real gate, not a
   // simplification: everything below indexes by seat.
+  // ARE RANDOM EVENTS ON FOR THIS MODE? Per-mode, because the three play very
+  // differently: the owner may want the Shadow Man's four challenges in a 2v2
+  // and a clean board in solo. (Owner: "i want an option at the menu for each
+  // gamemode solo 1v1 and 2v2 to select if you want random events or not".)
+  // Defaults to ON whenever there is no settings object at all — that is the
+  // headless sim, and every harness in sim/ would otherwise silently lose both
+  // events. Online rooms follow the HOST's toggle, because the host is the one
+  // running the engine.
+  _randomEventsEnabled() {
+    const cfg = (typeof UI !== 'undefined' && UI.settings && UI.settings.randomEvents) || null;
+    if (!cfg) return true;
+    const key = (this.is2v2 && this.is2v2()) ? 'twoVTwo'
+              : (this.isHotseat && this.isHotseat()) ? 'hotseat'
+              : 'solo';
+    return cfg[key] !== false;
+  },
+
   _rollMatchEvent() {
     const s = this.state;
     if (!s || s._matchEvent) return;
+    // 'none' is a real outcome, and it is sticky: both _rollBallyhoo and
+    // _rollShadowMan compare against this, so neither can show.
+    if (!this._randomEventsEnabled()) { s._matchEvent = 'none'; return; }
     // EVERY MODE, EVEN ODDS. He used to be 2v2-only, so 1v1 and solo always got
     // Ballyhoo; his four challenges are contested between the two sides now.
     // (Owner: "make sure for each game its a random chance on if you get a MC or

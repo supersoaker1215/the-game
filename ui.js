@@ -910,6 +910,12 @@ const UI = {
     // Turning it off loses NO information — the per-card incoming-damage badge
     // and the skull-on-lethal still say exactly what is coming.
     attackTelegraph: true,
+    // RANDOM EVENTS, PER MODE. MC Ballyhoo and the Shadow Man are a coin flip
+    // per match; this is whether they are eligible at all. Kept per-mode
+    // because the three play differently — the Shadow Man's four challenges
+    // are a centrepiece in 2v2 and can be unwanted noise in a quick solo game.
+    // Read by Game._randomEventsEnabled(); online rooms follow the host.
+    randomEvents: { solo: true, hotseat: true, twoVTwo: true },
     // Phase 4c — opt-in card stats telemetry. ON by default; a setting
     // lets privacy-conscious users disable it. Stats stay entirely local.
     trackStats: true,
@@ -15718,18 +15724,21 @@ const UI = {
             ${btn('mm-sub-classic', 'Classic Draft', 'Shared deck of 95 cards. Draft 5 cards + 2 tricks.', SVG.play,  "selectMode('1v1','classic')")}
             ${btn('mm-sub-deck',    'My Deck',       `Bring your own ${UI.DECK_CARD_MAX}-card deck.`,                        SVG.decks, "openDeckBuilder()")}
           </div>
+          ${UI._mmEventToggle('solo', 'Random events in solo matches')}
         </div>
         <div class="mm-section">
           <div class="mm-section-label">Head to Head</div>
           <div class="mm-grid mm-grid-section">
             ${btn('mm-sub-1v1local', '1v1 Local Play', 'Same draft + board as solo — pass one device.', SVG.multi, "Game.startLocal1v1()")}
           </div>
+          ${UI._mmEventToggle('hotseat', 'Random events in 1v1 matches')}
         </div>
         <div class="mm-section">
           <div class="mm-section-label">Two on Two</div>
           <div class="mm-grid mm-grid-section">
             ${btn('mm-sub-2v2local',  '2v2 Local Play', '4 players, same device. Teams share health.', SVG.multi, "Game.goTo2v2Setup()")}
           </div>
+          ${UI._mmEventToggle('twoVTwo', 'Random events in 2v2 matches')}
         </div>${botbarHTML}`;
       }
       // Tools — the dev shelf, one level down. Same in-shell swap as Solo
@@ -15923,6 +15932,29 @@ const UI = {
     try { if (this.sfx && this.sfx.playNav) this.sfx.playNav(); } catch (e) {}
   },
   mmBack() { this.mmShowSub(null); },
+
+  // One switch per mode, sitting in that mode's own section of the Solo menu so
+  // it is read right next to the button it affects.
+  _mmEventToggle(key, label) {
+    const cfg = (this.settings && this.settings.randomEvents) || {};
+    const on = cfg[key] !== false;
+    const esc = (t) => String(t).replace(/"/g, '&quot;');
+    return `<label class="mm-evtoggle${on ? ' is-on' : ''}" title="${esc(label)}">
+      <input type="checkbox" ${on ? 'checked' : ''}
+             onchange="UI.toggleRandomEvents('${key}')"
+             aria-label="${esc(label)}">
+      <span class="mm-evdot" aria-hidden="true"></span>
+      <span class="mm-evtext">Random events <b>${on ? 'ON' : 'OFF'}</b></span>
+    </label>`;
+  },
+  toggleRandomEvents(key) {
+    if (!this.settings.randomEvents) this.settings.randomEvents = { solo: true, hotseat: true, twoVTwo: true };
+    this.settings.randomEvents[key] = this.settings.randomEvents[key] === false;
+    try { localStorage.setItem(this.SETTINGS_KEY, JSON.stringify(this.settings)); } catch (e) {}
+    // Re-render the submenu so the label flips with the switch. mmShowSub
+    // rebuilds the panel from _mmBuildPanel, which reads the setting fresh.
+    try { this.mmShowSub(this._mmSub); } catch (e) {}
+  },
 
   openTutorial() {
     const ov = document.getElementById('tutorial-overlay');

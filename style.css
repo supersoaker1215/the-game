@@ -47499,3 +47499,29 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 @media (prefers-reduced-motion: reduce) {
   .fx-storm-mark, .fx-blown { animation: none !important; }
 }
+
+
+/* ── PER-MODE RANDOM EVENT SWITCH (Solo menu) ──────────────────────────────
+   Sits inside each mode's own section so it reads next to the button it
+   governs, rather than being buried in the settings panel. */
+.mm-evtoggle {
+  display: flex; align-items: center; gap: 8px;
+  margin: 8px 2px 0; padding: 6px 10px;
+  border: 1px solid rgba(120, 150, 180, 0.28);
+  border-radius: 6px;
+  font-family: 'Rajdhani', sans-serif; font-size: 12px; letter-spacing: 1px;
+  text-transform: uppercase; color: #9fb3c8;
+  cursor: pointer; user-select: none;
+  transition: border-color .18s ease, color .18s ease, background .18s ease;
+}
+.mm-evtoggle:hover { border-color: rgba(160, 200, 240, 0.6); color: #dbe8f5; }
+.mm-evtoggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+.mm-evdot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: #33414f; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12);
+  flex: 0 0 auto; transition: background .18s ease, box-shadow .18s ease;
+}
+.mm-evtoggle.is-on { color: #dbe8f5; border-color: rgba(90, 200, 255, 0.5); }
+.mm-evtoggle.is-on .mm-evdot { background: #4ad9ff; box-shadow: 0 0 8px rgba(74, 217, 255, 0.8); }
+.mm-evtoggle b { color: inherit; font-weight: 700; }
+.mm-evtoggle:focus-within { outline: 2px solid rgba(74, 217, 255, 0.65); outline-offset: 2px; }
