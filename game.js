@@ -13163,7 +13163,10 @@ const Game = {
     // (User: "make sure the next card i draw gains that 1/1 because that hasnt
     // been happening.") Banking on play makes the caster's next `n` draws +1/+1
     // immediately; the opponent still loses 1/1 per draw via applyBrainiacDrain.
-    if (tt && tt.online && victimSeat && tt.players && tt.players[victimSeat]) {
+    // SEATS, NOT THE NETWORK. This used to require tt.online, so in LOCAL 2v2
+    // the spy was stored on the side while every lookup read the seat — the
+    // same split that silently dropped the harvest buff.
+    if (tt && tt.players && victimSeat && tt.players[victimSeat]) {
       // The card remembers who played it (_2v2PlayedBy); that beats any global.
       const caster = (sourceCard && sourceCard._2v2PlayedBy)
         || this._2v2CurrentActingPlayer
@@ -13192,7 +13195,10 @@ const Game = {
     // immediate draw had eaten the charge meant for the second round draw.)
     const n = this.BRAINIAC_SPY_ROUNDS + 1;
     const tt = this.state && this.state.twoVTwo;
-    if (tt && tt.online) {
+    // Banked on the SEAT in any 2v2, local or online. Gated on tt.online it
+    // banked on the SIDE in local play while applyBrainiacHarvest read the
+    // seat, so the caster's next draws never got their +1/+1.
+    if (tt && tt.players) {
       const caster = (sourceCard && sourceCard._2v2PlayedBy)
         || this._2v2CurrentActingPlayer || this._2v2SeatForSide(owner);
       if (caster && tt.players[caster]) {
@@ -13208,7 +13214,7 @@ const Game = {
   // ask this about somebody else's window.
   brainiacSpyOf(viewerSeat, viewerSide) {
     const tt = this.state && this.state.twoVTwo;
-    if (tt && tt.online) {
+    if (tt && tt.players) {
       const p = viewerSeat && tt.players && tt.players[viewerSeat];
       const spy = p && p._brainiacSpy;
       return (spy && spy.rounds > 0 && spy.seat) ? spy : null;
@@ -13232,7 +13238,7 @@ const Game = {
     const spy = this.brainiacSpyOf(viewerSeat, viewerSide);
     if (!spy) return null;
     const tt = this.state && this.state.twoVTwo;
-    if (tt && tt.online) {
+    if (tt && tt.players) {
       const v = tt.players[spy.seat];
       if (!v) return null;
       return { hand: v.hand || [], name: v.name || spy.seat, rounds: spy.rounds };
@@ -13247,7 +13253,7 @@ const Game = {
   // Who, if anyone, is watching this recipient right now — named for the log.
   _brainiacWatcherOf(recipientSeat, recipientSide) {
     const tt = this.state && this.state.twoVTwo;
-    if (tt && tt.online && recipientSeat && tt.players) {
+    if (tt && tt.players && recipientSeat) {
       const key = this._2v2SLOTS.find(pk => {
         const spy = tt.players[pk] && tt.players[pk]._brainiacSpy;
         return spy && spy.rounds > 0 && spy.seat === recipientSeat;
@@ -13362,7 +13368,7 @@ const Game = {
     const spy = holder && holder._brainiacSpy;
     if (!spy) return 'Opponent';
     const tt = this.state && this.state.twoVTwo;
-    if (tt && tt.online && spy.seat && tt.players[spy.seat]) return tt.players[spy.seat].name || spy.seat;
+    if (tt && tt.players && spy.seat && tt.players[spy.seat]) return tt.players[spy.seat].name || spy.seat;
     return this.seatLabel(this.opponent(holder === this.state.player ? 'player' : 'ai'));
   },
 
@@ -16372,9 +16378,16 @@ const Game = {
   _randomEventsEnabled() {
     const cfg = (typeof UI !== 'undefined' && UI.settings && UI.settings.randomEvents) || null;
     if (!cfg) return true;
+    // Grouped by PLAYER COUNT, not by transport: an online 1v1 against a real
+    // person answers to the same switch as pass-and-play, and 2v2 answers to
+    // one switch whether it is four people on one device or four online.
+    // (Owner: "i meant multiplayer too for 1v1 and 2v2 with actual people".)
     const key = (this.is2v2 && this.is2v2()) ? 'twoVTwo'
-              : (this.isHotseat && this.isHotseat()) ? 'hotseat'
+              : ((this.isHotseat && this.isHotseat()) || (this.isMultiplayer && this.isMultiplayer())) ? 'oneVOne'
               : 'solo';
+    // `hotseat` is the old key for oneVOne — honoured so a saved setting from
+    // before the rename is not silently reset to ON.
+    if (key === 'oneVOne' && cfg.oneVOne === undefined && cfg.hotseat !== undefined) return cfg.hotseat !== false;
     return cfg[key] !== false;
   },
 

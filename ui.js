@@ -915,7 +915,7 @@ const UI = {
     // because the three play differently — the Shadow Man's four challenges
     // are a centrepiece in 2v2 and can be unwanted noise in a quick solo game.
     // Read by Game._randomEventsEnabled(); online rooms follow the host.
-    randomEvents: { solo: true, hotseat: true, twoVTwo: true },
+    randomEvents: { solo: true, oneVOne: true, twoVTwo: true },
     // Phase 4c — opt-in card stats telemetry. ON by default; a setting
     // lets privacy-conscious users disable it. Stats stay entirely local.
     trackStats: true,
@@ -15731,7 +15731,7 @@ const UI = {
           <div class="mm-grid mm-grid-section">
             ${btn('mm-sub-1v1local', '1v1 Local Play', 'Same draft + board as solo — pass one device.', SVG.multi, "Game.startLocal1v1()")}
           </div>
-          ${UI._mmEventToggle('hotseat', 'Random events in 1v1 matches')}
+          ${UI._mmEventToggle('oneVOne', 'Random events in 1v1 matches — local and online')}
         </div>
         <div class="mm-section">
           <div class="mm-section-label">Two on Two</div>
@@ -15937,7 +15937,9 @@ const UI = {
   // it is read right next to the button it affects.
   _mmEventToggle(key, label) {
     const cfg = (this.settings && this.settings.randomEvents) || {};
-    const on = cfg[key] !== false;
+    // Same migration the engine does: a saved 'hotseat' answers for 'oneVOne'.
+    const on = (key === 'oneVOne' && cfg.oneVOne === undefined && cfg.hotseat !== undefined)
+      ? cfg.hotseat !== false : cfg[key] !== false;
     const esc = (t) => String(t).replace(/"/g, '&quot;');
     return `<label class="mm-evtoggle${on ? ' is-on' : ''}" title="${esc(label)}">
       <input type="checkbox" ${on ? 'checked' : ''}
@@ -15948,8 +15950,12 @@ const UI = {
     </label>`;
   },
   toggleRandomEvents(key) {
-    if (!this.settings.randomEvents) this.settings.randomEvents = { solo: true, hotseat: true, twoVTwo: true };
-    this.settings.randomEvents[key] = this.settings.randomEvents[key] === false;
+    if (!this.settings.randomEvents) this.settings.randomEvents = { solo: true, oneVOne: true, twoVTwo: true };
+    const cur = this.settings.randomEvents;
+    const now = (key === 'oneVOne' && cur.oneVOne === undefined && cur.hotseat !== undefined)
+      ? cur.hotseat !== false : cur[key] !== false;
+    cur[key] = !now;
+    if (key === 'oneVOne') delete cur.hotseat;   // migrated; stop reading the old key
     try { localStorage.setItem(this.SETTINGS_KEY, JSON.stringify(this.settings)); } catch (e) {}
     // Re-render the submenu so the label flips with the switch. mmShowSub
     // rebuilds the panel from _mmBuildPanel, which reads the setting fresh.
@@ -18998,6 +19004,7 @@ const UI = {
               <span class="mp-hero-sub">4 players · own devices · one tap</span>
             </span>
           </button>
+          ${UI._mmEventToggle('twoVTwo', 'Random events in 2v2 matches — local and online')}
         </div>
 
         <div class="mp-rule"><span class="mp-rule-label">Create Room</span><span class="mp-rule-line"></span></div>
@@ -19010,6 +19017,7 @@ const UI = {
             <span class="mp-row-name">Custom Decks</span>
             <span class="mp-row-meta">${_savedDecks ? `Your ${_savedDecks} deck${_savedDecks === 1 ? '' : 's'}` : 'Build one first'}</span>
           </button>
+          ${UI._mmEventToggle('oneVOne', 'Random events in 1v1 matches — local and online')}
         </div>
 
         <div class="mp-rule"><span class="mp-rule-label">Join Room</span><span class="mp-rule-line"></span></div>
