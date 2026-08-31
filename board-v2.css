@@ -903,11 +903,13 @@ body.board-v2 #board .ai-slot .card,
 body.board-v2 #board .ai-slot .card * {
   --frame-rgb: var(--or-rgb);
   --frame-color: var(--or);
+  --portrait-frame-rgb: var(--or-rgb);
 }
 body.board-v2 #board .player-slot .card,
 body.board-v2 #board .player-slot .card * {
   --frame-rgb: 53, 201, 255;
   --frame-color: #35c9ff;
+  --portrait-frame-rgb: 53, 201, 255;
 }
 /* Glow discipline: two stops, not the shipping three, and at the spec's
    ~36%-of-instinct radii. */
@@ -2832,3 +2834,69 @@ body.board-v2 #board .card-slot.ai-slot:not(:has(.card))::before {
 body.board-v2 #board .lane .card:hover { z-index: 200 !important; }
 body.board-v2 #board .card-slot:has(.card:hover) { z-index: 200; }
 body.board-v2 #board .lane:has(.card:hover) { z-index: 200; }
+
+/* ===========================================================================
+   BOARD CARDS GET THE TILE'S EDGE, AND SO DOES THE ENERGY RIBBON.
+   Owner: "can the card blue look like the YO icon border blue — that same look
+   for the cards' neon highlight colour, and the energy ribbon."
+
+   The card was ALREADY `2px solid #35c9ff`, the tile's exact hue. Two things
+   were hiding it:
+
+   1. The card is chamfered with clip-path, so its own drop-shadow glow was
+      clipped off — a saturated line with no bloom reads as a flat outline. The
+      glow moves to .card-slot, which no longer clips anything (see the hover
+      fix), so it traces the card's chamfered silhouette from outside it.
+
+   2. .cf-frame drew a near-white 1px border 4px inside the cyan one. That was
+      the "value ladder" core added in the neon pass, and at this size it is
+      simply the brightest edge on the card — which is why the border read as
+      WHITE. The tile has no such core; the card should not either.
+   =========================================================================== */
+body.board-v2 #board .lane .card { filter: none !important; }
+body.board-v2 #board .card-slot:has(.card) {
+  filter: drop-shadow(0 0 1px rgba(var(--slot-glow, 53,201,255), 0.9))
+          drop-shadow(0 0 5px rgba(var(--slot-glow, 53,201,255), 0.55));
+}
+body.board-v2 #board .card-slot.player-slot { --slot-glow: 53,201,255; }
+body.board-v2 #board .card-slot.ai-slot     { --slot-glow: var(--or-rgb); }
+/* The white inner line goes — the tube is the edge. */
+body.board-v2 #board .lane .card .cf-frame { border: 0 !important; }
+
+/* THE ENERGY RIBBON.
+
+   The ribbon is not the numeral — it is .cf-band (the corner wedge) with
+   .cf-band-diag as its lit diagonal, and it was already built the way the tile
+   is built. It just wasn't wearing the tile's colour, for two reasons:
+
+   1. WRONG BLUE, and this is the one that mattered. The legacy chrome reads
+      --cf-rgb, which resolves from --portrait-frame-rgb (style.css:43870).
+      Board V2 set --frame-rgb but never --portrait-frame-rgb, so the border
+      moved to the tile's 53,201,255 while the ribbon, the name glow and every
+      other legacy layer stayed on the OLD theme blue 79,195,247. Setting
+      --portrait-frame-rgb next to --frame-rgb above fixes all of them at once
+      rather than repainting the ribbon on its own.
+
+   2. THE DIAGONAL WAS SUB-PIXEL. --cf-stroke is card-w * 0.006, which on a
+      118px board tile is 0.7px — it rendered as nothing, so the wedge read as
+      a flat black triangle with no lit edge at all. Floored to 1px here; the
+      hand and draft keep the proportional stroke, where the cards are wide
+      enough for it to land.
+
+   The white core goes for the same reason it went on .cf-frame: it is the
+   brightest thing on the corner, so the ribbon read white instead of blue. */
+body.board-v2 #board .lane .card .cf-band-diag {
+  height: 1px !important;
+  background: rgb(var(--frame-rgb)) !important;
+}
+body.board-v2 #board .lane .card .cf-band {
+  background: linear-gradient(135deg,
+              rgba(var(--frame-rgb), 0.28) 0%,
+              #071019 46%,
+              #04060a 100%) !important;
+}
+body.board-v2 #board .lane .card .card-cost {
+  color: #eafaff !important;
+  text-shadow: 0 0 5px rgba(var(--frame-rgb), 0.75) !important;
+}
+body.board-v2 #board .ai-slot .card .card-cost { color: #fff1ee !important; }
