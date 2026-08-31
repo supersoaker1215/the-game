@@ -1998,3 +1998,35 @@ body.board-v2 .tricks-section .trick-card .card-cost {
   text-shadow: 0 0 6px rgba(var(--trick-rgb), 0.60);
 }
 body.board-v2 .tricks-section .trick-card .cn-text { color: #e6cdf2; }
+
+
+/* ===========================================================================
+   FOUR TIDIES IN ZONE 1 AND ON THE BOARD'S TOP EDGE.
+   =========================================================================== */
+
+/* 1. THE LEFT LOG'S HEADING OUTLIVED THE LEFT LOG. Hiding .ba-log and
+   .ba-log-more left renderBoardAside's "Log" rule above them still drawn — a
+   heading for a panel that is not there, pointing at nothing. It is the rule
+   immediately before the log, which is exactly how it is selected: no counting,
+   so a rule added later cannot shift which one this hits.
+   (Owner: "get rid of the log on the left.") */
+body.board-v2 #bv2-rail-left .ba-rule:has(+ .ba-log) { display: none !important; }
+
+/* 2. NO DIVIDERS BETWEEN THE THREE NUMBERS. .ba-fc-cell carries a border-left,
+   which drew a faint blue hairline between the arrows now that the captions
+   under them are gone. Three numbers a finger apart do not need ruling off from
+   each other. (Owner: "the vertical faint blue lines separating the 0, 2, 2.") */
+body.board-v2 #bv2-rail-left .ba-fc-cell {
+  border-left: 0 !important; border-right: 0 !important;
+  padding-left: 0 !important; padding-right: 0 !important;
+}
+
+/* 3. THE BOARD SITS UNDER THE OPPONENT'S RAIL, NOT ON IT. The enemy lanes began
+   at y=119 against a band edge at y=120 — the first lane's frame touching the
+   emitter line, so the board read as hanging off the band. Same treatment the
+   two top zones already got. (Owner: "move the board down a little for the
+   opponent so it's not sitting on the rail.") The lanes re-derive their size
+   from the board's height, so they stay the card's exact shape at the new one. */
+/* !important because an earlier rule zeroes this section's padding outright,
+   and that rule is the reason the first version of this line did nothing. */
+body.board-v2 #game-area > .board-section { padding-top: calc(16 * var(--u)) !important; }

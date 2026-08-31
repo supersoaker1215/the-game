@@ -681,9 +681,19 @@ const BoardV2 = {
         '<span class="bv2-cap-line"></span></div><div class="bv2-log-list"></div>';
     }
     const list = panel.querySelector('.bv2-log-list');
-    const lines = (typeof UI !== 'undefined' && UI.readableLog)
+    // THE LOG STARTS AT THE MATCH, NOT AT THE DRAFT.
+    //
+    // Every draft pick, the "draft complete" line, the round-1 banner and the
+    // event roll sat at the bottom of this panel forever — a fixed block of
+    // setup that never changes and that pushes the lines you are actually
+    // reading up and out. (Owner, X-ing that block out: "get rid of ... the
+    // event bottom right.") They are still in the full drawer, which is where
+    // a record belongs; the rail is for what is happening.
+    const _setup = /^\s*\[(DRAFT|EVENT)\]|^\s*---\s*Round 1\s*---/;
+    const lines = ((typeof UI !== 'undefined' && UI.readableLog)
       ? UI.readableLog(Game.state && Game.state.log)
-      : ((Game.state && Game.state.log) || []);
+      : ((Game.state && Game.state.log) || [])
+    ).filter(l => !_setup.test(String(l)));
     const lineH = parseFloat(getComputedStyle(list).lineHeight) || 16;
     const room  = list.clientHeight || 0;
     const fit = Math.max(6, Math.floor(room / (lineH * 1.9)));
