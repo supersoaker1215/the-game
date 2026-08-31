@@ -49,7 +49,22 @@ function table() {
   tt.online = true; tt.you = 'p1';
   Game.state.round = 3; tt.round = 3;
   for (var i = 0; i < Game.LANE_COUNT; i++) { Game.state.lanes[i].player = null; Game.state.lanes[i].ai = null; }
-  ['p1', 'p2', 'p3', 'p4'].forEach(function (k) { tt.players[k].energy = 9; tt.players[k].usedEnergy = 0; });
+  // SEAL THE HANDS. start2v2Match deals four REAL hands off a shuffled deck,
+  // and these cases then kill a card and assert what that death did. About 3%
+  // of the time the deal put an IRON GIANT in somebody's hand — his whole card
+  // is "he leaves your hand only to save an ally" — so he intercepted the kill,
+  // the card survived, nothing died, and the assertion failed with the engine
+  // behaving perfectly. Measured before this line: 8 failures in 300 runs, and
+  // it is what made this suite fail twice in a full run while passing every
+  // time on its own.
+  //
+  // Every case here sets up whatever hand it needs explicitly, so an empty
+  // start is what they all actually meant. A test that kills a card must own
+  // what is holding a death-guard.
+  ['p1', 'p2', 'p3', 'p4'].forEach(function (k) {
+    tt.players[k].energy = 9; tt.players[k].usedEnergy = 0;
+    tt.players[k].hand = []; tt.players[k].trickHand = [];
+  });
   return tt;
 }
 
