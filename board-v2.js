@@ -503,27 +503,14 @@ const BoardV2 = {
   // and classes the aside already uses, so nothing about its styling changes.
   // Runs AFTER renderBoardAside (BoardV2 is last in the render tail), so it is
   // rewriting a block that has already been built for this frame.
-  _fillRailLog(s) {
-    const box = document.querySelector('#bv2-rail-left .ba-log');
-    if (!box) return;
-    // Through the same viewer filter every other log surface uses — this rail
-    // was printing private lines verbatim, tag characters and all.
-    const lines = (typeof UI !== 'undefined' && UI.readableLog)
-      ? UI.readableLog(s && s.log) : ((s && s.log) || []);
-    if (!lines.length) return;
-    const lineH = parseFloat(getComputedStyle(box).lineHeight) || 16;
-    const room  = box.clientHeight || 0;
-    // Each entry wraps to roughly two lines at this width; be conservative so
-    // the last one is never half-clipped.
-    const fit = Math.max(3, Math.floor(room / (lineH * 2.2)));
-    const want = lines.slice(-fit).reverse();
-    const sig = want.length + '|' + (want[0] || '');
-    if (box.dataset.bv2Sig === sig) return;
-    box.dataset.bv2Sig = sig;
-    box.innerHTML = want.map((t, i) =>
-      '<div class="ba-log-line' + (i === 0 ? ' is-latest' : '') + '">' + t + '</div>'
-    ).join('');
-  },
+  // RETIRED. The left rail used to print its own copy of the last few log
+  // lines; the right rail carries the whole log now (see _paintNotices), and
+  // two panels quoting the same array is the duplication the notice feed was
+  // removed for. renderBoardAside still BUILDS that node — it is the shipping
+  // board's panel and is shared — so board-v2.css hides it rather than this
+  // file deleting it, which keeps that renderer free of a board-v2 special
+  // case. Kept as a no-op so the render tail needs no conditional.
+  _fillRailLog(s) { return; },
 
   // Every internal proportion of a card face derives from --card-w. Board V2
   // sizes the board card with `width: 100%` so it fills its slot, which left
@@ -600,17 +587,40 @@ const BoardV2 = {
   // node, so every listener ui.js attached comes with it and the countdown
   // keeps ticking against the same element.
   // ===========================================================================
+  // BOX 2 — EVERY POP-UP LANDS HERE, in the right rail.
+  //
+  // The jump offer, the block-trick offer, the Time Stone intercept and the
+  // prompt banner were four separate floating panels dropped over the middle of
+  // the board — the thing you are trying to read while answering them. They now
+  // dock in one column. (Owner: "in the 2 box is where all pop ups happen —
+  // jumps, choose cards. it's no longer in the middle of the screen, it's just
+  // here. all pop ups live there.")
   _renderDecision(s) {
-    const left = document.getElementById('bv2-rail-left');
-    if (!left) return;
-    const panel = this._el('bv2-decision', 'bv2-decision', left);
-    if (panel.parentNode !== left) left.appendChild(panel);
+    const rail = document.getElementById('bv2-rail-right')
+              || this._el('bv2-rail-right', 'bv2-rail bv2-rail-right', document.getElementById('game-area'));
+    if (!rail) return;
+    const panel = this._el('bv2-decision', 'bv2-decision', rail);
+    // Always FIRST in the rail — a question you have to answer sits above the
+    // running commentary, not under it.
+    if (rail.firstChild !== panel) rail.insertBefore(panel, rail.firstChild);
     if (!panel.firstChild) {
       panel.innerHTML =
         '<div class="bv2-cap bv2-cap-rule"><span class="bv2-cap-label">Decision</span>' +
-        '<span class="bv2-cap-line"></span></div><div class="bv2-dec-body"></div>';
+        '<span class="bv2-cap-line"></span></div>' +
+        '<div class="bv2-dec-slot"></div><div class="bv2-dec-body"></div>';
     }
     const body = panel.querySelector('.bv2-dec-body');
+    const slot = panel.querySelector('.bv2-dec-slot');
+    // ADOPT THE FLOATERS. Each of these builds itself at body level and places
+    // itself over the board; moving the node (rather than copying it) keeps
+    // every listener and countdown ui.js attached to it. Anything that got
+    // built before this panel existed is pulled in on the next frame.
+    if (slot) {
+      ['jump-offer-modal', 'block-trick-modal', 'time-stone-modal'].forEach(function (id) {
+        const m = document.getElementById(id);
+        if (m && m.parentNode !== slot) slot.appendChild(m);
+      });
+    }
     const banner = document.getElementById('prompt-banner');
     if (banner && banner.parentNode !== body) body.appendChild(banner);
 
@@ -626,7 +636,9 @@ const BoardV2 = {
       if (note.textContent !== t) note.textContent = t;
     } else if (note) { note.remove(); note = null; }
 
-    panel.classList.toggle('is-live', !!(banner || note));
+    const docked = !!(slot && slot.firstElementChild);
+    panel.classList.toggle('is-live', !!(banner || note || docked));
+    panel.classList.toggle('has-docked', docked);
   },
 
   // ===========================================================================
@@ -639,16 +651,10 @@ const BoardV2 = {
   // notice - and is left alone; it logs a line here as it plays.
   // ===========================================================================
   _NOTICE_MAX: 8,
-  notice(label, name, desc) {
-    if (!this.enabled()) return;
-    if (!this._notices) this._notices = [];
-    const key = String(label) + ' ' + String(name);
-    if (this._notices[0] && this._notices[0].key === key) return;   // same beat twice
-    this._notices.unshift({ key: key, label: String(label || 'Notice'),
-                            name: String(name || ''), desc: String(desc || '') });
-    if (this._notices.length > this._NOTICE_MAX) this._notices.length = this._NOTICE_MAX;
-    this._paintNotices();
-  },
+  // Kept as a sink so every existing caller (and the toast hook below) still
+  // has somewhere to go — the announcement itself already reaches the log,
+  // which is now the only place it needs to be.
+  notice(label, name, desc) { return; },
   // The feed is on the singleton, so it outlives a match unless something
   // drops it. There is no per-match id to key off — `_leaderboardMatchId` is
   // null in solo, the state object is REUSED across matches, and the log is
@@ -661,53 +667,40 @@ const BoardV2 = {
     const panel = document.getElementById('bv2-notices');
     if (panel) panel.classList.remove('is-live');
   },
+  // THE NOTICE FEED IS GONE — THE LOG IS THE RUNNING COMMENTARY.
+  //
+  // It was a second, shorter history sitting beside the real one, saying the
+  // same things in fewer words ("AI PLAYED A TRICK / Power Stone") while the
+  // log two panels away already had the line. Two feeds competing to be the
+  // answer to "what just happened". (Owner: "get rid of notices bar all
+  // together, that's where the log will be.")
+  //
+  // The rail's log is the full battle log through the viewer filter, newest
+  // first, filling whatever height Box 2 is not using.
   _paintNotices() {
-    // The right rail, not the trick section — the tricks moved to the hand row
-    // and the feed has to stay where the eye already looks for "what happened".
-    const ga = document.getElementById('game-area');
-    if (!ga) return;
-    const ts = document.getElementById('bv2-rail-right')
-            || this._el('bv2-rail-right', 'bv2-rail bv2-rail-right', ga);
-    const panel = this._el('bv2-notices', 'bv2-notices', ts);
-    if (panel.parentNode !== ts) ts.appendChild(panel);
+    const rail = document.getElementById('bv2-rail-right');
+    if (!rail) return;
+    const panel = this._el('bv2-log', 'bv2-log', rail);
+    if (panel.parentNode !== rail) rail.appendChild(panel);
     if (!panel.firstChild) {
-      // The slot is where a floating prompt docks (jump offer, block-trick,
-      // time-stone). ui.js appends into it directly, so it must exist before
-      // any of those can fire — build it with the panel, never on demand.
       panel.innerHTML =
-        '<div class="bv2-cap bv2-cap-rule"><span class="bv2-cap-label">Notices</span>' +
-        '<span class="bv2-cap-line"></span></div>' +
-        '<div class="bv2-note-slot"></div><div class="bv2-note-list"></div>';
+        '<div class="bv2-cap bv2-cap-rule"><span class="bv2-cap-label">Log</span>' +
+        '<span class="bv2-cap-line"></span></div><div class="bv2-log-list"></div>';
     }
-    const list = panel.querySelector('.bv2-note-list');
-    const slot = panel.querySelector('.bv2-note-slot');
-    // ADOPT A STRAY. Picking the anchor at the insertion point covers every
-    // normal frame, but not the COLD one: on the first render after V2 turns
-    // on — and on the first frame of a match — the prompt is built before this
-    // panel exists, so it lands on <body> and floats over the board exactly
-    // once. Anything that got there is pulled in here.
-    if (slot) {
-      ['jump-offer-modal', 'block-trick-modal', 'time-stone-modal'].forEach(function (id) {
-        const m = document.getElementById(id);
-        if (m && m.parentNode !== slot) slot.appendChild(m);
-      });
-    }
-    const items = this._notices || [];
-    // The panel is live when it has ANYTHING to show. This has to be decided
-    // before the redraw guard below, or a docked prompt arriving on a frame
-    // where the feed did not change would leave the panel hidden.
-    const docked = !!(slot && slot.firstElementChild);
-    panel.classList.toggle('is-live', items.length > 0 || docked);
-    panel.classList.toggle('has-docked', docked);
-    const sig = items.map(function (n) { return n.key; }).join('|');
+    const list = panel.querySelector('.bv2-log-list');
+    const lines = (typeof UI !== 'undefined' && UI.readableLog)
+      ? UI.readableLog(Game.state && Game.state.log)
+      : ((Game.state && Game.state.log) || []);
+    const lineH = parseFloat(getComputedStyle(list).lineHeight) || 16;
+    const room  = list.clientHeight || 0;
+    const fit = Math.max(6, Math.floor(room / (lineH * 1.9)));
+    const want = lines.slice(-fit).reverse();
+    const sig = want.length + '|' + (want[0] || '');
     if (list.dataset.sig === sig) return;
     list.dataset.sig = sig;
     const esc = function (t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
-    list.innerHTML = items.map(function (n, i) {
-      return '<div class="bv2-note' + (i === 0 ? ' is-latest' : '') + '">' +
-        '<span class="bv2-note-label">' + esc(n.label) + '</span>' +
-        (n.name ? '<span class="bv2-note-name">' + esc(n.name) + '</span>' : '') +
-      '</div>';
+    list.innerHTML = want.map(function (t, i) {
+      return '<div class="bv2-log-line' + (i === 0 ? ' is-latest' : '') + '">' + esc(t) + '</div>';
     }).join('');
   },
   // Installed lazily on the first render, so UI is guaranteed to exist. Same
