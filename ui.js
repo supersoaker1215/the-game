@@ -26446,8 +26446,14 @@ const UI = {
       return this._badgeHTML(cls, m ? m[1] : label, m && m[2] ? m[2] : '', kw);
     };
     // Pinhead's Chains — both linked cards wear this in hand so the owner sees
-    // they must be played together (both enter at -1/-1). Tooltip via 'Chained'.
-    if (c._chained) b.push(badge('badge-chained', 'Chained', 'Chained'));
+    // they must be played together (both enter at -1/-1). _chainPartnerId is
+    // what separates them from a Bathroom victim, which is chained to a LANE
+    // rather than to another card.
+    if (c._chained) {
+      b.push(c._chainPartnerId
+        ? badge('badge-bound', 'Bound', 'Bound')
+        : badge('badge-chained', 'Chained', 'Chained'));
+    }
     if (c.drawOnPlay > 0) b.push(badge('badge-draw', `Draw ${c.drawOnPlay}`, 'Draw'));
     if (c.evadeCharges > 0) b.push(badge('badge-evade', `Evade ${c.evadeCharges}`, 'Evade'));
     if (c.armorValue > 0) b.push(badge('badge-armor', `Armor ${c.armorValue}`, 'Armor'));
@@ -26597,7 +26603,11 @@ const UI = {
     // CHAINED — The Bathroom owns this body. A movement flag on its own was
     // invisible: nothing on the card said why it could not be moved, so the
     // rule only surfaced when a move silently failed.
-    if (c._chained) t.push(badge('badge-chained', 'Chained', 'Chained'));
+    if (c._chained) {
+      t.push(c._chainPartnerId
+        ? badge('badge-bound', 'Bound', 'Bound')
+        : badge('badge-chained', 'Chained', 'Chained'));
+    }
     if (c._criticalThisRound) t.push(badge('badge-critical', 'Critical', 'Critical'));
     // Burning carries its COUNT, because the count is the damage: Burning 3
     // deals 3 next time this lane fights, then decays to 2, then 1. A bare
@@ -26804,6 +26814,14 @@ const UI = {
     // The ball is deliberately HEAVY (r=3 of a 12 box): compared side by
     // side against a smaller one, the solid mass is what still reads as a
     // ball-and-chain at 14px, where the thin strokes have nearly gone.
+    // PINHEAD'S CHAINS ARE NOT THE BATHROOM'S. Both set card._chained, so both
+    // wore one badge carrying ONE tooltip — The Bathroom's "if moved, loses
+    // (−2/−2)" — on cards Pinhead had bound in HAND, where nothing can be moved
+    // and that sentence describes nothing the card does. (Owner: "this is the
+    // pinhead chain not the jigsaw bathroom one so make a different badge".)
+    // Told apart by _chainPartnerId, which only Pinhead sets. Two hooks rather
+    // than a chain-and-ball, and rust-red rather than the Bathroom's grey.
+    'Bound': { color: '#c86a4a', svg: '<svg viewBox="0 0 12 12"><path d="M3.4 2.2v3.1a1.9 1.9 0 1 0 0 3.5" stroke="currentColor" stroke-width="1.15" fill="none" stroke-linecap="round"/><path d="M8.6 9.8V6.7a1.9 1.9 0 1 1 0-3.5" stroke="currentColor" stroke-width="1.15" fill="none" stroke-linecap="round"/></svg>', tip: 'Must be played the same turn as its partner — neither can be played alone, and both enter at <b>(−1/−1)</b>.' },
     'Chained': { color: '#a8b8c8', svg: '<svg viewBox="0 0 12 12"><circle cx="2.4" cy="2.4" r="1.5" stroke="currentColor" stroke-width="1.15" fill="none"/><circle cx="4.5" cy="4.5" r="0.78" stroke="currentColor" stroke-width="0.8" fill="none"/><circle cx="6.1" cy="6.1" r="0.78" stroke="currentColor" stroke-width="0.8" fill="none"/><circle cx="8.7" cy="8.7" r="3" fill="currentColor"/></svg>', tip: 'If moved, loses <b>(−2/−2)</b>.' },
     'Damage Immunity': { color: '#d35400', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 L11 3 V6 C11 9 6 11 6 11 C6 11 1 9 1 6 V3 Z M4 6 L8 6 M6 4 L6 8" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linejoin="round"/></svg>', tip: 'Cannot take any damage.' },
     // A BRAIN. Owner: "the mind control icon should be a brain." The old glyph

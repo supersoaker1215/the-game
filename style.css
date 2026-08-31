@@ -7445,6 +7445,8 @@ body.hit-pause .ai-hand * {
 /* Pinhead's Chains — cold iron grey with a faint rattle so a chained pair reads
    at a glance in hand. */
 .badge-chained    { color: #b8c0cc; text-shadow: 0 0 5px rgba(184,192,204,0.55); }
+/* Pinhead's chains, told apart from The Bathroom's grey at a glance. */
+.badge-bound      { color: #d87a58; text-shadow: 0 0 5px rgba(200,106,74,0.55); }
 .badge-dmg-immune { color: var(--kw-dmg-immune); }
 .badge-untrickable{ color: var(--kw-untrickable); }
 .badge-armor      { color: var(--kw-armor); }
@@ -7462,6 +7464,7 @@ body.hit-pause .ai-hand * {
    DOWN. A chain is not a countdown — it holds until the body dies — so a
    pulse here would say 'this is about to expire', which is the opposite. */
 .badge-chained    { color: #a8b8c8; }
+.badge-bound      { color: #c86a4a; }
 .badge-parlay     { color: #d4ac6e; }
 .badge-apprentice { color: #8ede6d; }
 .badge-mind-ctrl  { color: var(--kw-mind-ctrl); }
