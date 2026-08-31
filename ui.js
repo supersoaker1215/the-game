@@ -21241,7 +21241,13 @@ const UI = {
     if (m) m.remove();
   },
   // choices: [{ html, onClick, danger? }]
-  _showDecisionModal(title, desc, choices) {
+  // opts.cardHtml — a full card face shown between the header and the choices.
+  // A decision ABOUT a card should show that card, not describe it in a
+  // sentence: the intercept panel named the card and crammed its rules into
+  // one running line, which is the only place in the game a card is discussed
+  // without being seen. (User: "i want the card to show up here with a
+  // description of its abilities at the bottom.")
+  _showDecisionModal(title, desc, choices, opts) {
     this._removeDecisionModal();
     const modal = document.createElement('div');
     modal.id = 'decision-modal';
@@ -21256,6 +21262,8 @@ const UI = {
           <span class="choice-tray-title">${title}</span>
           ${desc ? `<span class="choice-tray-desc">${desc}</span>` : ''}
         </div>
+        ${(opts && opts.cardHtml) ? `<div class="decision-hero">${opts.cardHtml}`
+            + `${opts.cardDesc ? `<div class="decision-hero-desc">${opts.cardDesc}</div>` : ''}</div>` : ''}
         <div class="choice-tray-cards decision-choices">${items}</div>
       </div>`;
     document.body.appendChild(modal);
@@ -21301,9 +21309,20 @@ const UI = {
     const _seat = this._bwlSeat(s) || 'player';
     if (!s[_seat] || !s[_seat].stolenByBWL) return;
     const card = s[_seat].stolenByBWL.card;
+    // The same canonical face the hand, board and codex draw — through
+    // makeCardEl so the intercepted card looks exactly like the card it is,
+    // portrait and stat orbs included, instead of a name and a stat pair in
+    // prose. Its rules go underneath, where a card's text belongs.
+    let heroHtml = '';
+    try {
+      const face = this._synthFace(card, {});
+      const el = this.makeCardEl(face, true, 'player', { static: true });
+      el.classList.remove('card-enter', 'target-highlight', 'card-damaged');
+      heroHtml = el.outerHTML;
+    } catch (e) { heroHtml = ''; }
     this._showDecisionModal(
       'Batman Who Laughs — Intercepted',
-      `You intercepted <strong>${card.name}</strong> (${card.attack}/${card.currentHealth}) · ${this.formatDesc(card.desc)}`,
+      `You intercepted <strong>${card.name}</strong> (${card.attack}/${card.currentHealth})`,
       [
         { html: `<div class="decision-choice-title">Keep in Hand</div>`
                + `<div class="decision-choice-sub">Add ${card.name} to your hand</div>`,
@@ -21311,7 +21330,8 @@ const UI = {
         { html: `<div class="decision-choice-title">Destroy</div>`
                + `<div class="decision-choice-sub">Destroy ${card.name} — Batman Who Laughs gains +2/+2</div>`,
           danger: true, onClick: () => bwlChoiceDestroy() },
-      ]
+      ],
+      { cardHtml: heroHtml, cardDesc: this.formatDesc(card.desc) }
     );
   },
 

@@ -47175,3 +47175,35 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 @media (prefers-reduced-motion: reduce) {
   .card.unplayable.table-waiting { animation: none; }
 }
+
+
+/* ===== DECISION MODAL — the card the decision is ABOUT =====
+   Sits between the header and the choice buttons: the card at its normal hand
+   size, its rules underneath. Used by the Batman Who Laughs intercept, where
+   the card used to be described in a sentence rather than shown. */
+.decision-modal .decision-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0 12px;
+}
+.decision-modal .decision-hero .card {
+  /* static face — no hover lift, no pointer affordance; it is not a target */
+  cursor: default;
+  pointer-events: none;
+}
+.decision-modal .decision-hero-desc {
+  max-width: 420px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #e3d3f0;
+  background: rgba(10, 2, 16, 0.6);
+  border: 1px solid rgba(155, 89, 182, 0.28);
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+@media (max-width: 640px) {
+  .decision-modal .decision-hero-desc { max-width: 88vw; font-size: 11px; }
+}
