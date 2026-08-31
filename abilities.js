@@ -635,17 +635,27 @@ const CARD_ABILITIES = {
         victimHand = G.state[opp] && G.state[opp].hand;
       }
 
-      // ── Chain 2 random cards together ──
+      // ── Chain the CHEAPEST card to a random one ──
+      // Two random picks were a coin toss that often bound two cards the victim
+      // was not going to play this round anyway. Anchoring on the cheapest hits
+      // where it hurts: the cheap card is the one they were counting on
+      // playing, and it is now hostage to whatever else came up — usually
+      // something they cannot afford in the same turn. (Owner: "make it to
+      // where he chains your lowest cost card with another random card in
+      // hand".) Ties on cost are broken at random so the same card is not
+      // picked every time a hand holds two 1-drops.
       const pool = (victimHand || []).filter(c => c && !c._chained);
       if (pool.length >= 2) {
-        // Two distinct random cards.
-        const i1 = Math.floor(G.rng() * pool.length);
-        let i2 = Math.floor(G.rng() * (pool.length - 1));
-        if (i2 >= i1) i2++;
-        const a = pool[i1], b = pool[i2];
+        const costOf = (c) => (c.baseCost != null ? c.baseCost : (c.cost | 0));
+        let low = Infinity;
+        pool.forEach(c => { const v = costOf(c); if (v < low) low = v; });
+        const cheapest = pool.filter(c => costOf(c) === low);
+        const a = cheapest[Math.floor(G.rng() * cheapest.length)];
+        const rest = pool.filter(c => c !== a);
+        const b = rest[Math.floor(G.rng() * rest.length)];
         a._chained = true; a._chainPartnerId = b.id; a._chainPartnerName = b.name;
         b._chained = true; b._chainPartnerId = a.id; b._chainPartnerName = a.name;
-        G.log(`[PINHEAD] Chains bind ${a.name} and ${b.name} in ${victimName}'s hand — they must be played together, each at -1/-1.`);
+        G.log(`[PINHEAD] Chains bind ${victimName}'s cheapest card ${a.name} (${low}) to ${b.name} — they must be played together, each at -1/-1.`);
       } else {
         G.log(`[PINHEAD] ${victimName} hasn't enough cards to chain.`);
       }

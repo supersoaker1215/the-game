@@ -354,7 +354,7 @@ const CARD_DEFS = [
   { name: "Pinhead", cost: 2, attack: 0, health: 0, type: "horror",
     isDiscardEffect: true,
     abilities: [],
-    desc: "When Discarded: Chain 2 random cards in the enemy's hand together — neither can be played alone, they must be played the same turn, and both enter with -1/-1. Also steals 1 Block Meter from the enemy." },
+    desc: "When Discarded: Chain the enemy's CHEAPEST card to a random other card in their hand — neither can be played alone, they must be played the same turn, and both enter with -1/-1. Also steals 1 Block Meter from the enemy." },
   { name: "Professor X", cost: 5, attack: 0, health: 0, type: "hero",
     abilities: [],
     desc: "When Discarded: Permanently convert an enemy with cost ≤ 4 to your team and place it in an empty lane. Its When Played fires again." },
