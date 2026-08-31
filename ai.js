@@ -248,11 +248,31 @@ const AI = {
       const deficit = target - already; // +N need, -N overfull
       score += deficit * this.WEIGHTS.draftBucketDeficitMult;
       if (already >= 3) score -= this.WEIGHTS.draftBucketOverPenalty;
-      // Round-1 floor — if we have no cost-1/2 cards yet, strongly reward cheap
-      // picks. The penalty ramps with picks remaining so it kicks hardest on the
-      // final picks where passing on low means a guaranteed dead round 1.
-      const hasEarly = (drafted || []).some(c => (c.cost || 0) <= 2);
-      if (!hasEarly && (card.cost || 0) <= 2) {
+      // ROUND-1 FLOOR — and the test is cost <= 1, not <= 2.
+      //
+      // Round 1 pays ONE energy. This floor exists to stop the AI opening on a
+      // dead turn, but it asked whether the deck held a cost-<=2 card, and a
+      // cost-2 satisfies that while still being unplayable on turn 1. So the
+      // floor reported itself satisfied by a card that does not solve the
+      // problem it was written for, and the AI kept opening with nothing.
+      //
+      // Measured over 400 drafts (sim/round1-open.js), before this change:
+      //     AI opens with nothing affordable ....... 43.0%
+      //     a cost-1 was offered to it at some point  81.5%
+      //     dead open DESPITE an offered cost-1 .... 24.5%
+      // The 24.5 points are the picker declining a card it was shown; the
+      // remaining ~18.5% is the pool never offering one, which no weighting can
+      // fix. User report: "the ai is getting stuck on turn 1 and wont play a
+      // card" — it was not stuck, it was passing correctly on an unplayable
+      // hand.
+      //
+      // Note this is a LOGIC change, not a weight change, and deliberately so:
+      // every WEIGHTS value is mirrored in sim/data/weights-current.json, which
+      // the browser fetches at startup and which the sim ignores. A retuned
+      // number would have had to be edited in both places to take effect in the
+      // game; the comparison itself lives only here.
+      const hasTurn1Play = (drafted || []).some(c => (c.cost || 0) <= 1);
+      if (!hasTurn1Play && (card.cost || 0) <= 1) {
         const remainingPicks = 5 - (drafted || []).length;
         // +5 if 4 picks remain, scaling up to +12 at last pick.
         score += this.WEIGHTS.draftEarlyFloorBase + (5 - remainingPicks) * this.WEIGHTS.draftEarlyFloorRamp;
@@ -265,6 +285,29 @@ const AI = {
       return { card, score };
     });
     scored.sort((a, b) => b.score - a.score);
+
+    // LAST CHANCE IS NOT A SCORE, IT IS A CONSTRAINT.
+    //
+    // The floor above is a bonus, and a bonus can always be outbid — a cost-9
+    // finisher's quality beats +4.5 comfortably, so the AI kept taking the bomb
+    // on its final pick and locking in a dead opening turn. Raising the bonus
+    // until it wins everywhere would be a weight change (two files, and it
+    // would distort every earlier pick too) to express something that is not
+    // really a preference at all.
+    //
+    // The five drafted cards ARE the opening hand — there is no later draw to
+    // rescue it — so on the final pick, with nothing playable yet and a cost-1
+    // on the table, declining it does not trade some value for some other
+    // value. It guarantees a turn where the AI cannot act. That is a floor, so
+    // it is enforced as one, and only in that exact corner: last pick, nothing
+    // cheap held, something cheap offered. Among the cheap options the normal
+    // score still decides which.
+    const isFinalPick = (drafted || []).length >= 3;
+    const hasTurn1 = (drafted || []).some(c => (c.cost || 0) <= 1);
+    if (isFinalPick && !hasTurn1) {
+      const cheap = scored.filter(x => (x.card.cost || 0) <= 1);
+      if (cheap.length) return cheap[0].card;
+    }
     return scored[0].card;
   },
 
@@ -586,7 +629,18 @@ const AI = {
         document.body && document.body.classList.remove('ai-thinking');
         const fn = actions[i++];
         try { fn(); } catch (e) { console.error(e); }
-        if (typeof UI !== 'undefined' && UI.render) UI.render();
+        // A RENDER FAULT MUST NOT END THE AI'S TURN.
+        // The action itself was already guarded; this call was not, and it sits
+        // between the action and the setTimeout that schedules the next step.
+        // So a throw anywhere in render did not lose one frame — it skipped the
+        // recursion, and the queue stopped for good: no further cards, and
+        // onComplete never fired, so endPhase1 never ran and the round could not
+        // advance. That is indistinguishable from "the AI is stuck and won't
+        // play a card". Guarded to match the action above; UI._safe already
+        // isolates individual sub-renderers, this covers the call itself.
+        try {
+          if (typeof UI !== 'undefined' && UI.render) UI.render();
+        } catch (e) { console.error('[AI queue] render threw; continuing anyway', e); }
         // Phase B — post-play hold for animations to settle. Space the next
         // card off the SHORT play-to-play stagger (≤1.4s), not the full SFX
         // length — the cue keeps playing under the next play, so a long unique
