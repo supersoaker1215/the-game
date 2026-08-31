@@ -991,7 +991,7 @@ const CANDY_DEFS = [
   },
   {
     name: "Cashzap Candy", cost: 0, _isCandy: true,
-    desc: "Steal 1 Energy from every other player.",
+    desc: "Steal 1 Energy from every other player — they each start next round with 1 less, and you start with that much more.",
     play(G, owner) {
       if (typeof UI !== 'undefined' && UI._fxCandyCash) { try { UI._fxCandyCash(null); } catch (e) {} }
       const tt = G.state.twoVTwo;
@@ -1004,29 +1004,43 @@ const CANDY_DEFS = [
       // partner is down 1. That is the card working as written, not a bug to
       // be tidied up later: it is a free candy nobody paid for, and the cost of
       // taking it is that your partner feels it too.
-      if (tt && tt.online && tt.players) {
-        const me = G._2v2SeatOfPlay ? G._2v2SeatOfPlay(null) : null;
-        const caster = (me && tt.players[me]) ? me : (G._2v2CurrentActingPlayer || null);
+      //
+      // THE THEFT HAS TO SURVIVE THE ROUND. It used to take energy by bumping
+      // the victims' usedEnergy and adding to the caster's energy — and the top
+      // of every round runs `p.energy = energy + bonus; p.usedEnergy = 0`, which
+      // wipes BOTH. Unless the caster still had plays left in that same round,
+      // the candy did nothing anybody could see: no one lost anything and the
+      // caster never got to spend the gain. (Owner: "my teamate played the
+      // cashzap candy and all 3 players never lost an energy for the next turn
+      // and he never gained 3".) nextTurnCurrency is the bucket the round start
+      // ADDS to rather than overwrites — the same one Power Battery and Green
+      // Lantern bank into — so the steal lands where it is actually felt.
+      //
+      // tt.players and not tt.online: gated on the network it was completely
+      // inert in LOCAL 2v2, falling through to the 1v1 branch below and moving
+      // side currency that no seat ever reads.
+      if (tt && tt.players) {
+        const caster = (G._2v2AbilityOwner && G._2v2AbilityOwner())
+          || (G._2v2SeatOfPlay ? G._2v2SeatOfPlay(null) : null)
+          || G._2v2CurrentActingPlayer || null;
         let taken = 0;
         (G._2v2SLOTS || ['p1', 'p2', 'p3', 'p4']).forEach(pk => {
           const p = tt.players[pk];
           if (!p || pk === caster) return;
-          const avail = (p.energy | 0) - (p.usedEnergy | 0);
-          if (avail <= 0) return;
-          p.usedEnergy = (p.usedEnergy | 0) + 1;   // spend it out from under them
+          p.nextTurnCurrency = (p.nextTurnCurrency | 0) - 1;
           taken++;
         });
         const mine = caster && tt.players[caster];
-        if (mine && taken) mine.energy = (mine.energy | 0) + taken;
-        G.log(`Cashzap Candy: stole ${taken} Energy from the rest of the table!`);
+        if (mine && taken) mine.nextTurnCurrency = (mine.nextTurnCurrency | 0) + taken;
+        G.log(`Cashzap Candy: stole ${taken} Energy — each of them starts next round 1 down, the thief starts ${taken} up.`);
         return;
       }
+      // 1v1 banks the same way — startRound adds nextTurnCurrency into the
+      // round's grant, so a negative value is a real deduction next round.
       const opp = G.opponent(owner);
-      const avail = G.state[opp].currency | 0;
-      const take = Math.min(1, Math.max(0, avail));
-      G.state[opp].currency = avail - take;
-      G.state[owner].currency = (G.state[owner].currency | 0) + take;
-      G.log(take ? `Cashzap Candy: stole ${take} Energy!` : 'Cashzap Candy: they had no Energy to steal.');
+      G.state[opp].nextTurnCurrency = (G.state[opp].nextTurnCurrency | 0) - 1;
+      G.state[owner].nextTurnCurrency = (G.state[owner].nextTurnCurrency | 0) + 1;
+      G.log('Cashzap Candy: stole 1 Energy — they start next round 1 down, you start 1 up.');
     }
   },
   {
