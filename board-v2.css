@@ -23,14 +23,24 @@ body.board-v2 {
 
   /* --- Colour: one job per hue (SCREENS.md "Ownership, Value, System") ----- */
   --cy:        #35c9ff;   /* You. Frames, rails, drop zones, primary actions. */
-  --or:        #ff8a1f;   /* The opponent. NOT red — red is health. */
+  /* THE OPPONENT IS RED. The handoff spec reserved red for health and gave the
+     opponent orange; the owner has overruled that — "the enemy color should be
+     red not orange" — and this is the shipping board's own enemy red, so the
+     two boards now agree instead of disagreeing.
+     Health keeps --hp (#ff6b6b), a lighter, pinker red, so a health bar and an
+     enemy frame are still telling you different things.
+     --or-rgb exists because 47 rules painted the hue as a raw rgba() literal
+     and never went through the token at all — so the token could be changed
+     and the board would not move. Every one of them reads this now. */
+  --or-rgb:    231, 76, 60;
+  --or:        rgb(var(--or-rgb));
   --ice:       #dbeaf5;   /* System / neutral: tricks, timers, node chrome.   */
   --atk:       #3dff9e;   /* Attack. A value, never ownership, never rethemed */
   --hp:        #ff6b6b;   /* Health, and danger.                             */
   --core:      #e8f7ff;   /* The hot core inside a 2px stroke.               */
   --cy-dim:    #8fe0ff;
   --cy-txt:    #eafaff;
-  --or-txt:    #ffd9b0;
+  --or-txt:    #ffd3cd;
   --white:     #eef6fb;
   --bg:        #04060a;
   --timer:     #ffd24a;   /* the one surviving gold — neither player's        */
@@ -61,7 +71,7 @@ body.board-v2 #game-area::before {
 body.board-v2 #game-area::after {
   background:
     radial-gradient(56% 40% at 50% 50%, transparent 0%, rgba(4,6,10,0.92) 76%),
-    radial-gradient(88% 40% at 50% 0%,   rgba(255,138,31,0.11), transparent 70%),
+    radial-gradient(88% 40% at 50% 0%,   rgba(var(--or-rgb),0.11), transparent 70%),
     radial-gradient(88% 40% at 50% 100%, rgba(53,201,255,0.10), transparent 70%),
     repeating-linear-gradient(to bottom, rgba(0,0,0,0.18) 0 1px, transparent 1px 3px);
 }
@@ -121,9 +131,9 @@ body.board-v2 #game-area > .info-bar::after {
 }
 body.board-v2 #game-area > .info-bar.ai-bar::after {
   bottom: 0;
-  background: linear-gradient(to right, rgba(255,138,31,0) 0%, rgba(255,138,31,0.45) 20%,
-                                        rgba(255,138,31,0.45) 80%, rgba(255,138,31,0) 100%);
-  filter: drop-shadow(0 0 6px rgba(255,138,31,0.5));
+  background: linear-gradient(to right, rgba(var(--or-rgb),0) 0%, rgba(var(--or-rgb),0.45) 20%,
+                                        rgba(var(--or-rgb),0.45) 80%, rgba(var(--or-rgb),0) 100%);
+  filter: drop-shadow(0 0 6px rgba(var(--or-rgb),0.5));
 }
 body.board-v2 #game-area > .info-bar.player-bar::after {
   top: 0;
@@ -145,7 +155,7 @@ body.board-v2 #game-area > .info-bar {
   border-radius: 0; box-shadow: none;
 }
 body.board-v2 #game-area > .info-bar.ai-bar {
-  background: linear-gradient(to bottom, rgba(255,138,31,0.08), transparent 78%);
+  background: linear-gradient(to bottom, rgba(var(--or-rgb),0.08), transparent 78%);
 }
 body.board-v2 #game-area > .info-bar.player-bar {
   background: linear-gradient(to top, rgba(53,201,255,0.075), transparent 78%);
@@ -177,7 +187,7 @@ body.board-v2 .player-bar .bv2-tag {
 }
 body.board-v2 .ai-bar .bv2-tag {
   border: 2px solid var(--or); color: var(--or-txt);
-  box-shadow: inset 0 0 0 1px rgba(255,217,176,.7), 0 0 6px rgba(255,138,31,.42);
+  box-shadow: inset 0 0 0 1px rgba(255,217,176,.7), 0 0 6px rgba(var(--or-rgb),.42);
 }
 body.board-v2 .bv2-id { display: flex; flex-direction: column; gap: calc(7 * var(--u));
                         width: calc(240 * var(--u)); min-width: 0; }
@@ -208,7 +218,7 @@ body.board-v2 .bv2-hp i, body.board-v2 .bv2-trk i {
   margin-left: calc(5 * var(--u));
 }
 body.board-v2 .player-bar .bv2-hp i, body.board-v2 .player-bar .bv2-trk i { color: rgba(143,224,255,.72); }
-body.board-v2 .ai-bar     .bv2-hp i, body.board-v2 .ai-bar     .bv2-trk i { color: rgba(255,196,140,.72); }
+body.board-v2 .ai-bar     .bv2-hp i, body.board-v2 .ai-bar     .bv2-trk i { color: rgba(255,211,205,.72); }
 body.board-v2 .bv2-trk {
   font-family: var(--fm); font-size: calc(13 * var(--u));
   display: inline-flex; align-items: baseline; gap: calc(7 * var(--u));
@@ -232,7 +242,7 @@ body.board-v2 .player-bar .energy-display {
 }
 body.board-v2 .ai-bar .energy-display {
   border: 2px solid var(--or); color: var(--or-txt);
-  box-shadow: inset 0 0 0 1px rgba(255,217,176,.55), 0 0 6px rgba(255,138,31,.38);
+  box-shadow: inset 0 0 0 1px rgba(255,217,176,.55), 0 0 6px rgba(var(--or-rgb),.38);
 }
 /* Tertiary tier: 1px at 35-40% alpha, no glow, no fill. */
 body.board-v2 .info-bar .block-circle,
@@ -243,7 +253,7 @@ body.board-v2 .info-bar .pile-badge {
   font-family: var(--fm); font-size: calc(11 * var(--u));
 }
 body.board-v2 .ai-bar .block-circle,
-body.board-v2 .ai-bar .pile-badge { border-color: rgba(255,138,31,0.38); color: rgba(255,196,140,.86); }
+body.board-v2 .ai-bar .pile-badge { border-color: rgba(var(--or-rgb),0.38); color: rgba(255,211,205,.86); }
 body.board-v2 #game-area > .info-bar > .bar-dead::before,
 body.board-v2 .info-bar .bar-energy::before,
 body.board-v2 .info-bar .ai-hand-mini::before {
@@ -258,7 +268,7 @@ body.board-v2 .player-bar .bar-dead::before,
 body.board-v2 .player-bar .bar-energy::before { color: rgba(143,224,255,.72); }
 body.board-v2 .ai-bar .bar-dead::before,
 body.board-v2 .ai-bar .bar-energy::before,
-body.board-v2 .ai-bar .ai-hand-mini::before  { color: rgba(255,196,140,.72); }
+body.board-v2 .ai-bar .ai-hand-mini::before  { color: rgba(255,211,205,.72); }
 body.board-v2 #game-area > .info-bar > .bar-dead,
 body.board-v2 #game-area > .info-bar > .bar-energy { display: flex; align-items: center; }
 
@@ -334,7 +344,7 @@ body.board-v2 #board .lane::before,
 body.board-v2 #board .lane::after {
   content: ''; position: absolute; top: 0; bottom: 0; width: 1px;
   background: linear-gradient(to bottom,
-    rgba(255,138,31,0.55) 0%, rgba(143,224,255,0.12) 50%, rgba(53,201,255,0.55) 100%);
+    rgba(var(--or-rgb),0.55) 0%, rgba(143,224,255,0.12) 50%, rgba(53,201,255,0.55) 100%);
   pointer-events: none;
 }
 body.board-v2 #board .lane::before { left: 0; }
@@ -357,8 +367,8 @@ body.board-v2 #board .card-slot.player-slot:empty {
   box-shadow: inset 0 0 0 1px rgba(53,201,255,0.42);
 }
 body.board-v2 #board .card-slot.ai-slot:empty {
-  background: rgba(255,138,31,0.028);
-  box-shadow: inset 0 0 0 1px rgba(255,138,31,0.20);
+  background: rgba(var(--or-rgb),0.028);
+  box-shadow: inset 0 0 0 1px rgba(var(--or-rgb),0.20);
 }
 /* Your legal drop carries a 12px diamond outline, centred. */
 body.board-v2 #board .card-slot.player-slot:empty::after {
@@ -385,8 +395,8 @@ body.board-v2 #board .lane-sep::after {
 body.board-v2 #board .lane-sep::before { left: calc(6 * var(--u));  right: calc(50% + 16 * var(--u)); }
 body.board-v2 #board .lane-sep::after  { right: calc(6 * var(--u)); left:  calc(50% + 16 * var(--u)); }
 body.board-v2 #board .lane.occ-ai .lane-sep::before,
-body.board-v2 #board .lane.occ-ai .lane-sep::after { background: rgba(255,138,31,0.42); }
-body.board-v2 #board .lane.occ-both .lane-sep::before { background: rgba(255,138,31,0.42); }
+body.board-v2 #board .lane.occ-ai .lane-sep::after { background: rgba(var(--or-rgb),0.42); }
+body.board-v2 #board .lane.occ-both .lane-sep::before { background: rgba(var(--or-rgb),0.42); }
 body.board-v2 #board .lane.occ-both .lane-sep::after  { background: rgba(53,201,255,0.42); }
 body.board-v2 #board .lane-sep .lane-number {
   position: relative; z-index: 1;
@@ -445,7 +455,7 @@ body.board-v2 #lane-forecast-strip .lf-face-green {
   color: var(--cy); text-shadow: 0 0 4px rgba(53,201,255,.55);
 }
 body.board-v2 #lane-forecast-strip .lf-face-red {
-  color: var(--or); text-shadow: 0 0 4px rgba(255,138,31,.55);
+  color: var(--or); text-shadow: 0 0 4px rgba(var(--or-rgb),.55);
 }
 body.board-v2 #lane-forecast-strip .lf-face-green::before { content: '\25B2'; font-size: calc(9 * var(--u)); }
 body.board-v2 #lane-forecast-strip .lf-face-red::before   { content: '\25BC'; font-size: calc(9 * var(--u)); }
@@ -728,8 +738,8 @@ body.board-v2 .info-bar #ai-hand > * {
   clip-path: polygon(calc(7 * var(--u)) 0, 100% 0,
                      100% calc(100% - 7 * var(--u)),
                      calc(100% - 7 * var(--u)) 100%, 0 100%, 0 calc(7 * var(--u)));
-  border: 1px solid rgba(255,138,31,0.42) !important;
-  background: linear-gradient(140deg, rgba(255,138,31,0.16), rgba(4,6,10,0.95)) !important;
+  border: 1px solid rgba(var(--or-rgb),0.42) !important;
+  background: linear-gradient(140deg, rgba(var(--or-rgb),0.16), rgba(4,6,10,0.95)) !important;
   box-shadow: none !important;
   flex: 0 0 auto;
 }
@@ -838,7 +848,7 @@ body.board-v2 #board .lane-sep { height: calc(28 * var(--u)); }
 body.board-v2 #board .lane::before,
 body.board-v2 #board .lane::after {
   background: linear-gradient(to bottom,
-    rgba(255,138,31,0.34) 0%,  rgba(255,138,31,0.08) 46%,
+    rgba(var(--or-rgb),0.34) 0%,  rgba(var(--or-rgb),0.08) 46%,
     rgba(53,201,255,0.08) 54%, rgba(53,201,255,0.34) 100%);
 }
 /* Ring sizes: BLOCK 44, DISCARD 34, ENERGY disc 40. */
@@ -882,7 +892,7 @@ body.board-v2 .info-bar .health-fill {
 
 /* ===========================================================================
    THE BLUE AND THE RED. The frame BORDERS were already the spec's #35c9ff and
-   #ff8a1f, but every card's glow is driven by `--frame-rgb`, which still held
+   var(--or), but every card's glow is driven by `--frame-rgb`, which still held
    the shipping red (231,76,60) and the old theme blue (79,195,247). So each
    card was outlined in the new palette and haloed in the old one — which is
    why the board still read red-and-blue instead of orange-and-cyan.
@@ -891,8 +901,8 @@ body.board-v2 .info-bar .health-fill {
    =========================================================================== */
 body.board-v2 #board .ai-slot .card,
 body.board-v2 #board .ai-slot .card * {
-  --frame-rgb: 255, 138, 31;
-  --frame-color: #ff8a1f;
+  --frame-rgb: var(--or-rgb);
+  --frame-color: var(--or);
 }
 body.board-v2 #board .player-slot .card,
 body.board-v2 #board .player-slot .card * {
@@ -935,13 +945,13 @@ body.board-v2 .info-bar .hand-tools > * {
 body.board-v2 #game-area::after {
   background:
     radial-gradient(56% 40% at 50% 50%, transparent 0%, rgba(4,6,10,0.92) 76%),
-    radial-gradient(96% 46% at 50% 0%,   rgba(255,138,31,0.20), transparent 72%),
+    radial-gradient(96% 46% at 50% 0%,   rgba(var(--or-rgb),0.20), transparent 72%),
     radial-gradient(96% 46% at 50% 100%, rgba(53,201,255,0.19), transparent 72%),
     repeating-linear-gradient(to bottom, rgba(0,0,0,0.18) 0 1px, transparent 1px 3px);
 }
 /* And the bands' own washes, so the light continues into the seat strips. */
 body.board-v2 #game-area > .info-bar.ai-bar {
-  background: linear-gradient(to bottom, rgba(255,138,31,0.14), transparent 82%);
+  background: linear-gradient(to bottom, rgba(var(--or-rgb),0.14), transparent 82%);
 }
 body.board-v2 #game-area > .info-bar.player-bar {
   background: linear-gradient(to top, rgba(53,201,255,0.14), transparent 82%);
@@ -1025,9 +1035,9 @@ body.board-v2 #game-area {
    =========================================================================== */
 body.board-v2 #game-area > .info-bar.ai-bar {
   background-image: linear-gradient(to bottom,
-    rgba(255,138,31,0.26) 0%,
-    rgba(255,138,31,0.10) 46%,
-    rgba(255,138,31,0.00) 100%) !important;
+    rgba(var(--or-rgb),0.26) 0%,
+    rgba(var(--or-rgb),0.10) 46%,
+    rgba(var(--or-rgb),0.00) 100%) !important;
 }
 body.board-v2 #game-area > .info-bar.player-bar {
   background-image: linear-gradient(to top,
@@ -1048,9 +1058,9 @@ body.board-v2 #game-area > .info-bar::after {
 }
 body.board-v2 #game-area > .info-bar.ai-bar::after {
   background: linear-gradient(to right,
-    rgba(255,138,31,0) 0%, rgba(255,138,31,0.95) 14%,
-    rgba(255,138,31,0.95) 86%, rgba(255,138,31,0) 100%);
-  box-shadow: 0 0 6px rgba(255,138,31,0.55), 0 0 14px rgba(255,138,31,0.28);
+    rgba(var(--or-rgb),0) 0%, rgba(var(--or-rgb),0.95) 14%,
+    rgba(var(--or-rgb),0.95) 86%, rgba(var(--or-rgb),0) 100%);
+  box-shadow: 0 0 6px rgba(var(--or-rgb),0.55), 0 0 14px rgba(var(--or-rgb),0.28);
   filter: none;
 }
 body.board-v2 #game-area > .info-bar.player-bar::after {
@@ -1073,7 +1083,7 @@ body.board-v2 #game-area > .info-bar.player-bar::before {
 }
 body.board-v2 #game-area > .info-bar.ai-bar::before {
   top: 100%;
-  background: linear-gradient(to bottom, rgba(255,138,31,0.16), rgba(255,138,31,0) 100%);
+  background: linear-gradient(to bottom, rgba(var(--or-rgb),0.16), rgba(var(--or-rgb),0) 100%);
 }
 body.board-v2 #game-area > .info-bar.player-bar::before {
   bottom: 100%;
@@ -1249,9 +1259,9 @@ body.board-v2 #game-area > .info-bar::after { display: none !important; content:
 /* Opponent: brightest along the edge nearest the board, fading UP. */
 body.board-v2 #game-area > .info-bar.ai-bar {
   background-image: linear-gradient(to top,
-    rgba(255,138,31,0.30) 0%,
-    rgba(255,138,31,0.12) 48%,
-    rgba(255,138,31,0.00) 100%) !important;
+    rgba(var(--or-rgb),0.30) 0%,
+    rgba(var(--or-rgb),0.12) 48%,
+    rgba(var(--or-rgb),0.00) 100%) !important;
 }
 /* …and keeps rising past the band toward the top of the screen. */
 body.board-v2 #game-area > .info-bar.ai-bar::before {
@@ -1259,9 +1269,9 @@ body.board-v2 #game-area > .info-bar.ai-bar::before {
   bottom: 100%;
   height: calc(150 * var(--u));
   background: linear-gradient(to top,
-    rgba(255,138,31,0.16) 0%,
-    rgba(255,138,31,0.05) 45%,
-    rgba(255,138,31,0.00) 100%);
+    rgba(var(--or-rgb),0.16) 0%,
+    rgba(var(--or-rgb),0.05) 45%,
+    rgba(var(--or-rgb),0.00) 100%);
 }
 
 /* ===========================================================================
@@ -1292,9 +1302,9 @@ body.board-v2 #game-area > .info-bar.player-bar::after {
 body.board-v2 #game-area > .info-bar.ai-bar::after {
   bottom: 0; top: auto;
   background: linear-gradient(to right,
-    rgba(255,138,31,0) 0%, rgba(255,138,31,1) 12%,
-    rgba(255,138,31,1) 88%, rgba(255,138,31,0) 100%);
-  box-shadow: 0 0 5px rgba(255,138,31,0.70), 0 0 13px rgba(255,138,31,0.34);
+    rgba(var(--or-rgb),0) 0%, rgba(var(--or-rgb),1) 12%,
+    rgba(var(--or-rgb),1) 88%, rgba(var(--or-rgb),0) 100%);
+  box-shadow: 0 0 5px rgba(var(--or-rgb),0.70), 0 0 13px rgba(var(--or-rgb),0.34);
 }
 
 /* ===========================================================================
@@ -1320,8 +1330,8 @@ body.board-v2 #game-area > .info-bar.player-bar {
 }
 body.board-v2 #game-area > .info-bar.ai-bar {
   background-image: linear-gradient(to top,
-    rgba(255,138,31,0.30) 0%,
-    rgba(255,138,31,0.16) 100%) !important;
+    rgba(var(--or-rgb),0.30) 0%,
+    rgba(var(--or-rgb),0.16) 100%) !important;
 }
 
 /* ===========================================================================
@@ -1617,7 +1627,7 @@ body.board-v2 .twov2-roster-strip .rc-chip {
   letter-spacing: .16em; text-transform: uppercase;
   color: rgba(143,224,255,.72);
 }
-body.board-v2 #game-area > .info-bar.ai-bar .twov2-roster-strip .rc-chip { color: rgba(255,196,140,.78); }
+body.board-v2 #game-area > .info-bar.ai-bar .twov2-roster-strip .rc-chip { color: rgba(255,211,205,.78); }
 
 /* THE TURN-ORDER TRACKER is position:fixed on <body>, which in the redesign
    parks it on top of the trick rail and the hand. BoardV2 moves the node into
@@ -1892,3 +1902,16 @@ body.board-v2 #game-area > .info-bar {
   padding-right: var(--bv2-gutter);
   overflow: visible;
 }
+
+
+/* ===========================================================================
+   THE ZONES START BELOW THE RAIL, NOT ON IT.
+   The bands' 2px emitter rail runs at the board-facing edge, and the rails
+   begin on the same grid row as the board — so "PHASE / YOUR TRICKS" (zone 1)
+   and the LOG (zone 3) had their first pixel touching that line, which reads
+   as the panel hanging off it rather than sitting under it. (Owner: "the log
+   and phase your tricks needs a little space from the light rail.")
+   Padding on the rail, so both zones move together and the board is untouched.
+   =========================================================================== */
+body.board-v2 #bv2-rail-left,
+body.board-v2 #bv2-rail-right { padding-top: calc(16 * var(--u)); }
