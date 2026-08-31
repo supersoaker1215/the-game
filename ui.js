@@ -9012,7 +9012,12 @@ const UI = {
     const r = orb.getBoundingClientRect();
     if (!r || r.width === 0) return;
     const b = document.createElement('div');
-    b.className = 'forecast-hp forecast-hp-hurt';
+    // Tagged apart from the per-CARD pills. It anchors to the hero's health
+    // orb, and where that orb sits is a per-board decision — on the redesign it
+    // lives inside the seat plate, so `orb.top - 2` put this straight on top of
+    // the opponent's NAME. The class lets a board move it without ui.js having
+    // to know which board is on.
+    b.className = 'forecast-hp forecast-hp-hurt forecast-hp-hero';
     b.textContent = cur + ' → ' + Math.max(0, after);
     b.style.left = (r.left + r.width / 2) + 'px';
     b.style.top = (r.top - 2) + 'px';

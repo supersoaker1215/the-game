@@ -2030,3 +2030,45 @@ body.board-v2 #bv2-rail-left .ba-fc-cell {
 /* !important because an earlier rule zeroes this section's padding outright,
    and that rule is the reason the first version of this line did nothing. */
 body.board-v2 #game-area > .board-section { padding-top: calc(16 * var(--u)) !important; }
+
+
+/* ===========================================================================
+   THE HOVER FORECAST READS LIKE THE SHIPPING BOARD'S.
+   Owner: "the hover on board doesn't work, make it just like classic."
+
+   It was firing correctly — measured side by side, both boards build the same
+   two arrows with the same strokes and the same pills — but V2 had turned OFF
+   the half of it that carries the meaning. .lf-verdict was hidden, so where
+   classic says WIN / STRIKE 2 / EXPOSED under each lane, the redesign showed
+   only ▲N / ▼N and the hover looked like it had done nothing. The numbers say
+   how much; the verdict says what happens, and that is the part you hover for.
+   =========================================================================== */
+body.board-v2 #lane-forecast-strip .lf-verdict {
+  display: block;
+  font-family: var(--fm); font-weight: 700;
+  font-size: calc(9 * var(--u)); letter-spacing: .16em;
+  text-transform: uppercase;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  min-width: 0; text-align: center;
+}
+/* The same four readings the shipping board gives, in this palette. */
+body.board-v2 #lane-forecast-strip .lf-cell.lf-win   .lf-verdict { color: var(--atk); text-shadow: 0 0 5px rgba(61,255,158,.5); }
+body.board-v2 #lane-forecast-strip .lf-cell.lf-lose  .lf-verdict { color: var(--or);  text-shadow: 0 0 5px rgba(var(--or-rgb),.5); }
+body.board-v2 #lane-forecast-strip .lf-cell.lf-trade .lf-verdict { color: var(--timer); text-shadow: 0 0 5px rgba(255,210,74,.45); }
+body.board-v2 #lane-forecast-strip .lf-cell.lf-stall .lf-verdict { color: rgba(143,224,255,.55); }
+body.board-v2 #lane-forecast-strip .lf-cell.lf-empty .lf-verdict,
+body.board-v2 #lane-forecast-strip .lf-cell.lf-destroyed .lf-verdict { display: none; }
+/* The strip needs the height back that hiding the verdict had freed. */
+body.board-v2 #lane-forecast-strip .lf-cell {
+  height: auto; min-height: calc(20 * var(--u));
+  flex-direction: column; gap: calc(1 * var(--u));
+}
+
+/* THE HERO PILL CLEARS THE BAND. It anchors to the health orb, and on this
+   board that orb is inside the seat plate — so the pill landed on the
+   opponent's name. Dropped below the band, where there is nothing to cover.
+   60u is measured against the 84u band: the orb sits mid-band, so this clears
+   its lower edge rather than guessing. */
+body.board-v2 .forecast-hp.forecast-hp-hero {
+  transform: translate(-50%, calc(60 * var(--u))) !important;
+}
