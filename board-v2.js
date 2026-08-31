@@ -83,6 +83,13 @@ const BoardV2 = {
         if (home.next && home.next.parentNode === home.parent) home.parent.insertBefore(node, home.next);
         else home.parent.appendChild(node);
       });
+      // The slot dimensions are inline custom properties on #board — not a
+      // bv2- node, so the sweep below cannot reach them, and left behind they
+      // would size the shipping board's slots too.
+      const _b = document.getElementById('board');
+      if (_b) { ['--bv2-slot-w', '--bv2-slot-h', '--bv2-board-card-w']
+        .forEach(p => _b.style.removeProperty(p)); }
+      this._slotW = null;
       document.querySelectorAll('[id^="bv2-"], .bv2-lane-no').forEach(el => el.remove());
     } catch (e) { console.error('[BoardV2] teardown', e); }
   },
@@ -475,14 +482,61 @@ const BoardV2 = {
   //
   // The slot's width is set by the lane and its own height cap, never by the
   // card, so measuring it and handing the length back down is not a loop.
+  // THE SLOT IS A CARD-SHAPED HOLE, AT EVERY WINDOW SIZE.
+  //
+  // A card renders at a fixed 130 x 257 (measured 1.977, and the hand card holds
+  // it to three decimals at every size). The board slot had no ratio at all —
+  // `aspect-ratio: auto; flex: 1 1 0` — so its WIDTH came from the lane column
+  // and its HEIGHT came from whatever vertical space the grid had left over.
+  // Two independent axes, so the shape moved with the window: measured 2.62 at
+  // 1200x1000, 2.07 at 1278x932, and 0.81 at 1920x780 — where the card came out
+  // 221 wide by 169 tall, LANDSCAPE, because `max-height: 100%` then squashed it
+  // into the hole. (Owner: "the board gets wider but the lanes shrink and change
+  // aspect ratio, that shouldnt happen — this is the aspect ratio i want all
+  // game.")
+  //
+  // CSS cannot fix this alone: fitting a fixed-ratio box inside a box whose two
+  // dimensions come from a grid `1fr` needs both of those dimensions, and a
+  // pure aspect-ratio version collapses (tried — the lane shrink-wraps a slot
+  // whose width depends on the lane, and the slot came out 66 x 225). So the two
+  // numbers are measured here, once per render, and published for the CSS.
+  //
+  // Whichever axis is tighter wins, exactly like the --u scale unit does for the
+  // rest of the design: the card is as large as it can be without ever changing
+  // shape. Spare height on a tall window goes into bigger cards; a short window
+  // narrows the lanes and leaves gutters, which is what the shipping board has
+  // always done (measured there: a 932-wide board in a 1920 window, card 1.978).
+  _CARD_RATIO: 257 / 130,
   _sizeBoardCards() {
-    const slot = document.querySelector('#board .card-slot');
     const root = document.getElementById('board');
-    if (!slot || !root) return;
-    const w = Math.round(slot.getBoundingClientRect().width * 100) / 100;
-    if (!w || w === this._slotW) return;
-    this._slotW = w;
-    root.style.setProperty('--bv2-board-card-w', w + 'px');
+    if (!root) return;
+    const lanes = root.querySelectorAll('.lane');
+    const n = lanes.length;
+    if (!n) return;
+    const availW = root.clientWidth, availH = root.clientHeight;
+    if (!availW || !availH) return;                    // not laid out yet
+    const gap = parseFloat(getComputedStyle(root).columnGap) || 0;
+    // One probe for the scale unit — the separator and the lane's side margin
+    // are both authored in --u, so they have to be read in the same currency.
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:absolute;visibility:hidden;width:calc(100 * var(--u))';
+    root.appendChild(probe);
+    const u = probe.getBoundingClientRect().width / 100;
+    probe.remove();
+    if (!u) return;
+    const R = this._CARD_RATIO;
+    // Height available to ONE slot: the lane, less the midline, halved.
+    const byHeight = (availH - 28 * u) / 2 / R;
+    // Width available to one slot: the lane column, less the gaps and the 8u
+    // the slot is inset from its lane.
+    const byWidth  = (availW - (n - 1) * gap) / n - 8 * u;
+    const w = Math.max(20, Math.min(byWidth, byHeight));
+    const wv = Math.round(w * 100) / 100;
+    if (wv === this._slotW) return;                    // nothing moved
+    this._slotW = wv;
+    root.style.setProperty('--bv2-slot-w', wv + 'px');
+    root.style.setProperty('--bv2-slot-h', (Math.round(wv * R * 100) / 100) + 'px');
+    root.style.setProperty('--bv2-board-card-w', wv + 'px');
   },
 
   // ===========================================================================
@@ -678,6 +732,14 @@ const BoardV2 = {
 };
 if (typeof window !== 'undefined') {
   window.BoardV2 = BoardV2;
+  // A window drag changes both of the numbers the slot is sized from and does
+  // not necessarily re-render the board, so the slot would keep the shape it
+  // had at the old size until something else happened to repaint.
+  window.addEventListener('resize', () => {
+    if (!BoardV2.enabled()) return;
+    BoardV2._slotW = null;                    // force the recompute
+    try { BoardV2._sizeBoardCards(); } catch (e) {}
+  });
   // Apply the body class as early as possible so the first painted frame is
   // already in the right skin rather than flashing the old board.
   try { BoardV2.apply(); } catch (e) {}

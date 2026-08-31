@@ -962,23 +962,45 @@ body.board-v2 #game-area > .info-bar.player-bar {
    is. At this window the card is width-limited (105px lane against ~248px of
    slot height), so it fits with room to spare and comes out larger than before.
    =========================================================================== */
+/* SUPERSEDED, and this is the correction. Dropping the ratio did stop the
+   overflow, but it left the slot with NO shape of its own: width from the lane
+   column, height from leftover grid space, two axes moving independently. The
+   card then had `max-height: 100%` and was squashed into whatever hole that
+   produced — measured 221 wide by 169 tall at 1920x780, a landscape card.
+   The slot now takes the CARD's ratio (1.977, not the spec's 1.59 — that
+   mismatch is what broke it the first time) from BoardV2._sizeBoardCards, which
+   measures both axes and uses the tighter one. Lanes hug their slot and the
+   board centres, so a window that cannot fit the shape gets gutters instead of
+   a different shape. */
+body.board-v2 #board { justify-content: center; }
 body.board-v2 #board .lane {
-  justify-content: flex-start;
+  flex: 0 0 auto;
+  width: calc(var(--bv2-slot-w, calc(130 * var(--u))) + 8 * var(--u));
+  min-width: 0;
+  /* Centred, so the two cards meet at the midline and any slack the tighter
+     axis leaves over sits at the top and bottom of the lane rather than
+     stretching a card. */
+  justify-content: center;
+  align-items: center;
 }
 body.board-v2 #board .card-slot {
-  flex: 1 1 0;
-  height: auto;
+  flex: 0 0 auto;
+  width: var(--bv2-slot-w, calc(130 * var(--u)));
+  height: var(--bv2-slot-h, calc(257 * var(--u)));
   aspect-ratio: auto;
   max-height: none;
   min-height: 0;
   align-items: center;
+  /* 6px/4px, hardcoded and unscaled, from the shipping board. With
+     box-sizing: border-box it came off the CARD's height, so the card sat a
+     constant 10px shorter than its slot at every zoom — the tell that it was a
+     literal and not a ratio. The slot IS the card here, so it has no padding. */
+  padding: 0;
 }
-/* The card fills the bay's width and keeps its own proportions; if a very short
-   lane ever made height the binding constraint, it scales down instead of
-   spilling out of the slot. */
+/* The card fills the slot exactly: same box, same ratio, nothing to squash. */
 body.board-v2 #board .lane .card {
   width: 100%;
-  height: auto;
+  height: 100%;
   max-height: 100%;
   object-fit: contain;
 }
@@ -1659,4 +1681,25 @@ body.board-v2 #bv2-notices .fp-trick-preview > * {
 }
 body.board-v2 #bv2-notices .fp-choices {
   width: 100%; flex-direction: column !important; align-items: flex-start !important;
+}
+
+
+/* ===========================================================================
+   THE INCOMING-DAMAGE CHIP BELONGS IN THE STAT ROW.
+   On the shipping board it is deliberately lifted CLEAR of the stat brackets —
+   `bottom: --card-w * 0.28 + 4px` — because there it would have sat on top of
+   them. (Owner then: "the death symbol is too low.") That tuning is left
+   exactly as it is; this only moves it on the redesigned board.
+   Here the two brackets sit in the bottom CORNERS with the whole middle of the
+   row empty, so the chip reads as part of the readout when it shares their
+   line and as a floating annotation when it hangs above it. (Owner: "the -3
+   needs to be centered in the middle of the attack/damage squares.")
+   Anchored to --stat-bottom, the same value the brackets use, plus half the
+   row's height; translateY(50%) then centres the chip on that line whatever
+   its own height turns out to be, so nothing here re-states a number.
+   =========================================================================== */
+body.board-v2 #board .card .incoming-damage,
+body.board-v2 #board .card .card-xp-chip {
+  bottom: calc(var(--stat-bottom) + var(--stat-h, 22px) / 2);
+  transform: translate(-50%, 50%);
 }

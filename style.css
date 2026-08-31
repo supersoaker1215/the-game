@@ -6714,9 +6714,10 @@ body.hit-pause .ai-hand * {
    stroke-width renders identically on the horizontal arms and the vertical
    ones. stroke-width 10 of 100 = 2.2px on the 22px badge, against the card's
    own 2px border — the bracket reads as the frame, not a competing weight. */
+.card { --stat-h: 22px; }
 .stat-circle {
   --stat-line: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='10' stroke-linejoin='miter' stroke-linecap='butt' d='M0,26 L0,0 L26,0 M74,0 L100,0 L100,26 M100,74 L100,100 L74,100 M26,100 L0,100 L0,74'/></svg>");
-  width: 22px; height: 22px;
+  width: var(--stat-h, 22px); height: var(--stat-h, 22px);
   display: flex; align-items: center; justify-content: center;
   font-size: 11px; font-weight: 700; z-index: 4;
   position: absolute; bottom: 5px;
@@ -9995,7 +9996,8 @@ body.turn-combat .board .lane.lane-active {
      Still one tap-and-hold away in the inspect modal, like every other detail
      the board token defers. Desktop is untouched — there is room there. */
   .board .card .card-cost { display: none; }
-  .board .card .stat-circle { width: 16px; height: 16px; font-size: 10px; }
+  .board .card { --stat-h: 16px; }
+  .board .card .stat-circle { width: var(--stat-h); height: var(--stat-h); font-size: 10px; }
   .board .card .stat-circle.stat-atk { bottom: 2px; left: 2px; }
   .board .card .stat-circle.stat-hp  { bottom: 2px; right: 2px; }
   /* RARITY PIPS: GONE from the phone board tile. Rarity is draft / collection
@@ -45122,12 +45124,20 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    `.card.card .stat-circle { ... !important }` at (0,3,0), so the first version
    of this shipped inert. Doubled classes in this file have now made four
    correct rules do nothing; check the winner before writing, not after. */
-.card.card .stat-circle {
-  bottom: max(
+.card.card {
+  /* NAMED, because it now has a second reader. The incoming-damage badge on
+     the redesigned board centres itself on this row, and a copied expression
+     would drift the first time this one is tuned again — which it has been,
+     four times. One definition, and --stat-h beside it for the row's height,
+     so "where the stat row sits" is answerable without measuring a card. */
+  --stat-bottom: max(
     calc(var(--chamfer) * 1.15 + var(--card-w) * 0.020),
     calc(var(--cf-inset) + var(--chamfer)
          - var(--card-w) * 0.030 + var(--card-w) * 0.018)
-  ) !important;
+  );
+}
+.card.card .stat-circle {
+  bottom: var(--stat-bottom) !important;
 }
 
 /* ============================================================
