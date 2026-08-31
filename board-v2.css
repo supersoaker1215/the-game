@@ -818,8 +818,8 @@ body.board-v2 #lane-forecast-strip .lf-cell.lf-empty::after { font-size: calc(11
    =========================================================================== */
 body.board-v2 #game-area {
   grid-template-columns: calc(324 * var(--u)) minmax(0, 1fr) calc(324 * var(--u));
-  padding-left:  calc(56 * var(--u));
-  padding-right: calc(56 * var(--u));
+  padding-left:  var(--bv2-gutter, calc(56 * var(--u)));
+  padding-right: var(--bv2-gutter, calc(56 * var(--u)));
   column-gap: calc(20 * var(--u));
 }
 body.board-v2 #board { gap: calc(14 * var(--u)); }
@@ -1718,7 +1718,15 @@ body.board-v2 #bv2-rail-right {
   display: flex; flex-direction: column; align-self: stretch;
   min-height: 0; gap: calc(14 * var(--u));
 }
-body.board-v2 #bv2-decision { flex: 0 0 auto; }
+/* Zone 4 takes what it needs and no more: a three-option tray is taller than
+   the rail, and left unbounded it pushed the log (zone 3) to zero height. One
+   scroller, on zone 4 itself — the cards inside must not scroll separately. */
+body.board-v2 #bv2-decision {
+  flex: 0 1 auto; min-height: 0;
+  max-height: 62%; overflow-y: auto; overflow-x: hidden;
+}
+/* Zone 3 keeps a floor so there is always some log to read. */
+body.board-v2 #bv2-log { min-height: calc(96 * var(--u)); }
 body.board-v2 #bv2-log      { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 body.board-v2 #bv2-log .bv2-log-list {
   flex: 1 1 auto; min-height: 0; overflow: hidden;
@@ -1765,3 +1773,122 @@ body.board-v2 #bv2-decision #time-stone-modal {
 }
 body.board-v2 #bv2-decision .fp-backdrop,
 body.board-v2 #bv2-decision .fp-peek { display: none !important; }
+
+
+/* ===========================================================================
+   THE FOUR ZONES, NAMED AND ORDERED.
+   Owner: "there are essentially 4 zones on the sides of the board. 1 is 'if
+   combat resolves' / whose turn it is. 2 is turn order. 3 is the log. 4 is any
+   pop-ups — jumps, choose cards."
+
+       LEFT RAIL              RIGHT RAIL
+       zone 1  phase + forecast    zone 3  log
+       zone 2  turn order          zone 4  every pop-up
+
+   Ordered with flex `order` rather than by moving nodes: three different
+   renderers append into these rails (board-v2's own, renderBoardAside, and the
+   2v2 turn tracker adopting itself), so whichever ran last decided the order.
+   A declared order cannot be raced.
+   =========================================================================== */
+body.board-v2 #bv2-rail-left  { display: flex; flex-direction: column; }
+body.board-v2 #bv2-phase             { order: 1; }
+body.board-v2 #bv2-rail-left #board-aside { order: 2; }
+body.board-v2 #bv2-rail-left #twov2-turn-tracker { order: 3; margin-top: auto; }
+body.board-v2 #bv2-log      { order: 1; }
+body.board-v2 #bv2-decision { order: 2; }
+
+/* ===========================================================================
+   ZONE 4 HOLDS THE WHOLE POP-UP, not a summary of it.
+   #choice-tray was a bottom-anchored floating sheet with a dimming backdrop
+   over the middle of the screen — the same thing the jump offer and the
+   block-trick offer used to be, and it belongs in the same place as them.
+   Everything that made it float comes off; the card faces stack down the rail
+   at rail width and scroll if there are more than fit.
+   =========================================================================== */
+body.board-v2 #bv2-decision #choice-tray {
+  position: static !important;
+  inset: auto !important;
+  transform: none !important;
+  width: 100% !important; max-width: 100% !important;
+  height: auto !important; max-height: none !important;
+  background: transparent !important;
+  z-index: auto !important;
+  display: block !important;
+  animation: none !important;
+}
+body.board-v2 #bv2-decision .choice-tray-backdrop { display: none !important; }
+body.board-v2 #bv2-decision .choice-tray-panel {
+  position: static !important;
+  transform: none !important;
+  width: 100% !important; max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  animation: none !important;
+}
+body.board-v2 #bv2-decision .choice-tray-header {
+  display: flex; flex-direction: column; gap: calc(3 * var(--u));
+  padding: 0 0 calc(8 * var(--u));
+  text-align: left;
+}
+body.board-v2 #bv2-decision .choice-tray-title {
+  font-family: var(--fd); font-weight: 700;
+  font-size: calc(13 * var(--u)); letter-spacing: .02em; color: var(--core);
+}
+body.board-v2 #bv2-decision .choice-tray-desc {
+  font-family: var(--fm); font-size: calc(10 * var(--u));
+  line-height: 1.35; color: rgba(143,224,255,.72);
+}
+/* The options run DOWN the rail. Two across at rail width would put a card
+   face under 100px, which is the size the tray was built to get away from. */
+body.board-v2 #bv2-decision .choice-tray-cards {
+  display: flex !important; flex-direction: column !important;
+  align-items: stretch !important;
+  /* NOWRAP IS THE LOAD-BEARING ONE. The tray's own rule wraps, and in a column
+     with a bounded height "wrap" means a SECOND COLUMN — the third option
+     landed at x=1444, outside the 1229-1435 rail and off the panel entirely.
+     One column, and zone 4 scrolls if there are more than fit. */
+  flex-wrap: nowrap !important;
+  gap: calc(10 * var(--u)) !important;
+  max-height: none !important; overflow: visible !important;
+  padding: 0 !important;
+}
+body.board-v2 #bv2-decision .choice-tray-cards > * {
+  width: 100% !important; max-width: 100% !important; flex: 0 0 auto !important;
+  margin: 0 !important;
+}
+body.board-v2 #bv2-decision .choice-tray-cards .card {
+  --card-w: calc(118 * var(--u));
+  width: calc(118 * var(--u)) !important; max-width: calc(118 * var(--u)) !important;
+  margin: 0 auto !important;
+}
+
+/* ===========================================================================
+   THE LIGHT RAILS RUN TO THE EDGES OF THE SCREEN.
+   Owner: "the light rails extend to the edges of the board, and the gradient as
+   well, but everything stays exactly where it's at."
+
+   The bands sit inside #game-area's side gutter, so all THREE of their layers
+   stopped where the band stopped: the wash on the element, the spill on
+   ::before that carries it past the band, and the 2px emitter rail on ::after.
+   A lit strip across the middle with dead black either side of it — and the
+   dead black is exactly where the four zones are.
+
+   Done with negative margins, not a transform: a transform on these bands would
+   make them the containing block for anything position:fixed inside them, which
+   is the trap #game-area's own perspective already sets elsewhere in this file.
+   The band's BOX grows to the screen edges and its padding puts the content
+   back precisely where it was, so all three layers extend on their own and
+   nothing moves.
+   =========================================================================== */
+body.board-v2 #game-area { --bv2-gutter: calc(56 * var(--u)); }
+body.board-v2 #game-area > .info-bar {
+  margin-left:  calc(-1 * var(--bv2-gutter));
+  margin-right: calc(-1 * var(--bv2-gutter));
+  padding-left:  var(--bv2-gutter);
+  padding-right: var(--bv2-gutter);
+  overflow: visible;
+}

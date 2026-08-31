@@ -616,7 +616,15 @@ const BoardV2 = {
     // every listener and countdown ui.js attached to it. Anything that got
     // built before this panel existed is pulled in on the next frame.
     if (slot) {
-      ['jump-offer-modal', 'block-trick-modal', 'time-stone-modal'].forEach(function (id) {
+      // #choice-tray is in this list now. It is the "pick one of these cards"
+      // panel — Gorilla Grodd's mind control, Deathstroke's assassinate,
+      // Deadpool's give-back — and it was a bottom-anchored floating sheet with
+      // a backdrop over the middle of the screen. It is the same kind of thing
+      // as the other three and belongs in the same place. (Owner: "you summon
+      // gorilla grodd, who do you mind control — pop up, the text and
+      // everything lives there.") It is rebuilt from scratch each time it is
+      // raised, so this re-adopts by id on every render rather than once.
+      ['jump-offer-modal', 'block-trick-modal', 'time-stone-modal', 'choice-tray'].forEach(function (id) {
         const m = document.getElementById(id);
         if (m && m.parentNode !== slot) slot.appendChild(m);
       });
@@ -624,17 +632,10 @@ const BoardV2 = {
     const banner = document.getElementById('prompt-banner');
     if (banner && banner.parentNode !== body) body.appendChild(banner);
 
-    // A choice that cannot be pointed at on the board opens the centre tray.
-    // Three card faces do not fit a 182px column, so the tray stays where it
-    // is - but the rail still says a decision is live, and what it is, so the
-    // panel is never silent while the game is waiting on you.
-    const tray = document.querySelector('#choice-tray .choice-tray-title');
-    let note = body.querySelector('.bv2-dec-echo');
-    if (tray && !banner) {
-      if (!note) { note = document.createElement('div'); note.className = 'bv2-dec-echo'; body.appendChild(note); }
-      const t = tray.textContent || '';
-      if (note.textContent !== t) note.textContent = t;
-    } else if (note) { note.remove(); note = null; }
+    // The echo of the tray's title is gone with it — the tray itself is in the
+    // slot above now, so repeating its heading here would just say it twice.
+    const note = body.querySelector('.bv2-dec-echo');
+    if (note) note.remove();
 
     const docked = !!(slot && slot.firstElementChild);
     panel.classList.toggle('is-live', !!(banner || note || docked));
