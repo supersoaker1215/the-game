@@ -2231,32 +2231,14 @@ body.board-v2 .hud-pill .hud-val,
 body.board-v2 .bv2-cap-val,
 body.board-v2 .info-bar .bv2-hpn { text-shadow: none !important; }
 
-/* --- 5. A HAND FRAME CARRIES RARITY, NOTHING ELSE ------------------------- */
-/* --rarity-rgb is a COST ramp in the shipping palette: 0-3 green, 4-6 blue,
-   7-8 white, 9-10 gold. Two of those collide head-on with this board's other
-   meanings — green is ATTACK, and it sits directly above the attack bracket on
-   the same card, and blue is YOU. So a cheap card wore an attack-coloured
-   frame. Rarity here is the reference's two steps, ice and gold, and neither
-   is any player's colour or any stat's. Affordability stays opacity alone. */
-body.board-v2 .player-hand-section .card.cost-0,
-body.board-v2 .player-hand-section .card.cost-1,
-body.board-v2 .player-hand-section .card.cost-2,
-body.board-v2 .player-hand-section .card.cost-3,
-body.board-v2 .player-hand-section .card.cost-4,
-body.board-v2 .player-hand-section .card.cost-5,
-body.board-v2 .player-hand-section .card.cost-6,
-body.board-v2 .player-hand-section .card.cost-7,
-body.board-v2 .player-hand-section .card.cost-8 {
-  --rarity-rgb: 219, 234, 245;
-  --frame-rgb: 219, 234, 245;
-  --frame-color: #dbeaf5;
-}
-body.board-v2 .player-hand-section .card.cost-9,
-body.board-v2 .player-hand-section .card.cost-10 {
-  --rarity-rgb: 255, 210, 74;
-  --frame-rgb: 255, 210, 74;
-  --frame-color: #ffd24a;
-}
+/* --- 5. HAND FRAMES: REVERTED TO THE SHIPPING RAMP ------------------------
+   A design review said hand frames should be rarity only, ice for common and
+   gold for legendary, and that is what shipped here. The owner has looked at it
+   and overruled: "the cards are white border for some reason, they should be
+   the same as classic." So the shipping cost ramp stands — 0-3 green, 4-6 blue,
+   7-8 white, 9-10 gold — and the review's note about green colliding with the
+   attack bracket is recorded but not acted on, because it is the owner's board.
+   Affordability stays opacity alone, which was never in dispute. */
 
 
 /* ===========================================================================
@@ -2716,4 +2698,98 @@ body.board-v2 #board .lane::after {
   background: linear-gradient(to bottom,
     rgba(var(--or-rgb),0.85) 0%, rgba(143,224,255,0.18) 50%, rgba(53,201,255,0.85) 100%) !important;
   filter: drop-shadow(0 0 3px rgba(53,201,255,0.35));
+}
+
+
+/* ===========================================================================
+   THE JUMP OFFER, AND EVERY DECISION, READS AS ONE.
+   Owner: "this jump is placed correctly — it should be the yellow highlight to
+   show it needs a decision, and it should be centered, make it look crisp, and
+   there should be no red X at the top."
+
+   THE RED X was .peek-toggle — "hide this prompt so you can inspect the board".
+   Docked in the rail there is nothing to hide: the board is fully visible with
+   the prompt open, which was the whole point of moving it here. So the control
+   has no job left and goes.
+
+   YELLOW IS THE ASK COLOUR. Cyan is "yours" and says nothing about urgency;
+   --timer (#ffd24a) is already the one hue in this palette that belongs to
+   neither player, and it is what the phase bar uses to count down. A panel
+   waiting on you now wears it, so "something needs me" is a colour, not a
+   reading task.
+   =========================================================================== */
+body.board-v2 #bv2-decision .peek-toggle,
+body.board-v2 #bv2-decision .floating-prompt-backdrop { display: none !important; }
+
+body.board-v2 #bv2-decision.is-live::before { background: var(--timer); }
+body.board-v2 #bv2-decision.is-live {
+  filter: drop-shadow(0 0 2px rgba(255,210,74,0.65))
+          drop-shadow(0 0 9px rgba(255,210,74,0.30));
+}
+body.board-v2 #bv2-decision.is-live::after {
+  background: linear-gradient(150deg, #3a3213 0%, #1c1809 46%, #04060a 100%);
+}
+body.board-v2 #bv2-decision .bv2-cap-label { color: rgba(255,210,74,0.85) !important; }
+body.board-v2 #bv2-decision .bv2-cap-line {
+  background: linear-gradient(to right, rgba(255,210,74,.45), transparent) !important;
+}
+
+/* CENTRED AND CRISP. The floating prompt was built to sit in the middle of the
+   screen with its own chrome; docked it keeps only its content, centred, with
+   the header as the one bright line and the two answers reading as buttons
+   rather than as stacked text. */
+body.board-v2 #bv2-decision .floating-prompt,
+body.board-v2 #bv2-decision .floating-prompt-panel {
+  position: static !important; inset: auto !important; transform: none !important;
+  width: 100% !important; max-width: 100% !important; margin: 0 !important;
+  padding: 0 !important; background: transparent !important;
+  border: 0 !important; box-shadow: none !important; border-radius: 0 !important;
+  animation: none !important;
+}
+body.board-v2 #bv2-decision .fp-header {
+  display: block; text-align: center;
+  padding: 0 0 calc(10 * var(--u));
+}
+body.board-v2 #bv2-decision .fp-label {
+  display: block;
+  font-family: var(--fd); font-weight: 700;
+  font-size: calc(14 * var(--u)); letter-spacing: .06em;
+  line-height: 1.25; color: #fff4d2;
+  text-shadow: 0 0 6px rgba(255,210,74,0.35);
+}
+body.board-v2 #bv2-decision .fp-sub {
+  display: block; text-align: center;
+  font-family: var(--fm); font-size: calc(9.5 * var(--u));
+  color: rgba(255,232,180,0.62); text-shadow: none;
+}
+body.board-v2 #bv2-decision .fp-choices {
+  display: flex !important; flex-direction: column !important;
+  gap: calc(8 * var(--u)) !important; align-items: stretch !important;
+}
+body.board-v2 #bv2-decision .fp-btn {
+  width: 100% !important; margin: 0 !important;
+  height: calc(34 * var(--u)) !important; min-height: 0 !important;
+  display: inline-flex !important; align-items: center !important; justify-content: center !important;
+  font-family: var(--fm) !important; font-weight: 700 !important;
+  font-size: calc(10 * var(--u)) !important; letter-spacing: .18em !important;
+  text-transform: uppercase;
+  border-radius: 0 !important;
+  clip-path: polygon(calc(9 * var(--u)) 0, 100% 0,
+                     100% calc(100% - 9 * var(--u)),
+                     calc(100% - 9 * var(--u)) 100%, 0 100%, 0 calc(9 * var(--u)));
+}
+body.board-v2 #bv2-decision .fp-btn-primary {
+  background: linear-gradient(105deg, rgba(255,210,74,0.28) 0%, rgba(4,6,10,0.94) 100%) !important;
+  border: 0 !important; box-shadow: inset 0 0 0 2px rgba(255,210,74,0.9) !important;
+  color: #fff4d2 !important;
+}
+body.board-v2 #bv2-decision .fp-btn-secondary {
+  background: linear-gradient(105deg, rgba(143,224,255,0.10) 0%, rgba(4,6,10,0.94) 100%) !important;
+  border: 0 !important; box-shadow: inset 0 0 0 1px rgba(143,224,255,0.35) !important;
+  color: rgba(214,238,250,0.85) !important;
+}
+body.board-v2 #bv2-decision .fp-btn .fp-btn-title { font: inherit; letter-spacing: inherit; }
+body.board-v2 #bv2-decision .prompt-waiting {
+  text-align: center; font-family: var(--fm);
+  font-size: calc(10 * var(--u)); color: rgba(255,232,180,0.7);
 }
