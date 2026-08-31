@@ -12494,12 +12494,32 @@ const Game = {
     const atk = card.attack || 0;
     if (atk <= 0) return 0;
     // Uncontested = nothing of ours standing in that lane to absorb the swing.
-    let uncontested = false;
+    let uncontested = false, blocker = null;
     if (owner) {
       const lane = this.findCardLane(card);
       const l = lane >= 0 ? this.state.lanes[lane] : null;
-      const blocker = l ? l[owner] : null;
+      blocker = l ? l[owner] : null;
       uncontested = !(blocker && blocker.currentHealth > 0);
+    }
+    // CONTESTED IS NOT ONE ANSWER. What the swing DOES to the body in front of
+    // it is the whole difference between an enemy worth removing and one that
+    // is already handled:
+    //
+    //   • it cannot hurt that body at all (invincible / immune / evading, or
+    //     armour eats the hit) — the lane is already solved, and spending a
+    //     removal here buys nothing
+    //   • it KILLS that body — removing it saves an ally, which is the case
+    //     the old flat `atk` could not see
+    //
+    // This is the Deathstroke call: a Wolverine walled off by an invincible
+    // Droideka scored the same as a Joker about to kill our Captain America.
+    if (!uncontested && blocker) {
+      if (blocker.invincibleTurns > 0 || blocker.hasDamageImmunity || blocker.evadeCharges > 0) return 0;
+      const dmg = Math.max(0, atk - (blocker.armorValue || 0));
+      if (dmg <= 0) return 0;
+      // Worth the swing plus what the body it would kill is worth keeping.
+      if (dmg >= blocker.currentHealth) return atk + 6 + (blocker.baseCost || blocker.cost || 0);
+      return atk;
     }
     // LETHAL OUTRANKS EVERYTHING ELSE ON THE BOARD.
     //

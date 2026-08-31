@@ -14,12 +14,35 @@
 // Falls back to a cost+ATK approximation when the AI module isn't
 // loaded yet (defensive — abilities.js loads before ai.js, but the
 // callback only runs at game-time when AI is available).
-const _aiThreatPicker = (cards) => cards.slice().sort((a, b) => {
-  if (typeof AI !== 'undefined' && AI.threatScore) {
-    return AI.threatScore(b) - AI.threatScore(a);
+// THE ENEMY WORTH REMOVING IS THE ONE THAT IS ABOUT TO DO SOMETHING.
+//
+// AI.threatScore reads a card's own keywords and attack — it never looks at the
+// board, so it cannot tell a swing that kills one of my bodies from one that
+// bounces off an invincible blocker. Both scored the same, and Deathstroke's
+// assassinate took the bigger nameplate: it killed a Wolverine that was already
+// walled off by our own Droideka, while a Joker on the point of killing our
+// Captain America stood untouched. (Owner: "my teammate decided to have the
+// deathstroke kill the enemy wolverine, who had an invincible battle droid in
+// front so he couldn't overdrive — if my teammate kills the joker, my captain
+// america survives and we have energy reduction next round, which is massive.")
+//
+// Game.threatOf is the board-aware one and is already what the trick pickers
+// use; routing this through it makes every ability that shares this picker ask
+// the same question at once. The keyword-only sort stays as the fallback.
+const _aiThreatPicker = (cards) => {
+  if (!cards || !cards.length) return null;
+  if (typeof Game !== 'undefined' && Game.pickBiggestThreat && cards[0] && cards[0].owner) {
+    const picker = Game.opponent(cards[0].owner);
+    const best = Game.pickBiggestThreat(cards, picker);
+    if (best) return best;
   }
-  return ((b.attack || 0) + (b.cost || 0) * 0.5) - ((a.attack || 0) + (a.cost || 0) * 0.5);
-})[0];
+  return cards.slice().sort((a, b) => {
+    if (typeof AI !== 'undefined' && AI.threatScore) {
+      return AI.threatScore(b) - AI.threatScore(a);
+    }
+    return ((b.attack || 0) + (b.cost || 0) * 0.5) - ((a.attack || 0) + (a.cost || 0) * 0.5);
+  })[0];
+};
 
 // Variant — picks the LOWEST-HP enemy that is also high-threat.
 // For damage abilities where the goal is execution (Rocket Raccoon's

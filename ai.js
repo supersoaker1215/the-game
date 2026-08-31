@@ -370,12 +370,44 @@ const AI = {
   },
 
   // Would `myCard` survive at least 1 combat swing from `enemy`?
-  wouldSurvive(myCard, enemy) {
-    if (!enemy) return true;
+  // `extra` is damage arriving from somewhere OTHER than the card in front —
+  // adjacent splash, in practice. It used to be ignored entirely, so the picker
+  // asked "do I survive the trade" while the real question was "do I survive
+  // the trade AND the splash", and walked bodies into lanes that killed them.
+  wouldSurvive(myCard, enemy, extra) {
     if (myCard.invincibleTurns > 0 || myCard.hasDamageImmunity) return true;
     if (myCard.evadeCharges > 0) return true;
-    const incoming = Math.max(0, (enemy.attack || 0) - (myCard.armorValue || 0));
+    const armor = myCard.armorValue || 0;
+    let incoming = Math.max(0, (enemy ? (enemy.attack || 0) : 0) - armor);
+    // Splash is a separate hit, so armour applies to it separately too.
+    if (extra > 0) incoming += Math.max(0, extra - armor);
+    if (!enemy && !(extra > 0)) return true;
     return myCard.currentHealth > incoming;
+  },
+
+  // HOW MUCH SPLASH LANDS ON THIS LANE?
+  //
+  // Game.effectiveSplash is the authority — applySplash calls it, and it is the
+  // only thing that knows about `_splashTracksAtk`, the flag that makes Hulk's
+  // splash equal his ATTACK. The hazard term below read the raw `splashRange`
+  // FIELD instead, which for Hulk is whatever a sync last wrote there, so a
+  // 5-ATK Hulk next door scored as no hazard at all and the bot placed a 5 HP
+  // body beside him. (Owner: "why would my teammate actively play windu in lane
+  // 7 when there's a hulk in lane 6 who splashes.") Splash only ever reaches the
+  // two immediately adjacent lanes — never the lane in front — which is exactly
+  // the case cost alone cannot see.
+  incomingSplash(laneIdx, owner) {
+    const s = Game.state, opp = Game.opponent(owner);
+    let d = 0;
+    [laneIdx - 1, laneIdx + 1].forEach(li => {
+      if (li < 0 || li >= Game.LANE_COUNT) return;
+      const e = s.lanes[li] && s.lanes[li][opp];
+      if (!e || e.currentHealth <= 0) return;
+      // Something that is not going to swing is not going to splash.
+      if (e.isFrozen || e.isStunned || e.isFeared || e.isMindControlled) return;
+      d += (Game.effectiveSplash ? Game.effectiveSplash(e) : (e.splashRange || 0));
+    });
+    return d;
   },
 
   // Would `myCard` kill `enemy` on the first swing?
@@ -1281,7 +1313,8 @@ const AI = {
           enemy.invincibleTurns > 0 ||
           enemy.hasDamageImmunity ||
           (enemy.evadeCharges > 0 && !card.isBullseye);
-        const iSurvive = this.wouldSurvive(card, enemy);
+        // Survive the TRADE AND THE SPLASH — see wouldSurvive.
+        const iSurvive = this.wouldSurvive(card, enemy, this.incomingSplash(l, owner));
         const iKill = this.wouldKill(card, enemy);
         score += threat * 1.5;           // prioritize blocking scarier enemies
         if (iKill) score += 6;
@@ -1402,8 +1435,9 @@ const AI = {
         // Card immune to all damage — no hazard
         if (card.invincibleTurns > 0 || card.hasDamageImmunity) return;
         const myHP = card.currentHealth || 1;
-        // 1. Direct attack splash
-        const atkSplash = e.splashRange || 0;
+        // 1. Direct attack splash. Through Game.effectiveSplash, not the raw
+        //    field — see AI.incomingSplash for what that field misses.
+        const atkSplash = Game.effectiveSplash ? Game.effectiveSplash(e) : (e.splashRange || 0);
         if (atkSplash > 0) {
           const effective = Math.max(0, atkSplash - (card.armorValue || 0));
           if (effective >= myHP) splashHazard += 6;       // lethal

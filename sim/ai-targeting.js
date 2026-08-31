@@ -336,7 +336,13 @@ t('AT-10 an uncontested swing that would finish us outranks everything', functio
 
   eq('our health is read from the side', Game.sideHealth('player'), 10);
   eq('the lethal one dwarfs the rest', Game.threatOf(lethal, 'player') > 1000, true);
-  eq('the contested one is ordinary',  Game.threatOf(contested, 'player'), 4);
+  // Ordinary MEANS "nowhere near lethal", not a specific number. It used to be
+  // flat attack; a contested swing is now also worth the body it kills, and
+  // this Optimus does kill the Gizmo in front of him (see AT-20). What the case
+  // is about is the gap to lethal, so that is what it asserts.
+  eq('the contested one is ordinary',  Game.threatOf(contested, 'player') < 100, true);
+  eq('but not free either — it kills the body blocking it',
+     Game.threatOf(contested, 'player') > (contested.attack || 0), true);
   eq('so it is the pick', Game.pickBiggestThreat([contested, lethal], 'player').name, 'Michael Myers');
 
   // At healthy HP the same board ranks normally — no lethal bonus.
@@ -551,6 +557,70 @@ t('AT-19 with nothing standing, the bounce falls back to tempo and buffs', funct
   Game.state.lanes[5].player = pumped;
   eq('the buffed copy is the bounce', Game.pickBounceTarget([plain, pumped], 'ai') === pumped, true);
   eq('and order does not decide it', Game.pickBounceTarget([pumped, plain], 'ai') === pumped, true);
+});
+
+// ============================================================
+// AT-20/21/22 — the board decides, not the nameplate.
+//
+// Owner, on a 2v2 his AI teammate threw away: "my teammate decided to have the
+// deathstroke kill the enemy wolverine, who had an invincible battle droid in
+// front so he couldn't overdrive — if my teammate kills the joker, deathstroke
+// has 7 attack, my captain america survives, and we have energy reduction next
+// round, which is massive." And, on the same board: "why would my teammate
+// actively play windu in lane 7 when there's a hulk in lane 6 who splashes."
+// ============================================================
+t('AT-20 an enemy walled off by an invincible blocker is not the threat', function () {
+  clearBoard();
+  // Their big hitter, facing a body it can never kill.
+  var walled = mk('Sabertooth', 'player'); walled.attack = 6; walled.currentHealth = 4;
+  var wall   = mk('Droideka', 'ai');       wall.invincibleTurns = 2;
+  Game.state.lanes[1].player = walled;
+  Game.state.lanes[1].ai = wall;
+  // Their small hitter, about to kill one of ours.
+  var killer = mk('Sabertooth', 'player'); killer.attack = 3; killer.currentHealth = 4;
+  var victim = mk('Sabertooth', 'ai');     victim.currentHealth = 3; victim.attack = 2;
+  Game.state.lanes[4].player = killer;
+  Game.state.lanes[4].ai = victim;
+
+  eq('the walled-off swing buys us nothing', Game.threatOf(walled, 'ai'), 0);
+  eq('the one that kills our body is worth more than its raw attack',
+     Game.threatOf(killer, 'ai') > (killer.attack || 0), true);
+  // So the shared picker takes the killer, not the bigger nameplate.
+  eq('and it is the pick', (Game.pickBiggestThreat([walled, killer], 'ai') || {}) === killer, true);
+});
+
+t('AT-21 a swing that only chips is worth its attack, no more', function () {
+  clearBoard();
+  var chipper = mk('Sabertooth', 'player'); chipper.attack = 3; chipper.currentHealth = 4;
+  var tough   = mk('Droideka', 'ai');       tough.currentHealth = 9; tough.armorValue = 0;
+  Game.state.lanes[2].player = chipper;
+  Game.state.lanes[2].ai = tough;
+  eq('flat attack for a swing that kills nothing', Game.threatOf(chipper, 'ai'), 3);
+  // Armour that eats the whole hit is the same as not being hit.
+  tough.armorValue = 3;
+  eq('armour absorbing it all reads as harmless', Game.threatOf(chipper, 'ai'), 0);
+});
+
+t('AT-22 splash from the next lane counts, through effectiveSplash', function () {
+  clearBoard();
+  // Hulk's splash EQUALS HIS ATTACK — the flag the raw splashRange field misses.
+  var hulk = mk('Hulk', 'player');
+  hulk.attack = 5; hulk.currentHealth = 6;
+  hulk._splashTracksAtk = true; hulk.splashRange = 0;   // stale field, live flag
+  Game.state.lanes[5].player = hulk;
+  eq('the engine says 5 lands', Game.effectiveSplash(hulk), 5);
+  eq('the raw field would have said 0', hulk.splashRange, 0);
+
+  eq('the lane beside him is a 5-damage lane', AI.incomingSplash(6, 'ai'), 5);
+  eq('and two lanes away is clear',            AI.incomingSplash(7, 'ai'), 0);
+
+  // A 5 HP body does NOT survive there, even against an empty lane in front.
+  var windu = mk('Mace Windu', 'ai'); windu.currentHealth = 5; windu.armorValue = 0;
+  eq('so survival says no', AI.wouldSurvive(windu, null, AI.incomingSplash(6, 'ai')), false);
+  eq('while the lane two over is fine', AI.wouldSurvive(windu, null, AI.incomingSplash(7, 'ai')), true);
+  // A frozen splasher is not swinging, so it is not splashing either.
+  hulk.isFrozen = true;
+  eq('a frozen Hulk splashes nobody', AI.incomingSplash(6, 'ai'), 0);
 });
 
 // ---- run ----------------------------------------------------
