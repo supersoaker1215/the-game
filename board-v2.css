@@ -2485,3 +2485,108 @@ body.board-v2 #bv2-log {
   padding: calc(14 * var(--u)) calc(14 * var(--u)) calc(12 * var(--u));
   box-sizing: border-box;
 }
+
+
+/* ===========================================================================
+   1. THE LOG IS THE TOP HALF OF THE RAIL, NOT THE WHOLE RAIL.
+   Zone 3 is the log and zone 4 is the pop-ups; with no prompt open the log was
+   growing into zone 4's space and running the full 566px of the column.
+   (Owner: "the log, remember, is only the top half — it doesn't extend all the
+   way down.") It takes half and stops there whether or not zone 4 has anything
+   in it, so the two zones keep their addresses.
+   =========================================================================== */
+body.board-v2 #bv2-log {
+  /* 0 0 50%, not 0 1 auto. `auto` sizes to CONTENT, and the list inside is
+     flex:1 1 auto with min-height:0 — so it collapsed to the height of the
+     caption alone (36px) and every log line disappeared. A fixed half is what
+     "the top half" actually means. */
+  flex: 0 0 50% !important;
+  max-height: 50% !important;
+  min-height: 0 !important;
+}
+
+/* ===========================================================================
+   2. THE PRIMARY BUTTON CLEARS THE RAIL.
+   The band's emitter rail sits on its TOP edge, and the button was starting 2px
+   below it in a 48px band — so its box was already touching the line and its
+   30px outer glow crossed straight over it. (Owner: "end turn is overlapping
+   the rail, that needs to be fixed.")
+   Shorter, centred in the band, and the outer stop pulled in so the bloom stays
+   inside the band it belongs to.
+   =========================================================================== */
+body.board-v2 .bv2-btn-glow { align-self: center; }
+body.board-v2 .bv2-btn-glow > #btn-action {
+  height: calc(56 * var(--u)) !important;
+  min-height: 0 !important;
+  padding: 0 calc(22 * var(--u)) !important;
+}
+body.board-v2 .bv2-btn-glow {
+  filter:
+    drop-shadow(0 0 2px rgba(53,201,255,0.9))
+    drop-shadow(0 0 8px rgba(53,201,255,0.5))
+    drop-shadow(0 0 16px rgba(40,180,240,0.22));
+}
+
+/* ===========================================================================
+   3. THE SAME PANEL FOR THE IDENTITY BLOCK AND THE ENERGY / BLOCK METERS.
+   Owner: "this new design for the YOU and YOUR TRICKS, extend to the energy
+   block meter." Same two layers everywhere: a neon line outside, a dark blue
+   gradient inside, the glow on the unclipped element so it follows the shape.
+   =========================================================================== */
+body.board-v2 .bv2-id {
+  position: relative;
+  padding: calc(7 * var(--u)) calc(11 * var(--u)) calc(8 * var(--u));
+  box-sizing: content-box;
+}
+body.board-v2 .bv2-id::before,
+body.board-v2 .bv2-id::after {
+  content: ''; display: block; position: absolute;
+}
+body.board-v2 .bv2-id::before {
+  inset: 0; z-index: -2;
+  clip-path: polygon(calc(11 * var(--u)) 0, 100% 0,
+                     100% calc(100% - 11 * var(--u)),
+                     calc(100% - 11 * var(--u)) 100%, 0 100%, 0 calc(11 * var(--u)));
+}
+body.board-v2 .bv2-id::after {
+  inset: calc(1.6 * var(--u)); z-index: -1;
+  clip-path: polygon(calc(9.6 * var(--u)) 0, 100% 0,
+                     100% calc(100% - 9.6 * var(--u)),
+                     calc(100% - 9.6 * var(--u)) 100%, 0 100%, 0 calc(9.6 * var(--u)));
+}
+body.board-v2 .player-bar .bv2-id::before { background: rgba(53,201,255,0.85); }
+body.board-v2 .player-bar .bv2-id::after  { background: linear-gradient(150deg, #12384d 0%, #0a1c28 46%, #04060a 100%); }
+body.board-v2 .player-bar .bv2-id { filter: drop-shadow(0 0 2px rgba(53,201,255,0.45)); }
+body.board-v2 .ai-bar .bv2-id::before { background: rgba(var(--or-rgb),0.85); }
+body.board-v2 .ai-bar .bv2-id::after  { background: linear-gradient(150deg, #4a201d 0%, #22100e 46%, #04060a 100%); }
+body.board-v2 .ai-bar .bv2-id { filter: drop-shadow(0 0 2px rgba(var(--or-rgb),0.45)); }
+
+/* The two meters: same language, far less machinery. These are CIRCLES — no
+   clip-path is involved — so a plain border is not cut at any corner and a
+   filter on the element is not clipped either. The pseudo-layer construction
+   the chamfered panels need buys nothing here, and measured at 6x it was in
+   fact rendering nothing at all: an existing ::before on these classes was
+   winning. Line outside, gradient inside, one glow stop. */
+body.board-v2 .info-bar .block-circle,
+body.board-v2 .info-bar .energy-display {
+  border-radius: 50%;
+  box-shadow: none !important;
+}
+body.board-v2 .info-bar .block-circle::before,
+body.board-v2 .info-bar .energy-display::before,
+body.board-v2 .info-bar .block-circle::after,
+body.board-v2 .info-bar .energy-display::after { content: none !important; }
+body.board-v2 .player-bar .block-circle,
+body.board-v2 .player-bar .energy-display {
+  border: 2px solid #35c9ff !important;
+  background: linear-gradient(150deg, #12384d 0%, #0a1c28 46%, #04060a 100%) !important;
+  filter: drop-shadow(0 0 3px rgba(53,201,255,0.65));
+  color: #eafaff !important;
+}
+body.board-v2 .ai-bar .block-circle,
+body.board-v2 .ai-bar .energy-display {
+  border: 2px solid var(--or) !important;
+  background: linear-gradient(150deg, #4a201d 0%, #22100e 46%, #04060a 100%) !important;
+  filter: drop-shadow(0 0 3px rgba(var(--or-rgb),0.65));
+  color: #fff1ee !important;
+}
