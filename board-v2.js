@@ -267,8 +267,31 @@ const BoardV2 = {
     put(document.querySelector('.info-bar.player-bar'), 'player');
   },
 
-  // "HAND 5 / 8" over the hand, and "TRICKS / n HELD" over the trick rail —
-  // both counts straight off state.
+  // "HAND 5 / 7" over the hand, "TRICKS 2 / 3" over the tricks — both counts
+  // AND both limits straight off the same objects the engine enforces against.
+  //
+  // The hand read `Game.HAND_LIMIT || 8`, and Game.HAND_LIMIT does not exist —
+  // it never has, anywhere in the codebase — so the caption was always printing
+  // the literal 8 while the rule the engine actually applies is `maxHandSize`,
+  // which is 7. The one case where 8 is right (Mobius Chair and Eye of Agamotto
+  // each raise that seat's cap by one) was the one case it could not show,
+  // because a constant cannot know. (Owner: "the hand should say n/7 and the
+  // tricks should say n/3, n being how many you have currently.")
+  //
+  // The trick caption printed "2 held" and named no limit at all, so the cap
+  // that actually stops you keeping a block reward was invisible.
+  //
+  // Both now read the live value: 7 and 3 normally, 8 the moment a card raises
+  // it, and a hand over its cap (an MC Ballyhoo candy is allowed past 3 on
+  // purpose) reads honestly as 4 / 3 rather than being hidden.
+  _handCapOf(seat, side) {
+    const holder = seat || side;
+    return (holder && holder.maxHandSize) || 7;
+  },
+  _trickCapOf(seat, side) {
+    const holder = seat || side;
+    return (holder && holder.maxTrickHandSize) || 3;
+  },
   _renderCounts(s) {
     const hs = document.querySelector('.player-hand-section');
     if (hs) {
@@ -277,7 +300,7 @@ const BoardV2 = {
       // 2v2 hands live on the SEAT, never on the side proxy.
       const _seat = this._mySeatState();
       const n = ((_seat ? _seat.hand : (s.player && s.player.hand)) || []).length;
-      const max = (typeof Game !== 'undefined' && Game.HAND_LIMIT) || 8;
+      const max = this._handCapOf(_seat, s.player);
       const sig = n + '/' + max;
       if (cap.dataset.sig !== sig) {
         cap.dataset.sig = sig;
@@ -291,12 +314,13 @@ const BoardV2 = {
       if (ts.firstChild !== cap) ts.insertBefore(cap, ts.firstChild);
       const _seatT = this._mySeatState();
       const n = ((_seatT ? _seatT.trickHand : (s.player && s.player.trickHand)) || []).length;
-      const sig = String(n);
+      const tmax = this._trickCapOf(_seatT, s.player);
+      const sig = n + '/' + tmax;
       if (cap.dataset.sig !== sig) {
         cap.dataset.sig = sig;
         cap.innerHTML = '<span class="bv2-cap-label">Tricks</span>' +
           '<span class="bv2-cap-line"></span>' +
-          '<span class="bv2-cap-val">' + n + ' <i>held</i></span>';
+          '<span class="bv2-cap-val">' + n + ' <i>/</i> ' + tmax + '</span>';
       }
     }
   },
