@@ -652,7 +652,22 @@ const CARD_ABILITIES = {
           || (owner === 'player' ? 'A' : 'B');
         const foes = ['p1', 'p2', 'p3', 'p4'].filter(pk => tt.players[pk] && tt.players[pk].team !== myTeam);
         const withTwo = foes.filter(pk => (tt.players[pk].hand || []).length >= 2);
-        const pick = (withTwo.length ? withTwo : foes)[Math.floor(G.rng() * (withTwo.length ? withTwo.length : foes.length))];
+        // YOU PICK THE HAND. It used to choose at random, so in a 2v2 the whole
+        // decision — which of two opponents gets bound — was taken away from
+        // the player who paid for the card. (Owner: "for pinhead in 2v2 i never
+        // got to choose whos hand i wanted to target".) Brainiac and Catwoman
+        // already ask through _2v2ChooseEnemySeat; Pinhead now asks the same
+        // way, so the prompt looks and routes identically. It resolves itself
+        // when there is only one legal target, and the AI picker behind it
+        // keeps AI seats from stalling on the question.
+        const _pref = withTwo.length ? withTwo : foes;
+        let _chosen = null;
+        if (G._2v2ChooseEnemySeat && _pref.length > 1) {
+          G._2v2ChooseEnemySeat(owner, 'Pinhead — Choose a Hand',
+            'Whose hand should the chains bind?',
+            (seat) => { if (seat && _pref.indexOf(seat) >= 0) _chosen = seat; });
+        }
+        const pick = _chosen || _pref[Math.floor(G.rng() * _pref.length)];
         if (pick && tt.players[pick]) { victimHand = tt.players[pick].hand; victimName = tt.players[pick].name || 'the enemy'; }
       } else {
         victimHand = G.state[opp] && G.state[opp].hand;

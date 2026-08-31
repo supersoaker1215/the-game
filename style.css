@@ -47528,3 +47528,39 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .mm-evtoggle.is-on .mm-evdot { background: #4ad9ff; box-shadow: 0 0 8px rgba(74, 217, 255, 0.8); }
 .mm-evtoggle b { color: inherit; font-weight: 700; }
 .mm-evtoggle:focus-within { outline: 2px solid rgba(74, 217, 255, 0.65); outline-offset: 2px; }
+
+
+/* ── APOTHICON RIFT LANE ───────────────────────────────────────────────────
+   The lane a rift has torn open. The backdrop itself is painted by the shared
+   .lane-env-bg layer (see renderBoard); this is the frame treatment that says
+   the lane is not a normal one — enemies are FORCED into it, so it has to read
+   as different at a glance rather than only in the rules text. */
+.lane.lane-rift {
+  box-shadow: inset 0 0 22px rgba(142, 68, 208, 0.55), 0 0 14px rgba(142, 68, 208, 0.35);
+  border-color: rgba(192, 123, 255, 0.75) !important;
+}
+.lane.lane-rift > .lane-env-bg {
+  /* Slow drift so the hole looks alive without pulling the eye off the cards. */
+  animation: rift-breathe 3.6s ease-in-out infinite;
+}
+@keyframes rift-breathe {
+  0%, 100% { filter: brightness(0.92) saturate(1.05); }
+  50%      { filter: brightness(1.12) saturate(1.3); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lane.lane-rift > .lane-env-bg { animation: none; }
+}
+
+/* The rift's rule, printed down its own lane. */
+.rift-warn {
+  position: absolute; left: 0; right: 0; top: 46%;
+  transform: translateY(-50%);
+  text-align: center;
+  font-family: 'Rajdhani', sans-serif; font-weight: 700;
+  font-size: 10px; letter-spacing: 2px; line-height: 1.25;
+  color: #e6d2ff;
+  text-shadow: 0 0 8px rgba(142, 68, 208, 0.95), 0 1px 2px #000;
+  pointer-events: none;
+  padding: 0 4px;
+}
+.rift-warn.rift-warn-lethal { color: #ffd6d6; text-shadow: 0 0 9px rgba(220, 40, 60, 0.95), 0 1px 2px #000; }

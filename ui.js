@@ -23127,14 +23127,28 @@ const UI = {
       {
         const envAi = lane._env && lane._env.ai;
         const envPl = lane._env && lane._env.player;
+        // THE APOTHICON RIFT IS AN ENVIRONMENT, so it is painted like one.
+        // The Servant set lane._rift and the engine read it for the forced-
+        // placement rule, but NOTHING ever drew it: the lane the enemy was
+        // being compelled into looked exactly like every other lane, so the
+        // rule had no visible cause. (Owner: "i used the apothicon servant and
+        // the rift for the environment never appeared".) It rides this existing
+        // painter rather than getting a layer of its own, so it inherits the
+        // no-flicker element reuse and the focal/zoom handling already tuned
+        // here. Art resolves through card-art-manifest, which has carried an
+        // 'Apothicon Rift' entry since the name was first used.
+        const riftOn = !!(lane._rift && lane._rift.rounds > 0);
+        const riftEnv = riftOn ? { name: 'Apothicon Rift' } : null;
         let envBg = el.querySelector(':scope > .lane-env-bg');
-        if (envAi || envPl) {
+        if (envAi || envPl || riftEnv) {
           if (!envBg) {
             envBg = document.createElement('div');
             // Insert as the very first child so CSS z-index keeps it behind the slots.
             el.insertBefore(envBg, el.firstChild);
           }
-          const primary = envAi || envPl;
+          // A real environment wins the backdrop if both somehow occupy the
+          // lane — the rift is the transient of the two.
+          const primary = envAi || envPl || riftEnv;
           const safeClass = 'env-' + primary.name.toLowerCase().replace(/\s+/g, '-');
           envBg.className = `lane-env-bg ${safeClass}`;
           const artPath = this.getCardArtPath(primary.name);
@@ -23181,10 +23195,36 @@ const UI = {
           } else {
             envBg.style.background = '';
           }
-          if (envBg.innerHTML !== '') envBg.innerHTML = '';
+          // SAY WHAT IT DOES, ON THE LANE. The rift's first bite kills outright
+          // and everything after arrives at −4/−4 — a rule nobody can infer
+          // from a purple lane, and the card that explains it is long gone by
+          // the time anyone is forced to play here. (Owner: "make sure they
+          // know that the first card plyed there dies".) The warning changes
+          // once the rift has taken its first, so it never promises a kill it
+          // will not deliver.
+          if (riftOn) {
+            const firstStill = !lane._rift.firstClaimed;
+            const want = firstStill ? 'FIRST CARD IN DIES' : 'ARRIVES \u22124/\u22124';
+            let warn = envBg.querySelector(':scope > .rift-warn');
+            if (!warn) {
+              warn = document.createElement('div');
+              warn.className = 'rift-warn';
+              envBg.appendChild(warn);
+            }
+            if (warn.textContent !== want) warn.textContent = want;
+            warn.classList.toggle('rift-warn-lethal', firstStill);
+          } else if (envBg.innerHTML !== '') envBg.innerHTML = '';
+          // Class on the LANE, not the backdrop, so the rim glow can sit on the
+          // lane frame. Cleared in the else-branch and whenever the rift ends,
+          // which matters because lane elements are reused between renders —
+          // the same trap the stuck-class sweeps exist for.
+          el.classList.toggle('lane-rift', riftOn);
         } else if (envBg) {
           envBg.style.background = '';
           envBg.remove();
+          el.classList.remove('lane-rift');
+        } else {
+          el.classList.remove('lane-rift');
         }
 
         // THE ENVIRONMENT'S NAME ALWAYS SITS ON THE CENTRELINE.

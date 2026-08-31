@@ -5610,6 +5610,20 @@ const Game = {
     // auto-placed multiplayer guests into ascending lanes with no picker).
     // Defensive sweep: drop any residue so nothing downstream ever sees it.
     if (this.state[owner].magnetoForcedLanes) delete this.state[owner].magnetoForcedLanes;
+    // THE APOTHICON RIFT DRAGS THE NEXT CARD IN — enforced HERE, in the engine.
+    // "Enemies must be played into it" was implemented only in placeableLanesFor,
+    // which nothing but ui.js consults: it narrowed which lanes a human could
+    // click and that was the whole of it. ai.js never calls it, so AI seats
+    // ignored the rift completely, and any path that did not go through that UI
+    // narrowing placed wherever it liked. (Owner: "even after i used the
+    // servant they still didnt have to play into it".) Redirecting rather than
+    // refusing, so an AI that picks another lane cannot wedge itself retrying.
+    // Placed after Moder so an explicit forcedLane still wins if both are live.
+    const _riftLane = this.riftCompulsionLane ? this.riftCompulsionLane(owner) : -1;
+    if (_riftLane >= 0 && laneIdx !== _riftLane) {
+      this.log(`[RIFT] ${card.name} is dragged into the Apothicon Rift in lane ${_riftLane + 1}!`);
+      laneIdx = _riftLane;
+    }
     if (this.isMultiplayer() && laneIdx !== _origLane) {
       console.log('[MP HOST] _redirectForForcedLane:', card.name, 'owner:', owner, 'requested lane:', _origLane, '→ redirected to:', laneIdx);
     }
@@ -13224,7 +13238,10 @@ const Game = {
   // online, cb(null) fires so the caller runs its 1v1 path.
   _2v2ChooseEnemySeat(owner, title, desc, cb) {
     const tt = this.state && this.state.twoVTwo;
-    if (!this.is2v2() || !tt || !tt.online || !tt.players) { cb(null); return; }
+    // tt.players, not tt.online — same correction as Brainiac's and Cashzap's
+    // gates. Asking WHICH opponent is a seat question, not a network one, and
+    // gated on online it silently skipped the prompt in local 2v2.
+    if (!this.is2v2() || !tt || !tt.players) { cb(null); return; }
     const actingKey = this._2v2CurrentActingPlayer || this._2v2ActivePlayer();
     const myTeam = tt.players[actingKey] ? tt.players[actingKey].team : null;
     const enemyKeys = this._2v2SLOTS.filter(k => tt.players[k] && tt.players[k].team && tt.players[k].team !== myTeam);
