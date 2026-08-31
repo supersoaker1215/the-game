@@ -2900,3 +2900,39 @@ body.board-v2 #board .lane .card .card-cost {
   text-shadow: 0 0 5px rgba(var(--frame-rgb), 0.75) !important;
 }
 body.board-v2 #board .ai-slot .card .card-cost { color: #fff1ee !important; }
+
+/* ===========================================================================
+   A LIFTED HAND CARD IS SOLID.
+   Owner, over a magnified Pinhead with the lane rails showing straight
+   through it: "for the card hover in hand the card is solid not transparent
+   nothing behind it should be seen."
+
+   Nothing about the card's BACKGROUND was transparent — it is rgb(4,6,10)
+   under its gradient. The whole ELEMENT was at opacity .42, which is the
+   unaffordable/unplayable dim two blocks up. At rest that is fine; the card
+   sits flat against the hand row and there is little behind it. On hover the
+   wrapper lifts it 30px and scales it 1.6x out over the board, and at 42%
+   alpha the rails, the lane edges and the neighbouring cards all print
+   through the art.
+
+   The dim itself stays — it is the "you cannot play this yet" signal and the
+   spec picked alpha over a greyscale filter deliberately, "because the card
+   must still be READABLE while unaffordable — the player is planning next
+   turn." Hover is precisely the moment that reading happens, so that is the
+   moment the card goes solid. The price is still legible in the cost orb, and
+   the card returns to the dim the instant the cursor leaves.
+
+   Alpha, not a filter: a filter here would make the card a containing block
+   and a stacking context, and the hover state runs `transform-style:
+   preserve-3d` with translateZ'd inner layers for the tilt. Flattening that
+   to fix a transparency bug would trade one visual fault for another.
+
+   All three spellings are live in the codebase — .unplayable and
+   .unaffordable at :603, .unafford and .unplayable at :793 — so all three
+   are covered here rather than at either single site.
+   =========================================================================== */
+body.board-v2 .player-hand-section .hand-card-wrapper:hover .card.unplayable,
+body.board-v2 .player-hand-section .hand-card-wrapper:hover .card.unaffordable,
+body.board-v2 .player-hand-section .hand-card-wrapper:hover .card.unafford {
+  opacity: 1 !important;
+}
