@@ -1094,3 +1094,260 @@ const CANDY_DEFS = [
   }
 ];
 if (typeof window !== 'undefined') window.CANDY_DEFS = CANDY_DEFS;
+
+// ============================================================
+// WONDER WEAPONS — Shadow Man's prizes
+// ============================================================
+// Handed to whoever leads a Shadow Man category. They are CARDS, not tricks:
+// discard-effect cards (no body, no lane) that sit in your CARD hand and cost
+// energy to fire, like Pinhead or Jigsaw. Being earned does not mean being
+// free — you still have to afford the shot.
+//
+// They live OUTSIDE CARD_DEFS so nothing can draft or draw them (four separate
+// places build pools off that array and none of them filter), and
+// Multiplayer._rehydrateState reads this table so they survive the wire with
+// their onDiscard intact.
+//
+// ALL FOUR COST 3, so choosing between them is about what they DO rather than
+// what you can afford. Measured against the existing baseline on a full
+// six-lane board, where Seismic Charge (2 energy) removes 4 HP and Phantom Zone
+// (3) removes 6 and kills one: a weapon should sit a little above that line,
+// because a prize ought to be worth winning — and nowhere near a board wipe,
+// which is exactly where the uncapped Lightning Bow measured.
+const WONDER_DEFS = [
+  {
+    // THE RAY GUN. Splash is the whole point, and so is the recoil — this is
+    // the only card in the game that damages its owner's own board, which is
+    // what lets it carry a bigger number than the other cost-3 prizes without
+    // stepping on the Lightning Bow. Fire it at the wrong lane and you finish
+    // off your own card.
+    name: "Ray Gun", cost: 3, attack: 0, health: 0, type: "wonder",
+    isDiscardEffect: true, _isWonder: true,
+    desc: "Deal 7 damage to an enemy. The blast splashes the enemies either side for 3. Your own card in that lane takes 3 — mind the recoil.",
+    canPlay(G, owner) { return G.getEnemiesOf(owner).length > 0; },
+    onDiscard(G, owner) {
+      const enemies = G.getEnemiesOf(owner).filter(e => e.currentHealth > 0);
+      if (!enemies.length) { G.log('Ray Gun: nothing to shoot.'); return; }
+      G.promptCardChoice(owner, enemies, "Ray Gun — WAVE GUN",
+        "Choose an enemy to hit. The blast splashes both ways — and back at you.", (t) => {
+          if (!t) return;
+          const opp = G.opponent(owner);
+          const at = G.findCardLane(t);
+          if (at < 0) return;
+          if (typeof UI !== 'undefined' && UI._fxChainArc) { try { UI._fxChainArc(t, '#7dff5a', '#1f8f2f'); } catch (e) {} }
+          G.log(`Ray Gun: a green bolt slams into ${t.name} for 7.`);
+          G.dealDamage(t, 7, { name: 'Ray Gun' });
+          [-1, 1].forEach(dir => {
+            const l = G.state.lanes[at + dir];
+            const n = l && l[opp];
+            if (n && n.currentHealth > 0) {
+              G.log(`  [SPLASH] The blast catches ${n.name} for 3.`);
+              G.dealDamage(n, 3, { name: 'Ray Gun' });
+            }
+          });
+          // THE RECOIL. Deliberately not optional and not dodgeable — it is the
+          // cost that pays for the 7, and the reason the lane you pick matters.
+          const mine = G.state.lanes[at] && G.state.lanes[at][owner];
+          if (mine && mine.currentHealth > 0) {
+            G.log(`  [RECOIL] The splash washes back over ${mine.name} for 3.`);
+            G.dealDamage(mine, 3, { name: 'Ray Gun' });
+          }
+          G.cleanupDead();
+        }, cards => {
+          // AI: shoot the biggest threat, but not if the recoil kills its own
+          // card outright and the shot does not kill the target anyway.
+          const scored = cards.slice().sort((a, b) => (b.attack | 0) - (a.attack | 0));
+          const safe = scored.filter(c => {
+            const l = G.findCardLane(c);
+            const own = l >= 0 && G.state.lanes[l] ? G.state.lanes[l][owner] : null;
+            if (!own || own.currentHealth > 3) return true;
+            return (c.currentHealth | 0) <= 7;
+          });
+          return safe[0] || scored[0];
+        });
+    }
+  },
+  {
+    name: "Thundergun", cost: 3, attack: 0, health: 0, type: "wonder",
+    isDiscardEffect: true, _isWonder: true,
+    desc: "Blast an enemy 3 lanes sideways for 4. Every enemy it passes through takes 3 and is Stunned. If it crashes into an enemy they collide — each takes damage equal to the other's remaining health, and a survivor is Stunned.",
+    canPlay(G, owner) { return G.getEnemiesOf(owner).length > 0; },
+    onDiscard(G, owner) {
+      const enemies = G.getEnemiesOf(owner).filter(e => e.currentHealth > 0);
+      if (!enemies.length) { G.log('Thundergun: nothing to blast.'); return; }
+      G.promptCardChoice(owner, enemies, "Thundergun — GET BLASTED",
+        "Choose an enemy to blast two lanes sideways", (t) => {
+          if (!t) return;
+          const opp = G.opponent(owner);
+          const from = G.findCardLane(t);
+          if (from < 0) return;
+          // Two lanes, preferring the direction that HAS a lane. Falling back to
+          // the opposite side rather than fizzling is the spec's own rule — a
+          // card at the edge still gets blasted, just the other way.
+          // THREE LANES, NOT TWO. (Owner: "make it move 3 lanes please instead
+          // of 2".) The direction is still a coin flip, with the far side tried
+          // as a fallback when the first is off the board or collapsed.
+          const dir = G.rng() < 0.5 ? -1 : 1;
+          const tryLanes = [from + 3 * dir, from - 3 * dir];
+          let to = -1;
+          for (const cand of tryLanes) {
+            if (cand >= 0 && cand < Game.LANE_COUNT && !G.state.lanes[cand].destroyed) { to = cand; break; }
+          }
+          if (to < 0) { G.log('Thundergun: nowhere to blast it to.'); return; }
+          if (typeof UI !== 'undefined' && UI._fxTrickStrike) { try { UI._fxTrickStrike(t, '#ffe27a', '#ff8a00'); } catch (e) {} }
+          // EVERYTHING IN THE PATH IS HIT ON THE WAY PAST. Previously the card
+          // flew straight over an occupied lane and left it untouched, which is
+          // not what being blasted through a line of bodies should look like.
+          // (Owner: "any card it goes through takes the 3 damage and gets
+          // stunned".) Walked from the origin outward so the log reads in the
+          // order the card actually travels, and the destination is excluded —
+          // that one is a collision, handled below, not a fly-through.
+          const step = (to > from) ? 1 : -1;
+          for (let i = from + step; i !== to; i += step) {
+            const lane = G.state.lanes[i];
+            const inPath = lane && lane[opp];
+            if (!inPath || inPath === t || inPath.currentHealth <= 0) continue;
+            G.log(`  [BLAST PATH] ${t.name} is driven through ${inPath.name} for 3.`);
+            G.dealDamage(inPath, 3, { name: 'Thundergun' });
+            // Stunned only if it lived — nothing on its way to the dead pile
+            // needs to be dazed as well.
+            if (inPath.currentHealth > 0) {
+              try { G.stunCard(inPath, { name: 'Thundergun' }, 1); } catch (e) {}
+            }
+          }
+          // WHO IS ALREADY STANDING THERE decides whether this is a landing or
+          // a collision, so it has to be read BEFORE the move.
+          const crash = G.state.lanes[to][opp];
+          if (crash && crash !== t && crash.currentHealth > 0) {
+            // THE BLAST LANDS FIRST, THEN THEY COLLIDE. The gun's own 4 is not
+            // conditional on where the card ends up, so it applies either way.
+            G.log(`Thundergun: ${t.name} slams into ${crash.name}!`);
+            G.dealDamage(t, 4, { name: 'Thundergun' });
+            // A REAL COLLISION: each card takes damage equal to the OTHER's
+            // remaining health, so the bigger body walks away and the smaller
+            // one is crushed — and equal bodies destroy each other. Both totals
+            // are read BEFORE either is applied, or the first hit would shrink
+            // the health the second one is measured against and the order of
+            // resolution would decide the winner. (Owner: "both cards deal each
+            // other's health to each other, and if 1 survives, it's stunned".)
+            const tHP = t.currentHealth | 0, cHP = crash.currentHealth | 0;
+            if (tHP > 0 && cHP > 0) {
+              G.log(`  [COLLISION] ${t.name} (${tHP}) and ${crash.name} (${cHP}) slam into each other.`);
+              G.dealDamage(t, cHP, { name: 'Thundergun' });
+              G.dealDamage(crash, tHP, { name: 'Thundergun' });
+            }
+            // Whoever is left standing is dazed by it. Checked after the trade,
+            // so a dead card is never "stunned" on its way to the dead pile.
+            [t, crash].forEach(c => {
+              if (c && c.currentHealth > 0) {
+                G.log(`  [COLLISION] ${c.name} survives the impact — Stunned.`);
+                try { G.stunCard(c, { name: 'Thundergun' }, 1); } catch (e) {}
+              }
+            });
+          } else {
+            G.moveCard(t, from, to);
+            G.log(`Thundergun: ${t.name} is blasted to lane ${to + 1} and takes 4!`);
+            G.dealDamage(t, 4, { name: 'Thundergun' });
+          }
+          G.cleanupDead();
+        }, cards => cards.slice().sort((a, b) => (b.attack | 0) - (a.attack | 0))[0]);
+    }
+  },
+  {
+    name: "Lightning Bow", cost: 3, attack: 0, health: 0, type: "wonder",
+    isDiscardEffect: true, _isWonder: true,
+    desc: "Deal 4 damage to an enemy and Mark it. At the end of the round lightning strikes the Mark, then chains through the enemies beside it — each jump hits for 2 more.",
+    canPlay(G, owner) { return G.getEnemiesOf(owner).length > 0; },
+    onDiscard(G, owner) {
+      const enemies = G.getEnemiesOf(owner).filter(e => e.currentHealth > 0);
+      if (!enemies.length) { G.log('Lightning Bow: no target.'); return; }
+      G.promptCardChoice(owner, enemies, "Lightning Bow — STORM MARK",
+        "Choose an enemy to shoot and Mark", (t) => {
+          if (!t) return;
+          if (typeof UI !== 'undefined' && UI._fxChainArc) { try { UI._fxChainArc(t, '#9ad8ff', '#3aa0ff'); } catch (e) {} }
+          G.dealDamage(t, 4, { name: 'Lightning Bow' });
+          // The mark carries its OWNER so the delayed strike can still be
+          // credited to the player who fired it — the strike lands at end of
+          // round, long after this seat stopped being the acting one.
+          t._stormMark = { owner, seat: G._shadowSeatOf ? G._shadowSeatOf({ _2v2PlayedBy: null }) : null };
+          t._stormMarkOwner = owner;
+          G.log(`Lightning Bow: ${t.name} is Storm Marked!`);
+          G.cleanupDead();
+        }, cards => cards.slice().sort((a, b) => (b.attack | 0) - (a.attack | 0))[0]);
+    }
+  },
+  {
+    // GROUND CURRENT. The Wunderwaffe kept measuring as a second Lightning Bow
+    // — both "hit a card, spread to its neighbours" — so the damage kit was
+    // the problem, not the numbers. This gives it the one axis NOTHING else in
+    // the game touches: no trick in the game damages a player's health
+    // directly. It barely kills anything; it ends games. And it is the rare
+    // card that WANTS the enemy board full, which inverts every other removal
+    // tool the player owns.
+    name: "Wunderwaffe DG-3 JZ", cost: 3, attack: 0, health: 0, type: "wonder",
+    isDiscardEffect: true, _isWonder: true,
+    desc: "The current runs the length of the enemy row, dealing 2 to every enemy card — then earths itself in the enemy for 1 damage per card it passed through, up to 5.",
+    canPlay(G, owner) { return G.getEnemiesOf(owner).length > 0; },
+    onDiscard(G, owner) {
+      // NO TARGET PROMPT. It hits the whole row, so there is nothing to aim —
+      // the only weapon in the set you simply fire.
+      const opp = G.opponent(owner);
+      const row = [];
+      for (let i = 0; i < Game.LANE_COUNT; i++) {
+        const c = G.state.lanes[i] && G.state.lanes[i][opp];
+        if (c && c.currentHealth > 0) row.push(c);
+      }
+      if (!row.length) { G.log('Wunderwaffe DG-3 JZ: nothing to conduct through.'); return; }
+      G.log(`Wunderwaffe DG-3 JZ: the current runs the line through ${row.length} card${row.length === 1 ? '' : 's'}.`);
+      row.forEach(c => {
+        if (typeof UI !== 'undefined' && UI._fxChainArc) { try { UI._fxChainArc(c, '#d8ff7a', '#7ad8ff'); } catch (e) {} }
+        G.log(`  [CURRENT] It passes through ${c.name} for 2.`);
+        G.dealDamage(c, 2, { name: 'Wunderwaffe DG-3 JZ' });
+      });
+      // EARTHED. Counted BEFORE cleanup so a card the current killed on its way
+      // through still conducted — it was in the line when the bolt travelled.
+      // CAPPED AT 5. A full six-lane board would otherwise pay 6 face damage —
+      // a fifth of a 30-health player from one 3-cost card. The cap costs the
+      // card nothing in the common case (it only bites on a completely full
+      // enemy row) while taking the best case off the table.
+      const conducted = Math.min(5, row.length);
+      G.cleanupDead();
+      G.log(`  [EARTHED] The current grounds itself in the enemy for ${conducted}.`);
+      G.damagePlayer(opp, conducted, false, { name: 'Wunderwaffe DG-3 JZ' });
+    }
+  },
+  {
+    name: "Apothicon Servant", cost: 3, attack: 0, health: 0, type: "wonder",
+    isDiscardEffect: true, _isWonder: true,
+    desc: "Tear a Rift in a chosen enemy lane for 2 rounds. The first card in is swallowed whole; after that they arrive at −4/−4. Enemies must be played into it, take 2 at each round end, and anything dying inside is consumed — no When Killed.",
+    onDiscard(G, owner) {
+      const opp = G.opponent(owner);
+      // THE PLAYER PICKS THE LANE. It was random to begin with, per the brief —
+      // but measured against a typical three-card enemy board, 94 of 200 random
+      // placements landed on an OCCUPIED lane, where the compulsion cannot
+      // engage until that card leaves. Half the time a 3-cost card's headline
+      // effect was decided by a coin flip, on the one weapon where placement IS
+      // the card. (Owner: "yes let the player choose where to place the rift.")
+      const cand = [];
+      for (let i = 0; i < Game.LANE_COUNT; i++) {
+        const l = G.state.lanes[i];
+        if (l && !l.destroyed && !(l._rift && l._rift.rounds > 0)) cand.push(i);
+      }
+      if (!cand.length) { G.log('Apothicon Servant: the board will not tear.'); return; }
+      const tear = (lane) => {
+        if (lane == null || !G.state.lanes[lane]) return;
+        G.state.lanes[lane]._rift = { rounds: 2, side: opp, owner, eaten: 0, firstClaimed: false };
+        if (typeof UI !== 'undefined' && UI._fxStrangePortal) { try { UI._fxStrangePortal(null, lane); } catch (e) {} }
+        G.log(`Apothicon Servant: an Apothicon Rift tears open in lane ${lane + 1}!`);
+        // Anything already standing in it is pulled in immediately — and being
+        // first, it is the one swallowed whole.
+        const sitting = G.state.lanes[lane][opp];
+        if (sitting && sitting.currentHealth > 0 && G.riftSwallow) G.riftSwallow(sitting, lane);
+        if (typeof UI !== 'undefined' && UI.render) { try { UI.render(); } catch (e) {} }
+      };
+      G.promptLaneChoice(owner, cand, 'Apothicon Servant — Tear the Rift',
+        'Choose the enemy lane to tear open', tear, opp);
+    }
+  }
+];
+if (typeof window !== 'undefined') window.WONDER_DEFS = WONDER_DEFS;

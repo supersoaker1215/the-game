@@ -964,8 +964,9 @@ const Game = {
     if (!this._2v2IsAIAuthority || !this._2v2IsAIAuthority()) return;   // only the authority recovers
     if (typeof document !== 'undefined' && document.hidden) { this._ai2v2StallAt = Date.now(); this._ai2v2GlobalAt = Date.now(); return; }  // never judge a hidden tab
     // NOR A TABLE THAT IS DELIBERATELY HELD. MC Ballyhoo's entrance stops every
-    // seat acting for 17.5s — and this watchdog's tiers fire at 3s and 15s, both
-    // INSIDE that window. So the pause it was told to create read to it as a
+    // seat acting for 21.5s (Shadow Man 11.5s) — and this watchdog's tiers fire
+    // at 3s and 15s, both INSIDE that window. So the pause it was told to create
+    // read to it as a
     // frozen table, and its last-resort recovery force-ended sub-phase after
     // sub-phase: the whole cards turn vanished and the round dropped straight
     // into combat. (User: "i just had a round skip the whole cards turn and go
@@ -4668,6 +4669,11 @@ const Game = {
     this.applyMagnetoDebuffs();
     // MC Ballyhoo — same seam, both modes.
     this._maybeBallyhoo(this.state.round);
+    // …and the Shadow Man, from the same seam and for the same reason. He used
+    // to run only from the 2v2 round start, which is why 1v1 and solo could
+    // never see him. Both are no-ops unless the match actually rolled them, and
+    // _rollMatchEvent picks exactly one, so they can never both fire.
+    this._maybeShadowMan(this.state.round);
     this.state.lanes.forEach(l => l.protected = null);
     // Clear Parlay — one-round effect from Jack Sparrow (per-card flag;
     // legacy side-wide key deleted too for old saves)
@@ -6037,6 +6043,13 @@ const Game = {
     this._emitEntranceFX(card);
     if (card.statsEnteredRound == null) card.statsEnteredRound = this.state.round || 1;
     this._stampProvenance(card, owner);
+    // …and if it just landed in an Apothicon Rift, the Rift takes its bite
+    // immediately, before the card's own When Played runs. "Cards played into
+    // the Rift IMMEDIATELY lose 4 Attack / 2 Health" — so the ability it fires
+    // is the one the diminished card has, not the one it walked in with.
+    if (lane && lane._rift && lane._rift.rounds > 0 && this.riftSwallow) {
+      try { this.riftSwallow(card, laneIdx); } catch (e) { console.error('[rift]', e); }
+    }
     this.state[owner].discount = 0;
 
     // Face-down play — suppress all abilities, hide from opponent
@@ -6072,6 +6085,10 @@ const Game = {
       return true;
     }
 
+    // SHADOW MAN — most cards played, by the seat that played it.
+    if (!(this.state && this.state._silentSim) && this._shadowActive && this._shadowActive()) {
+      this._shadowTrack(this._shadowSeatOf(card), 'played', 1);
+    }
     this.log(`[PLAY] ${who} play ${card.name} (${card.attack}/${card.currentHealth}) in lane ${laneIdx + 1} for ${cost} energy`);
     // Bloway Candy blew this one off the board and it came back hollow. Its
     // hooks were nulled on the way into hand, so nothing will fire — say so,
@@ -8653,6 +8670,12 @@ const Game = {
           if (this.state.twoVTwo.teams[_bt]) this.state.twoVTwo.teams[_bt].blockMeter = 0;
         }
         blockedByMeter = true;
+        // SHADOW MAN — most damage BLOCKED. Credited to the seat whose attack
+        // was stopped: the category is "damage you caused the enemy to block",
+        // so it is the attacker's doing even though nothing landed.
+        if (!(this.state && this.state._silentSim) && this._shadowActive && this._shadowActive()) {
+          this._shadowTrack(this._shadowSeatOf(source), 'blocked', amount);
+        }
         // Track block-meter trigger for the victory-screen stats panel.
         if (this.state._stats && this.state._stats[owner]) {
           this.state._stats[owner].blockTriggers++;
@@ -8783,6 +8806,16 @@ const Game = {
     // the UI/stats from seeing a transient "-7 HP" after a killing
     // blow that overkilled the defender. Caught by the invariant
     // sweep in sim/test.js.
+    // SHADOW MAN — most Hero damage. Only what actually LANDS on an enemy
+    // hero counts, so this sits on the line that takes the health rather than
+    // at the top of the function where the amount is still provisional
+    // (Yoda halves it, Mr Freeze can negate it, the block meter can eat it).
+    if (!(this.state && this.state._silentSim) && this._shadowActive && this._shadowActive()) {
+      const _hSeat = this._shadowSeatOf(source);
+      // Damaging your OWN side's hero is not a score. Through _shadowSideOf so
+      // this reads the same in 1v1, where the seat IS the side.
+      if (_hSeat && this._shadowSideOf(_hSeat) !== owner) this._shadowTrack(_hSeat, 'heroDmg', amount);
+    }
     p.health = Math.max(0, p.health - amount);
     // 2v2: the team HUD reads tt.teams[team].health, but combat lands on the
     // state.player/ai proxy — so a hit only appeared next round when
@@ -9624,6 +9657,49 @@ const Game = {
     // (User: "the card is gone in front of flash ... during the combat phase
     // then you can see the art again ... if i lift a card they all spawn back
     // in for a second but then go away again.")
+    // CONSUMED, NOT KILLED. A card that dies inside an Apothicon Rift is eaten:
+    // its When Killed must not fire, which is the Rift's whole threat.
+    if (card && card._riftDoomed) {
+      card.onDeath = null;
+      // The lane the card is IN, or the one it was being placed into — an entry
+      // kill can resolve before the board settles, and a consumption that
+      // cannot find its Rift is a consumption that never counts.
+      let _rl = this.findCardLane(card);
+      if (_rl < 0 && typeof laneIdx === 'number') _rl = laneIdx;
+      const _rf = _rl >= 0 && this.state.lanes[_rl] && this.state.lanes[_rl]._rift;
+      if (_rf) {
+        _rf.eaten = (_rf.eaten | 0) + 1;
+        this.log(`  [RIFT] ${card.name} is consumed — its death effect never happens.`);
+        // GORGED, IT CLOSES — AND THAT IS THE WHOLE REWARD. The brief marked the
+        // draw-2-and-gain-2 payout as an "optional additional reward", and it
+        // did not survive measurement: for 3 energy the Rift already gives a
+        // guaranteed kill on the first card in, a two-round forced-placement
+        // lockout, -4/-4 on everything after, 2 damage a round, and no When
+        // Killed on anything that dies inside. Phantom Zone costs the same and
+        // removes 6 HP with one kill. Refunding two cards and two energy on top
+        // paid the player for the card doing exactly what it was bought to do,
+        // which made it the automatic pick of the four and defeated the point of
+        // each challenge carrying a different prize.
+        //
+        // Two swallowed still ENDS it — a Rift that has eaten its fill closes.
+        // Two rather than three because only one card stands in a lane at a
+        // time and the Rift lives two rounds, so three could never happen.
+        if (_rf.eaten >= 2) {
+          this.state.lanes[_rl]._rift = null;
+          this.log('  [RIFT] Gorged, the Apothicon Rift closes.');
+        }
+      }
+    }
+    // SHADOW MAN — most cards killed. The killer's own seat, credited through
+    // the card's ownership stamp; a dry-run forecast must never bank a kill,
+    // which is the same guard the FX below carries and for the same reason.
+    if (!(this.state && this.state._silentSim) && this._shadowActive && this._shadowActive()) {
+      const _kSeat = this._shadowSeatOf(killer);
+      // Only an ENEMY card counts — killing your own does not score.
+      if (_kSeat && card && card.owner) {
+        if (this._shadowSideOf(_kSeat) !== card.owner) this._shadowTrack(_kSeat, 'kills', 1);
+      }
+    }
     if (typeof UI !== 'undefined' && UI.spawnDestroyParticles
         && !(this.state && this.state._silentSim)) {
       UI.spawnDestroyParticles(card.id, card.owner);
@@ -15697,6 +15773,14 @@ const Game = {
     // Only narrow when the forced lane is actually free — if this side already
     // holds it, the compulsion has nowhere to land and must not lock the board.
     if (forced >= 0 && open.indexOf(forced) >= 0) return [forced];
+    // THE APOTHICON RIFT PULLS TOO. "Enemy cards MUST be played into the Rift
+    // if they have an available slot there" — same shape as Moder's
+    // compulsion, so it lands in the same place: the one function every play
+    // path asks which lanes are legal. Checked AFTER Moder so an existing
+    // card's rule is never quietly overridden by the new one; whichever is
+    // compelling first keeps the board.
+    const rift = this.riftCompulsionLane ? this.riftCompulsionLane(owner) : -1;
+    if (rift >= 0 && open.indexOf(rift) >= 0) return [rift];
     return open;
   },
 
@@ -16254,7 +16338,454 @@ const Game = {
     // 50/50 honest — fold it into the per-round roll and a long match would
     // almost always get him while a short one almost never would, which is a
     // different game entirely.
-    s._ballyhoo = { shows: this.rng() < this._BALLYHOO_MATCH_CHANCE, fired: false };
+    // The slot decides now — see _rollMatchEvent. _BALLYHOO_MATCH_CHANCE still
+    // gates him on top of it, so setting it to 0 disables him without touching
+    // the slot, and the sim can force either event by setting _matchEvent.
+    if (!s._matchEvent) this._rollMatchEvent();
+    s._ballyhoo = {
+      shows: s._matchEvent === 'ballyhoo' && this.rng() < this._BALLYHOO_MATCH_CHANCE,
+      fired: false,
+    };
+  },
+
+  // ============================================================
+  // THE MATCH EVENT SLOT
+  // ============================================================
+  // A match gets ONE special event, chosen when it starts. (Owner: "one event
+  // per match, picked at start".) MC Ballyhoo used to fire in every match; he
+  // now shares the slot with MC Shadow Man, so his own roll asks the slot
+  // rather than deciding for itself.
+  //
+  // Shadow Man tracks four players separately and hands out four prizes, so he
+  // is 2v2-only — in 1v1 there is no such thing as a third and fourth player
+  // and the slot always lands on Ballyhoo. That is a real gate, not a
+  // simplification: everything below indexes by seat.
+  _rollMatchEvent() {
+    const s = this.state;
+    if (!s || s._matchEvent) return;
+    // EVERY MODE, EVEN ODDS. He used to be 2v2-only, so 1v1 and solo always got
+    // Ballyhoo; his four challenges are contested between the two sides now.
+    // (Owner: "make sure for each game its a random chance on if you get a MC or
+    // shadow man random event and make sure this works for 2v2, 1v1 and solo".)
+    s._matchEvent = (this.rng() < 0.5) ? 'shadowman' : 'ballyhoo';
+  },
+
+  // ============================================================
+  // MC SHADOW MAN
+  // ============================================================
+  // Appears at the top of a round, names four challenges, and returns 3-4
+  // rounds later to hand a Wonder Weapon to whoever leads each one.
+  //
+  // HE OPENS THE MATCH AND COMES BACK TO PAY. He appears at the start of round
+  // 1, states the four challenges, and returns at the start of a random round
+  // from 5 to 8 to hand out the prizes. (Owner: "he appears at the start of the
+  // game the beginning of round 1 and explains the rules and what he'll be
+  // tracking. Then at the start of round 5 or 6 or 7 or 8 any one of those at
+  // random he can return again to give out prizes.")
+  //
+  // So the tracking window is the whole match up to that point — everything a
+  // player does from the first card counts, and nobody knows which of the four
+  // rounds ends it. The return also lands well inside a normal match: measured
+  // over 300 full games the median ends at round 10.
+  _SHADOW_FIRST_ROUND: 1,
+  _SHADOW_RETURN_MIN: 5,
+  _SHADOW_RETURN_MAX: 8,
+  _SHADOW_CATEGORIES: ['kills', 'played', 'heroDmg', 'blocked'],
+  // Shorter than Ballyhoo's — he has no ten-second theme playing under him,
+  // just his announcement to read.
+  // Sized to OUTLAST the reveals, never to time them: two text beats at
+  // the UI's SHADOW_HOLD_MS (5000) plus the entry animation. Raised from 7500 when
+  // the beats went 3200 -> 5000 (owner: "hard to read that fast") — leave the
+  // lock behind and the table frees up while he is still talking, which is the
+  // exact bug the Ballyhoo hold was written to prevent.
+  _SHADOW_HOLD_MS: 11500,
+
+  _rollShadowMan() {
+    const s = this.state;
+    if (!s || s._shadow) return;
+    if (!s._matchEvent) this._rollMatchEvent();
+    if (s._matchEvent !== 'shadowman') { s._shadow = { shows: false }; return; }
+    const span = this._SHADOW_RETURN_MAX - this._SHADOW_RETURN_MIN + 1;
+    const returnAt = this._SHADOW_RETURN_MIN + Math.floor(this.rng() * span);
+    s._shadow = {
+      shows: true,
+      appearAt: this._SHADOW_FIRST_ROUND,
+      returnAt,
+      appeared: false,
+      returned: false,
+      // Nothing is counted until he actually turns up — the categories are
+      // "after Shadow Man appears", so a kill from round 1 must not bank.
+      stats: null,
+    };
+  },
+
+  _shadowActive() {
+    const sh = this.state && this.state._shadow;
+    return !!(sh && sh.shows && sh.appeared && !sh.returned);
+  },
+
+  // The single door every category goes through. A no-op unless he is out and
+  // watching, so a match without him pays nothing for any of this.
+  // ── SEATS, IN ANY MODE ────────────────────────────────────────────────
+  // The Shadow Man was built for 2v2 and spoke only in twoVTwo seat keys. He
+  // now runs in 1v1 and solo too (owner: "make sure this works for 2v2, 1v1 and
+  // solo"), where there is no seat table at all — so everything below goes
+  // through these four helpers instead of touching tt.players directly. In 1v1
+  // the SIDE is the seat: 'player' and 'ai' are the two competitors, and the
+  // same four challenges are contested between them.
+  _shadowSeats() {
+    const tt = this.state && this.state.twoVTwo;
+    if (tt && tt.players) return (this._2v2SLOTS || ['p1', 'p2', 'p3', 'p4']).filter(pk => tt.players[pk]);
+    return ['player', 'ai'];
+  },
+  _shadowHolder(seat) {
+    const tt = this.state && this.state.twoVTwo;
+    if (tt && tt.players) return tt.players[seat] || null;
+    return (seat === 'player' || seat === 'ai') ? (this.state && this.state[seat]) || null : null;
+  },
+  // Which board side a seat plays on — the thing every "did you score against
+  // an ENEMY" check needs.
+  _shadowSideOf(seat) {
+    const tt = this.state && this.state.twoVTwo;
+    if (tt && tt.players) {
+      const p = tt.players[seat];
+      return p ? this._2v2TeamSide[p.team] : null;
+    }
+    return (seat === 'player' || seat === 'ai') ? seat : null;
+  },
+  _shadowName(seat) {
+    const tt = this.state && this.state.twoVTwo;
+    if (tt && tt.players) return this._2v2SeatName(seat);
+    return seat === 'player' ? 'You' : 'Opponent';
+  },
+
+  _shadowTrack(seat, key, amount) {
+    if (!(amount > 0)) return;
+    if (!this._shadowActive()) return;
+    const sh = this.state._shadow;
+    if (!seat || !sh.stats || !sh.stats[seat]) return;
+    sh.stats[seat][key] = (sh.stats[seat][key] | 0) + amount;
+  },
+
+  // Who gets the credit for a thing a CARD did. The card's own stamp first —
+  // that is the seat that played it and the whole reason the ownership pass
+  // exists — then the ambient acting seat for effects with no card behind them
+  // (a trick's damage, an environment tick).
+  _shadowSeatOf(source) {
+    if (!this.state) return null;
+    const tt = this.state.twoVTwo;
+    if (!tt || !tt.players) {
+      // 1v1 / solo: no seat table — the card's own side identifies the scorer.
+      const side = (source && source.owner) || null;
+      return (side === 'player' || side === 'ai') ? side : null;
+    }
+    const pick = (source && (source._2v2PlayedBy || source._mcSeat))
+      || this._2v2AbilityOwner()
+      || this._2v2CurrentActingPlayer
+      || null;
+    return (pick && tt.players && tt.players[pick]) ? pick : null;
+  },
+
+  // Called at the top of every 2v2 round, next to _maybeBallyhoo.
+  _maybeShadowMan(roundNow) {
+    const s = this.state;
+    if (!s) return;
+    if (!s._shadow) this._rollShadowMan();
+    const sh = s._shadow;
+    if (!sh || !sh.shows) return;
+    const tt = s.twoVTwo;
+    const r = roundNow | 0;
+
+    if (!sh.appeared && r >= sh.appearAt) {
+      sh.appeared = true;
+      sh.stats = {};
+      // ONE WEAPON PER CHALLENGE, DECIDED WHEN HE NAMES THEM. (Owner: "the
+      // weapons will be randomly decided which weapon goes to each challenge.")
+      // Shuffled rather than drawn independently: four weapons and four
+      // challenges, so a shuffle guarantees each weapon is on the table exactly
+      // once instead of a match rolling the same prize three times. Fixed at
+      // announcement so a player can see what they are competing FOR — the
+      // prize is part of deciding which challenge to chase.
+      {
+        const pool = (typeof WONDER_DEFS !== 'undefined') ? WONDER_DEFS.slice() : [];
+        this.shuffle(pool);
+        sh.prizes = {};
+        this._SHADOW_CATEGORIES.forEach((k, i) => {
+          if (pool.length) sh.prizes[k] = pool[i % pool.length].name;
+        });
+      }
+      this._shadowSeats().forEach(pk => {
+        sh.stats[pk] = { kills: 0, played: 0, heroDmg: 0, blocked: 0 };
+      });
+      // He holds the table while he talks, exactly as Ballyhoo does — through the
+      // shared hold, so the clock-skew and queue-drain fixes come with it.
+      this._armEventHold(this._SHADOW_HOLD_MS);
+      this.log('[SHADOW MAN] Shadow Man steps out of the dark and names four challenges.');
+      this._SHADOW_CATEGORIES.forEach(k => {
+        this.log(`  [CHALLENGE] ${this._shadowLabel(k)} — ${(sh.prizes && sh.prizes[k]) || 'a Wonder Weapon'}`);
+      });
+      // The round is NOT announced — not knowing when he comes back is the
+      // point, and the log is visible to everyone.
+      this.log('  [SHADOW MAN] He will return when he pleases.');
+      if (typeof UI !== 'undefined' && UI.showShadowMan) { try { UI.showShadowMan('arrive', sh); } catch (e) {} }
+      if (tt && tt.online && this.emitFX) { try { this.emitFX('shadowman', { phase: 'arrive', returnAt: sh.returnAt }); } catch (e) {} }
+      if (this._pushOnlineState) { try { this._pushOnlineState(); } catch (e) {} }
+      return;
+    }
+
+    if (sh.appeared && !sh.returned && r >= sh.returnAt) {
+      this._shadowManReturns();
+    }
+  },
+
+  // Who leads a category, and by how much. Returns every seat tied for the
+  // lead, because a tie is a duel rather than a coin flip (owner's call).
+  _shadowLeaders(key) {
+    const sh = this.state && this.state._shadow;
+    if (!sh || !sh.stats) return [];
+    let best = -1, out = [];
+    Object.keys(sh.stats).forEach(pk => {
+      const v = sh.stats[pk][key] | 0;
+      if (v > best) { best = v; out = [pk]; }
+      else if (v === best) out.push(pk);
+    });
+    // Nobody did anything at all in this category — no leader, no prize.
+    if (best <= 0) return [];
+    return out;
+  },
+
+  _shadowManReturns() {
+    const s = this.state, sh = s && s._shadow;
+    if (!sh || sh.returned) return;
+    sh.returned = true;
+    this._armEventHold(this._SHADOW_HOLD_MS);
+    this.log('[SHADOW MAN] Shadow Man returns to settle the score.');
+    const awards = [];   // { key, seat }
+    const duels = [];    // { key, seats }
+    this._SHADOW_CATEGORIES.forEach(key => {
+      const leaders = this._shadowLeaders(key);
+      if (!leaders.length) { this.log(`  [SHADOW MAN] ${this._shadowLabel(key)} — nobody scored. No prize.`); return; }
+      if (leaders.length === 1) { awards.push({ key, seat: leaders[0] }); return; }
+      duels.push({ key, seats: leaders });
+    });
+    awards.forEach(a => this._shadowAward(a.seat, a.key));
+    // SUDDEN DEATH, NOT A COIN FLIP. A tie leaves that category open for the
+    // tied seats only; whoever gains the most in the SAME stat over the next
+    // round takes the weapon. It reuses the counting already running and stays
+    // individual, which a random pick would not be. (Owner's call.)
+    if (duels.length) {
+      sh.duels = duels.map(d => ({
+        key: d.key, seats: d.seats,
+        // the mark to beat: everything from here on is what decides it
+        base: d.seats.reduce((m, pk) => { m[pk] = sh.stats[pk][d.key] | 0; return m; }, {}),
+      }));
+      sh.duelUntil = (s.round | 0) + 1;
+      duels.forEach(d => this.log(`  [SUDDEN DEATH] ${this._shadowLabel(d.key)} is tied between `
+        + d.seats.map(pk => this._shadowName(pk)).join(' and ')
+        + ' — next round decides it.'));
+      // Tied categories keep counting, so the window stays open for them.
+      sh.returned = false;
+      sh.settling = true;
+    }
+    if (typeof UI !== 'undefined' && UI.showShadowMan) { try { UI.showShadowMan('return', sh); } catch (e) {} }
+    if (s.twoVTwo && s.twoVTwo.online && this.emitFX) {
+      try { this.emitFX('shadowman', { phase: 'return' }); } catch (e) {}
+    }
+    if (this._pushOnlineState) { try { this._pushOnlineState(); } catch (e) {} }
+  },
+
+  // Resolve any sudden-death categories once their extra round has run.
+  _shadowSettleDuels(roundNow) {
+    const s = this.state, sh = s && s._shadow;
+    if (!sh || !sh.settling || !sh.duels) return;
+    if ((roundNow | 0) < sh.duelUntil) return;
+    sh.duels.forEach(d => {
+      let best = -1, win = [];
+      d.seats.forEach(pk => {
+        const gained = (sh.stats[pk][d.key] | 0) - (d.base[pk] | 0);
+        if (gained > best) { best = gained; win = [pk]; }
+        else if (gained === best) win.push(pk);
+      });
+      if (best > 0 && win.length === 1) {
+        this.log(`  [SUDDEN DEATH] ${this._shadowLabel(d.key)} settled.`);
+        this._shadowAward(win[0], d.key);
+      } else {
+        // Still level after a full extra round — everyone still tied takes one
+        // rather than the prize evaporating over a technicality.
+        this.log(`  [SUDDEN DEATH] ${this._shadowLabel(d.key)} is still level — all tied players are paid.`);
+        win.forEach(pk => this._shadowAward(pk, d.key));
+      }
+    });
+    sh.duels = null; sh.settling = false; sh.returned = true;
+    if (this._pushOnlineState) { try { this._pushOnlineState(); } catch (e) {} }
+  },
+
+  // A Wonder Weapon is a CARD, not a trick — a discard-effect card that goes
+  // into the winner's CARD hand and costs energy to fire. Winning it is not the
+  // same as being able to use it, which is the point: the prize is an option,
+  // not a free hit.
+  //
+  // It ignores the hand cap for the same reason a candy ignores the trick cap:
+  // losing a prize you just earned because your hand happened to be full would
+  // be the worst possible moment for that rule to apply.
+  _shadowAward(seat, key) {
+    const s = this.state, tt = s && s.twoVTwo;
+    const p = this._shadowHolder(seat);
+    const pool = (typeof WONDER_DEFS !== 'undefined') ? WONDER_DEFS : [];
+    if (!p || !pool.length) return null;
+    // The weapon this CHALLENGE was carrying, not a fresh roll — whoever wins
+    // the challenge wins the prize that was on it. Falls back to a random one
+    // only if the mapping is somehow missing.
+    const sh0 = s._shadow;
+    const named = sh0 && sh0.prizes && sh0.prizes[key];
+    const def = (named && pool.find(w => w.name === named)) || pool[Math.floor(this.rng() * pool.length)];
+    if (!Array.isArray(p.hand)) p.hand = [];
+    // Through createCardInstance so it arrives as a real card instance —
+    // applyAbilities stamps the keyword fields and the renderers expect an
+    // instance, not a bare def.
+    const inst = this.createCardInstance
+      ? this.createCardInstance(def, this._shadowSideOf(seat))
+      : { ...def, id: nextCardId++ };
+    // THE CARD HAND, AND IT STRETCHES BY ONE TO HOLD THIS. Wonder Weapons are
+    // discard-effect CARDS, not tricks, so they belong here and not in the trick
+    // hand — but the card hand caps at maxHandSize (7), and pushing a prize into
+    // a full hand puts the seat OVER cap. That does not lose the weapon, but it
+    // silently stops them drawing until they are back under. Winning a challenge
+    // must never cost you your draw, so the cap grows by exactly one per weapon.
+    // Safe to mutate: maxHandSize is re-seeded per match (the same reason the
+    // Mobius Chair's permanent raise has to be reset to 7), so it cannot leak
+    // between games. (Owner: "these are discards not trick cards, so they
+    // shouldnt be in the trick hand but the card hand and it can extend by 1".)
+    p.maxHandSize = (p.maxHandSize != null ? p.maxHandSize : 7) + 1;
+    p.hand.push(inst);
+    const sh = s._shadow;
+    if (sh) { (sh.awards = sh.awards || []).push({ seat, key, weapon: def.name }); }
+    this.log(`  [WONDER WEAPON] ${this._shadowLabel(key)} → ${this._shadowName(seat)} receives ${def.name}!`);
+    if (typeof UI !== 'undefined' && UI.showWonderWeapon) {
+      try { UI.showWonderWeapon(seat, def, this._shadowLabel(key)); } catch (e) {}
+    }
+    if (tt && tt.online && this.emitFX) {
+      try { this.emitFX('wonderWeapon', { seat, weapon: def.name, category: this._shadowLabel(key) }); } catch (e) {}
+    }
+    return def;
+  },
+
+  // ---- APOTHICON RIFT ----------------------------------------------------
+  // A card entering the Rift is diminished and pulled in. Kept as its own
+  // method because three different paths lead here: the Servant tearing the
+  // Rift open over an occupied lane, a card being played into it, and a card
+  // moved into it by anything else.
+  riftSwallow(card, laneIdx) {
+    const lane = this.state.lanes[laneIdx];
+    const rift = lane && lane._rift;
+    if (!rift || !card || card._riftBitten) return;
+    if (card.owner !== rift.side) return;   // only the enemy is fed to it
+    card._riftBitten = true;
+    // THE FIRST ONE IN IS EATEN WHOLE. Whatever gets forced in first dies on
+    // arrival regardless of size, and only after that does the Rift settle into
+    // taking 4/4 from everything else. (Owner: "the next card has to be placed
+    // into the rift and is instantly killed and then the -4/4 continues.")
+    // It also fixes the case the flat debuff could not answer: a big enough
+    // body — Godzilla at 5/8 — simply walked in, shrugged off -4/-4 and stood
+    // there, so the card's whole threat depended on what they happened to hold.
+    if (!rift.firstClaimed) {
+      rift.firstClaimed = true;
+      this.log(`  [RIFT] The Apothicon Rift swallows ${card.name} whole!`);
+      card._riftDoomed = true;
+      this.dealDamage(card, (card.currentHealth | 0) + 99, { name: 'Apothicon Rift' });
+      card._riftDoomed = false;
+      this.cleanupDead();
+      return;
+    }
+    this.log(`  [RIFT] ${card.name} is dragged into the Apothicon Rift — 4 ATK / 4 HP torn away.`);
+    // DYING TO THE BITE IS STILL DYING INSIDE THE RIFT. _riftDoomed was only
+    // set for the end-of-round gnaw, so a card the entry debuff killed outright
+    // — which at -4/-4 is anything with 4 or less health, i.e. most of what gets
+    // forced in — fired its When Killed and was never counted as consumed.
+    // Measured: 2 cards fed in, 0 recorded eaten. The rule the card states
+    // ("anything that dies inside is consumed") simply was not happening on the
+    // most common way to die in there.
+    card._riftDoomed = true;
+    this.debuffCard(card, 4, 4, true, { name: 'Apothicon Rift' });
+    card._riftDoomed = false;
+    if (typeof UI !== 'undefined' && UI._fxGargantuaPull) { try { UI._fxGargantuaPull(card); } catch (e) {} }
+    this.cleanupDead();
+  },
+
+  // Lanes a seat MUST play into while a Rift is open with a free slot. Read by
+  // the placement rules the same way Moder's compulsion lane is.
+  riftCompulsionLane(owner) {
+    for (let i = 0; i < this.LANE_COUNT; i++) {
+      const l = this.state.lanes[i];
+      if (l && l._rift && l._rift.rounds > 0 && l._rift.side === owner && !l[owner] && !l.destroyed) return i;
+    }
+    return -1;
+  },
+
+  // End of round: the Rift bites, then ages. Called from the round tick.
+  tickRifts() {
+    for (let i = 0; i < this.LANE_COUNT; i++) {
+      const lane = this.state.lanes[i];
+      const rift = lane && lane._rift;
+      if (!rift || !(rift.rounds > 0)) continue;
+      const victim = lane[rift.side];
+      if (victim && victim.currentHealth > 0) {
+        this.log(`  [RIFT] The Apothicon Rift gnaws ${victim.name} for 2.`);
+        // Marked so handleDeath knows this death belongs to the Rift and must
+        // not fire the card's When Killed — being consumed is not dying.
+        victim._riftDoomed = true;
+        this.dealDamage(victim, 2, { name: 'Apothicon Rift' });
+        victim._riftDoomed = false;
+      }
+      rift.rounds -= 1;
+      if (rift.rounds <= 0) {
+        lane._rift = null;
+        this.log(`  [RIFT] The Apothicon Rift in lane ${i + 1} closes.`);
+      }
+    }
+    this.cleanupDead();
+  },
+
+  // ---- STORM MARK --------------------------------------------------------
+  // End of round: every Marked card is struck, and the bolt walks outward from
+  // each one, gaining 2 damage per jump. The chain is computed from the board
+  // at strike time rather than stored, so a card that died in the meantime
+  // simply is not in it.
+  tickStormMarks() {
+    const marked = this.getAllCardsOnBoard().filter(c => c && c._stormMarkOwner && c.currentHealth > 0);
+    marked.forEach(c => {
+      const owner = c._stormMarkOwner;
+      const side = c.owner;
+      const start = this.findCardLane(c);
+      if (start < 0) return;
+      delete c._stormMarkOwner; delete c._stormMark;
+      let dmg = 4;
+      this.log(`  [STORM MARK] Lightning strikes ${c.name} for ${dmg}.`);
+      if (typeof UI !== 'undefined' && UI._fxChainArc) { try { UI._fxChainArc(c, '#9ad8ff', '#3aa0ff'); } catch (e) {} }
+      this.dealDamage(c, dmg, { name: 'Lightning Bow', _2v2PlayedBy: c._stormSeat || null });
+      // …then it jumps, +2 each hop — TWO jumps, one direction. The brief's own
+      // example is three targets (4, 6, 8) and stops there; walking the whole
+      // row in BOTH directions instead turned one card into a board wipe.
+      // Measured before the cap: 29 HP removed and five of six enemies dead
+      // from a single play, against 6 HP and one kill for a 3-cost trick.
+      const MAX_JUMPS = 2;
+      const dir = (start + 1 < this.LANE_COUNT && this.state.lanes[start + 1]
+                   && this.state.lanes[start + 1][side]) ? 1 : -1;
+      let d = dmg, jumps = 0;
+      for (let i = start + dir; i >= 0 && i < this.LANE_COUNT && jumps < MAX_JUMPS; i += dir) {
+        const n = this.state.lanes[i] && this.state.lanes[i][side];
+        if (!n || n.currentHealth <= 0) break;
+        d += 2; jumps++;
+        this.log(`  [STORM MARK] The bolt jumps to ${n.name} for ${d}.`);
+        this.dealDamage(n, d, { name: 'Lightning Bow' });
+      }
+      this.cleanupDead();
+    });
+  },
+
+  _shadowLabel(key) {
+    return ({ kills: 'Most cards killed', played: 'Most cards played',
+              heroDmg: 'Most Hero damage', blocked: 'Most damage blocked' })[key] || key;
   },
 
   // HOW LONG THE TABLE IS HELD. The arrival is a 10s lead-in plus two 3.2s
@@ -16270,7 +16801,9 @@ const Game = {
   // fixes. A timestamp expires on its own no matter what happens to anybody's
   // UI, and it rides the state broadcast so all four seats hold and release
   // together.
-  _BALLYHOO_LOCK_MS: 17500,
+  // 10s lead-in + two text beats at the UI's BALLYHOO_HOLD_MS (5000) + tail. Raised
+  // from 17500 alongside the same beat change.
+  _BALLYHOO_LOCK_MS: 21500,
 
   // EVERY CLIENT TIMES THIS LOCK ON ITS OWN CLOCK.
   //
@@ -16287,14 +16820,32 @@ const Game = {
   // sees an ID it has not seen before, it starts its OWN seventeen seconds from
   // its OWN clock. Nobody reads anybody else's time, so skew cannot leak in,
   // and the lock still expires on its own without anything having to clear it.
-  ballyhooLocked() {
+  // ONE HOLD, SHARED BY EVERY EVENT. Ballyhoo's hold cost two live bugs — an
+  // absolute deadline that crossed machines and became clock skew, and a queued
+  // play that drained on a prompt-clear that never came. Shadow Man needs the
+  // same hold, so he gets the same CODE rather than a second copy that would
+  // have re-inherited both. (Owner: "make sure there isnt a glitch where you
+  // cant play after like MC Ballyhoo.")
+  _armEventHold(ms) {
     const s = this.state;
-    const id = s && s._ballyhooLockId;
+    if (!s) return;
+    // Only where there is a show to wait for. The headless sim stubs the UI and
+    // would otherwise stall every match on wall-clock time.
+    if (typeof UI === 'undefined' || typeof UI.render !== 'function') return;
+    this._eventHoldSeq = (this._eventHoldSeq || 0) + 1;
+    s._eventHoldId = ((s.round | 0) + 1) * 1000 + this._eventHoldSeq;
+    s._eventHoldMs = ms || this._BALLYHOO_LOCK_MS;
+  },
+  // Kept under the old name because every gate in the engine already calls it.
+  ballyhooLocked() { return this.eventHoldActive(); },
+  eventHoldActive() {
+    const s = this.state;
+    const id = s && (s._eventHoldId || s._ballyhooLockId);
     if (!id) return false;
     if (this._ballyhooLocalId !== id) {
       // First sight of this lock on this machine — start the clock here.
       this._ballyhooLocalId = id;
-      this._ballyhooLocalUntil = Date.now() + this._BALLYHOO_LOCK_MS;
+      this._ballyhooLocalUntil = Date.now() + ((s && s._eventHoldMs) || this._BALLYHOO_LOCK_MS);
       // …and make sure something happens when it lifts. The queue below is
       // drained by whenPromptCleared, which is about PROMPTS — and this lock is
       // not a prompt, so a play made during Ballyhoo's entrance was queued and
@@ -16313,7 +16864,7 @@ const Game = {
           try { if (this._2v2DrainLockedActions) this._2v2DrainLockedActions(); } catch (e) {}
           try { if (this.resumeCombatIfWaiting) this.resumeCombatIfWaiting(); } catch (e) {}
           try { if (typeof UI !== 'undefined' && UI.render) UI.render(); } catch (e) {}
-        }, this._BALLYHOO_LOCK_MS + 60);
+        }, ((s && s._eventHoldMs) || this._BALLYHOO_LOCK_MS) + 60);
       } catch (e) { /* no scheduler (sim) — the deadline below still expires */ }
     }
     if (!this._ballyhooLocalUntil || Date.now() >= this._ballyhooLocalUntil) {
@@ -16400,9 +16951,7 @@ const Game = {
     // matches per second against a stubbed UI, and a 17-second wall-clock lock
     // there would stall every run for no benefit, since nothing is watching.
     if (typeof UI !== 'undefined' && typeof UI.showBallyhoo === 'function') {
-      // An identity, not a time — see ballyhooLocked. Derived from the match's
-      // own round rather than a clock so it is stable across the broadcast.
-      s._ballyhooLockId = ((s.round | 0) + 1) * 1000 + 7;
+      this._armEventHold(this._BALLYHOO_LOCK_MS);
     }
 
     // Announce it on every screen. The reveal is the same centre-screen panel
@@ -18161,6 +18710,15 @@ const Game = {
     // MC Ballyhoo — before the first seat acts, so a candy is in hand for the
     // round it arrives in rather than the one after.
     this._maybeBallyhoo(tt.round);
+    // Shadow Man shares the same seam and the same slot: a match runs one or
+    // the other, never both. Duels settle first so a sudden-death round that
+    // just ended is paid out before he is asked to return again.
+    this._shadowSettleDuels(tt.round);
+    this._maybeShadowMan(tt.round);
+    // Wonder Weapon board effects age at the top of the round, after combat has
+    // resolved the previous one.
+    try { this.tickStormMarks(); } catch (e) { console.error('[storm mark]', e); }
+    try { this.tickRifts(); } catch (e) { console.error('[rift]', e); }
     this._2v2StartSubPhase();
   },
 

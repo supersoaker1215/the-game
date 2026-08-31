@@ -37,6 +37,22 @@ window.CARD_ART_VARIANTS = {
   'Cashzap Candy':       ['Cashzap Candy.jpg'],
   'Vampire Candy':       ['Vampire Candy.jpg'],
   'Bloway Candy':        ['Bloway Candy.jpg'],
+  // ── Shadow Man and his Wonder Weapons ──
+  // Same reason as the candies: no manifest entry means a card falls back to
+  // <Name>.png, and these shipped as JPEG. Entries are added as the art
+  // arrives — a weapon with no entry yet simply draws no portrait.
+  'Shadow Man':          ['Shadow Man.jpg'],
+  'Thundergun':          ['Thundergun.jpg'],
+  'Lightning Bow':       ['Lightning Bow.jpg'],
+  'Wunderwaffe DG-3 JZ': ['Wunderwaffe DG-3 JZ.jpg'],
+  'Apothicon Servant':   ['Apothicon Servant.jpg'],
+  // Pre-wired ahead of the file landing: no art on disk yet, and a 404 simply
+  // draws no portrait rather than breaking the card.
+  'Ray Gun':             ['Ray Gun.jpg'],
+  // The Rift is a LANE state, not a card — no def carries this name. The entry
+  // exists so the lane overlay can ask getCardArtPath for it by name like
+  // anything else.
+  'Apothicon Rift':      ['Apothicon Rift.jpg'],
   'Pinhead':             ['Pinhead.jpg'],
   // ── Variant-2 promoted (user-picked defaults, 2026-05-18) ──
   'Darth Vader':         ['Darth Vader 2.png'],

@@ -215,7 +215,8 @@ const Multiplayer = {
     // otherwise it arrives on the other three screens as an inert object that
     // does nothing when clicked.
     const trickDefs = (typeof TRICK_DEFS !== 'undefined' ? TRICK_DEFS : [])
-      .concat(typeof CANDY_DEFS !== 'undefined' ? CANDY_DEFS : []);
+      .concat(typeof CANDY_DEFS !== 'undefined' ? CANDY_DEFS : [])
+      .concat(typeof WONDER_DEFS !== 'undefined' ? WONDER_DEFS : []);
     const cardAbilities = (typeof CARD_ABILITIES !== 'undefined' ? CARD_ABILITIES : {});
 
     // Build a card-id → card-instance map so _summonedById

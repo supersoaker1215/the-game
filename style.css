@@ -35103,13 +35103,51 @@ body.dragging-trick .tut-callout { pointer-events: none; }
 }
 .trick-reveal-card {
   width: min(200px, 52vw);
-  aspect-ratio: 5 / 7;
+  /* THE CARD GROWS, THE ART DOESN'T SHRINK. A fixed 5/7 box meant a long rules
+     block (the Apothicon Servant's especially) had nowhere to go but upward,
+     over the portrait. aspect-ratio becomes a MINIMUM: normal cards are exactly
+     the size they always were, and only the wordy ones get taller so their text
+     sits below the art instead of on top of it.
+     (Owner: "the apothicon servant text covers the art. Move the text down and
+     extend the card to fit the text".) */
+  min-height: calc(min(200px, 52vw) * 7 / 5);
+  height: auto;
   border-radius: 8px;
   position: relative;
   overflow: hidden;
+  /* THE NAME AND THE RULES STACK — they used to be two absolutely-positioned
+     blocks at fixed percentages (name at bottom:34%, text capped at 32%), which
+     only ever lined up for short cards. Longer text either clipped mid-sentence
+     or grew up over the card's own name. Laying the bottom of the card out as a
+     flex column means the text takes exactly the height it needs and the name is
+     always immediately above it, for every card, at any length.
+     (Owner: "make sure the text for each card is easy to read".) */
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+/* THE PORTRAIT GETS A GUARANTEED SHARE, AND THE TEXT EXTENDS THE CARD PAST IT.
+   min-height alone was not enough: the card stayed exactly 280px and a long
+   rules block simply ate the art from below, so the Apothicon Servant showed a
+   sliver of portrait and a wall of text. This spacer reserves the top ~62% for
+   art no matter what, and because it cannot be compressed the card GROWS
+   downward to fit whatever the text needs underneath. Short cards are untouched
+   — spacer + name + a line or two still comes in under the 280px minimum.
+   (Owner: "just extend the textbox so you can see the art and make sure you do
+   the same for the others if needed" — it is on the shared reveal, so every
+   card gets it, not just the weapons.) */
+.trick-reveal-card::before {
+  content: '';
+  display: block;
+  flex: 0 0 auto;
+  min-height: calc(min(200px, 52vw) * 7 / 5 * 0.62);
   background:
     linear-gradient(rgba(10,2,16,0.20), rgba(10,2,16,0.20)),
     var(--portrait-bg, linear-gradient(160deg, #120a1c 0%, #000000 100%));
+  /* Anchored to the top so a taller card reveals MORE portrait downward rather
+     than re-cropping the subject's face out of frame. */
+  background-size: cover, cover;
+  background-position: top center, top center;
   background-size: cover;
   background-position: center 20%;
   border: 1px solid rgba(155, 89, 182, 0.95);
@@ -35143,7 +35181,8 @@ body.dragging-trick .tut-callout { pointer-events: none; }
   z-index: 3;
 }
 .trick-reveal-card .tr-name {
-  position: absolute; left: 0; right: 0; bottom: 34%;
+  /* In flow (see the flex column above) — no fixed offset to fall out of sync. */
+  position: static; order: 1;
   padding: 4px 8px;
   text-align: center;
   font-family: 'Rajdhani', sans-serif; font-weight: 700;
@@ -35164,15 +35203,24 @@ body.dragging-trick .tut-callout { pointer-events: none; }
    of them use. (Owner: "make the name not cover his face and either at the
    top or right above the text".) */
 .trick-reveal-card.tr-name-top .tr-name {
-  top: 0;
-  bottom: auto;
+  /* Pushed to the top of the column instead of pinned — same result as the old
+     top:0, but it survives the switch to flow layout. */
+  margin-bottom: auto;
   padding: 6px 8px 8px;
   background: linear-gradient(rgba(10,2,16,0.92), rgba(10,2,16,0.82) 60%, rgba(10,2,16,0));
 }
 .trick-reveal-card .tr-desc {
-  position: absolute; left: 0; right: 0; bottom: 0;
-  max-height: 32%;
-  overflow: hidden;
+  position: static; order: 2;
+  /* 32% CLIPPED THE LONGER CARDS. The Apothicon Servant's text needs 133px and
+     was given 88 — it cut off mid-sentence, and the Lightning Bow lost its last
+     line too. The reveal is the ONLY place a Wonder Weapon's rules are read, so
+     silently truncating them is worse than showing them briefly. Raised to fit
+     the longest card in the game with room to spare; short cards are unaffected
+     because the box is sized to its content, not to the max. */
+  /* No cap and nothing hidden: the column sizes to the content, so the longest
+     card in the game (the Apothicon Servant, 233 characters) shows in full. */
+  max-height: none;
+  overflow: visible;
   padding: 6px 10px 8px;
   font-size: 11px; line-height: 1.35; text-align: center;
   /* NOT --text-mute. That token is rgb(156,170,180) — a desaturated blue-grey
@@ -47236,4 +47284,143 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   pointer-events: none;
   box-shadow: inset 0 0 0 1px rgba(255, 211, 74, 0.45);
   background: linear-gradient(rgba(255, 211, 74, 0.06), rgba(255, 138, 0, 0.05));
+}
+
+/* ===== SHADOW MAN TRACKER =====
+   Four challenges, four players, live. Sits opposite the turn tracker so the
+   two rails do not fight. Only rendered while he is out. */
+.shadow-tracker {
+  position: fixed;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 40;
+  min-width: 208px;
+  padding: 10px 12px 11px;
+  border-radius: 8px;
+  background: rgba(6, 4, 12, 0.92);
+  border: 1px solid rgba(150, 110, 220, 0.45);
+  box-shadow: 0 0 18px rgba(120, 70, 200, 0.28), inset 0 0 22px rgba(90, 50, 160, 0.14);
+  font-family: 'Rajdhani', sans-serif;
+  /* The PANEL ignores clicks so the board underneath stays playable; only the
+     title bar and the size button opt back in. */
+  pointer-events: none;
+  backdrop-filter: blur(3px);
+  will-change: left, top, transform;
+}
+.shadow-tracker.sh-dragging { opacity: 0.85; }
+.shadow-tracker .sh-title {
+  pointer-events: auto;
+  cursor: grab;
+  position: relative;
+}
+.shadow-tracker.sh-dragging .sh-title { cursor: grabbing; }
+.shadow-tracker .sh-size {
+  pointer-events: auto;
+  position: absolute; right: -2px; top: 50%; transform: translateY(-50%);
+  width: 18px; height: 18px; padding: 0; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(150, 110, 220, 0.16);
+  border: 1px solid rgba(150, 110, 220, 0.5);
+  border-radius: 4px;
+  color: #cbb2ff; font-size: 10px; cursor: pointer;
+}
+.shadow-tracker .sh-size:hover { background: rgba(150, 110, 220, 0.32); }
+.shadow-tracker .sh-title {
+  font-size: 12px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase;
+  color: #cbb2ff; text-align: center; margin-bottom: 7px;
+  text-shadow: 0 0 9px rgba(150, 110, 220, 0.75);
+}
+.shadow-tracker .sh-head,
+.shadow-tracker .sh-row { display: flex; align-items: center; gap: 2px; }
+.shadow-tracker .sh-row { margin-top: 3px; }
+.shadow-tracker .sh-label {
+  flex: 0 0 92px; font-size: 10.5px; letter-spacing: 0.4px;
+  color: var(--text-dim, #c6d0db); display: flex; align-items: center; gap: 5px;
+}
+.shadow-tracker .sh-label i { font-style: normal; font-size: 11px; }
+.shadow-tracker .sh-col {
+  flex: 1 1 0; text-align: center; font-size: 10px; letter-spacing: 0.5px;
+  color: #9d92b8; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis;
+}
+.shadow-tracker .sh-col.sh-you { color: #6ef58b; }
+.shadow-tracker .sh-val {
+  flex: 1 1 0; text-align: center; font-size: 13px; font-weight: 700;
+  color: var(--text-body, #e8eef6); font-variant-numeric: tabular-nums;
+}
+/* the one to beat in this row */
+.shadow-tracker .sh-val.sh-lead {
+  color: #ffd77a;
+  text-shadow: 0 0 8px rgba(255, 215, 122, 0.65);
+}
+.shadow-tracker .sh-awards {
+  margin-top: 8px; padding-top: 7px;
+  border-top: 1px solid rgba(150, 110, 220, 0.28);
+}
+.shadow-tracker .sh-award {
+  font-size: 10px; letter-spacing: 0.4px; color: #ffd77a; text-align: center;
+}
+@media (max-width: 900px) {
+  .shadow-tracker { min-width: 0; padding: 7px 8px; left: 6px; }
+  .shadow-tracker .sh-label { flex-basis: 74px; font-size: 9.5px; }
+  .shadow-tracker .sh-val { font-size: 11.5px; }
+}
+
+/* the weapon each Shadow Man challenge is playing for */
+.shadow-tracker .sh-prize {
+  display: block;
+  font-style: normal;
+  font-size: 8.5px;
+  letter-spacing: 0.3px;
+  color: #cbb2ff;
+  opacity: 0.82;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+
+/* ── WONDER WEAPON IDENTITY COLOURS ─────────────────────────────────────────
+   Each weapon's frame matches its art so it is recognisable at a glance in the
+   hand, in the award reveal and in the codex. (Owner: "have the border of each
+   weapon match the main color like ray gun red, wunderwaffe yellow, thundergun
+   white, lightning bow purple and servant purple".)
+   One variable per weapon, then three surfaces read it: the hand card carries
+   data-card-name, the codex tile data-trick-name, the reveal data-reveal-name. */
+[data-card-name="Ray Gun"], [data-trick-name="Ray Gun"], [data-reveal-name="Ray Gun"] { --ww-col: #e8453c; --ww-glow: rgba(232, 69, 60, 0.55); }
+[data-card-name="Wunderwaffe DG-3 JZ"], [data-trick-name="Wunderwaffe DG-3 JZ"], [data-reveal-name="Wunderwaffe DG-3 JZ"] { --ww-col: #ffd23f; --ww-glow: rgba(255, 210, 63, 0.55); }
+[data-card-name="Thundergun"], [data-trick-name="Thundergun"], [data-reveal-name="Thundergun"] { --ww-col: #eef3f8; --ww-glow: rgba(238, 243, 248, 0.55); }
+[data-card-name="Lightning Bow"], [data-trick-name="Lightning Bow"], [data-reveal-name="Lightning Bow"] { --ww-col: #3fa9ff; --ww-glow: rgba(63, 169, 255, 0.55); }
+[data-card-name="Apothicon Servant"], [data-trick-name="Apothicon Servant"], [data-reveal-name="Apothicon Servant"] { --ww-col: #8e44d0; --ww-glow: rgba(142, 68, 208, 0.55); }
+
+.card[data-card-name="Ray Gun"], .card[data-card-name="Wunderwaffe DG-3 JZ"],
+.card[data-card-name="Thundergun"], .card[data-card-name="Lightning Bow"],
+.card[data-card-name="Apothicon Servant"],
+.trick-card[data-trick-name="Ray Gun"], .trick-card[data-trick-name="Wunderwaffe DG-3 JZ"],
+.trick-card[data-trick-name="Thundergun"], .trick-card[data-trick-name="Lightning Bow"],
+.trick-card[data-trick-name="Apothicon Servant"],
+.trick-reveal-card[data-reveal-name="Ray Gun"], .trick-reveal-card[data-reveal-name="Wunderwaffe DG-3 JZ"],
+.trick-reveal-card[data-reveal-name="Thundergun"], .trick-reveal-card[data-reveal-name="Lightning Bow"],
+.trick-reveal-card[data-reveal-name="Apothicon Servant"] {
+  border: 2px solid var(--ww-col) !important;
+  box-shadow: 0 0 12px var(--ww-glow), inset 0 0 10px rgba(0, 0, 0, 0.45);
+}
+/* The name plate and the cost badge pick the colour up too, so the frame does
+   not read as an unrelated outline stuck on a purple card. */
+.trick-reveal-card[data-reveal-name="Ray Gun"] .tr-name,
+.trick-reveal-card[data-reveal-name="Wunderwaffe DG-3 JZ"] .tr-name,
+.trick-reveal-card[data-reveal-name="Thundergun"] .tr-name,
+.trick-reveal-card[data-reveal-name="Lightning Bow"] .tr-name,
+.trick-reveal-card[data-reveal-name="Apothicon Servant"] .tr-name {
+  color: var(--ww-col);
+  text-shadow: 0 0 10px var(--ww-glow);
+}
+.trick-reveal-card[data-reveal-name="Ray Gun"] .tr-desc,
+.trick-reveal-card[data-reveal-name="Wunderwaffe DG-3 JZ"] .tr-desc,
+.trick-reveal-card[data-reveal-name="Thundergun"] .tr-desc,
+.trick-reveal-card[data-reveal-name="Lightning Bow"] .tr-desc,
+.trick-reveal-card[data-reveal-name="Apothicon Servant"] .tr-desc {
+  border-top: 1px solid var(--ww-glow);
 }

@@ -69,6 +69,8 @@ var HAS_OWN_PATH = {
   // board diff instead, which is the last moment the card is still on screen.
   spawnDestroyParticles: 'ui.js _relay2v2CardFx fires it from the pre-swap board diff',
   showBallyhoo:          "dedicated 'ballyhoo' FX event — the guests run the same arrival",
+  showShadowMan:         "dedicated 'shadowman' FX event — the guests run the same appearance",
+  showWonderWeapon:      "dedicated 'wonderWeapon' FX event — one per prize handed over",
 };
 // Sounds that reach the other seats on a dedicated FX event rather than through
 // installSfxBridge's four-name list.

@@ -13,7 +13,7 @@ const UI = {
   // cached PNGs (which don't have built-in cache busters since they're
   // referenced via background-image url() and not the index.html
   // version-suffix system). Bump this every time you regen art.
-  _CARD_ART_VERSION: 92,
+  _CARD_ART_VERSION: 95,
 
   // Per-card background-position overrides. Default is "center center".
   // Use when an image crops poorly at the default — e.g. a head gets cut
@@ -1183,6 +1183,8 @@ const UI = {
   // its card name by inverting the same kebab-case transform names use for
   // their audio files. Built once from CARD_DEFS + TRICK_DEFS (stones live in
   // TRICK_DEFS) so it auto-tracks the roster — no hand-maintained table.
+  // Non-card characters that are still allowed into the main-menu shuffle.
+  _MENU_EVENT_HEROES: new Set(['MC Ballyhoo', 'Shadow Man']),
   _buildMenuStemMap() {
     const map = {};
     const kebab = (s) => s.toLowerCase().replace(/\./g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
@@ -1191,7 +1193,10 @@ const UI = {
     if (typeof TRICK_DEFS !== 'undefined') add(TRICK_DEFS);
     // Hover files that use a SHORT name instead of the full card name — the
     // kebab of the full name won't match, so alias them explicitly.
-    Object.assign(map, { 'anakin': 'Anakin Skywalker', 'luke': 'Luke Skywalker' });
+    Object.assign(map, { 'anakin': 'Anakin Skywalker', 'luke': 'Luke Skywalker',
+      // Event themes: neither filename kebabs to its display name, so the
+      // now-playing credit and the art lookup both need these spelled out.
+      'ballyhoo-fanfare': 'MC Ballyhoo', 'shadow-man-theme': 'Shadow Man' });
     return map;
   },
   _menuHoverArtName(src) {
@@ -1325,7 +1330,10 @@ const UI = {
       const src = (typeof hv === 'string') ? hv : hv.src;
       if (!src) continue;
       const def = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(d => d.name === name) : null;
-      if (!def || def.type === 'environment') continue;
+      // Events are allowed in by name; everything else still has to be a real,
+      // non-environment card.
+      if (!def && !(this._MENU_EVENT_HEROES && this._MENU_EVENT_HEROES.has(name))) continue;
+      if (def && def.type === 'environment') continue;
       if (!this.getCardArtPathDefault(name)) continue;
       out.push(src);
     }
@@ -1888,6 +1896,29 @@ const UI = {
     // entries here to wire unique sounds; no code changes needed.
     //   events: hover, play, ability, attack, death
     CARD_SFX: {
+      // ── MENU-SHUFFLE EVENT HEROES ──
+      // MC Ballyhoo and the Shadow Man are events, not cards, so they are not
+      // in CARD_DEFS — but _menuCharHoverSrcs reads THIS table to build the
+      // main-menu shuffle, so their themes are registered here to put them in
+      // the rotation. (Owner: "you can add MC Ballyhoo and Shadow man to main
+      // menu shuffle too".) Their codex-hover entries stay in TRICK_SFX, which
+      // is the table the codex's trick chrome routes through — different
+      // lookups, so both are needed.
+      'MC Ballyhoo': { hover: 'audio/ballyhoo-fanfare.mp3' },
+      'Shadow Man':  { hover: 'audio/shadow-man-theme.mp3' },
+
+      // ── SHADOW MAN'S WONDER WEAPONS ──
+      // These are CARDS (isDiscardEffect), not tricks: they are played through
+      // Game.playCard, and its wrapper fires playCardSfx(name, 'play'). They do
+      // NOT go through playTrickSfx, so TRICK_SFX is the wrong table for them —
+      // an entry there only ever fires on codex hover.
+      // 'play' and not 'ability': the play hook always fires 'play'; 'ability'
+      // is never auto-fired, only when an ability calls it explicitly.
+      'Ray Gun':             { play: 'audio/cards/ray-gun-play.mp3' },
+      'Thundergun':          { play: 'audio/cards/thundergun-play.mp3' },
+      'Lightning Bow':       { play: 'audio/cards/lightning-bow-play.mp3' },
+      'Wunderwaffe DG-3 JZ': { play: 'audio/cards/wunderwaffe-play.mp3' },
+      'Apothicon Servant':   { play: 'audio/cards/apothicon-servant-play.mp3' },
       // Vader hover = imperial breath; death = injured-breath sting
       // (3s, longer than the 1.5s default cap — `maxDur: 3.5` lets the
       // dying breath play out fully rather than getting clipped). Not
@@ -2340,6 +2371,11 @@ const UI = {
       // is capped at 1.5s and would clip it to a stub. Moving the cursor off
       // stops it through the same _stopHover every other hover cue uses.
       'MC Ballyhoo': { hover: 'audio/ballyhoo-fanfare.mp3' },
+      // SHADOW MAN — same deal as Ballyhoo directly above: not a playable card,
+      // rendered with trick chrome in the codex's Random Event tab, so hover
+      // routes here. `hover` (full length, resume-from-pause) and not `play`,
+      // which is capped at 1.5s and would clip a theme to a stub.
+      'Shadow Man': { hover: 'audio/shadow-man-theme.mp3' },
       // MC BALLYHOO'S CANDIES — one cue, all four. They are unwrapped the same
       // way whatever is inside them does, so they share a sound rather than
       // each getting a near-identical one. Registered per name because the
@@ -3598,6 +3634,66 @@ const UI = {
           });
         }, Math.max(0, total - fadeOutMs));
       } catch (e) { /* a fanfare is never worth an exception */ }
+    },
+    // SHADOW MAN'S THEME. Plays for as long as he is actually on screen rather
+    // than for a fixed length: the caller passes the duration of his reveals,
+    // because "arrive" is two text beats and "return" is one.
+    SHADOW_SRC: 'audio/shadow-man-theme.mp3?v=1',
+    playShadowTheme(ms) {
+      try {
+        // MASTER MUTE ONLY — deliberately NOT gated on settings.menuMusic. That
+        // toggle is about background music in the MENU; this is a gameplay event
+        // cue, and gating on it is exactly what made Ballyhoo's theme silent.
+        if (!UI.settings || UI.settings.sfxVolume === 0) return;
+        this.stopShadowTheme();
+        const a = new Audio(this.SHADOW_SRC);
+        // Loops because his reveals can outlast a short track; the explicit
+        // stop below is what ends it, not the file's length.
+        a.loop = true;
+        a.preload = 'auto';
+        this._shadowTheme = a;
+        // Mixed as a cue with a floor, not as background music — _musicTargetVol
+        // is musicVolume x 0.35 (~0.19) and announces nothing.
+        const sv = (UI.settings.sfxVolume != null) ? UI.settings.sfxVolume : 0.55;
+        const target = Math.max(0.4, Math.min(1, sv * 0.95));
+        try {
+          if (this._music && !this._music.paused) { this._music.pause(); this._shadowDuckedMusic = true; }
+        } catch (e) {}
+        a.volume = 0;
+        try { a.currentTime = 0; } catch (e) {}
+        const pr = a.play();
+        if (pr && pr.catch) pr.catch(() => {});
+        this._fadeVolume(a, target, 400, '_shadowFade');
+        const total = Math.max(1200, ms | 0);
+        const fadeOutMs = 1200;
+        this._shadowThemeTimer = setTimeout(() => {
+          this._shadowThemeTimer = null;
+          if (this._shadowTheme !== a) return;
+          this._fadeVolume(a, 0, fadeOutMs, '_shadowFade', () => {
+            try { a.pause(); a.currentTime = 0; } catch (e) {}
+            if (this._shadowTheme === a) this._shadowTheme = null;
+            this._restoreMusicAfterShadow();
+          });
+        }, Math.max(0, total - fadeOutMs));
+      } catch (e) { /* a theme is never worth an exception */ }
+    },
+    stopShadowTheme() {
+      try {
+        if (this._shadowThemeTimer) { clearTimeout(this._shadowThemeTimer); this._shadowThemeTimer = null; }
+        if (this._shadowTheme) { this._shadowTheme.pause(); this._shadowTheme.currentTime = 0; this._shadowTheme = null; }
+      } catch (e) {}
+      this._restoreMusicAfterShadow();
+    },
+    _restoreMusicAfterShadow() {
+      try {
+        if (this._shadowDuckedMusic) {
+          this._shadowDuckedMusic = false;
+          if (this._music && this._music.paused && this._musicWantPlay
+              && UI.settings && UI.settings.menuMusic !== false) {
+            const p = this._music.play(); if (p && p.catch) p.catch(() => {});
+          }
+        }
+      } catch (e) {}
     },
     playBallyhooVoice() {
       // Through _playSample so it rides the master bus (and its limiter) like
@@ -7749,6 +7845,7 @@ const UI = {
     // The turn-order rail, for 1v1 online too. It reads the mode itself and
     // hides outside an online match, so this one call covers both.
     this._safe('turnTracker',             () => this._render2v2TurnTracker(s, s.twoVTwo));
+    this._safe('shadowTracker',           () => this._renderShadowTracker(s));
     // Party voice — mounts itself only in an online match and removes itself
     // otherwise, so this one call covers 1v1 online, 2v2 online and every
     // screen that is neither.
@@ -12032,6 +12129,22 @@ const UI = {
         }
         continue;
       }
+      // Shadow Man's two appearances, relayed to the seats that never run the
+      // engine — same shape as Ballyhoo's.
+      if (ev.type === 'shadowman') {
+        if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
+          try { if (this.showShadowMan) this.showShadowMan(ev.phase, null); } catch (e) {}
+        }
+        continue;
+      }
+      // …and each Wonder Weapon as it is handed over.
+      if (ev.type === 'wonderWeapon') {
+        if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
+          const def = this._trickDefByName(ev.weapon) || { name: ev.weapon, desc: '' };
+          try { if (this.showWonderWeapon) this.showWonderWeapon(ev.seat, def, ev.category || ''); } catch (e) {}
+        }
+        continue;
+      }
       // MC Ballyhoo's arrival, relayed to the seats that do not run the engine.
       if (ev.type === 'ballyhoo') {
         if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
@@ -13233,6 +13346,194 @@ const UI = {
     return { steps, idx };
   },
 
+  // ===================== SHADOW MAN — THE ANNOUNCEMENT =====================
+  // Same centre-screen panel Ballyhoo and every trick reveal use, so his two
+  // appearances read like the events they are. One function for every client:
+  // the host calls it from the engine, the three 2v2 guests call it from the
+  // relayed FX event, so all four screens run the identical sequence.
+  SHADOW_HOLD_MS: 5000,
+  showShadowMan(phase, sh) {
+    try {
+      // HIS THEME, FOR EXACTLY AS LONG AS HE IS UP. "arrive" is two text beats,
+      // "return" is one, so the duration is derived rather than hardcoded —
+      // change SHADOW_HOLD_MS and the music follows. (Owner: "I want it to fire
+      // anytime the shadow man is on the screen".) The tail covers the reveal's
+      // own entry animation so the music does not stop before the card does.
+      const _beats = (phase === 'arrive') ? 2 : 1;
+      const _themeMs = _beats * (this.SHADOW_HOLD_MS || 3200) + 1400;
+      try { if (this.sfx && this.sfx.playShadowTheme) this.sfx.playShadowTheme(_themeMs); } catch (e) {}
+      if (phase === 'arrive') {
+        this.showCardReveal('Shadow Man',
+          "I am watching all four of you. Most kills. Most cards played. "
+          + "Most Hero damage. Most damage blocked.",
+          null, true, 'SHADOW MAN IS WATCHING',
+          { holdMs: this.SHADOW_HOLD_MS, cardClass: 'tr-name-top' });
+        this.showCardReveal('Shadow Man',
+          "Lead a challenge when I return and a Wonder Weapon is yours.",
+          null, true, 'FOUR CHALLENGES',
+          { holdMs: this.SHADOW_HOLD_MS, cardClass: 'tr-name-top' });
+      } else {
+        this.showCardReveal('Shadow Man',
+          "Time is up. Let us see who earned something.",
+          null, true, 'SHADOW MAN RETURNS',
+          { holdMs: this.SHADOW_HOLD_MS, cardClass: 'tr-name-top' });
+      }
+    } catch (e) {}
+  },
+
+  // Each prize, named, with the player who won it — "clearly show which player
+  // received each weapon" is the whole point, so the seat goes in the label
+  // rather than being left to the tracker.
+  showWonderWeapon(seat, def, category) {
+    try {
+      const tt = Game.state && Game.state.twoVTwo;
+      const who = (tt && tt.players && tt.players[seat] && tt.players[seat].name) || seat;
+      this.showCardReveal(def.name, def.desc || '', null,
+        !!(tt && seat === tt.you), `${who} WINS \u2014 ${category}`,
+        { holdMs: 2600 });
+    } catch (e) {}
+  },
+
+  // ===================== SHADOW MAN TRACKER =====================
+  // The four challenges, four columns, one row each, updating as the match
+  // runs. Only exists while he is out — a match he was not selected for pays
+  // nothing for any of this, which is the rule the engine's tracking follows
+  // too (see Game._shadowActive).
+  //
+  // The leader in each row is marked, because the whole point of the panel is
+  // "am I winning this one" and four numbers alone make you do the comparing.
+  _renderShadowTracker(s) {
+    let el = document.getElementById('shadow-tracker');
+    const sh = s && s._shadow;
+    const tt = s && s.twoVTwo;
+    // NO SEAT TABLE REQUIRED. The tracker used to demand tt.players, so it
+    // simply never drew in 1v1 or solo — where the Shadow Man now also runs,
+    // with the two SIDES as the competitors.
+    const live = !!(sh && sh.shows && sh.appeared && sh.stats);
+    if (!live) { if (el) el.style.display = 'none'; return; }
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'shadow-tracker';
+      el.className = 'shadow-tracker';
+      document.body.appendChild(el);
+    }
+    const slots = (Game._shadowSeats ? Game._shadowSeats() : ['player', 'ai']);
+    const rows = [
+      ['kills',   '\u{1F480}', 'Cards Killed'],
+      ['played',  '\u{1F0CF}', 'Cards Played'],
+      ['heroDmg', '\u{1F4A5}', 'Hero Damage'],
+      ['blocked', '\u{1F6E1}', 'Block Damage'],
+    ];
+    const nameOf = pk => {
+      // 2v2 shows the player's own name; 1v1/solo has no seat record, so fall
+      // back to the side labels the rest of the game already uses.
+      const n = (tt && tt.players && tt.players[pk] && tt.players[pk].name)
+        || (pk === 'player' ? 'You' : pk === 'ai' ? 'Enemy' : pk);
+      return String(n).slice(0, 6);
+    };
+    const head = slots.map(pk =>
+      `<span class="sh-col${(tt ? pk === tt.you : pk === 'player') ? ' sh-you' : ''}">${this._esc ? this._esc(nameOf(pk)) : nameOf(pk)}</span>`).join('');
+    const body = rows.map(([key, icon, label]) => {
+      const vals = slots.map(pk => sh.stats[pk] ? (sh.stats[pk][key] | 0) : 0);
+      const best = Math.max.apply(null, vals);
+      const cells = vals.map((v, i) =>
+        `<span class="sh-val${(best > 0 && v === best) ? ' sh-lead' : ''}">${v}</span>`).join('');
+      // The prize this row is FOR. It is fixed when he names the challenges, so
+      // showing it is what lets a player decide which one to chase.
+      const prize = (sh.prizes && sh.prizes[key]) || '';
+      return `<div class="sh-row"><span class="sh-label"><i>${icon}</i>${label}`
+        + (prize ? `<em class="sh-prize" title="${prize}">${prize}</em>` : '')
+        + `</span>${cells}</div>`;
+    }).join('');
+    // A category already settled shows its winner instead of a live race.
+    const awarded = (sh.awards || []).map(a =>
+      `<div class="sh-award">${a.weapon} \u2192 ${nameOf(a.seat)}</div>`).join('');
+    el.innerHTML =
+      `<div class="sh-title" title="Drag to move">SHADOW MAN`
+      +   `<button type="button" class="sh-size" title="Resize">\u25F1</button>`
+      + `</div>`
+      + `<div class="sh-head"><span class="sh-label"></span>${head}</div>`
+      + body
+      + (awarded ? `<div class="sh-awards">${awarded}</div>` : '');
+    el.style.display = '';
+    this._wireShadowTracker(el);
+    this._applyShadowTrackerBox(el);
+  },
+
+  // MOVABLE AND RESIZABLE, because a fixed panel on a board this busy is in
+  // somebody's way by definition — and which corner is free depends on the
+  // screen, the mode and where the lanes fall. (Owner: "have the tracker be
+  // adjustable in size and be able to move so its not in the way.")
+  //
+  // Position and scale are remembered per browser through the same _persistSet
+  // the codex filters use, so it stays where it was put.
+  _SHADOW_SIZES: [0.8, 1, 1.25],
+  _wireShadowTracker(el) {
+    if (el._shadowWired) return;      // innerHTML is rebuilt every render; the
+    el._shadowWired = true;           // handlers must not stack with it
+    // Only the title bar and the size button take pointer events — the body
+    // stays transparent to clicks so the board underneath is still playable.
+    el.addEventListener('pointerdown', (ev) => {
+      const sizeBtn = ev.target.closest && ev.target.closest('.sh-size');
+      if (sizeBtn) {
+        const cur = this._shadowBox().scale || 1;
+        const sizes = this._SHADOW_SIZES;
+        const next = sizes[(sizes.indexOf(cur) + 1) % sizes.length] || 1;
+        this._shadowBox({ scale: next });
+        this._applyShadowTrackerBox(el);
+        ev.preventDefault(); ev.stopPropagation();
+        return;
+      }
+      if (!(ev.target.closest && ev.target.closest('.sh-title'))) return;
+      const box = this._shadowBox();
+      const r = el.getBoundingClientRect();
+      const startX = ev.clientX, startY = ev.clientY;
+      const baseX = (box.x != null) ? box.x : r.left;
+      const baseY = (box.y != null) ? box.y : r.top;
+      el.classList.add('sh-dragging');
+      const move = (e) => {
+        // Clamped to the viewport so it can never be dragged out of reach.
+        const x = Math.max(0, Math.min(window.innerWidth - 60, baseX + (e.clientX - startX)));
+        const y = Math.max(0, Math.min(window.innerHeight - 40, baseY + (e.clientY - startY)));
+        this._shadowBox({ x, y });
+        this._applyShadowTrackerBox(el);
+      };
+      const up = () => {
+        el.classList.remove('sh-dragging');
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+      ev.preventDefault();
+    });
+  },
+  _shadowBox(patch) {
+    let box = this._shadowBoxCache;
+    if (!box) {
+      box = (this._persistGet && this._persistGet('shadowTracker', null)) || {};
+      this._shadowBoxCache = box;
+    }
+    if (patch) {
+      Object.assign(box, patch);
+      try { if (this._persistSet) this._persistSet('shadowTracker', box); } catch (e) {}
+    }
+    return box;
+  },
+  _applyShadowTrackerBox(el) {
+    const box = this._shadowBox();
+    const scale = box.scale || 1;
+    if (box.x != null && box.y != null) {
+      el.style.left = box.x + 'px';
+      el.style.top = box.y + 'px';
+      el.style.transform = `scale(${scale})`;      // no vertical centring once moved
+      el.style.transformOrigin = 'top left';
+    } else {
+      el.style.transform = `translateY(-50%) scale(${scale})`;
+      el.style.transformOrigin = 'left center';
+    }
+  },
+
   _render2v2TurnTracker(s, tt) {
     let el = document.getElementById('twov2-turn-tracker');
     if (!el) {
@@ -13752,6 +14053,7 @@ const UI = {
 
     // Turn-order tracker — who's up, who's next, and what each may play.
     this._render2v2TurnTracker(s, tt);
+    this._safe('shadowTracker', () => this._renderShadowTracker(s));
 
     // Lane-select strip shown when a card is selected
     this._render2v2OnlineLaneSelect(s, ap, mySide, canCards);
@@ -14047,9 +14349,15 @@ const UI = {
     const _ok = new Set(Game.placeableLanesFor
       ? Game.placeableLanesFor(mySide, _selCard) : s.lanes.map((_, i) => i));
     const _compelled = Game.moderCompulsionLane ? Game.moderCompulsionLane(mySide) : -1;
+    // The Rift compels the same way Moder does, so it has to be able to SAY so
+    // — a board silently narrowed to one lane with no reason given reads as a
+    // bug, which is the whole lesson of the Ballyhoo lock.
+    const _rift = Game.riftCompulsionLane ? Game.riftCompulsionLane(mySide) : -1;
+    const _forcedLane = _compelled >= 0 ? _compelled : _rift;
+    const _forcedWhy = _compelled >= 0 ? 'Forced into lane ' : 'Pulled into the Rift — lane ';
     strip.innerHTML = `
-      <span class="twov2-bls-label">${_ok.size === 1 && _compelled >= 0
-        ? 'Forced into lane ' + (_compelled + 1) + ':' : 'Place card in lane:'}</span>
+      <span class="twov2-bls-label">${_ok.size === 1 && _forcedLane >= 0
+        ? _forcedWhy + (_forcedLane + 1) + ':' : 'Place card in lane:'}</span>
       ${s.lanes.map((ln, i) => {
         const blocked = !_ok.has(i);
         const forced = (_compelled === i && _ok.has(i));
@@ -17002,7 +17310,17 @@ const UI = {
             + "unpredictable round, he bursts in and hands every player a "
             + "different candy.",
       };
-      rawPool = [ballyhoo].concat(typeof CANDY_DEFS !== 'undefined' ? CANDY_DEFS : []);
+      // Shadow Man is an event like Ballyhoo — no cost, never played — and the
+      // Wonder Weapons are his prizes, so the whole family lives on this tab.
+      const shadow = {
+        name: 'Shadow Man', cost: null, _isEvent: true,
+        desc: "Not a card — he turns up on his own. He opens the match by naming "
+            + "four challenges, tracks all four players separately, and returns "
+            + "on a later round to hand a Wonder Weapon to whoever leads each one.",
+      };
+      rawPool = [ballyhoo, shadow]
+        .concat(typeof CANDY_DEFS !== 'undefined' ? CANDY_DEFS : [])
+        .concat(typeof WONDER_DEFS !== 'undefined' ? WONDER_DEFS : []);
     }
     else if (isTricks)                   rawPool = (typeof TRICK_DEFS !== 'undefined' ? TRICK_DEFS : []);
     else if (section === 'environments') rawPool = CARD_DEFS.filter(c => c.isEnvironment);
@@ -21017,7 +21335,11 @@ const UI = {
     if (!name) return null;
     const t = (typeof TRICK_DEFS !== 'undefined') ? TRICK_DEFS.find(d => d.name === name) : null;
     if (t) return t;
-    return (typeof CANDY_DEFS !== 'undefined') ? (CANDY_DEFS.find(d => d.name === name) || null) : null;
+    const c = (typeof CANDY_DEFS !== 'undefined') ? CANDY_DEFS.find(d => d.name === name) : null;
+    if (c) return c;
+    // Wonder Weapons are off-pool like the candies, and need the same lookup so
+    // they can be read, drawn in a picker, and rehydrated over the wire.
+    return (typeof WONDER_DEFS !== 'undefined') ? (WONDER_DEFS.find(d => d.name === name) || null) : null;
   },
 
   makeTrickEl(trick, opts) {
@@ -21048,7 +21370,10 @@ const UI = {
     // (Time Stone's "Reaction:", Mind Stone's "Next draw phase:") keep it: the
     // test is the same one formatDesc's own label pass uses, so anything that
     // would have rendered as a label is left alone.
-    if (desc && !/^[1-9A-Z][^:.]{0,28}:/.test(desc)) desc = 'When Played: ' + desc;
+    // AN EVENT IS NEVER PLAYED, so it must not be labelled "On Play". MC
+    // Ballyhoo and Shadow Man turn up by themselves; stamping a play trigger on
+    // their text states the opposite of the first thing each of them says.
+    if (desc && !trick._isEvent && !/^[1-9A-Z][^:.]{0,28}:/.test(desc)) desc = 'When Played: ' + desc;
     return `<div class="${cls}" data-trick-name="${trick.name}"${onclick}>
       ${trick.cost != null ? `<span class="card-cost">${trick.cost}</span>` : ''}
       <div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay"><span class="cn-text">${trick.name}</span></div><i class="pt-shine" aria-hidden="true"></i></div>
@@ -23036,8 +23361,12 @@ const UI = {
         const _allowed = Game.placeableLanesFor
           ? Game.placeableLanesFor('player', s.selectedCard)
           : null;
+        // Either compeller narrows the board to one lane, and both should light
+        // the same way — the Rift is a second reason for the same lockout.
+        const _comp = (Game.moderCompulsionLane ? Game.moderCompulsionLane('player') : -1);
+        const _riftC = (Game.riftCompulsionLane ? Game.riftCompulsionLane('player') : -1);
         let fl = (_allowed && _allowed.length === 1 && !s.selectedCard.isEnvironment
-                  && Game.moderCompulsionLane && Game.moderCompulsionLane('player') === _allowed[0])
+                  && (_comp === _allowed[0] || _riftC === _allowed[0]))
           ? _allowed[0] : null;
         if (fl !== null && fl !== i && !s.selectedCard.isEnvironment) {
           // Not the forced lane — show as locked, not playable.
@@ -23049,7 +23378,9 @@ const UI = {
           el.classList.add('lane-locked');
           const empty = document.createElement('div');
           empty.className = 'empty-lane-glyph lane-glyph-locked';
-          empty.title = `Your next card is forced into lane ${fl + 1}`;
+          empty.title = (_riftC === fl && _comp !== fl)
+            ? `The Apothicon Rift pulls your next card into lane ${fl + 1}`
+            : `Your next card is forced into lane ${fl + 1}`;
           empty.innerHTML = '&#x1F512;';
           pSlot.appendChild(empty);
         } else {
@@ -24817,7 +25148,7 @@ const UI = {
   // …and each of his two beats stays up this long, rather than the 2.1s a
   // mid-turn trick reveal gets. ("each text should stay for at least 3
   // seconds" — 3.2s, so it clears three full seconds before the exit starts.)
-  BALLYHOO_HOLD_MS: 3200,
+  BALLYHOO_HOLD_MS: 5000,
   showBallyhoo() {
     try { if (this.sfx && this.sfx.playBallyhooFanfare) this.sfx.playBallyhooFanfare(); } catch (e) {}
     // Reduced motion still gets the announcement, just without the theatrical
@@ -24863,7 +25194,7 @@ const UI = {
     wrap.id = 'trick-reveal';
     wrap.className = 'trick-reveal';
     wrap.innerHTML = `
-      <div class="trick-reveal-card${item.cardClass ? ' ' + item.cardClass : ''}" style="${artStyle}">
+      <div class="trick-reveal-card${item.cardClass ? ' ' + item.cardClass : ''}" data-reveal-name="${String(item.name).replace(/"/g, '&quot;')}" style="${artStyle}">
         ${item.cost != null ? `<span class="tr-cost">${item.cost}</span>` : ''}
         <div class="tr-name">${String(item.name).replace(/</g, '&lt;')}</div>
         ${item.desc ? `<div class="tr-desc">${this.formatDesc ? this.formatDesc(item.desc) : String(item.desc).replace(/</g, '&lt;')}</div>` : ''}
