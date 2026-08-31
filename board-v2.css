@@ -2035,35 +2035,24 @@ body.board-v2 #game-area > .board-section { padding-top: calc(16 * var(--u)) !im
 
 
 /* ===========================================================================
-   THE HOVER FORECAST READS LIKE THE SHIPPING BOARD'S.
-   Owner: "the hover on board doesn't work, make it just like classic."
+   THE FORECAST IS THE ARROW AND THE NUMBER.
+   Owner: "no strike win, just the arrow and number."
 
-   It was firing correctly — measured side by side, both boards build the same
-   two arrows with the same strokes and the same pills — but V2 had turned OFF
-   the half of it that carries the meaning. .lf-verdict was hidden, so where
-   classic says WIN / STRIKE 2 / EXPOSED under each lane, the redesign showed
-   only ▲N / ▼N and the hover looked like it had done nothing. The numbers say
-   how much; the verdict says what happens, and that is the part you hover for.
+   This block used to do the opposite. It was written for an earlier note —
+   "the hover on board doesn't work, make it just like classic" — where the
+   diagnosis was that V2 had hidden .lf-verdict, so the strip showed only the
+   figures and the hover read as a no-op. The words came back, and now they are
+   the part that is not wanted. Reverted to the figures alone rather than
+   layering a third override on top of the second.
+
+   CONSEQUENCE, stated because it is a real one: a lane whose outcome costs no
+   face damage (a straight LOSE, a TRADE) has no number to print, so its cell
+   is now blank. The verdict was the only thing that said anything there.
    =========================================================================== */
-body.board-v2 #lane-forecast-strip .lf-verdict {
-  display: block;
-  font-family: var(--fm); font-weight: 700;
-  font-size: calc(9 * var(--u)); letter-spacing: .16em;
-  text-transform: uppercase;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  min-width: 0; text-align: center;
-}
-/* The same four readings the shipping board gives, in this palette. */
-body.board-v2 #lane-forecast-strip .lf-cell.lf-win   .lf-verdict { color: var(--atk); text-shadow: 0 0 5px rgba(61,255,158,.5); }
-body.board-v2 #lane-forecast-strip .lf-cell.lf-lose  .lf-verdict { color: var(--or);  text-shadow: 0 0 5px rgba(var(--or-rgb),.5); }
-body.board-v2 #lane-forecast-strip .lf-cell.lf-trade .lf-verdict { color: var(--timer); text-shadow: 0 0 5px rgba(255,210,74,.45); }
-body.board-v2 #lane-forecast-strip .lf-cell.lf-stall .lf-verdict { color: rgba(143,224,255,.55); }
-body.board-v2 #lane-forecast-strip .lf-cell.lf-empty .lf-verdict,
-body.board-v2 #lane-forecast-strip .lf-cell.lf-destroyed .lf-verdict { display: none; }
-/* The strip needs the height back that hiding the verdict had freed. */
+body.board-v2 #lane-forecast-strip .lf-verdict { display: none !important; }
 body.board-v2 #lane-forecast-strip .lf-cell {
-  height: auto; min-height: calc(20 * var(--u));
-  flex-direction: column; gap: calc(1 * var(--u));
+  height: calc(20 * var(--u)); min-height: 0;
+  flex-direction: row; gap: calc(4 * var(--u));
 }
 
 /* THE HERO PILL CLEARS THE BAND. It anchors to the health orb, and on this
@@ -2936,3 +2925,167 @@ body.board-v2 .player-hand-section .hand-card-wrapper:hover .card.unaffordable,
 body.board-v2 .player-hand-section .hand-card-wrapper:hover .card.unafford {
   opacity: 1 !important;
 }
+
+
+/* ===========================================================================
+   AN EMPTY LANE'S NUMBER IS WHITE, AND THE LANE'S COLOUR LIVES IN ITS MIDDLE.
+   Owner: "the lane number should be white if there's nobody in it. just like
+   in classic the colour in the middle should be in the lane as a gradient."
+
+   Both halves of that are one thing: the shipping board already does it, and
+   V2 had flattened it. Measured on classic, an empty lane reads
+
+     .lane-number   colour #f5fbff, border rgba(255,255,255,.95), white glow
+     .lane-sep::before  linear-gradient(90deg, transparent, #fff3 30%,
+                        #fff3 70%, transparent)
+
+   and its two slots carry the tint as a GRADIENT that is strongest at the
+   midline and falls to nothing by roughly half way out:
+
+     .ai-slot      linear-gradient(transparent 52%, ...0.075 100%)
+     .player-slot  linear-gradient(0deg, transparent 52%, ...0.075 100%)
+
+   V2 had all three flat: every lane number the same cyan whatever was in the
+   lane, both midline rules a flat 0.20 bar, the empty slots a flat 0.07 block,
+   and the lane's own fill running red at the TOP to blue at the BOTTOM —
+   the exact inverse of classic, which puts the light at the centre line.
+
+   1. THE NUMBER. Only the empty state was wrong; occ-ai / occ-player / occ-both
+      already inherit classic's red / blue / magenta ladder correctly, so they
+      are left alone. The cyan came from two places — the text colour and the
+      cyan drop-shadow every lane number carries — so both are answered here or
+      the badge would still read blue.
+   =========================================================================== */
+body.board-v2 #board .lane.occ-none .lane-number {
+  color: #f5fbff !important;
+  border-color: rgba(255,255,255,0.95) !important;
+  filter: drop-shadow(0 0 2px rgba(255,255,255,0.55)) !important;
+}
+
+/* 2. THE MIDLINE RULES FADE OUT, as classic's single rule does. V2 splits the
+      line in two around the badge, so each half runs solid at the badge and
+      falls to nothing at the lane edge — the same shape, read outward from the
+      centre instead of inward from both ends. */
+body.board-v2 #board .lane .lane-sep::before {
+  background: linear-gradient(to right, transparent 0%, rgba(143,224,255,0.30) 100%);
+}
+body.board-v2 #board .lane .lane-sep::after {
+  background: linear-gradient(to left,  transparent 0%, rgba(143,224,255,0.30) 100%);
+}
+body.board-v2 #board .lane.occ-ai .lane-sep::before,
+body.board-v2 #board .lane.occ-both .lane-sep::before {
+  background: linear-gradient(to right, transparent 0%, rgba(var(--or-rgb),0.85) 100%);
+}
+body.board-v2 #board .lane.occ-ai .lane-sep::after {
+  background: linear-gradient(to left,  transparent 0%, rgba(var(--or-rgb),0.85) 100%);
+}
+body.board-v2 #board .lane.occ-player .lane-sep::before {
+  background: linear-gradient(to right, transparent 0%, rgba(53,201,255,0.85) 100%);
+}
+body.board-v2 #board .lane.occ-player .lane-sep::after,
+body.board-v2 #board .lane.occ-both .lane-sep::after {
+  background: linear-gradient(to left,  transparent 0%, rgba(53,201,255,0.85) 100%);
+}
+
+/* 3. THE LANE FILL, inverted so the colour is at the centre line.
+      TWO LAYERS, not one, and that is the whole trick: a single gradient going
+      from rgba(4,6,10,0.96) to rgba(231,76,60,0.10) changes the ALPHA from .96
+      to .10 along with the hue, so the middle of the lane would turn
+      transparent and show the page through it. The hue rides on its own layer
+      and fades to nothing; the dark fill underneath stays at a constant .96.
+      Stops mirror classic's easing — nothing until ~52% of each slot, then a
+      slow ramp that only reaches full at the midline. */
+body.board-v2 #board .lane {
+  background:
+    linear-gradient(to bottom,
+      rgba(var(--or-rgb),0)    0%,
+      rgba(var(--or-rgb),0)    25%,
+      rgba(var(--or-rgb),0.035) 37%,
+      rgba(var(--or-rgb),0.13) 49%,
+      rgba(53,201,255,0.13)    51%,
+      rgba(53,201,255,0.035)   63%,
+      rgba(53,201,255,0)       75%,
+      rgba(53,201,255,0)       100%),
+    linear-gradient(rgba(4,6,10,0.96), rgba(4,6,10,0.96)) !important;
+}
+
+/* 4. AND THE EMPTY SLOTS STOP FIGHTING IT. A flat 0.07 block over a gradient
+      is just a flat block — it was the reason each half read as a solid
+      rectangle of colour. Same tint, same total weight, but ramped toward the
+      midline so the slot continues the lane's fall instead of covering it. */
+body.board-v2 #board .card-slot.ai-slot:not(:has(.card)) {
+  background: linear-gradient(to bottom,
+    rgba(var(--or-rgb),0) 30%, rgba(var(--or-rgb),0.11) 100%) !important;
+}
+body.board-v2 #board .card-slot.player-slot:not(:has(.card)) {
+  background: linear-gradient(to top,
+    rgba(53,201,255,0) 30%, rgba(53,201,255,0.11) 100%) !important;
+}
+/* The same on the pseudo the slot-clip fix introduced, or the flat tint it
+   carries paints straight back over the gradient above. */
+body.board-v2 #board .card-slot.ai-slot:not(:has(.card))::before {
+  background: transparent;
+}
+body.board-v2 #board .card-slot.player-slot:not(:has(.card))::before {
+  background: transparent;
+}
+
+
+/* ===========================================================================
+   THE HAND AND THE TRICKS COME UP.
+   Owner, with an arrow drawn upward under each of them: "move the cards and
+   tricks up."
+
+   The row sat with dead space above the cards and again below them: the hand
+   section opened with its own padding under the band, the tricks section with
+   twice as much, and the whole row still left slack at the bottom of the
+   screen. The captions keep their line — they are what the arrows pointed
+   past, not at — but the cards behind them start higher and the row ends
+   flush.
+   =========================================================================== */
+/* The grid fills the viewport exactly — hud, band, board, strip, band, hand,
+   with no slack anywhere — so there is no free space to slide the row into.
+   What there IS is dead space INSIDE the row: each section opened with its own
+   top padding under the band and the captions carried a margin under that.
+   #player-hand is `flex:1 1 auto` with `align-items:flex-start` over cards of a
+   fixed aspect, so height handed back to it does not stretch the cards — they
+   simply start higher. Reclaiming the padding moves them up; it does not
+   resize them, and it does not steal height from the board.
+
+   Both section rules use `>` to match the existing ones exactly; a descendant
+   selector tied on specificity and left the outcome to source order. */
+/* WHY THIS IS A GRID-ROW CHANGE AND NOT A MARGIN.
+
+   The grid fills the viewport exactly — hud, band, board, strip, band, hand,
+   summing to the full height with no slack anywhere. The board row is
+   `minmax(0, 1fr)`, so it absorbs whatever the other rows give up: pulling the
+   hand row up with a negative margin, or shrinking it by removing padding,
+   just handed the space straight back to the board, which grew and pushed the
+   hand back down. Measured across four attempts, the cards did not move a
+   pixel. A min-height on the row failed for the same reason from the other
+   side — a taller `auto` row is exactly what 1fr is there to cancel.
+
+   Sizing the hand row explicitly is the one instruction 1fr cannot argue with.
+   The row is ~292u of content; at 330u it claims 38u back from the board and
+   everything below the board — band, hand, tricks — rises with it. Measured:
+   hand and tricks both up 21px, and the board card loses 8px of height (~4%)
+   to pay for it. That is the trade, and on a full-height grid there is no
+   version of "move them up" that does not come out of the board.
+
+   minmax, not a fixed length: 330u is comfortably above the content at every
+   size this layout runs at, but if a taller hand ever needs more the row may
+   still grow rather than clip the cards. The narrow-viewport template at ~652
+   is a different layout and is deliberately left alone.
+
+   The section paddings still go to zero. #player-hand is `flex:1 1 auto` over
+   `align-items:flex-start` and its cards have a fixed aspect, so the freed
+   height does not stretch them — it just lets them start at the top of the
+   taller row instead of below an indent. */
+@media (min-width: 901px) {
+  body.board-v2 #game-area {
+    grid-template-rows: auto auto minmax(0, 1fr) auto auto minmax(calc(330 * var(--u)), auto);
+  }
+}
+body.board-v2 #bv2-handrow > .player-hand-section { padding-top: 0 !important; }
+body.board-v2 #bv2-handrow > .tricks-section { padding-top: 0 !important; }
+body.board-v2 #bv2-handrow .bv2-cap { margin-bottom: calc(3 * var(--u)) !important; }
