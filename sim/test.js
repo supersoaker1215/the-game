@@ -806,9 +806,22 @@ function checkInvariants(G, out) {
   if ((s.ai.hand || []).length > AI_MAX_HAND) {
     out.push('ai hand size ' + s.ai.hand.length + ' > max ' + AI_MAX_HAND);
   }
-  // Trick hand size — same per-side cap discipline.
-  var PLAYER_MAX_TRICK = s.player.maxTrickHandSize || 3;
-  var AI_MAX_TRICK     = s.ai.maxTrickHandSize     || 3;
+  // Trick hand size — same per-side cap discipline, PLUS the one sanctioned
+  // exception. MC Ballyhoo's candies are pushed straight onto the trick hand
+  // and deliberately ignore maxTrickHandSize (game.js, "A CANDY IGNORES THE
+  // TRICK-HAND CAP, ON PURPOSE" — owner: "make sure for the tricks these can
+  // extend the trick hand to 4 if someone has 3 tricks"). A hand holding a
+  // candy is legitimately allowed to be that far over.
+  //
+  // Counted, not waived: allowing exactly as many extras as there are candies
+  // present keeps the invariant catching every OTHER way a hand can overfill,
+  // which is the only reason it exists. Raising the cap to 4 outright, or
+  // dropping the check, would let a real overflow through unseen.
+  var _candies = function (hand) {
+    return (hand || []).filter(function (t) { return t && t._isCandy; }).length;
+  };
+  var PLAYER_MAX_TRICK = (s.player.maxTrickHandSize || 3) + _candies(s.player.trickHand);
+  var AI_MAX_TRICK     = (s.ai.maxTrickHandSize     || 3) + _candies(s.ai.trickHand);
   if ((s.player.trickHand || []).length > PLAYER_MAX_TRICK) {
     out.push('player trick hand ' + s.player.trickHand.length + ' > max ' + PLAYER_MAX_TRICK);
   }
@@ -6131,42 +6144,101 @@ test("Godzilla's Burning is a decaying counter that ticks on ITS OWN lane", func
 });
 
 // ============================================================
-test("A full trick hand makes the Grinch's steal a no-op, not a shredder", function () {
-  // Owner: "i had 3 tricks already in hand, the enemy had 1, i chose to steal
-  // the trick, it didn't let me … that decision needs to be made automatically
-  // because i can't steal the trick, my trick hand is full, so the grinch
-  // should go on the board with triple stats."
+test("A full trick hand OFFERS THE GRINCH'S STEAL AS A TRADE, not a shredder", function () {
+  // THE RULE CHANGED, AND THIS TEST WAS PINNING THE OLD ONE.
   //
-  // The old behaviour was worse than a refusal: keep() called addToTrickHand,
-  // which DISCARDS on a full hand, so the victim lost the trick, the Grinch's
-  // owner never got it, and the Grinch did not triple. Three losses at once.
-  var G = freshGame();
+  // Originally: keep() called addToTrickHand, which DISCARDS at the cap — so a
+  // full hand meant the victim lost the trick, the owner never got it, and the
+  // Grinch did not triple. Three losses at once. The first fix made a full hand
+  // skip the steal entirely and triple, with no prompt, and this test pinned
+  // that. (Owner then: "that decision needs to be made automatically because i
+  // can't steal the trick.")
+  //
+  // The owner has since asked for the opposite, and the engine now does it:
+  // "when i play grinch and my tricks are at max it won't offer me — i should
+  // be offered and be able to trade one out." keep() routes through
+  // _gainTrickWithTrade, so a full hand offers a swap, and declining the swap
+  // gives the trick back and triples — the old outcome is still reachable, it
+  // is just a choice now instead of a silent verdict.
+  //
+  // What must NEVER come back is the shredder: no path may leave the trick
+  // destroyed, and no path may push the hand over its cap.
+  var cap = freshGame().state.player.maxTrickHandSize;
 
-  // Fill the player's trick hand to the cap, and give the AI exactly one trick.
-  var cap = G.state.player.maxTrickHandSize;
-  G.state.player.trickHand = [];
-  for (var i = 0; i < cap; i++) G.addToTrickHand('player', { name: 'Filler ' + i, cost: 1 });
-  assertEq(G.state.player.trickHand.length, cap, 'hand starts full');
+  var setup = function () {
+    var G = freshGame();
+    G.state.player.isHuman = true;
+    G.state.player.trickHand = [];
+    for (var i = 0; i < cap; i++) G.addToTrickHand('player', { name: 'Filler ' + i, cost: i + 1 });
+    G.state.ai.trickHand = [{ name: 'Bacta Tank', cost: 3, id: 90001 }];
+    var grinch = place(G, 'The Grinch', 'player', 0);
+    return { G: G, grinch: grinch, atk: grinch.attack, hp: grinch.currentHealth };
+  };
 
-  G.state.ai.trickHand = [{ name: 'Bacta Tank', cost: 3, id: 90001 }];
+  // ---- 1. THE OWNER IS ASKED, instead of being told. ----------------------
+  var a = setup();
+  CARD_ABILITIES['The Grinch'].onPlay(a.G, a.grinch, 0);
+  var cc = a.G.state.pendingCardChoice;
+  assertEq(!!cc, true, 'a keep-or-give-back prompt IS armed at a full hand');
+  assertEq(cc.cards.length, 2, 'and it offers exactly the two outcomes');
+  var keepIdx = cc.cards.findIndex(function (c) { return c._action === 'keep'; });
+  var backIdx = cc.cards.findIndex(function (c) { return c._action === 'giveback'; });
+  assert(keepIdx >= 0 && backIdx >= 0, 'keep and give-back are both reachable');
 
-  var grinch = place(G, 'The Grinch', 'player', 0);
-  var baseAtk = grinch.attack, baseHp = grinch.currentHealth;
-  CARD_ABILITIES['The Grinch'].onPlay(G, grinch, 0);
+  // ---- 2. GIVE IT BACK — the old outcome, now as a choice. ---------------
+  a.G.resolveActivePrompt('card', { idx: backIdx });
+  assertEq(a.G.state.ai.trickHand.length, 1, 'the victim gets their trick back');
+  assertEq(a.G.state.ai.trickHand[0].name, 'Bacta Tank', 'and it is the same trick');
+  assertEq(a.G.state.player.trickHand.length, cap, 'the full hand did not overflow');
+  assertEq(a.grinch.attack, a.atk * 3, 'attack triples');
+  assertEq(a.grinch.currentHealth, a.hp * 3, 'health triples');
 
-  // 1. NO PROMPT. A pick with one reachable outcome resolves itself.
-  assertEq(!!G.state.pendingCardChoice, false, 'no keep-or-give-back prompt is armed');
+  // ---- 3. KEEP — the thing the owner asked for. --------------------------
+  // NOTE ON THE HARNESS: sim/shim.js resolves promptCardChoice SYNCHRONOUSLY
+  // with the prompt's own aiPicker, so the trade prompt can never be caught
+  // armed here — only its result. That result is the rule worth pinning
+  // anyway: at a full hand the steal TRADES. The picker is lowest-cost-first,
+  // so the cheapest filler is the one that goes.
+  var b = setup();
+  CARD_ABILITIES['The Grinch'].onPlay(b.G, b.grinch, 0);
+  var cc2 = b.G.state.pendingCardChoice;
+  b.G.resolveActivePrompt('card', { idx: cc2.cards.findIndex(function (c) { return c._action === 'keep'; }) });
+  var names = b.G.state.player.trickHand.map(function (t) { return t.name; });
+  assertEq(b.G.state.player.trickHand.length, cap, 'the hand stays at the cap');
+  assertEq(names.indexOf('Filler 0'), -1, 'the cheapest held trick was traded out');
+  assert(names.indexOf('Bacta Tank') >= 0, 'and the stolen one took its place');
+  assertEq(b.G.state.ai.trickHand.length, 0, 'the victim really lost it');
+  assertEq(b.grinch.attack, b.atk, 'a kept steal does NOT triple');
 
-  // 2. THE TRICK SURVIVES, with its owner. This is the part that used to
-  //    silently destroy it.
-  assertEq(G.state.ai.trickHand.length, 1, 'the victim still holds their trick');
-  assertEq(G.state.ai.trickHand[0].name, 'Bacta Tank', 'and it is the same trick');
-  assertEq(G.state.player.trickHand.length, cap, 'the full hand did not overflow');
-
-  // 3. THE GRINCH TRIPLES — the outcome the owner asked for.
-  assertEq(grinch.attack, baseAtk * 3, 'attack triples');
-  assertEq(grinch.currentHealth, baseHp * 3, 'health triples');
-  assertEq(grinch.maxHealth, baseHp * 3, 'and max health tracks it');
+  // ---- 4. DECLINING THE TRADE gives it back — never shreds it. -----------
+  // Driven straight at _gainTrickWithTrade, because the decline arm of a
+  // promptCardChoice has no representation in the shim at all. isAI takes the
+  // deterministic branch: an incoming trick cheaper than everything held is
+  // the case where the trade is refused, and that refusal must reach the
+  // CALLER's onDecline (which is what the Grinch hangs giveBack on) rather
+  // than quietly discarding the trick.
+  var c = setup();
+  var declined = 0, kept = 0;
+  c.G._gainTrickWithTrade('player', { name: 'Cheap Thing', cost: 0 }, {
+    isAI: true,
+    onKept: function () { kept++; },
+    onDecline: function () { declined++; }
+  });
+  assertEq(declined, 1, 'the refusal reaches onDecline');
+  assertEq(kept, 0, 'and nothing was added');
+  assertEq(c.G.state.player.trickHand.length, cap, 'no overflow');
+  // The other side of the same branch: something worth more than the cheapest
+  // held trick IS traded in, and the hand still never grows.
+  var d = setup();
+  var landedName = null;
+  d.G._gainTrickWithTrade('player', { name: 'Worth It', cost: 9 }, {
+    isAI: true,
+    onKept: function (landed) { landedName = landed && landed.name; }
+  });
+  assertEq(landedName, 'Worth It', 'a better trick is traded in');
+  assertEq(d.G.state.player.trickHand.length, cap, 'and the hand still holds the cap');
+  assertEq(d.G.state.player.trickHand.map(function (t) { return t.name; }).indexOf('Filler 0'), -1,
+           'at the cost of the cheapest one');
 });
 
 test("Human Torch sets Burning 2 instead of dealing 2 flat damage", function () {

@@ -26,6 +26,17 @@ run_suite() {
   # emits a syntax/runtime error line.
   if echo "$out" | grep -qE "[1-9][0-9]* failed|Exception|SyntaxError|TypeError|ReferenceError|threw:"; then
     echo "  ❌ $file FAILED"
+    # SAY WHY. The filter above prints only "passed," / "Failures:" / "  - "
+    # lines, so a suite that reports `0 failed` and still trips this — because
+    # an error TOKEN appeared anywhere in its output, including a console.error
+    # the engine deliberately swallowed — printed a bare ❌ with nothing to act
+    # on. That happened twice, and the second time it was mistaken for a real
+    # failure and then for noise, which is the worst of both. Echo the lines
+    # that actually tripped it.
+    if ! echo "$out" | grep -qE "[1-9][0-9]* failed"; then
+      echo "     (suite reported 0 failed — tripped by an error token in its output:)"
+      echo "$out" | grep -nE "Exception|SyntaxError|TypeError|ReferenceError|threw:" | head -5 | sed 's/^/     /'
+    fi
     FAIL=1
   else
     echo "  ✅ $file"

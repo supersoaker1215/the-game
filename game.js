@@ -9293,11 +9293,37 @@ const Game = {
     const declined = () => { if (opts.onDecline) opts.onDecline(); else this.log(`  [TRICK] ${nm}'s trick hand is full — discards ${trick.name}.`); sync(); };
     // Room to spare — just keep it.
     if (holder.trickHand.length < cap) { kept(); return; }
+
+    // A CANDY IS NEVER THE THING YOU TRADE AWAY.
+    //
+    // MC Ballyhoo's candies are pushed past maxTrickHandSize on purpose, and
+    // the rule that makes that safe is written on the push site: "the overflow
+    // drains on its own as the candy gets played." A trade breaks that. It is
+    // one-in-one-out, so a hand of four that swaps its candy out stays at four
+    // — except now nothing in it is exempt, and since every later gain is also
+    // a swap, it never comes back down. Measured over 200 AI-vs-AI games: hands
+    // reaching `Seismic Charge, Power Stone, Kryptonite, Joker's Playing Card`,
+    // four ordinary tricks against a cap of three, permanently.
+    //
+    // And the bot picked the candy EVERY time, because the trade ranks by cost
+    // and a candy is cost 0 — deliberately, "they are a gift, not a purchase."
+    // So the one heuristic said "cheapest, therefore least valuable" about the
+    // one card that was free on purpose, and threw away a free effect for a
+    // 1-cost trick.
+    //
+    // Excluding them settles both: the overflow keeps draining the only way it
+    // was ever meant to (play the candy — it costs nothing), and the bot stops
+    // paying a gift for a trinket. A player who wants rid of a candy can simply
+    // play it.
+    const tradable = [];
+    holder.trickHand.forEach((t, i) => { if (!(t && t._isCandy)) tradable.push({ t, i }); });
+    if (!tradable.length) { declined(); return; }
+
     // Full — a trade is forced (or the caller's decline path takes over).
     if (opts.isAI) {
-      // Keep the most valuable tricks: drop the lowest-cost of {hand ∪ new}.
+      // Keep the most valuable tricks: drop the lowest-cost of {tradable ∪ new}.
       let lowIdx = -1, lowCost = trick.cost || 0, dropNew = true;
-      holder.trickHand.forEach((t, i) => { const c = t.cost || 0; if (c < lowCost) { lowCost = c; lowIdx = i; dropNew = false; } });
+      tradable.forEach(({ t, i }) => { const c = t.cost || 0; if (c < lowCost) { lowCost = c; lowIdx = i; dropNew = false; } });
       if (dropNew) { declined(); return; }
       const dropped = holder.trickHand[lowIdx];
       holder.trickHand.splice(lowIdx, 1);
@@ -9310,7 +9336,7 @@ const Game = {
     // exact trick even if two tricks share a name or a null id — the trick hand
     // is not mutated while this prompt is open, so the index is stable.
     if (seat) this._2v2CurrentActingPlayer = seat;
-    const choices = holder.trickHand.map((t, i) => ({ ...t, _tradeIdx: i }));
+    const choices = tradable.map(({ t, i }) => ({ ...t, _tradeIdx: i }));
     this.promptCardChoice(owner, choices,
       opts.title || 'Trick hand full',
       opts.desc || `Choose a trick to discard to keep ${trick.name}.`,
