@@ -1994,8 +1994,10 @@ const UI = {
       // Joker deathfall — 0.83s clip, plays on every Joker kill.
       'Joker':            { hover: { src: 'audio/cards/joker-hover.mp3', maxDur: 46, gain: 6.0 }, play: 'audio/cards/joker-play.mp3', death: 'audio/cards/joker-death.mp3' },
       // Poison Ivy death — 0.58s clip, plays on every Ivy kill.
-      // Two takes, cut to 3.5s each with a 0.3s fade so neither ends on a
-      // hard edge; _resolveSfxEntry picks one at random per play.
+      // Two takes, cut to 4s each with a 0.3s fade so neither ends on a hard
+      // edge; _resolveSfxEntry picks one at random per play. (Was 3.5s —
+      // owner: "poison ivy voice line should be 4 seconds not 3.5". The play
+      // event's own cap is 5s, so 4 plays whole and needs no maxDur here.)
       'Poison Ivy':       { death: 'audio/cards/poison-ivy-death.mp3',
                             play: ['audio/cards/poison-ivy-play-02.mp3',
                                    'audio/cards/poison-ivy-play-03.mp3'] },
