@@ -172,6 +172,14 @@ window.CARD_ART_OVERRIDES = {
   // Harley Quinn, Hawkeye, Mr. Freeze. Reorders (Black Panther, Jigsaw) baked
   // into CARD_ART_VARIANTS above.
   focalCard: {   // "name|file" -> "X% Y%"   in-game card crop focal
+    // THE ONLY LANDSCAPE ENVIRONMENT ART IN THE SET. Every other one is
+    // portrait (Sewers 898x1280, Open Water 1024x1280, Boiler Room 897x1280);
+    // this is 1536x1024, and the two things that make the picture readable —
+    // the gate and the TYRANNOSAUR PADDOCK sign — sit left of centre. A default
+    // 50% crop into a portrait card, and again into a lane four times taller
+    // than it is wide, throws both away and leaves fence and rain. Pulled left
+    // to the middle of the gate so the sign survives both crops.
+    'Enclosure|Enclosure.png': '34% 45%',
     'Anakin Skywalker|Anakin Skywalker 2.png': '50% 49%',
     'Batman|Batman.png': '37% 47%',
     'Ghost Rider|Ghost Rider.jpg': '50% 35%',
