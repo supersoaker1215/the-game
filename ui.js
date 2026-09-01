@@ -3077,6 +3077,9 @@ const UI = {
     // else in the project is ogg, and Safari's support for it is patchy enough
     // that a PWA installed on an iPhone would simply have played nothing.
     VICTORY_SRC: 'audio/win.mp3',
+    // Owner: "when you click on a card." Converted from the supplied .WAV —
+    // 73K of PCM against 7.5K as mp3, for a sound that fires on every tap.
+    CARD_CLICK_SRC: 'audio/card-click.mp3',
     // His sign-off, on the second text beat.
     BALLYHOO_VOICE2_SRC: 'audio/ballyhoo-voice-2.mp3',
 
@@ -3755,6 +3758,20 @@ const UI = {
     // was. Uncapped — the standing rule caps play/ability clips at 1.5-3s so
     // they do not tail over the next action, but this is a 4.5s sting on a
     // screen where nothing follows, and it is music, which that rule exempts.
+    playCardClick() {
+      // A COOLDOWN, because this one is fired by the user rather than by the
+      // game. Nothing else in here can be triggered a dozen times a second by
+      // someone clicking quickly, and without a floor those copies stack into
+      // a rattle. 70ms is below the rate anyone clicks deliberately and above
+      // the rate a double-click or a stray second event arrives at.
+      const now = Date.now();
+      if (now - (this._lastCardClickAt || 0) < 70) return null;
+      this._lastCardClickAt = now;
+      try {
+        return this._playSample(this.CARD_CLICK_SRC,
+          { fadeIn: 0, fadeOut: 80, maxDur: 0.9, category: 'effect' });
+      } catch (e) { return null; }
+    },
     playVictoryMusic() {
       try { return this._playSample(this.VICTORY_SRC, { fadeIn: 0, fadeOut: 400 }); }
       catch (e) { return null; }
@@ -5846,6 +5863,29 @@ const UI = {
     // alongside it, not a replacement for it — clicking a card still selects it
     // and still lights up its lanes and targets, it just also turns over so you
     // can read what you are about to commit to.
+    // A CLICK ON A CARD MAKES A SOUND, wherever the card is.
+    // Delegated rather than wired per handler: a card click already lands in at
+    // least four of them — openCardInspect for a board tap, _inspectHandCardEl
+    // for a hand tap, showCardInspect for a trick, toggleHandCardFlip for the
+    // turn-over — across the hand, the board, the codex, the draft and the deck
+    // builder. One listener covers every surface at once and cannot drift out
+    // of sync with them as they change.
+    //
+    // CAPTURE PHASE, deliberately. 2v2 re-wires the 1v1 renderer's card
+    // handlers after render and calls stopPropagation in them — it has already
+    // swallowed events this way three times, on hand cards and then on tricks —
+    // so a bubble-phase listener would go quiet in exactly one mode and look
+    // like a mode-specific bug. Capture runs before any of them.
+    //
+    // It shares the drag guard below: a drag ends by dispatching a click, and
+    // that release already has the card's own play cue on it.
+    document.addEventListener('click', (e) => {
+      if (this._suppressNextHandFlip) return;
+      const el = e.target && e.target.closest && e.target.closest('.card, .trick-card');
+      if (!el) return;
+      if (this.sfx && this.sfx.playCardClick) this.sfx.playCardClick();
+    }, true);
+
     document.addEventListener('click', (e) => {
       if (this._suppressNextHandFlip) return;      // the tail of a drag
       // TOUCH USED TO BE EXCLUDED HERE ("touch has tap-to-inspect"), which was
