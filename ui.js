@@ -23019,9 +23019,35 @@ const UI = {
     // reserve/2 + 12. The two are the same arithmetic, so they cannot disagree.
     const laidBoardW = lanes * (bw + laneChrome) + laneGap * (lanes - 1);
     const gutter = Math.max(0, (window.innerWidth - num(section, 'paddingLeft', 'paddingRight') - laidBoardW) / 2);
-    area.style.setProperty('--decision-w', decW + 'px');
-    area.style.setProperty('--decision-shift',
+    // ON THE ROOT, not on #game-area like --board-card-w above it. The lanes are
+    // not the only thing that has to know where this column is: the notice toast
+    // and the trick reveal are both `position: fixed` children of <body>, so a
+    // property published inside the grid would not reach them and they would go
+    // on landing over the middle of the board. Everything that has to line up
+    // with the gutter reads the same two numbers from one place.
+    const root = document.documentElement;
+    root.style.setProperty('--decision-w', decW + 'px');
+    // WHERE THE COLUMN STARTS. The panel is fixed-positioned on <body> (see
+    // _classicDecisionSlot), so it has no containing block that already knows
+    // where the board begins — this is that number, measured off the section
+    // rather than added up from the HUD and the enemy bar, which is a sum that
+    // goes stale the next time either grows.
+    root.style.setProperty('--decision-top', Math.round(section.getBoundingClientRect().top) + 'px');
+    // ...AND WHERE IT ENDS. The notice parks against this rather than against
+    // the bottom of the screen: below the board sit the forecast strip, the
+    // player bar and the hand, and those run the FULL width — a toast anchored
+    // to the viewport floor cleared the lanes only to land on the trick cards
+    // instead (measured: its top edge at y=854 against a tricks row starting at
+    // 757). The gutter is exactly as tall as the board.
+    root.style.setProperty('--decision-bottom', Math.round(section.getBoundingClientRect().bottom) + 'px');
+    root.style.setProperty('--decision-shift',
       (reserve ? Math.max(0, Math.round(reserve - gutter - sectionPadR)) : 0) + 'px');
+    // ...and whether the column EXISTS at all. On a phone the reserve is
+    // declined (see above), so there is no gutter to dock anything in and the
+    // notice and the reveal have to stay where they were. A class rather than a
+    // `--decision-shift > 0` test, because the shift is legitimately 0 on a wide
+    // screen where the column is real and simply already had the room.
+    document.body.classList.toggle('decision-column', reserve > 0);
     // The lanes just moved, so anything pinned to them is now stale. The
     // forecast strip measured its cells during the render pass, which runs
     // BEFORE this solve — that is why its cells were sized to the pre-fit lane
@@ -28661,8 +28687,7 @@ const UI = {
     // V2 has its own rail and adopts the same nodes; both running would fight
     // over who owns them every frame.
     if (document.body.classList.contains('board-v2')) return;
-    const host = document.querySelector('.board-section');
-    if (!host) return;
+    if (!document.querySelector('.board-section')) return;
     const slot = this._classicDecisionSlot('slot');
     if (!slot) return;
     // The four floaters are NOT rebuilt every render the way the banner is, so
@@ -28672,6 +28697,7 @@ const UI = {
       const m = document.getElementById(id);
       if (m && m.parentNode !== slot) slot.appendChild(m);
     });
+    this._sizeDecisionTrayCards();
     // Whether the panel shows is NOT tracked here. It is a :has() rule in CSS,
     // because this function and renderPromptBanner fill the panel at different
     // moments in a render and any flag written by one would be a frame stale
@@ -28683,8 +28709,20 @@ const UI = {
   // first for the other to work.
   _classicDecisionSlot(which) {
     if (document.body.classList.contains('board-v2')) return null;
-    const host = document.querySelector('.board-section');
-    if (!host) return null;
+    // ON <body>, NOT INSIDE .board-section, and that is a stacking decision
+    // rather than a tidiness one. The section carries `z-index: 1`, so it opens
+    // a stacking context every descendant is sealed inside — and the three rows
+    // below it sit at 210, 220 and 230. A panel taller than the board therefore
+    // ran UNDER the player bar and the hand: measured with a single revealed
+    // card, the tray reached y=729 against a section ending at 665 and the
+    // "Lasso of Truth — Revealed" line underneath it was half-buried. Raising
+    // the panel's own z-index cannot escape the context and raising the
+    // SECTION's would put the board over the hand, which is where a magnified
+    // hand card has to go. Leaving the context is the only move that does not
+    // trade one occlusion for another. It is fixed-positioned against
+    // --decision-top instead, which the solver publishes.
+    const host = document.body;
+    if (!host || !document.querySelector('.board-section')) return null;
     let panel = document.getElementById('classic-decision');
     if (!panel) {
       panel = document.createElement('div');
@@ -28695,6 +28733,40 @@ const UI = {
       host.appendChild(panel);
     }
     return panel.querySelector(which === 'body' ? '.cd-body' : '.cd-slot');
+  },
+
+  // THE OPTION TILES ARE TOLD HOW BIG THEY ACTUALLY ARE.
+  //
+  // A card's --card-w is its type scale — every badge, name and rules line is a
+  // share of it (see the badge --sb-share note). The docked tray sets the tile's
+  // BOX with `width: 100%` of a 1fr grid track, so the box already fits; nothing
+  // told the lettering. Pinned at the authored 70px it rendered a 70px card's
+  // type inside whatever the track turned out to be — fine at three across,
+  // absurd once auto-fit handed a lone option the full 241px column.
+  //
+  // MEASURED, NOT DERIVED. The alternative is arithmetic on the column width
+  // minus four nested paddings and two borders, which is a list that goes stale
+  // the next time any of the six changes. The rendered track is the number, so
+  // it is the one read. No feedback loop is possible: the track is 1fr and the
+  // tile is min-width: 0, so what --card-w does to the type cannot come back and
+  // change the width it was measured from.
+  _sizeDecisionTrayCards() {
+    const grid = document.querySelector('#classic-decision .choice-tray-cards');
+    if (!grid) return;
+    // A frame later: the tray was appended to the slot in the caller, so at this
+    // point it has been parented but not yet laid out in the column — measured
+    // synchronously it still reports the width it had while floating.
+    requestAnimationFrame(() => {
+      const g = document.querySelector('#classic-decision .choice-tray-cards');
+      if (!g) return;
+      g.querySelectorAll(':scope > *').forEach(opt => {
+        const w = Math.round(opt.getBoundingClientRect().width);
+        if (w < 40) return;   // pre-layout / hidden — leave the authored fallback
+        opt.querySelectorAll('.card, .trick-card').forEach(c => {
+          c.style.setProperty('--card-w', w + 'px');
+        });
+      });
+    });
   },
 
   // ===================== LANE FORECAST =====================

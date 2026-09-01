@@ -47773,12 +47773,18 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    floating versions still work anywhere this panel is not.
    =========================================================================== */
 #classic-decision {
-  position: absolute;
+  /* FIXED, AND ON <body>. See _classicDecisionSlot: .board-section carries
+     z-index: 1, so an absolutely-positioned child of it could never rise above
+     the player bar (210) or the hand (220/230), and a panel taller than the
+     board was buried by them. Fixed positioning off the viewport also means the
+     board section scrolling or shifting cannot drag the panel with it. */
+  position: fixed;
   /* NOT FLUSH TO THE EDGE. right:0 put the panel's border exactly on the
      viewport's right edge at every size — measured at 1400x700 its right edge
      WAS 1400. A few pixels of air is the difference between a panel and a
      thing that has fallen off the screen. */
-  top: 6px; right: var(--decision-inset, 10px);
+  top: calc(var(--decision-top, 111px) + 6px);
+  right: var(--decision-inset, 10px);
   /* WIDTH FOLLOWS THE VIEWPORT. A fixed 286px is one width for a 1024 screen
      and a 2560 one; clamp keeps it readable on a small screen without eating
      the board, and lets a wide screen give the choices room. */
@@ -47813,13 +47819,19 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
      top, which is the HUD and opponent band (~111px), plus this rule's 6px
      inset. If that chrome ever grows this stays an over-estimate, so the panel
      shrinks rather than escapes. */
-  max-height: calc(100vh - 136px);
+  /* ...and the ceiling is now measured too. 136px was the HUD and the enemy bar
+     estimated plus air; --decision-top IS that chrome, read off the section, so
+     the panel can use every pixel between where it starts and the bottom of the
+     screen and no more. */
+  max-height: calc(100vh - var(--decision-top, 111px) - 18px);
   display: none;
+  /* Above the three rows below the board (210 / 220 / 230), below the notice
+     toast (600) and the full-screen modals (750). */
+  z-index: 500;
   flex-direction: column;
   gap: 8px;
   padding: 12px 14px;
   overflow-y: auto;
-  z-index: 40;
   box-sizing: border-box;
   border: 1px solid rgba(255, 210, 74, 0.55);
   border-radius: 4px;
@@ -47830,8 +47842,10 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    panel at different points in a pass, so any boolean one of them wrote would
    be a frame stale for the other — which is how the first version ended up lit
    and empty. :has() asks the DOM directly and cannot disagree with itself. */
-#classic-decision:has(.cd-body > *),
-#classic-decision:has(.cd-slot > *) { display: flex; }
+/* ...AND ONLY DURING A MATCH. The panel lives on <body> now, so leaving a match
+   with a prompt still armed would otherwise leave it floating over the menu. */
+body.in-match #classic-decision:has(.cd-body > *),
+body.in-match #classic-decision:has(.cd-slot > *) { display: flex; }
 #classic-decision .cd-head {
   display: flex; align-items: center; gap: 8px;
   flex: 0 0 auto;
@@ -47971,9 +47985,18 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
      wide with an 8px gap, so three columns need 3x + 16 <= 242, i.e. x <= 75.3.
      96 gave two rows; 76 missed by two pixels and still gave two. At 70 the
      three options sit in ONE row, so the whole choice is on screen at once —
-     which is the point of a choice. Wider panels fit more per row on their own,
-     because auto-fill is doing the deciding. */
-  grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)) !important;
+     which is the point of a choice. Wider panels fit more per row on their own.
+     70 is the MINIMUM, not the width: auto-fit hands the leftovers back.
+
+     AUTO-FIT, NOT AUTO-FILL, and that one word is the whole bug the owner
+     photographed. auto-fill lays 242/78 = three tracks whether or not there are
+     three things to put in them, so a prompt with ONE option — Lasso of Truth
+     reveals a single card, and every "here is what they are holding" prompt is
+     the same shape — printed that card at 70px with two empty columns of dead
+     panel beside it. Owner: "why does it look like this all comacted". auto-fit
+     collapses the tracks nothing occupies, so one option gets the whole column,
+     two split it, three keep the measured three-across. */
+  grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)) !important;
   gap: 8px !important;
   height: auto !important;
   max-height: none !important;
@@ -47983,7 +48006,14 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 #classic-decision .choice-tray-cards > * { width: 100% !important; min-width: 0 !important; }
 #classic-decision .choice-tray .card,
 #classic-decision .choice-tray-cards .card {
-  --card-w: 70px !important;
+  /* --card-w IS THE TYPE SCALE, NOT THE BOX. The box is the 100% below; this is
+     what every badge, name and rules line inside the card sizes itself against.
+     Pinned at 70 it stayed a 70px card's lettering however wide the tile got —
+     which is the second half of "all comacted": once auto-fit gave a lone option
+     the full 241px, it would have been a big tile printed in small type. The
+     real track width is measured and written back by _sizeDecisionTrayCards; 70
+     is only the value of the frame before that runs. */
+  --card-w: 70px;
   width: 100% !important;
   max-width: 100% !important;
 }
@@ -48008,7 +48038,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 
    Classic only. Board V2 already routes these through its notices rail.
    =========================================================================== */
-body:not(.board-v2) .trick-reveal {
+body.decision-column:not(.board-v2) .trick-reveal {
   /* TOP of the gutter, where the decision panel lives. Owner, arrow drawn from
      the decision area down to a Shadow Man card at the bottom corner: "why is
      this not here?"
@@ -48026,17 +48056,69 @@ body:not(.board-v2) .trick-reveal {
    that decides whether the panel paints at all — so this can never disagree
    with what is on screen. A prompt needs answering; a reveal only needs
    reading, so the prompt keeps the top. */
-body:not(.board-v2):has(#classic-decision .cd-body > *) .trick-reveal,
-body:not(.board-v2):has(#classic-decision .cd-slot > *) .trick-reveal {
-  justify-content: flex-end;
-  padding: 0 10px 18px 0;
+/* UNLESS A DECISION IS ACTUALLY OPEN, in which case the reveal moves to the
+   MIDDLE of the column — the panel owns the top and the notice owns the bottom
+   (see below), so the middle is the only band left that covers neither. It used
+   to take the bottom, which was free until the notice moved in beside it. */
+body.decision-column:not(.board-v2):has(#classic-decision .cd-body > *) .trick-reveal,
+body.decision-column:not(.board-v2):has(#classic-decision .cd-slot > *) .trick-reveal {
+  justify-content: center;
+  padding: 0 10px 0 0;
 }
 /* AND IT FITS THE GUTTER. The card is a flat min(200px, 52vw), which at 1218
    wide is 200px in a 176px gutter — measured, it overhung the board by 34px.
    Clamped against the viewport it tracks the gutter instead: narrower on a
    small screen, back to its full size on a wide one where there is room. */
-body:not(.board-v2) .trick-reveal .trick-reveal-card {
+body.decision-column:not(.board-v2) .trick-reveal .trick-reveal-card {
   width: clamp(112px, 12.5vw, 200px);
+}
+
+/* ===========================================================================
+   AND SO DOES THE NOTICE (2026-09-01)
+   Owner, circling "AI BLOCKED -> KEPT TIME STONE" sitting across lanes 3 and 4,
+   arrow drawn to the empty column on the right: "notices go here not on the
+   board."
+
+   #ai-trick-toast is `position: fixed; top: 90px; left: 50%` — dead centre, over
+   whatever is underneath. That was the only place it could go when there was no
+   column; there is one now, so it takes the bottom of it.
+
+   THE THREE THINGS THAT WANT THIS COLUMN GET THREE BANDS. They are built by
+   different renderers, on different clocks, and two of them queue only against
+   themselves — the reveal has its own _trickRevealQueue and the notice rides
+   UI._stage, so a reveal and a notice are genuinely on screen together (that is
+   exactly the frame the owner photographed). Rather than have any of them
+   measure the others, each is anchored to a band it never leaves:
+
+       top     #classic-decision   the thing you have to answer
+       middle  .trick-reveal       only when a decision is open; top otherwise
+       bottom  .ai-trick-toast     a 3s announcement, the least urgent
+
+   Bottom for the notice also puts it under the reveal in the common case, which
+   is where the owner's arrow pointed.
+
+   WIDTH FROM --decision-w, not from its own min/max. The authored 280px minimum
+   is wider than the column's own 232px floor, so on a small screen the toast
+   would have hung back over lane 6 — the exact thing being fixed.
+   =========================================================================== */
+body.decision-column:not(.board-v2) .ai-trick-toast {
+  top: auto;
+  /* The BOARD's bottom edge, not the screen's. Everything below the board runs
+     the full width, so a toast anchored to the viewport floor clears the lanes
+     and lands on the trick cards instead. */
+  bottom: calc(100vh - var(--decision-bottom, 665px) + 10px);
+  left: auto;
+  right: var(--decision-inset, 10px);
+  width: var(--decision-w, 289px);
+  min-width: 0;
+  max-width: none;
+  /* Slides UP into place now that it is anchored to the bottom — the authored
+     transform pairs a -20px drop with the -50% that centred it, and keeping
+     either half here would push it off the column. */
+  transform: translateY(20px);
+}
+body.decision-column:not(.board-v2) .ai-trick-toast.active {
+  transform: none;
 }
 
 /* The forecast strip's death marker — see the note in renderLaneForecastStrip.
