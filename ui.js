@@ -23301,7 +23301,25 @@ const UI = {
           // lane — the rift is the transient of the two.
           const primary = envAi || envPl || riftEnv;
           const safeClass = 'env-' + primary.name.toLowerCase().replace(/\s+/g, '-');
-          envBg.className = `lane-env-bg ${safeClass}`;
+          // WHOSE ENVIRONMENT IS THIS. Owner: "when environments are on the
+          // board i want them to have a slight shade of the color of who
+          // played it so its easy to know its my environment vs the
+          // opponents." Nothing in this element carried ownership at all — the
+          // class was the art and nothing else — so a Sewers you placed and an
+          // Open Water they placed rendered identically.
+          //
+          // BOTH FLAGS, NOT THE PRIMARY'S. The backdrop above deliberately
+          // shows ONE art per lane, but `_env` is per side and both can be
+          // occupied at once — which is the normal case the moment an event
+          // mirrors one environment onto each player. So ownership is recorded
+          // as two independent flags and the wash paints each side's half of
+          // the lane, letting a contested lane read as both without needing a
+          // second backdrop element.
+          //
+          // The rift gets neither flag on purpose: it belongs to nobody.
+          envBg.className = 'lane-env-bg ' + safeClass
+            + (envAi ? ' env-own-ai' : '')
+            + (envPl ? ' env-own-player' : '');
           const artPath = this.getCardArtPath(primary.name);
           if (artPath) {
             // MATCH THE CARD, DO NOT RE-CROP. This was `center/cover`, and a

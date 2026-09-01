@@ -47656,3 +47656,47 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   font-style: normal; font-weight: 600;
   color: rgba(233, 196, 106, 0.95);
 }
+
+/* ===========================================================================
+   AN ENVIRONMENT WEARS ITS OWNER'S COLOUR (2026-09-01)
+   Owner: "when environments are on the board i want them to have a slight
+   shade of the color of who played it so its easy to know its my environment
+   vs the opponents."
+
+   The lane backdrop carried the art and nothing else, so yours and theirs were
+   indistinguishable — three environments on the board read as three pictures.
+
+   ONE PSEUDO PER SIDE, WASHING THAT SIDE'S HALF. `_env` is per-side and both
+   halves can hold one at once, so a single overlay keyed to "the owner" could
+   not describe a contested lane — and contested is exactly what a mirrored
+   event produces. ::before takes the opponent's half, ::after takes yours, each
+   fading out at the midline, so a lane can show one, the other, or both.
+
+   The art is untouched: it still fills the lane, which was a deliberate call
+   ("the owner wants these rooms to fill their lane"). This is a wash over it,
+   not a re-crop.
+   =========================================================================== */
+.lane-env-bg::before,
+.lane-env-bg::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+/* Theirs — the top half, down to the centre line. */
+.lane-env-bg.env-own-ai::before {
+  top: 0; bottom: 50%;
+  background: linear-gradient(to bottom,
+    rgba(231, 76, 60, 0.30) 0%,
+    rgba(231, 76, 60, 0.16) 55%,
+    rgba(231, 76, 60, 0) 100%);
+}
+/* Yours — the bottom half, up to the centre line. */
+.lane-env-bg.env-own-player::after {
+  top: 50%; bottom: 0;
+  background: linear-gradient(to top,
+    rgba(var(--theme-rgb, 79, 195, 247), 0.30) 0%,
+    rgba(var(--theme-rgb, 79, 195, 247), 0.16) 55%,
+    rgba(var(--theme-rgb, 79, 195, 247), 0) 100%);
+}
