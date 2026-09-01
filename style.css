@@ -47828,6 +47828,51 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   opacity: 1 !important;
   box-sizing: border-box;
 }
+/* AND THE PANEL INSIDE THEM FITS THE COLUMN. Un-floating the modal was not
+   enough: each one wraps its content in a .floating-prompt-panel sized for the
+   middle of the screen, so docked at 286px its choice buttons were clipped off
+   the right edge — the prompt was in the right place and unanswerable. */
+/* THE GHOST FADE GOES. .floating-prompt-panel sits at opacity .28 so you can
+   read the board through a prompt hovering over it — docked in a column with no
+   board behind it, that just renders the panel unreadable. Measured: the modal
+   was correctly in the slot, correctly sized, and 28% visible. */
+#classic-decision .floating-prompt-panel { opacity: 1 !important; }
+/* AND THE BODY STACKS. .fp-body is a ROW with the trick preview pinned at
+   `flex: 0 0 200px` — in a 214px column that leaves the choices 0px wide, which
+   is why the buttons measured 28px and read as clipped. Down the column the
+   preview and the choices each get the full width. */
+#classic-decision .fp-body {
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 10px !important;
+}
+#classic-decision .fp-trick-preview { flex: 0 0 auto !important; }
+
+#classic-decision .floating-prompt-panel,
+#classic-decision .fp-body,
+#classic-decision .fp-choices,
+#classic-decision .fp-trick-preview {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box;
+}
+/* The choices stack down the column instead of sitting side by side, which is
+   what a 286px width can actually hold. */
+#classic-decision .fp-choices {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+}
+#classic-decision .fp-btn { width: 100% !important; }
+/* The trick preview scales to the column rather than overflowing it. */
+#classic-decision .fp-trick-preview .card,
+#classic-decision .fp-trick-preview .trick-card {
+  max-width: 100% !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
 /* The backdrops go with them — there is nothing left to dim. */
 #classic-decision .floating-prompt-backdrop,
 #classic-decision .choice-tray-backdrop,

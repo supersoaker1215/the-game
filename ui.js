@@ -3200,7 +3200,34 @@ const UI = {
       }, { passive: true });
     },
 
+    // ===================== PROCEDURAL CUES ARE OFF =====================
+    // Owner: "when i tap a card i hear the sound i imported and a high pitched
+    // sound, almost like a balloon letting air out ... remove all default
+    // sounds that you made and leave all imported sounds."
+    //
+    // The blip on a tap was the hover cue, not the click: `play('cardHover')`
+    // is a 260→390Hz triangle with a 520Hz sine over it, and on desktop you
+    // hover a card immediately before clicking it, so the pair arrived together
+    // and read as one doubled sound. Removing that one cue would have left
+    // several dozen others of the same kind, which is what the instruction is
+    // actually about.
+    //
+    // GATED AT THE SYNTH, NOT AT EACH CUE. Every procedural cue in this file
+    // ends up in _tone or _noise — the play() switch, the CARD_PROCEDURAL
+    // character cues, the roguelite and transition stingers. One guard here
+    // therefore silences all of them provably, where deleting cases one at a
+    // time would be forty edits and still miss whatever is added next. Files
+    // are untouched: they go through _playSample and never reach these.
+    //
+    // NOT the two ambient beds. arenaHumStart and _dangerHeartbeatStart also
+    // synthesise, but they are drones with their own start/stop lifecycle
+    // rather than cues fired at an action, and they build their oscillators
+    // directly instead of through here. Flip PROCEDURAL_CUES back to true to
+    // restore every blip at once.
+    PROCEDURAL_CUES: false,
+
     _tone({ type = 'sine', freq = 440, freqEnd = null, dur = 0.15, gain = 0.25, attack = 0.005, release = null, delay = 0, pan = 0 }) {
+      if (!this.PROCEDURAL_CUES) return null;
       if (!this._init()) return;
       const ctx = this._ctx;
       const t0 = ctx.currentTime + delay;
@@ -3234,6 +3261,7 @@ const UI = {
     },
 
     _noise({ dur = 0.12, gain = 0.12, highpass = 400, lowpass = 6000, delay = 0, pan = 0 }) {
+      if (!this.PROCEDURAL_CUES) return null;
       if (!this._init()) return;
       const ctx = this._ctx;
       const t0 = ctx.currentTime + delay;
@@ -29094,10 +29122,34 @@ const UI = {
   // built three times, so they get the same home. Board V2 docks them in the
   // right rail's notice panel instead of floating them over the middle of the
   // board; with the flag off they go to <body> exactly as before.
+  // WHERE A FLOATING PROMPT IS BORN. Every one of them — the block-meter
+  // trick, the jump offer, the Time Stone intercept — attaches through here.
   _floatingPromptHome() {
     try {
       if (typeof BoardV2 !== 'undefined' && BoardV2 && BoardV2.enabled()) {
         const slot = document.querySelector('#bv2-notices .bv2-note-slot');
+        if (slot) return slot;
+      } else {
+        // CLASSIC DOCKS THEM AT BIRTH TOO, and that is what fixes the double.
+        // (Owner: "the decisions shouldn't be doubled up, it should only be on
+        // the right and not covering the lanes.")
+        //
+        // These modals return document.body in classic, so each one appeared
+        // over the lanes and was only pulled into the decision panel by the
+        // NEXT render — and they rebuild themselves (each starts by removing
+        // its own stale copy) from paths that are not render passes. So there
+        // was a window, sometimes several frames wide, where the floating copy
+        // was on screen with the panel already showing the previous one.
+        //
+        // Same lesson the prompt banner already carries a note about: "WHERE
+        // THE BANNER LANDS IS DECIDED HERE, not corrected afterwards ... a
+        // renderer that moved it after the fact lost the race every time." I
+        // fixed the banner that way and left these four on after-the-fact
+        // adoption; this closes them the same way. The adoption in
+        // renderClassicDecision stays as a net for #choice-tray, which is built
+        // somewhere else entirely — with this in place it is a no-op for these
+        // three, because their parent is already the slot.
+        const slot = this._classicDecisionSlot && this._classicDecisionSlot('slot');
         if (slot) return slot;
       }
     } catch (e) {}
