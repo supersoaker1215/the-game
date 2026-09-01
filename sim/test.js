@@ -57,6 +57,14 @@ function assertEq(a, b, msg) {
 function freshGame() {
   if (typeof Game === 'undefined') throw new Error('Game not loaded');
   Game.init();
+  // SEEDED, so a unit test cannot be flaky. Game.rng() falls back to
+  // Math.random whenever state._rngState is null, and Game.init() leaves it
+  // null — so every test that touched a random path (a target picked at random,
+  // a lane drawn, an event round rolled) was running on a fresh stream each
+  // time. One run of the suite failed and could not be reproduced in the 27
+  // runs after it; whatever it was, this closes the class rather than the
+  // instance. A fixed seed also means a failure here reproduces on demand.
+  Game.seedMatch(0x5EED);
   // Fake out the main-menu phase so ability hooks don't balk.
   Game.state.mode = { deck: 'classic', players: '1v1' };
   Game.state.phase = 'player-cards';

@@ -48004,3 +48004,95 @@ body.decision-column:not(.board-v2) .ai-trick-toast.active {
 body.in-match:not(.board-v2) .board {
   left: calc(0px - var(--decision-shift, 0px));
 }
+
+/* ===========================================================================
+   THE TARGET HIGHLIGHT LIGHTS THE CARD'S OWN FRAME (2026-09-01)
+   Owner: "winter soldier should have every enemy card 3 or less attack
+   highlighted yellow thats not invincible and this should hapern for all
+   abilities similar like krytonite dormammu."
+
+   NOTHING WAS WRONG WITH WHICH CARDS. The engine already computes the legal
+   set — Winter Soldier's list is `attack <= threshold && canEffectLand(c,
+   'destroy')`, so an invincible enemy is already excluded at the source — and
+   renderBoard already puts .target-highlight on every board copy of it.
+   Measured against a live prompt with four enemies: the three at 3 ATK or less
+   carried the class, the 4-ATK one did not, and `outline: 2px
+   rgba(245,191,28,0.95)` was computed on all three. The screen showed no gold
+   at all.
+
+   .target-highlight paints an OUTLINE and a BOX-SHADOW. The card carries a
+   chamfer `clip-path`, and a clip-path is applied AFTER those and clips both —
+   along with every descendant. The outline sits at `outline-offset: -3px`, 3px
+   inside the border box; the clip silhouette begins 6.48px in. The entire
+   outline was being drawn inside the 3.5px band the clip throws away. (This is
+   the third instance of the same failure — the card glow and classic's
+   invisible 2px outline were the first two.)
+
+   So it stops drawing a rectangle around a chamfered card and recolours the
+   card's OWN frame. --cf-rgb is the single source for that frame: .cf-edge
+   fills the ring with it and .cf-frame's drop-shadow stack glows with it. Gold
+   in, gold ring — tracing the exact silhouette, and unclippable because it IS
+   the silhouette. One paint, every prompt: the class is applied from the
+   engine's target list, so Kryptonite, Dormammu, Gorr and the other twenty-odd
+   pick-a-card abilities all light up from this without naming any of them.
+
+   Doubled selectors (.card.card) to clear the roguelite tier rules, which set
+   --cf-rgb at three classes.
+   =========================================================================== */
+.card.card.target-highlight,
+.trick-card.trick-card.target-highlight {
+  --portrait-frame-rgb: var(--gold-rgb);
+  --cf-rgb: var(--gold-rgb);
+  /* The authored outline and glow are inert on a clipped card (above). Cancel
+     them here rather than leave a rule that provably paints nothing — the
+     .card-slot form of .target-highlight keeps both, because an empty
+     targetable lane has no chamfer to clip. */
+  outline: none !important;
+  box-shadow: none !important;
+  animation: none;
+}
+.card.card.target-highlight .cf-frame,
+.trick-card.trick-card.target-highlight .cf-frame {
+  animation: cardTargetFramePulse 1.2s var(--ease-pulse-organic, ease-in-out) infinite;
+}
+/* The pulse rides .cf-frame's own filter stack — the same three drop-shadows it
+   already carries, swung between a resting gold and a hot one. Filter rather
+   than a second element so the glow keeps tracing the chamfer instead of a box
+   around it. */
+@keyframes cardTargetFramePulse {
+  0%, 100% {
+    filter:
+      drop-shadow(0 0 1px rgba(var(--frame-core-rgb, 255,255,255), 0.85))
+      drop-shadow(0 0 5px rgba(var(--gold-rgb), 0.70))
+      drop-shadow(0 0 12px rgba(var(--gold-rgb), 0.30));
+  }
+  50% {
+    filter:
+      drop-shadow(0 0 2px rgba(255, 240, 170, 1))
+      drop-shadow(0 0 10px rgba(var(--gold-rgb), 1))
+      drop-shadow(0 0 22px rgba(var(--gold-rgb), 0.55));
+  }
+}
+/* THE HALO GOES ON THE PARENT, which is the only part of this that can reach
+   past the tile. .card-slot is not clipped and has no overflow of its own, so a
+   glow here survives where the card's own box-shadow cannot — and it is what
+   makes a target readable at a glance across a dark board rather than only when
+   you are already looking at it. */
+.card-slot:has(> .card.target-highlight),
+.card-slot:has(> .trick-card.target-highlight) {
+  box-shadow:
+    0 0 16px rgba(var(--gold-rgb), 0.55),
+    0 0 40px rgba(var(--gold-rgb), 0.22);
+  animation: cardTargetHaloPulse 1.2s var(--ease-pulse-organic, ease-in-out) infinite;
+  cursor: pointer;
+}
+@keyframes cardTargetHaloPulse {
+  0%, 100% { box-shadow: 0 0 14px rgba(var(--gold-rgb), 0.45), 0 0 34px rgba(var(--gold-rgb), 0.18); }
+  50%      { box-shadow: 0 0 24px rgba(var(--gold-rgb), 0.85), 0 0 56px rgba(var(--gold-rgb), 0.38); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card.card.target-highlight .cf-frame,
+  .trick-card.trick-card.target-highlight .cf-frame,
+  .card-slot:has(> .card.target-highlight),
+  .card-slot:has(> .trick-card.target-highlight) { animation: none; }
+}
