@@ -7745,6 +7745,39 @@ const CARD_ABILITIES = {
   // Its clock is the BLOCK METER, not a card entering or dying: every time
   // either side's meter fills and eats a hit, the swamp loses 1 Power. Starting
   // Power is 1, so a single block — from anyone — and the water breaks.
+  // ============================================================
+  // ---- T-REX ------------------------------------------------
+  // ============================================================
+  "T-Rex": {
+    onMoved(G, self, to) {
+      // ONE HOOK, EVERY MOVER. moveCard fires onMoved for every relocation in
+      // the game — the T-Rex's own Hunt chase, a Bifrost, a Magneto pull,
+      // Gojo's displace, a shove from the enemy — so hanging the roar here is
+      // what makes "each time the T-Rex moves to another lane" literally true.
+      // Killer Moth's growth sits on the same hook for the same reason, and the
+      // note there records what happens without it: the card fires on the one
+      // move it makes itself and rides every other one for free.
+      const opp = G.opponent(self.owner);
+      const targets = [];
+      for (let i = 0; i < G.LANE_COUNT; i++) {
+        const c = G.state.lanes[i][opp];
+        if (c && c.currentHealth > 0 && !c.isEnvironment) targets.push(c);
+      }
+      if (!targets.length) return;
+      // G.rng(), never Math.random — the engine's RNG is seeded, so a replay and
+      // a fuzz seed both reproduce exactly which card the roar caught.
+      const pick = targets[Math.floor(G.rng() * targets.length)];
+      G.log(`  [T-REX] The roar carries down the lanes — ${pick.name} freezes.`);
+      // freezeCard is the canonical door: it runs tryApplyDebuff, so Immunity
+      // and Untrickable refuse this exactly as they refuse any other freeze
+      // instead of it becoming a quieter second path around them.
+      // FREEZE, NOT STUN — stunCard() is a one-line alias for freezeCard() and
+      // nothing sets isStunned any more, so a "Stun" here would print one word
+      // and log another.
+      G.freezeCard(pick, self, 1);
+    },
+  },
+
   "Wetlands": {
     START_POWER: 1,
     _power(self) {

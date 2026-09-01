@@ -5699,11 +5699,21 @@ test('Spinosaurus is spawn-only and never enters a draftable pool', function () 
 // protecting against, in the form the design now takes.
 test('Every environment is claimed by exactly one event franchise', function () {
   assert(typeof EVENT_FRANCHISES !== 'undefined', 'the franchise registry exists');
+  // Two tiers: an EVENT is what gets rolled, its spawns are what come out. An
+  // environment can legitimately be EITHER — Wetlands is an event, while The
+  // Bathroom and Game Over are environments that Jigsaw's event puts down. The
+  // invariant is not "every environment is an event", it is that every
+  // environment is claimed SOMEWHERE, so something is responsible for putting
+  // it on the board. (This test first asserted the stricter version and it was
+  // wrong: it failed on Jigsaw's two, which are placed, not rolled.)
   var claims = {};
   EVENT_FRANCHISES.forEach(function (fr) {
-    (fr.members || []).forEach(function (m) {
-      if (m.charAt(0) === '@') return;            // @candies / @wonders expand at render
-      claims[m] = (claims[m] || 0) + 1;
+    (fr.events || []).forEach(function (ev) {
+      claims[ev.name] = (claims[ev.name] || 0) + 1;
+      (ev.spawns || []).forEach(function (sp) {
+        if (sp.charAt(0) === '@') return;
+        claims[sp] = (claims[sp] || 0) + 1;
+      });
     });
   });
   CARD_DEFS.filter(function (d) { return d.isEnvironment; }).forEach(function (env) {
@@ -5717,11 +5727,32 @@ test('Every environment is claimed by exactly one event franchise', function () 
   if (typeof SUMMON_TOKEN_DEFS !== 'undefined') SUMMON_TOKEN_DEFS.forEach(function (d) { known[d.name] = true; });
   ['MC Ballyhoo', 'Shadow Man', 'Apothicon Rift'].forEach(function (n) { known[n] = true; });
   EVENT_FRANCHISES.forEach(function (fr) {
-    (fr.members || []).forEach(function (m) {
-      if (m.charAt(0) === '@') return;
-      assert(known[m], fr.title + ' names a real member: ' + m);
+    (fr.events || []).forEach(function (ev) {
+      assert(known[ev.name], fr.title + ' names a real event: ' + ev.name);
+      (ev.spawns || []).forEach(function (sp) {
+        if (sp.charAt(0) === '@') return;   // @candies / @wonders expand at render
+        assert(known[sp], fr.title + '/' + ev.name + ' releases something real: ' + sp);
+      });
     });
   });
+});
+
+test('The T-Rex freezes an enemy on every move, not just its own hunt', function () {
+  var G = freshGame();
+  var rex = place(G, 'T-Rex', 'player', 0);
+  var a = place(G, 'Hulk', 'ai', 3);
+  var b = place(G, 'Nightwing', 'ai', 4);
+  assertEq(!!a.isFrozen, false, 'nothing frozen to start');
+  assertEq(!!b.isFrozen, false, 'nothing frozen to start');
+  // moveCard is the engine's own relocation path — the same one a Bifrost or a
+  // Magneto pull uses — so this proves the hook fires for moves the T-Rex did
+  // not initiate, which is what its text claims.
+  G.moveCard(rex, 0, 1);
+  var frozen = [a, b].filter(function (c) { return !!c.isFrozen; });
+  assertEq(frozen.length, 1, 'exactly one enemy caught the roar');
+  // And it is spawn-only — it arrives from the Enclosure, never from a draft.
+  assertEq(cardByName('T-Rex')._spawnOnly, true, 'T-Rex is spawn-only');
+  assertEq(cardByName('Enclosure')._spawnOnly, true, 'Enclosure is spawn-only');
 });
 
 // ============================================================

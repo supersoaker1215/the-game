@@ -47634,3 +47634,25 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   border-radius: 2px;
   padding: 1px 6px;
 }
+
+/* Two tiers inside a franchise: the EVENT that gets rolled, then what it
+   releases. The name line carries the relationship so the grid underneath does
+   not have to encode it in position alone. */
+.enc-ev { display: flex; flex-direction: column; gap: 8px; }
+.enc-ev + .enc-ev { margin-top: 6px; }
+.enc-ev-name {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px;
+  margin: 0;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px; font-weight: 700; letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(127, 208, 255, 0.95);
+}
+.enc-ev-arrow {
+  font-weight: 400; letter-spacing: 0.10em;
+  color: rgba(198, 208, 219, 0.55);
+}
+.enc-ev-spawn {
+  font-style: normal; font-weight: 600;
+  color: rgba(233, 196, 106, 0.95);
+}

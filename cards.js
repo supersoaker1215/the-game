@@ -117,6 +117,10 @@ const CARD_DEFS = [
     _spawnOnly: true,
     abilities: [],
     desc: "While Active: The first enemy card to die in this lane rises on your side as a (2/2), as if newly played. An ally in that lane moves to an empty lane to make room. Game Over is then spent." },
+  { name: "Enclosure", cost: 2, attack: 0, health: 1, type: "environment",
+    _spawnOnly: true,
+    abilities: [],
+    desc: "Each Turn: Pay 1 Energy to keep the gate shut, or skip \u2014 skip once and the T-Rex is released here. An ally in that lane moves to an empty lane \u2014 with no empty lane it is destroyed and the T-Rex adds its stats." },
   { name: "Wetlands", cost: 2, attack: 0, health: 1, type: "environment",
     _spawnOnly: true,
     isEnvironment: true,
@@ -319,6 +323,10 @@ const CARD_DEFS = [
     desc: "When Played: Freeze 1 the enemy opposite. Add 2 to your Block Meter. While Active: When Wonder Woman's attack lands on an enemy card, deal (ATK−1) to 1 chained enemy." },
 
   // ==================== COST 5 ====================
+  { name: "T-Rex", cost: 5, attack: 3, health: 7, type: "scifi",
+    _spawnOnly: true,
+    abilities: ["Armor 1", "Hunt", "Overdrive"],
+    desc: "While Active: Each time the T-Rex moves to another lane, Freeze a random enemy." },
   { name: "Spinosaurus", cost: 5, attack: 4, health: 6, type: "scifi",
     _spawnOnly: true,
     // "Spawn Only" dropped from the BADGE list only — _spawnOnly above is the
@@ -541,29 +549,42 @@ const CARD_DEFS = [
 // cards). Names resolve against all of them at render time, so nothing here
 // has to know where a member lives.
 const EVENT_FRANCHISES = [
+  // AN EVENT IS THE THING THAT GETS ROLLED. The monsters are what come OUT of
+  // one, not alternatives to it — owner: "jurassic park is 2 events, the
+  // wetlands or enclosure, the cards spawn from there ... same with IT its 1
+  // event that spawns pennywise. Mario party is 1 because MC is the event that
+  // gives cards, there's not another event."
+  //
+  // The first draft of this list had it flat, which counted Pennywise as a
+  // second IT event and made a one-outcome franchise look like a two-outcome
+  // one. Depth is the rarity dial, so getting that wrong does not just misread
+  // in the codex — it would have made the roll itself wrong.
   { key: 'jurassic', title: 'Jurassic Park',
-    blurb: 'The habitat holds, or it does not.',
-    members: ['Wetlands', 'Spinosaurus'] },
+    blurb: 'Two ways to lose control of the park.',
+    events: [
+      { name: 'Wetlands',  spawns: ['Spinosaurus'] },
+      { name: 'Enclosure', spawns: ['T-Rex'] },
+    ] },
   { key: 'jaws', title: 'Jaws',
     blurb: 'Something is already in the water.',
-    members: ['Open Water', 'Jaws'] },
+    events: [ { name: 'Open Water', spawns: ['Jaws'] } ] },
   { key: 'elmstreet', title: 'A Nightmare on Elm Street',
     blurb: 'The fire below never quite went out.',
-    members: ['Boiler Room', 'Freddy Krueger'] },
+    events: [ { name: 'Boiler Room', spawns: ['Freddy Krueger'] } ] },
   { key: 'it', title: 'IT',
     blurb: 'Everything down here floats.',
-    members: ['Sewers', 'Pennywise'] },
+    events: [ { name: 'Sewers', spawns: ['Pennywise'] } ] },
   { key: 'saw', title: 'Saw',
     blurb: 'He does not kill anyone. He gives them a choice.',
-    members: ['Jigsaw', 'The Bathroom', 'Game Over'] },
+    events: [ { name: 'Jigsaw', spawns: ['The Bathroom', 'Game Over'] } ] },
   { key: 'interstellar', title: 'Interstellar',
     blurb: 'A tide you can pay to hold back, for as long as you can afford it.',
-    members: ['Gargantua'] },
+    events: [ { name: 'Gargantua', spawns: [] } ] },
   { key: 'marioparty', title: 'Mario Party',
     blurb: 'Everybody gets a candy. Nobody gets the same one.',
-    members: ['MC Ballyhoo', '@candies'] },
+    events: [ { name: 'MC Ballyhoo', spawns: ['@candies'] } ] },
   { key: 'zombies', title: 'Call of Duty: Zombies',
     blurb: 'Four challenges, named up front, paid out later.',
-    members: ['Shadow Man', 'Apothicon Rift', '@wonders'] },
+    events: [ { name: 'Shadow Man', spawns: ['Apothicon Rift', '@wonders'] } ] },
 ];
 if (typeof window !== 'undefined') window.EVENT_FRANCHISES = EVENT_FRANCHISES;

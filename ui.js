@@ -17651,16 +17651,30 @@ const UI = {
       addAll(SUMMON_TOKENS, 'card');
       const CANDIES = (typeof CANDY_DEFS  !== 'undefined' ? CANDY_DEFS  : []).map(d => d.name);
       const WONDERS = (typeof WONDER_DEFS !== 'undefined' ? WONDER_DEFS : []).map(d => d.name);
-      franchises = ((typeof EVENT_FRANCHISES !== 'undefined') ? EVENT_FRANCHISES : []).map(fr => {
-        const names = [];
-        (fr.members || []).forEach(m => {
-          if (m === '@candies')      names.push.apply(names, CANDIES);
-          else if (m === '@wonders') names.push.apply(names, WONDERS);
-          else names.push(m);
+      // AN EVENT IS WHAT GETS ROLLED; ITS SPAWNS ARE WHAT COME OUT OF IT.
+      // Jurassic Park is two events (Wetlands, Enclosure) that between them
+      // release two monsters — not four peers. Flattening the two tiers, which
+      // this did in its first form, counted Pennywise as a second IT event and
+      // made a one-outcome franchise look like a two-outcome one.
+      const expand = (list) => {
+        const out = [];
+        (list || []).forEach(m => {
+          if (m === '@candies')      out.push.apply(out, CANDIES);
+          else if (m === '@wonders') out.push.apply(out, WONDERS);
+          else out.push(m);
         });
-        return { fr, defs: names.map(n => encIndex[n]).filter(Boolean) };
-      }).filter(g => g.defs.length);
-      rawPool = franchises.reduce((acc, g) => acc.concat(g.defs), []);
+        return out;
+      };
+      franchises = ((typeof EVENT_FRANCHISES !== 'undefined') ? EVENT_FRANCHISES : []).map(fr => ({
+        fr,
+        events: (fr.events || []).map(ev => ({
+          name: ev.name,
+          def: encIndex[ev.name] || null,
+          spawns: expand(ev.spawns).map(n => encIndex[n]).filter(Boolean),
+        })).filter(ev => ev.def),
+      })).filter(g => g.events.length);
+      rawPool = franchises.reduce((acc, g) =>
+        acc.concat(g.events.reduce((a, ev) => a.concat([ev.def], ev.spawns), [])), []);
     }
     else if (isTricks)                   rawPool = (typeof TRICK_DEFS !== 'undefined' ? TRICK_DEFS : []);
     else if (section === 'summons')      rawPool = CARD_DEFS.filter(c => c._spawnOnly).concat(SUMMON_TOKENS);
@@ -17751,20 +17765,38 @@ const UI = {
         // a franchise with nothing left after a search drops out entirely
         // instead of leaving an empty heading behind.
         const keep = new Set(filtered.map(d => d.name));
+        const chrome = (d) => d._encLayout === 'card'
+          ? this.makeCardEl(this._synthFace(d, { descOverride: d.desc || '' }), true, 'player',
+              { static: true, extraClass: 'enc-card' }).outerHTML
+          : this.makeTrickEl(d, { extraClass: 'enc-trick' });
         body = franchises.map(g => {
-          const rows = g.defs.filter(d => keep.has(d.name));
-          if (!rows.length) return '';
-          const cards = rows.map(d => d._encLayout === 'card'
-            ? this.makeCardEl(this._synthFace(d, { descOverride: d.desc || '' }), true, 'player',
-                { static: true, extraClass: 'enc-card' }).outerHTML
-            : this.makeTrickEl(d, { extraClass: 'enc-trick' })).join('');
+          const evs = g.events.map(ev => {
+            const spawns = ev.spawns.filter(d => keep.has(d.name));
+            const showEvent = keep.has(ev.def.name);
+            // A search that matches only the monster still shows the event that
+            // releases it, because "Pennywise" is how someone will look for the
+            // Sewers — but an event nothing matched drops out entirely.
+            if (!showEvent && !spawns.length) return '';
+            const releases = ev.spawns.map(d => d.name).join(', ');
+            return '<div class="enc-ev">'
+                 +   '<h3 class="enc-ev-name">' + ev.name
+                 +     (releases ? '<span class="enc-ev-arrow">releases</span>'
+                                 + '<em class="enc-ev-spawn">' + releases + '</em>' : '')
+                 +   '</h3>'
+                 +   '<div class="db-grid encyc-grid enc-fr-grid">'
+                 +     chrome(ev.def) + spawns.map(chrome).join('')
+                 +   '</div>'
+                 + '</div>';
+          }).join('');
+          if (!evs) return '';
+          const n = g.events.length;
           return '<section class="enc-fr">'
                + '<header class="enc-fr-head">'
                +   '<h2 class="enc-fr-title">' + g.fr.title + '</h2>'
                +   (g.fr.blurb ? '<p class="enc-fr-blurb">' + g.fr.blurb + '</p>' : '')
-               +   '<span class="enc-fr-count">' + rows.length + '</span>'
+               +   '<span class="enc-fr-count">' + n + (n === 1 ? ' event' : ' events') + '</span>'
                + '</header>'
-               + '<div class="db-grid encyc-grid enc-fr-grid">' + cards + '</div>'
+               + evs
                + '</section>';
         }).join('');
         if (!body) body = emptyBody;
