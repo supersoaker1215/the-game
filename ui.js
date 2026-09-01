@@ -22908,11 +22908,37 @@ const UI = {
     // it to 8px so eight lanes can fit, and a solver that still assumed 20
     // would leave 96px of the board unused on exactly the screens that need it.
     const laneChrome = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lane-chrome')) || 20;
-    const across = window.innerWidth
+    const laneGap = (parseFloat(getComputedStyle(board).gap) || 0);
+    const sectionPadR = num(section, 'paddingRight');
+    let across = window.innerWidth
                  - num(board, 'paddingLeft', 'paddingRight')
                  - num(section, 'paddingLeft', 'paddingRight')
-                 - (parseFloat(getComputedStyle(board).gap) || 0) * (lanes - 1)
+                 - laneGap * (lanes - 1)
                  - 8;
+
+    // THE DECISION COLUMN IS SPENT WIDTH, exactly like a lane.
+    //
+    // #classic-decision is absolutely positioned against the right edge, so it
+    // is invisible to this solve — which is how it ended up sitting 60px inside
+    // lane 6 at 1374x987 and burying lane 6 outright at 1100x1000. Its width is
+    // decided HERE now and published as --decision-w, so the panel and the
+    // lanes are sized by one number instead of two that never met.
+    //
+    // The clamp is the authored one lifted out of the stylesheet: a fixed 286px
+    // is one width for a 1024 screen and a 2560 one, so it tracks the viewport
+    // but stops readable at the bottom and stops greedy at the top.
+    const decInset = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--decision-inset')) || 10;
+    const decGap   = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--decision-gap')) || 12;
+    const decW = Math.round(Math.max(232, Math.min(330, window.innerWidth * 0.21)));
+    let reserve = document.body.classList.contains('board-v2') ? 0 : (decW + decInset + decGap);
+    // ...UNLESS THE SCREEN CANNOT AFFORD IT. On a 390px phone the reserve is
+    // 254px of 390, which would leave 11px lanes — the panel is an overlay
+    // there, not a column, and this rule must not quietly destroy the board to
+    // honour a layout that size never had. 100 is the same readability floor
+    // the solve uses below; if paying the reserve would push under it, the
+    // reserve is not paid and the panel goes back to floating over the board.
+    if (reserve && (across - reserve) / lanes - laneChrome < 100) reserve = 0;
+    across -= reserve;
     w = Math.min(w, across / lanes - laneChrome);
 
     // 140 is the authored card width — the floor, so this can only ever GROW
@@ -22977,6 +23003,25 @@ const UI = {
     // 50%-opacity lines, so it draws twice as wide and half as bright. That is
     // the physical reason the line work reads soft rather than sharp.
     area.style.setProperty('--board-card-h', Math.round(bw * 182 / 92) + 'px');
+    // ...AND HOW FAR THE BOARD STANDS OFF CENTRE so the panel clears the last
+    // lane. Reserving the width above is only half of it: the board is CENTRED,
+    // so a board that fits in the left track still gets centred straight back
+    // under the panel. The shift is the deficit and nothing more —
+    //     shift = reserve - (whatever gutter centring already left)
+    // so a wide window, where the gutter is already bigger than the panel,
+    // shifts by zero and the board stays exactly centred. It only slides on the
+    // shapes that actually collide. (Measured: 0px at 1600x800, 56px at
+    // 1200x900, 72px at 1374x987, 113px at 1100x1000.)
+    //
+    // It cannot overrun the left edge: the reserve above caps the board at
+    // `inner - reserve - 8`, which forces gutter >= (reserve + 8) / 2, and that
+    // bounds shift at reserve/2 - 12 against a left gutter of at least
+    // reserve/2 + 12. The two are the same arithmetic, so they cannot disagree.
+    const laidBoardW = lanes * (bw + laneChrome) + laneGap * (lanes - 1);
+    const gutter = Math.max(0, (window.innerWidth - num(section, 'paddingLeft', 'paddingRight') - laidBoardW) / 2);
+    area.style.setProperty('--decision-w', decW + 'px');
+    area.style.setProperty('--decision-shift',
+      (reserve ? Math.max(0, Math.round(reserve - gutter - sectionPadR)) : 0) + 'px');
     // The lanes just moved, so anything pinned to them is now stale. The
     // forecast strip measured its cells during the render pass, which runs
     // BEFORE this solve — that is why its cells were sized to the pre-fit lane

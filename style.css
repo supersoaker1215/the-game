@@ -47778,11 +47778,18 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
      viewport's right edge at every size — measured at 1400x700 its right edge
      WAS 1400. A few pixels of air is the difference between a panel and a
      thing that has fallen off the screen. */
-  top: 6px; right: 10px;
+  top: 6px; right: var(--decision-inset, 10px);
   /* WIDTH FOLLOWS THE VIEWPORT. A fixed 286px is one width for a 1024 screen
      and a 2560 one; clamp keeps it readable on a small screen without eating
      the board, and lets a wide screen give the choices room. */
-  width: clamp(232px, 21vw, 330px);
+  /* THE WIDTH IS SOLVED IN JS, NOT HERE — because the board has to know it.
+     A panel sized only by CSS is a panel the layout cannot see: it sat on top
+     of lane 6 (measured 60px into it at 1374x987, a whole lane at 1100x1000)
+     because nothing that decides where the lanes go had any idea how wide this
+     was. _fitBoardToViewport now writes --decision-w and reserves that column,
+     so the clamp below is only the value of the very first frame, before the
+     solver has run. Keep the two in step. */
+  width: var(--decision-w, clamp(232px, 21vw, 330px));
   /* BOUNDED BY THE VIEWPORT AS WELL AS BY ITS CONTAINER. At 1180x620 the
      board-section itself runs 69px past the bottom of the screen, and an
      absolutely-positioned child capped only at `100% of the section` went with
@@ -48045,4 +48052,46 @@ body:not(.board-v2) .trick-reveal .trick-reveal-card {
   width: 13px;
   height: 13px;
   display: block;
+}
+
+/* ===========================================================================
+   THE DECISION PANEL GETS ITS OWN COLUMN (2026-09-01)
+   Owner, circling the panel where it overlapped lane 6: "the decision cannot
+   cross into the lane there thats a rule."
+
+   It could, and did, because the panel and the board were sized by two things
+   that never spoke. The panel is `position: absolute; right: 10px` with a
+   viewport-relative width; the board is a fixed-width flex row CENTRED in the
+   full section, its width solved by _fitBoardToViewport from the leftover
+   HEIGHT. So the collision is an ASPECT-RATIO bug, not a width bug: the taller
+   and narrower the window, the wider the solver makes the board and the less
+   gutter it leaves. Measured before this change:
+
+       1600x800   board 740  ->  90px of clear air   (fine, by luck)
+       1200x900   board 764  ->  44px INTO lane 6
+       1374x987   board 896  ->  60px INTO lane 6
+       1100x1000  board 908  -> 146px — lane 6 entirely buried
+
+   Capping the panel to whatever gutter happened to be left was the obvious fix
+   and the wrong one: at 1100x1000 that gutter is 96px, and a 96px panel cannot
+   hold a card choice. So the reserve goes the other way — the solver treats
+   this column as occupied space, exactly like the lanes, and the board is
+   bounded by what is left. See _fitBoardToViewport for the arithmetic.
+
+   The shift is applied EVERY frame, decision open or not. A board that slid
+   sideways when a prompt appeared would move the very lanes the prompt is
+   asking you to click, and would leave every rect-measured overlay (the
+   forecast strip, the hover arrows, the lane FX stage) drawing against stale
+   geometry mid-transition. A fixed asymmetry is cheaper than a moving one.
+
+   `left` rather than `transform`: .board already carries position:relative, so
+   this costs no new containing block, and unlike a transform it cannot re-anchor
+   a fixed-position descendant or land text on a half pixel.
+   =========================================================================== */
+:root {
+  --decision-inset: 10px;   /* air between the panel and the screen edge */
+  --decision-gap: 12px;     /* air between the panel and the last lane */
+}
+body.in-match:not(.board-v2) .board {
+  left: calc(0px - var(--decision-shift, 0px));
 }
