@@ -88,6 +88,13 @@ const _aiKillPicker = (cards, damage) => {
 //   5. announce
 function releaseHabitatMonster(G, o) {
   const owner = o.owner;
+  // WHICH SIDE THE MONSTER JOINS IS NOT THE SIDE THAT OWNS THE HABITAT.
+  // For four of the five it is the same thing — Jaws, Pennywise, Freddy and
+  // Spinosaurus all surface for whoever put the habitat down. The Enclosure is
+  // the exception on purpose: it is a toll, not a nursery, so the thing that
+  // gets out is the OPPONENT's problem. `into` carries that; everything else in
+  // here still belongs to `owner`, including the env slot being handed back.
+  const side = o.into || owner;
   const laneIdx = o.laneIdx;
   const lane = G.state && G.state.lanes && G.state.lanes[laneIdx];
   if (!lane) return;
@@ -97,7 +104,11 @@ function releaseHabitatMonster(G, o) {
   if (o.clearEnv && lane._env && lane._env[owner] === o.habitat) lane._env[owner] = null;
   const def = (typeof CARD_DEFS !== 'undefined')
     ? CARD_DEFS.find(d => d.name === o.name) : null;
-  const allyInLane = lane[owner];
+  // The card that has to make room is the one on the MONSTER's side of the
+  // lane, which is what "an ally in that lane" means from the monster's point
+  // of view — the same reading for all five, whichever side that turns out
+  // to be.
+  const allyInLane = lane[side];
 
   const finishSpawn = (atk, hp) => {
     // A DEAD OCCUPANT STILL HOLDS THE SLOT. handleDeath defers clearing to
@@ -105,10 +116,10 @@ function releaseHabitatMonster(G, o) {
     // so the absorbed card is often still standing here — and summonCard bails
     // on an occupied lane. Sewers and Wetlands both hit this before it was
     // understood.
-    if (lane[owner] && lane[owner].currentHealth <= 0) lane[owner] = null;
-    const before = G.state.lanes[laneIdx][owner];
-    G.summonCard(owner, laneIdx, o.name, o.cost || 0, atk, hp, o.abilities || [], def);
-    const born = G.state.lanes[laneIdx][owner];
+    if (lane[side] && lane[side].currentHealth <= 0) lane[side] = null;
+    const before = G.state.lanes[laneIdx][side];
+    G.summonCard(side, laneIdx, o.name, o.cost || 0, atk, hp, o.abilities || [], def);
+    const born = G.state.lanes[laneIdx][side];
     // VERIFY BEFORE STAMPING. Writing the monster's stats unconditionally is how
     // Sewers once handed Pennywise's numbers to whatever card was already there.
     if (!born || born === before || born.name !== o.name) {
@@ -125,9 +136,9 @@ function releaseHabitatMonster(G, o) {
   };
 
   if (allyInLane && allyInLane.currentHealth > 0) {
-    const openLanes = G.getOpenLanes(owner).filter(l => l !== laneIdx);
+    const openLanes = G.getOpenLanes(side).filter(l => l !== laneIdx);
     if (openLanes.length > 0) {
-      G.promptLaneChoice(owner, openLanes,
+      G.promptLaneChoice(side, openLanes,
         `${o.name} — Move ${allyInLane.name}`,
         `${o.name} takes this lane. Move ${allyInLane.name} to another lane.`,
         (targetLane) => {
@@ -136,14 +147,14 @@ function releaseHabitatMonster(G, o) {
           // on the board unchecked resurrects a corpse.
           const stillThere = allyInLane
             && allyInLane.currentHealth > 0
-            && lane[owner] === allyInLane;
+            && lane[side] === allyInLane;
           if (!stillThere) {
             G.log(`  [DISPLACE SKIPPED] ${allyInLane ? allyInLane.name : 'the ally'} did not survive to be moved.`);
             finishSpawn(o.atk, o.hp);
             return;
           }
-          lane[owner] = null;
-          G.state.lanes[targetLane][owner] = allyInLane;
+          lane[side] = null;
+          G.state.lanes[targetLane][side] = allyInLane;
           G.log(`  [DISPLACED] ${allyInLane.name} moved to lane ${targetLane + 1} to make room for ${o.name}.`);
           G.checkLaneTrap(allyInLane, targetLane);
           if (allyInLane.onMoved) allyInLane.onMoved(G, allyInLane, targetLane);
@@ -158,7 +169,7 @@ function releaseHabitatMonster(G, o) {
       // does not reliably clear it — see finishSpawn).
       allyInLane.currentHealth = 0;
       G.handleDeath(allyInLane, laneIdx, null);
-      if (lane[owner] === allyInLane) lane[owner] = null;
+      if (lane[side] === allyInLane) lane[side] = null;
       finishSpawn(o.atk + extraAtk, o.hp + extraHp);
     }
   } else {
@@ -7860,11 +7871,19 @@ const CARD_ABILITIES = {
   // ============================================================
   // ---- THE ENCLOSURE ----------------------------------------
   // ============================================================
-  // The only habitat with a PRICE rather than a trigger. Boiler Room waits for
-  // a burning card to die, Sewers and Open Water wait for someone to walk in or
-  // fall over, Wetlands waits for a Block Meter — every one of them is a clock
-  // you cannot stop. The gate is the opposite: it opens the moment you stop
-  // paying, so the round it breaks is a decision rather than an event.
+  // The only habitat with a PRICE rather than a trigger, and the only one whose
+  // monster is not a reward. Boiler Room waits for a burning card to die,
+  // Sewers and Open Water wait for someone to walk in or fall over, Wetlands
+  // waits for a Block Meter — every one of them is a clock you cannot stop, and
+  // every one of them hands the thing that comes out to the side that owns the
+  // habitat. The gate is the opposite on both counts: it opens the moment you
+  // stop paying, and what gets out is pointed at YOU.
+  //
+  // Owner: "welcome to jurassic park event where you have to give energy to the
+  // park, if you dont a T rex will spawn against you" — and, on reviewing the
+  // first pass which followed the four siblings instead: "it should be flipped."
+  // So `into` is the opponent: the paddock is the gate owner's, the T-Rex is
+  // their problem.
   //
   // It rides the SAME upkeep queue as Gargantua (state._pendingUpkeep, drained
   // by _resolveUpkeepPrompts before phase 1), which is what makes "pay 1 Energy
@@ -7880,26 +7899,20 @@ const CARD_ABILITIES = {
         // Its own copy. The resolver's defaults are Gargantua's, and inheriting
         // them had this gate asking "Pay 1 Energy to pull all enemies 1 lane
         // closer, or skip."
-        payLabel: 'Pay 1 Energy',
+        payLabel: 'Pay the Park',
         payDesc: 'The gate holds for another round — nothing gets out.',
-        skipLabel: 'Open the Gate',
-        skipDesc: 'Stop paying and the T-Rex is released into this lane.',
-        promptDesc: 'Pay 1 Energy to keep the gate shut, or skip and let the T-Rex out.',
-        // THE BOT OPENS IT. The resolver's default is "always pay if you can
-        // afford it", which is correct for Gargantua and made this card
-        // impossible: energy resets every round, so the gate could always be
-        // held and the T-Rex came out zero times in 400 measured matches. The
-        // release is the card; a branch that never runs is not a card.
-        //
-        // Which side the T-Rex joins is the ONE balance judgement here, and it
-        // follows the printed text and its four sibling habitats — Jaws,
-        // Pennywise, Freddy and Spinosaurus all surface on the side that owns
-        // the habitat, and the Enclosure's displacement clause is written word
-        // for word like theirs. The original brief said "if you don't [pay] a
-        // T-Rex will spawn against you", which is the opposite; flipping it is
-        // one argument to _release plus a re-word of the card.
-        aiPrefer: 'decline',
-        onPay() { G.log('  [ENCLOSURE] The gate holds for another round.'); },
+        skipLabel: 'Refuse',
+        skipDesc: 'The gate opens and the T-Rex is released AGAINST you.',
+        promptDesc: 'Pay 1 Energy to keep the gate shut, or refuse and let the T-Rex out against you.',
+        // NO aiPrefer. The resolver's default — pay while you can afford it — is
+        // the right play now that the T-Rex is a punishment rather than a prize,
+        // and it is what a bot should do with a toll. It does mean the gate only
+        // opens when a HUMAN refuses or a side is genuinely broke: energy is
+        // refilled at the top of the round (game.js, `state[o].currency = cur`)
+        // BEFORE upkeep runs, so a bot can always find the 1. That is the card
+        // working as written, not a branch going unreached — the decision was
+        // always the player's.
+        onPay() { G.log('  [ENCLOSURE] The park is paid. The gate holds.'); },
         onDecline() {
           // SKIP ONCE AND IT IS OUT. The latch is set before the release because
           // the release can prompt (ally displacement) and a second decline
@@ -7909,7 +7922,7 @@ const CARD_ABILITIES = {
           const laneIdx = G.findCardLane(self);
           if (laneIdx < 0) return;
           self._encReleased = true;
-          G.log('  [ENCLOSURE] Nobody pays. The gate swings open.');
+          G.log('  [ENCLOSURE] The park goes unpaid. The gate swings open.');
           AB._release(G, self.owner, laneIdx, self);
         },
       });
@@ -7917,6 +7930,9 @@ const CARD_ABILITIES = {
     _release(G, owner, laneIdx, habitat) {
       releaseHabitatMonster(G, {
         owner, laneIdx, habitat,
+        // AGAINST the side that stopped paying — the one thing that separates
+        // this habitat from the other four.
+        into: G.opponent(owner),
         // REPLACED, NOT KEPT. Its own text says the T-Rex is released HERE and
         // says nothing about the paddock outliving him — unlike Wetlands, which
         // spells out that the habitat remains until Spinosaurus dies.
@@ -7925,8 +7941,9 @@ const CARD_ABILITIES = {
         name: 'T-Rex', cost: 5, atk: 3, hp: 7,
         abilities: ['Armor 1', 'Hunt', 'Overdrive'],
         onSpawned() {
+          G.log(`  [ENCLOSURE] The T-Rex is loose on ${G.seatLabel ? G.seatLabel(G.opponent(owner)) : 'the other'} side — against the gate that would not pay.`);
           if (typeof UI !== 'undefined' && UI.emitFX) {
-            try { G.emitFX('envReveal', { lane: laneIdx, owner, name: 'T-Rex' }); } catch (e) {}
+            try { G.emitFX('envReveal', { lane: laneIdx, owner: G.opponent(owner), name: 'T-Rex' }); } catch (e) {}
           }
         },
       });

@@ -5846,7 +5846,10 @@ test('A habitat event waits for space instead of being spent on it', function ()
   assertEq(G.state._habitat.fired, true, 'with two lanes clear it opens');
 });
 
-test('The Enclosure lets the T-Rex out the round nobody pays', function () {
+test('The Enclosure releases the T-Rex AGAINST whoever stopped paying', function () {
+  // Owner: "welcome to jurassic park event where you have to give energy to the
+  // park, if you dont a T rex will spawn against you" — and, on the first pass
+  // following its four sibling habitats instead: "it should be flipped."
   var G = freshGame();
   var gate = G._placeEventEnvironment('player', 2, 'Enclosure');
   assert(gate, 'the gate is standing');
@@ -5859,75 +5862,69 @@ test('The Enclosure lets the T-Rex out the round nobody pays', function () {
   assertEq(!!gate._encReleased, false, 'paid — the gate holds');
   assertEq(G.state.lanes[2]._env.player, gate, 'and the paddock is still there');
 
-  // Skipping once lets it out.
+  // Refusing once lets it out — on the OTHER side.
   G.state._pendingUpkeep = [];
   gate.onTurnStart(G, gate);
   G.state._pendingUpkeep[0].onDecline();
-  assertEq(gate._encReleased, true, 'skipped — the gate opens');
-  var rex = G.state.lanes[2].player;
-  assert(rex && rex.name === 'T-Rex', 'the T-Rex takes the lane');
+  assertEq(gate._encReleased, true, 'refused — the gate opens');
+  assertEq(G.state.lanes[2].player, null, 'it does NOT join the side that refused');
+  var rex = G.state.lanes[2].ai;
+  assert(rex && rex.name === 'T-Rex', 'it takes the lane against them');
+  assertEq(rex.owner, 'ai', 'and it fights for the other side');
   assertEq(rex.attack, 3, 'at its printed attack');
   assertEq(rex.currentHealth, 7, 'and its printed health');
-  assertEq(G.state.lanes[2]._env.player, null, 'the paddock is replaced, not kept');
+  assertEq(G.state.lanes[2]._env.player, null, 'the paddock is spent, not kept');
 
-  // And a second decline cannot let out a second one.
+  // And a second refusal cannot let out a second one.
   G.state._pendingUpkeep = [];
   gate.onTurnStart(G, gate);
   assertEq(G.state._pendingUpkeep.length, 0, 'a spent gate stops asking');
 });
 
-test('An optional upkeep asks in its OWN words, and the bot can decline', function () {
+test('An optional upkeep asks in its OWN words', function () {
   // Gargantua was the only optional upkeep in the game when the resolver was
   // written, so every string in it is his — a second one inherited "Pay 1
-  // Energy to pull all enemies 1 lane closer" for a paddock gate. And "always
-  // pay if you can afford it" made the Enclosure unreachable: energy resets
-  // every round, so the gate could always be held.
+  // Energy to pull all enemies 1 lane closer" for a paddock gate.
   var G = freshGame();
   var gate = G._placeEventEnvironment('ai', 1, 'Enclosure');
-  G.state.ai.currency = 5;                 // it can comfortably afford to hold
+  G.state.ai.currency = 5;
 
   G.state._pendingUpkeep = [];
   gate.onTurnStart(G, gate);
   var entry = G.state._pendingUpkeep[0];
   assert(entry.promptDesc.indexOf('gate') >= 0, 'the gate asks about the gate');
   assert(entry.promptDesc.indexOf('lane closer') < 0, 'and not about Gargantua\'s pull');
-  assertEq(entry.aiPrefer, 'decline', 'the bot is told to open it');
 
+  // A toll gets paid while it can be afforded — the T-Rex is a punishment, so
+  // buying it off is the right play for a bot and the decision stays a human's.
   var done = false;
   G._resolveUpkeepPrompts(function () { done = true; });
   assertEq(done, true, 'the queue drains');
-  assertEq(gate._encReleased, true, 'the bot opened the gate despite being able to pay');
-  assertEq(G.state.ai.currency, 5, 'and spent nothing doing it');
-  var rex = G.state.lanes[1].ai;
-  assert(rex && rex.name === 'T-Rex', 'the T-Rex is out');
-
-  // Gargantua is untouched: no aiPrefer, so the bot still pays.
-  var H = freshGame();
-  var garg = H._placeEventEnvironment('ai', 4, 'Gargantua');
-  H.state.ai.currency = 3;
-  H.state._pendingUpkeep = [];
-  garg.onTurnStart(H, garg);
-  assertEq(H.state._pendingUpkeep[0].aiPrefer, undefined, 'Gargantua states no preference');
-  H._resolveUpkeepPrompts(function () {});
-  assertEq(H.state.ai.currency, 2, 'so the bot still pays his upkeep');
+  assertEq(!!gate._encReleased, false, 'the bot paid, so the gate holds');
+  assertEq(G.state.ai.currency, 4, 'and it paid exactly 1');
+  assertEq(G.state.lanes[1]._env.ai, gate, 'the paddock is still standing');
 });
 
-test('The Enclosure absorbs a trapped ally when there is nowhere to move it', function () {
+test('The T-Rex clears the lane it lands in, and eats what cannot move', function () {
+  // "An enemy already standing there moves to an empty lane — with no empty
+  // lane it is destroyed and the T-Rex adds its stats." The card that has to
+  // make room is the one on the side the T-Rex JOINS, which is the side that
+  // did NOT refuse.
   var G = freshGame();
   var gate = G._placeEventEnvironment('player', 0, 'Enclosure');
-  var ally = place(G, 'Hulk', 'player', 0);
-  // Fill every other lane on the player side so the ally has nowhere to go.
-  for (var i = 1; i < G.LANE_COUNT; i++) place(G, 'Nightwing', 'player', i);
-  var atk = ally.attack, hp = ally.currentHealth;
+  var sitting = place(G, 'Hulk', 'ai', 0);
+  // Fill every other lane on that side so it has nowhere to go.
+  for (var i = 1; i < G.LANE_COUNT; i++) place(G, 'Nightwing', 'ai', i);
+  var atk = sitting.attack, hp = sitting.currentHealth;
 
   G.state._pendingUpkeep = [];
   gate.onTurnStart(G, gate);
   G.state._pendingUpkeep[0].onDecline();
 
-  var rex = G.state.lanes[0].player;
+  var rex = G.state.lanes[0].ai;
   assert(rex && rex.name === 'T-Rex', 'the T-Rex still takes the lane');
-  assertEq(rex.attack, 3 + atk, 'it absorbs the ally attack');
-  assertEq(rex.currentHealth, 7 + hp, 'and the ally health');
+  assertEq(rex.attack, 3 + atk, 'it absorbs the attack');
+  assertEq(rex.currentHealth, 7 + hp, 'and the health');
 });
 
 test('The T-Rex freezes an enemy on every move, not just its own hunt', function () {

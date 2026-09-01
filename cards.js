@@ -129,7 +129,7 @@ const CARD_DEFS = [
     // `type` and nothing had ever placed it, so nothing had ever noticed.
     isEnvironment: true,
     abilities: [],
-    desc: "Each Turn: Pay 1 Energy to keep the gate shut, or skip \u2014 skip once and the T-Rex is released here. An ally in that lane moves to an empty lane \u2014 with no empty lane it is destroyed and the T-Rex adds its stats." },
+    desc: "Each Turn: Pay 1 Energy to keep the gate shut, or refuse — refuse once and the T-Rex is released AGAINST you, into this lane on the enemy side. An enemy already standing there moves to an empty lane — with no empty lane it is destroyed and the T-Rex adds its stats." },
   { name: "Wetlands", cost: 2, attack: 0, health: 1, type: "environment",
     _spawnOnly: true,
     isEnvironment: true,

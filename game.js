@@ -4797,16 +4797,13 @@ const Game = {
       const askText    = q.promptDesc || (optional
         ? 'Pay 1 Energy to pull all enemies 1 lane closer, or skip.'
         : 'Pay 1 Energy to keep it active, or let it collapse.');
-      // AND WHICH WAY THE BOT LEANS. "Always pay if you can afford it" is right
-      // for Gargantua, where paying is pure upside — and it made the Enclosure a
-      // card that could not happen: measured over 400 full matches, the gate
-      // opened ZERO times, because energy resets every round and the AI could
-      // always afford to hold it shut. A card whose entire text is what happens
-      // when you STOP paying needs the other branch to be reachable.
-      const aiDeclines = optional && q.aiPrefer === 'decline';
       if (!this.isHuman(owner)) {
-        if (aiDeclines) { if (q.onDecline) q.onDecline(); next(); return; }
-        // AI always auto-pays if it can afford.
+        // AI always auto-pays if it can afford. Correct for both optional
+        // upkeeps: Gargantua's pull is pure upside, and the Enclosure's toll
+        // buys off a T-Rex pointed at you. Note the consequence rather than a
+        // bug — energy is refilled at the top of the round, above, BEFORE this
+        // runs, so a bot can always find the 1 and its gate never opens on its
+        // own. The Enclosure's decision was always the human's to make.
         if (this.state[owner].currency >= 1) {
           this.state[owner].currency -= 1;
           if (queue[idx].onPay) queue[idx].onPay();
@@ -4856,12 +4853,10 @@ const Game = {
           }
           next();
         },
-        // The auto-pick when a human's clock runs out follows the same lean as
-        // the bot's, so an unanswered prompt resolves the way the card expects
-        // rather than always defaulting to paying.
-        (choices) => (aiDeclines
-          ? (choices.find(c => c._upkeepSkip) || choices[0])
-          : (choices.find(c => c._upkeepPay) || choices[0]))
+        // An unanswered prompt pays. Letting a timeout hand the opponent a T-Rex
+        // (or drop Gargantua's pull) would make the clock, not the player, the
+        // one deciding.
+        (choices) => choices.find(c => c._upkeepPay) || choices[0]
       );
     };
     processNext(0);
