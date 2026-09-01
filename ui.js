@@ -5987,6 +5987,8 @@ const UI = {
     // that release already has the card's own play cue on it.
     document.addEventListener('click', (e) => {
       if (this._suppressNextHandFlip) return;
+      // ...and the stamp, because the flag's 0ms clear races this listener.
+      if (this._dragEndedAt && Date.now() - this._dragEndedAt < 300) return;
       const el = e.target && e.target.closest && e.target.closest('.card, .trick-card');
       if (!el) return;
       if (this.sfx && this.sfx.playCardClick) this.sfx.playCardClick();
@@ -30579,6 +30581,14 @@ const UI = {
         // would turn the card over as a parting gift.
         UI._suppressNextHandFlip = true;
         setTimeout(() => { UI._suppressNextHandFlip = false; }, 0);
+        // A TIMESTAMP AS WELL AS THE FLAG. The flag is cleared on a 0ms
+        // timeout, which is a race with the click the browser is about to
+        // synthesise — the flip handler happens to win it, the card-click cue
+        // does not, so dragging a card made a click sound on release. (Owner:
+        // "there's like a sound when i drag a card, get rid of that.")
+        // Measured: nothing fires on pointerdown or during the moves; it is
+        // only the trailing click. A stamp cannot be raced.
+        UI._dragEndedAt = Date.now();
       }
     }, true);
   },
@@ -30980,6 +30990,25 @@ const UI = {
     // optional pitch slide. This is the atomic unit that every cue
     // is built from.
     voice(opts) {
+      // THE SECOND SYNTH SYSTEM, GATED BY THE SAME SWITCH.
+      // Owner: "still a high pitched sound when changing rounds."
+      //
+      // UI.sfx and UI.audio are two independent engines with their own context,
+      // master bus and primitives. Turning off UI.sfx._tone/_noise silenced
+      // every cue I knew about and left this one running — measured, a single
+      // round change still created 36 oscillators here, from _roundCue,
+      // cardDraw and trickSummon. _roundCue is the round-change sound itself.
+      //
+      // voice() is the only createOscillator in this object and its own comment
+      // says why that is enough: "the atomic unit that every cue is built
+      // from". chord() and melody() both call it, so this one guard covers the
+      // whole system. It reads UI.sfx.PROCEDURAL_CUES deliberately rather than
+      // keeping a flag of its own — one switch for all procedural audio, so
+      // turning it back on cannot half-revive the game.
+      try {
+        const sfx = this._ui && this._ui.sfx;
+        if (sfx && !sfx.PROCEDURAL_CUES) return;
+      } catch (e) {}
       const ctx = this._ensureCtx();
       if (!ctx || this._vol() === 0) return;
       const o = opts || {};
