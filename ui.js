@@ -2236,7 +2236,19 @@ const UI = {
       // explicitly below; everything else stays silent on hover unless
       // it gets its own file.
       hover:     null,
-      play:      null, // procedural cardPlay / cardPlayEnemy
+      // THE LANDING THUNK. Owner: "when a card lands in a lane sound." This is
+      // the slot for it — playCardSfx resolves `reg[event] ?? DEFAULT_CARD_SFX
+      // [event]`, so every card that has no play cue of its own now makes a
+      // physical sound as it hits the lane instead of falling through to the
+      // procedural cardPlay / cardPlayEnemy triad.
+      //
+      // A DEFAULT RATHER THAN A UNIVERSAL LAYER, and that is the same call this
+      // registry already makes one line up: the hover default is null because
+      // "a generic hover hum on every card was muddy". A card with its own
+      // voice line keeps it alone rather than getting a thunk mixed under it.
+      // Converted from the supplied .WAV — 155K of PCM for 1.8s, against 16K as
+      // mp3, and it is fetched on every first play of most cards in the game.
+      play:      'audio/cards/default-play.mp3',
       ability:   null, // procedural defaultAbility
       // Generic LEGO Luke "argh" — used for any card that doesn't have its
       // own death entry. Per-card overrides (Yoda, Anakin, Obi-Wan, ...)
