@@ -2270,7 +2270,18 @@ const UI = {
       freeze:      null,
       stun:        null,
       fear:        null,
-      mindControl: null,
+      // THE ONE GLOBAL THAT IS FILLED IN. Owner: "for any mind control ability
+      // once you select the ability to fire on a card this sound plays." It is
+      // set here rather than on a card because mindControlCard is the single
+      // door every one of them goes through — Gorilla Grodd, Luke Skywalker,
+      // the Mind Stone — so a global default covers all of them, and any card
+      // that later wants its own can still override it through CARD_SFX.effects
+      // without this changing.
+      //
+      // An OBJECT, not a bare path: the clip is 2.85s and playEffect's default
+      // cap is 1.5s, which would cut a hypnotic sweep in half. See the maxDur
+      // handling in playEffect below.
+      mindControl: { src: 'audio/effects/mind-control.mp3', maxDur: 3 },
       buff:        null,
       debuff:      null,
       summon:      null,
@@ -2318,10 +2329,18 @@ const UI = {
       // 2. Global default
       if (!file) file = this.EFFECT_SFX[effectName];
       if (file) {
+        // AN ENTRY MAY CARRY ITS OWN CAP. Both registries above already accept
+        // `{ src, maxDur }` for exactly this reason — a clip written as a
+        // sweep or a phrase is ruined by a cap set for a one-shot tick — and
+        // this path only understood a bare path, so a longer effect cue had no
+        // way to say so. Strings still work untouched.
+        let fileMax = null;
+        if (file && typeof file === 'object') { fileMax = file.maxDur; file = file.src; }
         // Effect SFX (fear, freeze, stun, damage, etc.) sit at the
         // 'effect' tier — 0.7× of base sfxVolume — so they layer
         // underneath play/voice marquee events.
-        const playOpts = Object.assign({ maxDur: 1.5, fadeIn: 100, fadeOut: 200, category: 'effect' }, opts || {});
+        const base = { maxDur: fileMax != null ? fileMax : 1.5, fadeIn: 100, fadeOut: 200, category: 'effect' };
+        const playOpts = Object.assign(base, opts || {});
         return this._playSample(file, playOpts);
       }
       // 3. Procedural fallback
