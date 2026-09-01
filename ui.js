@@ -1994,7 +1994,11 @@ const UI = {
       // Joker deathfall — 0.83s clip, plays on every Joker kill.
       'Joker':            { hover: { src: 'audio/cards/joker-hover.mp3', maxDur: 46, gain: 6.0 }, play: 'audio/cards/joker-play.mp3', death: 'audio/cards/joker-death.mp3' },
       // Poison Ivy death — 0.58s clip, plays on every Ivy kill.
-      'Poison Ivy':       { death: 'audio/cards/poison-ivy-death.mp3' },
+      // Two takes, cut to 3.5s each with a 0.3s fade so neither ends on a
+      // hard edge; _resolveSfxEntry picks one at random per play.
+      'Poison Ivy':       { death: 'audio/cards/poison-ivy-death.mp3',
+                            play: ['audio/cards/poison-ivy-play-02.mp3',
+                                   'audio/cards/poison-ivy-play-03.mp3'] },
       // Man-Bat death — 0.65s clip, plays on every Man-Bat kill.
       'Man-Bat':          { death: 'audio/cards/man-bat-death.mp3' },
       // Bane death — 0.58s clip, plays on every Bane kill.
@@ -4315,6 +4319,23 @@ const UI = {
     // both into `{ src, opts }` for _playSample.
     _resolveSfxEntry(entry) {
       if (!entry) return null;
+      // AN ARRAY IS A SET OF ALTERNATES. Owner: "have it so it's random which
+      // sound plays if there are multiple for a card." Handled here rather than
+      // in playCardSfx because this is the one function every registry entry
+      // passes through — CARD_SFX, DEFAULT_CARD_SFX, TRICK_SFX and the effect
+      // overrides all resolve through it — so every event on every card and
+      // trick (play, hover, death, ability, kill, spawn, attack) gets alternates
+      // at once, and a future registry inherits it without knowing about it.
+      //
+      // Math.random, NOT the engine's seeded rng: which take you hear is
+      // presentation, and drawing from the game's RNG here would advance it by a
+      // different number of steps depending on audio settings, desyncing replays
+      // and multiplayer. Entries stay mixed — a member may be a bare path or a
+      // { src, maxDur } object, because the recursion below re-resolves it.
+      if (Array.isArray(entry)) {
+        if (!entry.length) return null;
+        return this._resolveSfxEntry(entry[Math.floor(Math.random() * entry.length)]);
+      }
       if (typeof entry === 'string') return { src: entry, opts: null };
       if (typeof entry === 'object' && entry.src) {
         const opts = { maxDur: entry.maxDur };
@@ -15994,7 +16015,7 @@ const UI = {
         <div class="mm-section">
           <div class="mm-section-label">Tools</div>
           <div class="mm-grid mm-grid-section">
-            ${btn('mm-audio',   'Audio Audit',  'Per-card audio coverage + inline splicer',         SVG.settings, "UI.openAudioAudit()")}
+            ${btn('mm-audio',   'Sound Gallery','Every sound in the game, per card and per cue',    SVG.settings, "UI.openAudioAudit()")}
             ${btn('mm-gallery', 'Gallery Audit','Browse, crop + delete card art',                   SVG.decks,    "UI.openGalleryAudit()")}
             ${btn('mm-sandbox', 'Sandbox',      'Free-play with unlimited energy + spawn any card', SVG.settings, "UI.startSandbox()")}
             ${btn('mm-leaderboard', 'Leaderboard', 'Rename yourself + pick your favorite card',  SVG.stats,    "UI.openLeaderboard()")}
@@ -16037,7 +16058,7 @@ const UI = {
             ${metaBtn('mm-decks', 'My Decks', 'Build, edit, copy, or play your decks', SVG.decks, "Game.goToMyDecks()", `${_deckCount} built`)}
             ${metaBtn('mm-encyc', 'Codex',    'Every card and trick in the game',       SVG.codex, "UI.openEncyclopedia()", `${_codexCount} entries`)}
             ${btn('mm-stats',   'Stats',        'Card win rates and balance trends',                      SVG.stats,    "Game.goToStats()")}
-            ${btn('mm-tools',   'Tools',        'Leaderboard, Audio Audit, Gallery Audit + Sandbox',      SVG.settings, "UI.mmShowSub('tools')")}
+            ${btn('mm-tools',   'Tools',        'Leaderboard, Sound Gallery, Art Gallery + Sandbox',      SVG.settings, "UI.mmShowSub('tools')")}
           </div>
         </div>
         <aside id="mm-lb-rail" class="mm-lb-rail"></aside>${botbarHTML}`;
@@ -17074,6 +17095,53 @@ const UI = {
         src: 'audio/heal-hp.mp3',
         play: () => sfx._playSample('audio/heal-hp.mp3', { fadeIn: 0, fadeOut: 200, maxDur: 1.5 }),
       },
+      // THE IMPORTED CUES BELONG IN THE GALLERY TOO. These were added one at a
+      // time and none of them registered here, so the screen that exists to
+      // list every sound in the game was missing five of the handful that can
+      // actually be heard. Each plays through the same path the game uses, so
+      // the ▶ button is a real audition rather than an approximation.
+      {
+        id: 'card-click', category: 'Interface', kind: 'file',
+        name: 'Card click',
+        desc: 'Fires on any click of a card or trick, on every surface.',
+        src: 'audio/card-click.mp3',
+        play: () => sfx.playCardClick(),
+      },
+      {
+        id: 'hp-hit', category: 'Combat', kind: 'file',
+        name: 'Health bar hit',
+        desc: 'Face damage on either bar. Registered in SAMPLE_CUES; 60ms cooldown so a six-lane burst does not stack.',
+        src: 'audio/hp-hit.mp3',
+        play: () => sfx.play('hpHit'),
+      },
+      {
+        id: 'round-start', category: 'Match', kind: 'file',
+        name: 'New round',
+        desc: 'Fires with the round banner, once per round.',
+        src: 'audio/new-round.mp3',
+        play: () => sfx.play('roundStart'),
+      },
+      {
+        id: 'victory', category: 'Match', kind: 'file',
+        name: 'Victory',
+        desc: 'Plays on the game-over screen when you win. No defeat counterpart.',
+        src: 'audio/win.mp3',
+        play: () => sfx.playVictoryMusic(),
+      },
+      {
+        id: 'mind-control', category: 'Status', kind: 'file',
+        name: 'Mind Control',
+        desc: 'Global effect cue — fires for every card that applies Mind Control.',
+        src: 'audio/effects/mind-control.mp3',
+        play: () => sfx.playEffect('mindControl'),
+      },
+      {
+        id: 'default-play', category: 'Cards', kind: 'file',
+        name: 'Card lands in a lane',
+        desc: 'DEFAULT_CARD_SFX.play — the fallback for any card without a play cue of its own.',
+        src: 'audio/cards/default-play.mp3',
+        play: () => sfx._playSample('audio/cards/default-play.mp3', { fadeIn: 0, fadeOut: 200, maxDur: 5 }),
+      },
     ];
   },
   // Public play helper invoked by the inline ▶ buttons in the
@@ -17092,7 +17160,14 @@ const UI = {
   // ID/source pill, description. Filterable by name + description
   // via the same search box the cards/tricks tabs use.
   _renderAudioAuditSystem(ov, f) {
-    const all = this._systemSfxDirectory();
+    // SILENT ROWS ARE NOT LISTED. Procedural cues are gated off
+    // (sfx.PROCEDURAL_CUES), so every 'synth' entry in this directory now
+    // produces nothing — leaving ~40 of them with a ▶ button that does nothing
+    // is the opposite of an audit. While the gate is off the gallery shows only
+    // what can actually be heard; flip PROCEDURAL_CUES back to true and they
+    // return on their own, no change needed here.
+    const proceduralOn = !!(this.sfx && this.sfx.PROCEDURAL_CUES);
+    const all = this._systemSfxDirectory().filter(e => proceduralOn || e.kind === 'file');
     const q = (f.query || '').trim().toLowerCase();
     const list = all.filter(e =>
       !q || e.name.toLowerCase().includes(q) || e.id.toLowerCase().includes(q) || (e.desc || '').toLowerCase().includes(q)
@@ -17137,9 +17212,10 @@ const UI = {
     ov.innerHTML = `
       <div class="encyc-panel audio-audit-panel">
         <button type="button" class="encyc-close" onclick="UI.closeAudioAudit()">← Menu</button>
-        <h1 class="encyc-title">Audio Audit</h1>
+        <h1 class="encyc-title">Sound Gallery</h1>
         <div class="aa-summary">
           <span><b>${list.length}</b>/${sysCount} game sounds</span>
+          ${proceduralOn ? '' : '<span class="aa-note">synth cues are off &mdash; only imported audio is listed</span>'}
         </div>
         <div class="aa-tabs">
           <button type="button" class="aa-tab" onclick="UI._audioAuditSetSection('cards')">Cards (${cardsCount})</button>
@@ -17223,7 +17299,7 @@ const UI = {
     ov.innerHTML = `
       <div class="encyc-panel audio-audit-panel">
         <button type="button" class="encyc-close" onclick="UI.closeAudioAudit()">← Menu</button>
-        <h1 class="encyc-title">Audio Audit</h1>
+        <h1 class="encyc-title">Sound Gallery</h1>
         <div class="aa-summary">
           <span><b>${list.length}</b> ${isTrick ? 'tricks' : 'cards'}</span>
           <span><b>${covered}</b>/${cells} cells covered (${pctCovered}%)</span>

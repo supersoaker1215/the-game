@@ -47881,3 +47881,10 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 #classic-decision .cd-slot:empty { display: none; }
 #classic-decision .cd-slot,
 #classic-decision .cd-body { min-width: 0; }
+
+/* The Sound Gallery's note about why synth cues are absent from the list. */
+.aa-summary .aa-note {
+  font-size: 11px;
+  color: rgba(198, 208, 219, 0.55);
+  font-style: italic;
+}
