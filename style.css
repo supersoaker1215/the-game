@@ -48031,3 +48031,18 @@ body:not(.board-v2):has(#classic-decision .cd-slot > *) .trick-reveal {
 body:not(.board-v2) .trick-reveal .trick-reveal-card {
   width: clamp(112px, 12.5vw, 200px);
 }
+
+/* The forecast strip's death marker — see the note in renderLaneForecastStrip.
+   Sized and coloured like the numbers beside it rather than like the board's
+   badge: this row is a readout, and the skull is one more figure in it. */
+.lane-forecast-strip .lf-face-dies {
+  display: inline-flex;
+  align-items: center;
+  color: #ff7a7a;
+  filter: drop-shadow(0 0 4px rgba(255, 122, 122, 0.55));
+}
+.lane-forecast-strip .lf-face-dies .incoming-skull {
+  width: 13px;
+  height: 13px;
+  display: block;
+}

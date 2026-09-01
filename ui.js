@@ -28777,9 +28777,30 @@ const UI = {
       // number is the amount.
       const redCell   = redDmg   > 0 ? `<span class="lf-face lf-face-red">${redDmg}</span>`   : '<span class="lf-face lf-face-zero">−</span>';
       const greenCell = greenDmg > 0 ? `<span class="lf-face lf-face-green">${greenDmg}</span>` : '<span class="lf-face lf-face-zero">−</span>';
+      // A SKULL WHERE THE CELL WOULD OTHERWISE SAY NOTHING.
+      // Owner, circling the skull on a doomed board card and pointing at the
+      // strip: "have the skull appear if your card will die instead of nothing
+      // where the red and green arrows are."
+      //
+      // The gap is one I flagged when the verdict words came out: this strip
+      // reports FACE damage, and a lane can resolve with none of it — your card
+      // simply dies, the enemy survives, nobody's HP moves. Both figures are
+      // then zero, both are hidden, and the cell prints an empty box under the
+      // most important thing on the board.
+      //
+      // Read from _combatPredCache, which is the SAME predictor the board card's
+      // own skull badge reads (populated once per render, byId). So the strip
+      // cannot disagree with the card above it about whether that card dies —
+      // if one shows a skull, so does the other.
+      const _mine = s && s.lanes && s.lanes[i] && s.lanes[i].player;
+      const _predById = this._combatPredCache && this._combatPredCache.byId;
+      const _p = (_mine && _predById) ? _predById.get(_mine.id) : null;
+      const skullCell = (_p && _p.dies)
+        ? `<span class="lf-face lf-face-dies" title="${_mine.name} dies here">${this.skullSVG()}</span>`
+        : '';
       cells.push(
         `<div class="lf-cell ${v.cls}" data-lane="${i}">` +
-          redCell +
+          redCell + skullCell +
           `<span class="lf-verdict">${v.label}</span>` +
           greenCell +
         `</div>`
