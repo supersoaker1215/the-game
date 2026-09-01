@@ -25448,7 +25448,23 @@ const UI = {
     // User report: "There's no red skulls on my people. I feel like
     // they should always be showing the damage numbers of the cards
     // and of cards that could die."
+    // NEITHER MARKER PAINTS ON THE CARD ANY MORE. Owner: "remove the -1 damage
+    // indicator from the cards and the skull, they don't show up on cards any
+    // more, just the skull underneath."
+    //
+    // The skull moved to the forecast strip last commit, reading this same
+    // predictor, so keeping a second copy on the card said the same thing
+    // twice in two places.
+    //
+    // THE PREDICTION IS STILL READ, and that is not leftover code. The XP chip
+    // below renders only `if (!incomingBadge)` — the two share the card's
+    // bottom-centre slot and the damage badge used to win it. Deleting the
+    // badge outright would therefore hand that slot to the chip and make it
+    // appear, in roguelite, on every board card about to take damage: a change
+    // to a different mode that was not asked for. `_wouldMark` keeps the
+    // exclusion exactly as it was while rendering nothing.
     let incomingBadge = '';
+    let _wouldMark = false;
     if (!inHand && !opts.static && Game.state && !card.isFaceDown && card.currentHealth > 0
         && !Game.state.gameOver
         && typeof Game.predictCombatGlobal === 'function') {
@@ -25460,17 +25476,9 @@ const UI = {
         this._combatPredCache = pred;
       }
       const me = pred && pred.byId && pred.byId.get(card.id);
-      if (me && me.dies) {
-        incomingBadge = `<span class="incoming-damage lethal" title="Dies in combat${me.dmgIn > 0 ? ' (takes ' + me.dmgIn + ')' : ''}">${this.skullSVG()}</span>`;
-      } else if (me && me.dmgIn > 0) {
-        // Show damage as "−N" (negative HP delta) instead of just the
-        // hpAfter number. User report: "why is it saying that the goons
-        // won't take damage? they only have armor 1 so they will take
-        // 1 damage" — the previous "3" badge (meaning hpAfter=3) was
-        // easy to confuse with stat orbs and didn't read as a damage
-        // intake. The minus sign + delta is unambiguous.
-        incomingBadge = `<span class="incoming-damage" title="HP after combat: ${me.hpAfter} (takes ${me.dmgIn})">−${me.dmgIn}</span>`;
-      }
+      // Dying, or merely taking a hit — either used to draw here. Now both only
+      // reserve the slot so the XP chip's exclusion is unchanged.
+      if (me && (me.dies || me.dmgIn > 0)) _wouldMark = true;
     }
     // Card-XP chip — sits in the same bottom-center slot as the
     // incoming-damage badge. Mutually exclusive on the BOARD: damage
@@ -25479,7 +25487,7 @@ const UI = {
     // which cards I want to play to level up, on board and in hand I
     // want to see the XP."
     let xpChip = '';
-    if (!incomingBadge && card._runDeckCardRef && typeof Roguelite !== 'undefined') {
+    if (!_wouldMark && card._runDeckCardRef && typeof Roguelite !== 'undefined') {
       const dc = card._runDeckCardRef;
       if (dc.rarity === 'legendary') {
         xpChip = `<span class="card-xp-chip card-xp-cap" title="Legendary — XP capped">MAX</span>`;
