@@ -47983,3 +47983,38 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 /* The header stops reserving sheet-sized space. */
 #classic-decision .choice-tray-header { padding: 0 0 6px !important; }
 #classic-decision .choice-tray-panel { padding: 10px !important; }
+
+/* ===========================================================================
+   THE TRICK REVEAL MOVES OFF THE BOARD (2026-09-01)
+   Owner: "the space stone should pop up on the right, not center."
+
+   .trick-reveal is `position: fixed; inset: 0` with everything centred, so a
+   trick played its cinematic straight over the middle of the lanes — and, as in
+   the report, on top of an open decision at the same time. It is NOT a prompt:
+   nothing is answered on it and it fades on its own, so it does not belong
+   inside the decision panel where it would displace a question that does need
+   answering. It moves to the same side instead.
+
+   Right-aligned and vertically centred puts it in the gutter under the decision
+   panel, which occupies the top of that column — so a reveal and a live prompt
+   can be on screen together without either covering the board.
+
+   Classic only. Board V2 already routes these through its notices rail.
+   =========================================================================== */
+body:not(.board-v2) .trick-reveal {
+  /* BOTTOM of the gutter, not the middle. The decision panel occupies the TOP
+     of this column, and at 1218x969 a vertically-centred reveal sat at y390-670
+     against a panel ending at 650 — the two would have covered each other,
+     which is the situation the report showed with the board instead. Sending
+     the reveal to the bottom lets both be up at once. */
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 0 10px 18px 0;
+}
+/* AND IT FITS THE GUTTER. The card is a flat min(200px, 52vw), which at 1218
+   wide is 200px in a 176px gutter — measured, it overhung the board by 34px.
+   Clamped against the viewport it tracks the gutter instead: narrower on a
+   small screen, back to its full size on a wide one where there is room. */
+body:not(.board-v2) .trick-reveal .trick-reveal-card {
+  width: clamp(112px, 12.5vw, 200px);
+}
