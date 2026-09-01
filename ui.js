@@ -12767,6 +12767,17 @@ const UI = {
       if (typeof BoardV2 !== 'undefined' && BoardV2 && BoardV2.enabled()) {
         const slot = document.querySelector('#bv2-decision .bv2-dec-body');
         if (slot) { slot.appendChild(banner); anchored = true; }
+      } else {
+        // CLASSIC HAS A PANEL NOW TOO, and it anchors here for the reason the
+        // note above already gives. The first attempt adopted the node from
+        // renderClassicDecision afterwards and lost precisely the race this
+        // comment warns about: the banner is destroyed and rebuilt on every
+        // render, so the adopted node was the previous one and the live one
+        // stayed out in the game area. Creating the panel on demand rather
+        // than querying for it means the very first prompt of a match lands
+        // in it, without depending on which renderer ran first.
+        const slot = this._classicDecisionSlot('body');
+        if (slot) { slot.appendChild(banner); anchored = true; }
       }
     } catch (e) {}
     if (!anchored) {
@@ -28322,6 +28333,66 @@ const UI = {
     // pure simulator predictLaneOutcome — same math the damage preview
     // uses, no engine side effects.
     this.renderLaneForecastStrip(s);
+    this.renderClassicDecision(s);
+  },
+
+  // ===================== CLASSIC DECISION PANEL =====================
+  // Owner: "in [the] box i'd like all decisions made here like the redesign,
+  // its a big box so all the who to kill for winter soldier ability, who to
+  // play 1st flash, paul atreides pick cards, dormammu pick cards, superman
+  // deal 5 damage freeze 2, batman fear, darkseid damage etc — the pop up is
+  // here and the cards are highlighted yellow for the abilities."
+  //
+  // Every one of those is the same two elements underneath: #prompt-banner, or
+  // one of the four floaters that build themselves at body level and cover the
+  // middle of the screen. V2 solved this by docking them in a rail; classic has
+  // 311px of unused margin either side of the board (measured) which is exactly
+  // where the owner drew the box, so the panel goes there.
+  //
+  // MOVE THE NODES, DO NOT COPY THEM. Every listener, countdown and timer ui.js
+  // attached is on the live element — appendChild relocates it with all of that
+  // intact, where innerHTML would produce a panel that looks right and answers
+  // nothing. Same reasoning as the V2 rail, and #choice-tray is re-adopted on
+  // every render rather than once because it is rebuilt from scratch each time
+  // it is raised.
+  renderClassicDecision(s) {
+    // V2 has its own rail and adopts the same nodes; both running would fight
+    // over who owns them every frame.
+    if (document.body.classList.contains('board-v2')) return;
+    const host = document.querySelector('.board-section');
+    if (!host) return;
+    const slot = this._classicDecisionSlot('slot');
+    if (!slot) return;
+    // The four floaters are NOT rebuilt every render the way the banner is, so
+    // adopting them here is safe — #choice-tray is the exception and is
+    // re-checked each pass because it IS rebuilt whenever it is raised.
+    ['jump-offer-modal', 'block-trick-modal', 'time-stone-modal', 'choice-tray'].forEach(function (id) {
+      const m = document.getElementById(id);
+      if (m && m.parentNode !== slot) slot.appendChild(m);
+    });
+    // Whether the panel shows is NOT tracked here. It is a :has() rule in CSS,
+    // because this function and renderPromptBanner fill the panel at different
+    // moments in a render and any flag written by one would be a frame stale
+    // for the other. Asking the DOM what it contains cannot go out of sync.
+  },
+
+  // Create-or-return the docked panel's two drop points. Shared by
+  // renderClassicDecision and renderPromptBanner so neither has to have run
+  // first for the other to work.
+  _classicDecisionSlot(which) {
+    if (document.body.classList.contains('board-v2')) return null;
+    const host = document.querySelector('.board-section');
+    if (!host) return null;
+    let panel = document.getElementById('classic-decision');
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.id = 'classic-decision';
+      panel.innerHTML =
+        '<div class="cd-head"><span class="cd-head-label">Decision</span><span class="cd-head-line"></span></div>' +
+        '<div class="cd-slot"></div><div class="cd-body"></div>';
+      host.appendChild(panel);
+    }
+    return panel.querySelector(which === 'body' ? '.cd-body' : '.cd-slot');
   },
 
   // ===================== LANE FORECAST =====================
@@ -28452,8 +28523,13 @@ const UI = {
       // GREEN = damage to OPPONENT face = your swing into uncontested ai slot
       const redDmg   = faceDamageFor(i, 'ai');
       const greenDmg = faceDamageFor(i, 'player');
-      const redCell   = redDmg   > 0 ? `<span class="lf-face lf-face-red">−${redDmg}</span>`   : '<span class="lf-face lf-face-zero">−</span>';
-      const greenCell = greenDmg > 0 ? `<span class="lf-face lf-face-green">−${greenDmg}</span>` : '<span class="lf-face lf-face-zero">−</span>';
+      // NO MINUS IN FRONT OF THE FIGURE. Both boards now prefix these with an
+      // arrow, and an arrow plus a minus says the direction twice and disagrees
+      // with itself doing it: the green cell is damage you DEAL, so "▲ −5"
+      // read as up-and-down at the same time. The arrow is the direction, the
+      // number is the amount.
+      const redCell   = redDmg   > 0 ? `<span class="lf-face lf-face-red">${redDmg}</span>`   : '<span class="lf-face lf-face-zero">−</span>';
+      const greenCell = greenDmg > 0 ? `<span class="lf-face lf-face-green">${greenDmg}</span>` : '<span class="lf-face lf-face-zero">−</span>';
       cells.push(
         `<div class="lf-cell ${v.cls}" data-lane="${i}">` +
           redCell +

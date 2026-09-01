@@ -47700,3 +47700,139 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
     rgba(var(--theme-rgb, 79, 195, 247), 0.16) 55%,
     rgba(var(--theme-rgb, 79, 195, 247), 0) 100%);
 }
+
+/* ===========================================================================
+   CLASSIC'S FORECAST LOSES THE BOXES (2026-09-01)
+   Owner, circling the strip and the word STRIKE: "remove these boxes and for
+   classic i like the redesign with the arrow and color red for taking damage
+   or green for dealing damage."
+
+   Every cell was a panel — 1px neon border, a translucent fill, an outer glow
+   and an inner one, plus a second set of all four per verdict — so six lanes
+   produced six lit boxes under the board whether anything was happening in
+   them or not. An empty lane printed "−—−" inside its own glowing box.
+
+   The colours were already right and stay exactly as they were: #ff7a7a for
+   damage to YOUR face, #6ef58b for damage to THEIRS, which is the mapping the
+   renderer's own comment states. What was missing is the direction, so the
+   arrows come across from the redesign — the figure alone cannot say which way
+   it points, and that is the whole reading.
+
+   The verdict word goes for the same reason it went on the other board: the
+   arrow and the number are the half that carries the meaning, and STRIKE /
+   EXPOSED / TRADE is a second vocabulary to learn for the same fact.
+   =========================================================================== */
+.lane-forecast-strip .lf-cell,
+.lane-forecast-strip .lf-cell.lf-win,
+.lane-forecast-strip .lf-cell.lf-lose,
+.lane-forecast-strip .lf-cell.lf-trade,
+.lane-forecast-strip .lf-cell.lf-stall,
+.lane-forecast-strip .lf-cell.lf-empty,
+.lane-forecast-strip .lf-cell.lf-destroyed {
+  border: 0;
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+  justify-content: center;
+  gap: 10px;
+  opacity: 1;
+}
+.lane-forecast-strip .lf-verdict { display: none; }
+/* A lane with nothing to report says nothing, rather than printing a dash
+   between two more dashes. */
+.lane-forecast-strip .lf-face-zero { display: none; }
+.lane-forecast-strip .lf-cell.lf-empty::after,
+.lane-forecast-strip .lf-cell.lf-destroyed::after {
+  content: '\2014';
+  color: rgba(198, 208, 219, 0.26);
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+}
+/* Direction. Up = you are dealing it, down = you are taking it. */
+.lane-forecast-strip .lf-face-green::before { content: '\25B2'; font-size: 9px; margin-right: 3px; }
+.lane-forecast-strip .lf-face-red::before   { content: '\25BC'; font-size: 9px; margin-right: 3px; }
+
+/* ===========================================================================
+   THE CLASSIC DECISION PANEL (2026-09-01)
+   Owner drew a box in the empty margin right of the board: every card decision
+   belongs there, the way the redesign does it, instead of a sheet over the
+   middle of the screen.
+
+   The board sits centred in a full-width .board-section with 311px spare on
+   each side (measured), and .board-section is already position:relative — so
+   the panel anchors to its right edge and lines up with the lanes for free.
+
+   IT IS INVISIBLE UNTIL IT HOLDS SOMETHING. `.is-live` is the only state that
+   paints; an idle panel would be exactly the empty lit box the owner had just
+   asked to be removed from the forecast strip.
+
+   The adopted children are the reason for the !important run below. Each one
+   builds itself as a floating overlay — fixed position, centred transform, a
+   full-screen backdrop, a z-index in the thousands — and none of that survives
+   being docked. They are un-floated here rather than at their source so the
+   floating versions still work anywhere this panel is not.
+   =========================================================================== */
+#classic-decision {
+  position: absolute;
+  top: 0; right: 0;
+  width: 286px;
+  max-height: 100%;
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  overflow-y: auto;
+  z-index: 40;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 210, 74, 0.55);
+  border-radius: 4px;
+  background: linear-gradient(150deg, rgba(58, 50, 19, 0.55) 0%, rgba(8, 12, 20, 0.96) 60%, rgba(4, 6, 10, 0.98) 100%);
+  box-shadow: 0 0 14px rgba(255, 210, 74, 0.18);
+}
+/* SHOWN BY WHAT IT HOLDS, not by a flag. Two different renderers fill this
+   panel at different points in a pass, so any boolean one of them wrote would
+   be a frame stale for the other — which is how the first version ended up lit
+   and empty. :has() asks the DOM directly and cannot disagree with itself. */
+#classic-decision:has(.cd-body > *),
+#classic-decision:has(.cd-slot > *) { display: flex; }
+#classic-decision .cd-head {
+  display: flex; align-items: center; gap: 8px;
+  flex: 0 0 auto;
+}
+#classic-decision .cd-head-label {
+  font-family: var(--font-mono, monospace);
+  font-size: 10px; font-weight: 700; letter-spacing: 0.30em;
+  text-transform: uppercase;
+  color: rgba(255, 210, 74, 0.85);
+}
+#classic-decision .cd-head-line {
+  flex: 1 1 auto; height: 1px;
+  background: linear-gradient(to right, rgba(255, 210, 74, 0.45), transparent);
+}
+/* UN-FLOAT EVERYTHING THAT LANDS IN HERE. */
+#classic-decision #prompt-banner,
+#classic-decision .choice-tray,
+#classic-decision #choice-tray,
+#classic-decision #jump-offer-modal,
+#classic-decision #block-trick-modal,
+#classic-decision #time-stone-modal {
+  position: static !important;
+  left: auto !important; right: auto !important;
+  top: auto !important; bottom: auto !important;
+  transform: none !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  z-index: auto !important;
+  opacity: 1 !important;
+  box-sizing: border-box;
+}
+/* The backdrops go with them — there is nothing left to dim. */
+#classic-decision .floating-prompt-backdrop,
+#classic-decision .choice-tray-backdrop,
+#classic-decision .modal-backdrop { display: none !important; }
+/* A docked tray lays its options out down the column, not across a sheet. */
+#classic-decision .cd-slot:empty { display: none; }
+#classic-decision .cd-slot,
+#classic-decision .cd-body { min-width: 0; }
