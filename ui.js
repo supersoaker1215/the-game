@@ -8924,16 +8924,6 @@ const UI = {
     return stage;
   },
 
-  // Start-of-round stalk — a wake sliding from the old lane to the new one.
-  _fxSpinoStalk(self, from, to) {
-    if (this._reducedMotion && this._reducedMotion()) return;
-    const stage = this._fxLaneStage(to, 'spino-wake-stage');
-    if (!stage) return;
-    const wake = document.createElement('div');
-    wake.className = 'spino-wake' + (to < from ? ' spino-wake-rev' : '');
-    stage.appendChild(wake);
-    setTimeout(() => stage.remove(), 1100);
-  },
 
   // THE RELEASE. Three beats, in the order the water gives them up:
   //   1. ~0.0s  the surface breaks — rings spreading from the lane centre
@@ -10951,18 +10941,6 @@ const UI = {
       if (from) this._fxSparks(to, { color: '#e9c6ff', glow: '#7a1fa2', count: 10, spread: 60, size: 2.6 });
       // The flurry lands — an amethyst burst flares over Mace as the last blow bites.
       if (from) setTimeout(() => this._fxImpact(from, { color: '#a855f7', core: '#f3e8ff', size: 1.0 }), 180);
-    });
-    this._screenShake('medium');
-  },
-  // General Grievous: a whirling cyclone of four trophy lightsabers.
-  _fxSaberFlurry(self) {
-    if (this._reducedMotion() || !self) return;
-    this._fxWhenPainted(self, (el) => {
-      const blades = [
-        { blade: '#2b8cff', angle: -60 }, { blade: '#7bf27a', angle: -20 },
-        { blade: '#2b8cff', angle: 20 },  { blade: '#7bf27a', angle: 60 },
-      ];
-      blades.forEach((b, i) => setTimeout(() => this._fxSlashEl(el, { blade: b.blade, core: '#eaffea', angle: b.angle }), i * 90));
     });
     this._screenShake('medium');
   },
@@ -16229,18 +16207,6 @@ const UI = {
     try { this.mmShowSub(this._mmSub); } catch (e) {}
   },
 
-  openTutorial() {
-    const ov = document.getElementById('tutorial-overlay');
-    if (!ov) return;
-    ov.style.display = '';  // clear any inline display:none left by earlier overlay sweeps
-    ov.classList.add('open');
-    ov.scrollTop = 0;
-    const panel = ov.querySelector('.tutorial-panel');
-    if (panel) panel.scrollTop = 0;
-    if (this.sfx && this.sfx.play) {
-      try { this.sfx.play('modalOpen'); } catch (e) {}
-    }
-  },
   closeTutorial() {
     const ov = document.getElementById('tutorial-overlay');
     if (ov) ov.classList.remove('open');
@@ -16399,22 +16365,6 @@ const UI = {
         this._persistSet('deletedArt', []);
         this.renderGalleryAudit();
       });
-  },
-  // Manual-crop slider handler — live-updates the card-crop preview's
-  // background-position and saves the focal (no full re-render so the slider
-  // keeps focus while dragging). axis is 'x' or 'y'.
-  _galleryCrop(name, file, kind, axis, val, pid) {
-    const cur = this._artFocalMap(kind)[name + '|' + file] || this.PORTRAIT_POSITION[name] || '50% 50%';
-    const p = String(cur).replace(/center/gi, '50%').trim().split(/\s+/);
-    let x = parseFloat(p[0]);
-    let y = parseFloat(p[1] != null ? p[1] : p[0]);
-    if (!isFinite(x)) x = 50;
-    if (!isFinite(y)) y = 50;
-    if (axis === 'x') x = +val; else y = +val;
-    const pos = `${x}% ${y}%`;
-    const prev = document.getElementById(pid);
-    if (prev) prev.style.backgroundPosition = pos;
-    this._setArtFocal(name, file, kind, pos);
   },
   // ===================== GALLERY AUDIT — PRECISION TOOLS =====================
   // The framing controls were two 0-100 sliders and ±10% zoom buttons. On a
@@ -18112,20 +18062,6 @@ const UI = {
     if (this.applyTronFx) this.applyTronFx();
   },
 
-  // Recent matches log — rolling window of the last N games. Mirrors
-  // the main-menu chrome so it doesn't feel grafted-on.
-  openMatchHistory() {
-    this.renderMatchHistory();
-    const ov = document.getElementById('match-history-overlay');
-    if (ov) {
-      ov.classList.remove('classic-overlay-closing');
-      ov.style.display = 'flex';
-    }
-    if (this.sfx && this.sfx.play) {
-      try { this.sfx.play('modalOpen'); } catch (e) {}
-    }
-    document.body.classList.add('clb-toggle-hidden');
-  },
   closeMatchHistory() {
     this._closeClassicOverlay('match-history-overlay');
     document.body.classList.remove('clb-toggle-hidden');
@@ -18718,14 +18654,6 @@ const UI = {
     try { this._wireCodeSlots(); } catch (e) {}   // delegated, so once is enough
     this.mmShowSub('mp');
   },
-  // Legacy no-op kept so any stray caller can't throw; the old #multiplayer-
-  // overlay popup is retired. Leaving/entering is handled by _mpBack (back to
-  // menu) and the automatic phase transition into the draft on pairing.
-  closeMultiplayer() {
-    const ov = document.getElementById('multiplayer-overlay');
-    if (ov) ov.style.display = 'none';
-    document.body.classList.remove('clb-toggle-hidden');
-  },
   // Back out of the multiplayer submenu — drop any half-open room first so a
   // dangling PeerJS connection / host seat doesn't leak, then return to the
   // main list (reset to a clean idle state for next time).
@@ -18996,7 +18924,6 @@ const UI = {
       this.renderFromNetwork();
     });
   },
-  _mpSetTab(t) { this._mpState.tab = t; this._mpRender(); },
   // Transport priority:
   //   1. Custom WebSocket (PartyKit) if user pasted a server URL  — power user
   //   2. LocalTab if `clb-mp-mode === 'local'` localStorage flag    — dev/testing
@@ -21865,28 +21792,6 @@ const UI = {
     if (this._fitDraftToViewport) this._fitDraftToViewport();
   },
 
-  // THE DRAFTED-SO-FAR ROW, for every draft surface.
-  // This was two byte-identical copies — one in the 1v1 draft renderer, one in
-  // the 2v2 one — so sorting the row would have reordered half the game and
-  // left the other half in pick order. One method, both call sites.
-  //
-  // SORTED BY COST, cheapest first (owner: "have the cards be in order based on
-  // cost 1-10 left to right"). Pick order tells you nothing once the draft is
-  // over; cost order lets you read your curve at a glance. Sorts a COPY —
-  // `list` is live game state (d.playerDrafted), and undo walks it backwards,
-  // so reordering it in place would rewind the wrong pick. Ties keep pick order
-  // because Array.prototype.sort is stable.
-  _draftedRowHTML(list, isTrick) {
-    if (!list || !list.length) return '';
-    const baseTag = isTrick ? 'drafted-tag drafted-tag-trick' : 'drafted-tag';
-    const listCls = isTrick ? 'drafted-list drafted-list-trick' : 'drafted-list';
-    const label = isTrick ? 'Tricks:' : 'Cards:';
-    const ordered = list.slice().sort((a, b) => (a.cost | 0) - (b.cost | 0));
-    let row = `<div class="${listCls}"><strong>${label}</strong> `;
-    row += ordered.map(c => `<span class="${baseTag} cost-${c.cost}">${c.name} (${c.cost})</span>`).join(' ');
-    row += `</div>`;
-    return row;
-  },
 
   // ===================== BLOCK TRICK CHOICE =====================
 
@@ -24533,22 +24438,6 @@ const UI = {
       noteHtml;
     return box;
   },
-  // Replicas of AI.wouldKill / wouldSurvive (kept UI-local so we don't require
-  // the AI module at render time).
-  combatWouldKill(a, b) {
-    if (!b) return false;
-    if (b.invincibleTurns > 0 || b.hasDamageImmunity) return false;
-    if (b.evadeCharges > 0 && !a.isBullseye) return false;
-    const dmg = Math.max(0, (a.attack || 0) - (b.armorValue || 0));
-    return dmg >= b.currentHealth;
-  },
-  combatWouldSurvive(a, b) {
-    if (!b) return true;
-    if (a.invincibleTurns > 0 || a.hasDamageImmunity) return true;
-    if (a.evadeCharges > 0) return true;
-    const incoming = Math.max(0, (b.attack || 0) - (a.armorValue || 0));
-    return (a.currentHealth || a.maxHealth || 0) > incoming;
-  },
 
   // ===================== ORB TOOLTIPS =====================
   // Build a human-readable explanation of why a card's cost / attack /
@@ -26528,18 +26417,6 @@ const UI = {
     // duckMusic() for every hover; restoreMusic is its counterpart).
     try { if (this.sfx && typeof this.sfx.restoreMusic === 'function') this.sfx.restoreMusic(); } catch (e) {}
   },
-  showTauntBubble(side, name) {
-    const host = document.getElementById(side === 'player' ? 'player-avatar' : 'ai-avatar');
-    if (!host) return;
-    const old = host.querySelector('.emote-bubble');
-    if (old) old.remove();
-    const b = document.createElement('div');
-    b.className = 'emote-bubble taunt-bubble';
-    b.textContent = '🔊 ' + String(name);
-    host.appendChild(b);
-    this._syncCornerToggle();
-    setTimeout(() => { b.remove(); this._syncCornerToggle(); }, 2400);
-  },
 
   // THE LANE ELEMENT FOR A LANE INDEX. Every caller used to index the node
   // list positionally, which is only correct while the DOM order happens to
@@ -27479,26 +27356,6 @@ const UI = {
     'Discount':   { color: '#16a085', svg: '<svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M3 4 a1 1 0 1 1 2 0 a1 1 0 0 1 -2 0 z M7 8 a1 1 0 1 1 2 0 a1 1 0 0 1 -2 0 z" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>', tip: 'This card costs N less energy.' },
   },
 
-  formatAbilities(abilities) {
-    if (!abilities || !abilities.length) return '';
-    const kd = this.KEYWORD_DATA;
-    const defaults1 = ['Immunity', 'Unresistible'];
-    const kws = Object.keys(kd).sort((b, c) => c.length - b.length);
-    return abilities.map(a => {
-      let text = a;
-      defaults1.forEach(d => { if (text === d) text = d + ' 1'; });
-      for (const kw of kws) {
-        const re = new RegExp('^(' + kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')(\\s+\\d+)?$');
-        const m = text.match(re);
-        if (m) {
-          const data = kd[kw];
-          const num = m[2] ? m[2].trim() : '';
-          return `<span class="kw-pill" data-kw="${kw}" style="color:${data.color}"><span class="kw-ico">${data.svg}</span>${m[1]}${num ? ' ' + num : ''}</span>`;
-        }
-      }
-      return text;
-    }).join(' ');
-  },
 
   // Text-only trait badges for draft cards — mirrors the in-game `.status-badge`
   // chrome (.badge-* color tokens) so the trait display is visually identical
@@ -29968,107 +29825,6 @@ const UI = {
       </div>`;
   },
 
-  // (Legacy) Star of the Match panel — kept for back-compat with any
-  // other call site, but the game-over flow uses renderMvpDuo now.
-  renderStarOfTheMatch(s, you, opp) {
-    const dual = s._mvpDual;
-    if (!dual) return '';
-    const yourCard = dual.player && dual.player.impactCard;
-    const oppCard  = dual.ai     && dual.ai.impactCard;
-    const yourScore = (dual.player && dual.player.impactScore) || 0;
-    const oppScore  = (dual.ai     && dual.ai.impactScore)     || 0;
-    if (!yourCard && !oppCard) return '';
-    // Winner-of-the-match preference: if there's a winner side, prefer THEIR
-    // MVP for the star panel. Otherwise highest impact across both sides.
-    let starSide, starName, starScore, runnerSide, runnerName, runnerScore;
-    if (s.winner === 'player' && yourCard) {
-      starSide = 'player'; starName = yourCard; starScore = yourScore;
-      runnerSide = 'ai';   runnerName = oppCard;  runnerScore = oppScore;
-    } else if (s.winner === 'ai' && oppCard) {
-      starSide = 'ai';     starName = oppCard;  starScore = oppScore;
-      runnerSide = 'player'; runnerName = yourCard; runnerScore = yourScore;
-    } else if (yourScore >= oppScore && yourCard) {
-      starSide = 'player'; starName = yourCard; starScore = yourScore;
-      runnerSide = 'ai';   runnerName = oppCard;  runnerScore = oppScore;
-    } else if (oppCard) {
-      starSide = 'ai';     starName = oppCard;  starScore = oppScore;
-      runnerSide = 'player'; runnerName = yourCard; runnerScore = yourScore;
-    } else {
-      return '';
-    }
-    // Look up the actual card definition for the star so we can render
-    // its cost / abilities / desc the same way the in-game card chrome
-    // does. Falls back to a name-only chip if the def is missing.
-    const def = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(c => c.name === starName) : null;
-    const sideLabel = starSide === 'player' ? 'YOU' : 'OPPONENT';
-    const sideClass = starSide === 'player' ? 'sotm-side-player' : 'sotm-side-ai';
-    const cost = def && def.cost != null ? def.cost : '';
-    const stats = (def && def.attack != null && def.health != null && this._hasBody(def))
-      ? `<span class="stat-circle stat-atk">${def.attack}</span><span class="stat-circle stat-hp">${def.health}</span>`
-      : '';
-    const abilities = (def && def.abilities && def.abilities.length)
-      ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(def.abilities)}</div>` : '';
-    const desc = (def && def.desc) ? `<div class="card-desc">${this.formatDesc(def.desc)}</div>` : '';
-    // Pull the dominant contribution stat for the star — find it from the
-    // pool side. Cheap pass; only runs once per game-over render.
-    const findContrib = (side, name) => {
-      const pool = [];
-      for (let i = 0; i < Game.LANE_COUNT; i++) {
-        const c = s.lanes[i][side];
-        if (c && c.name === name) pool.push(c);
-      }
-      (s[side].deadPile || []).forEach(c => { if (c.name === name) pool.push(c); });
-      // If multiple instances (Hela revives, summon copies), sum them.
-      let damageDone = 0, absorbed = 0, energy = 0, kills = 0, hpDmg = 0;
-      pool.forEach(c => {
-        damageDone += (c.statsHealthbarDamage || 0) + (c.statsEnemyDamage || 0);
-        absorbed   += c.statsDamageAbsorbed || 0;
-        energy     += c.statsEnergyGenerated || 0;
-        kills      += c.statsKills || 0;
-        hpDmg      += c.statsHealthbarDamage || 0;
-      });
-      return { damageDone, absorbed, energy, kills, hpDmg };
-    };
-    const contrib = findContrib(starSide, starName);
-    // Headline stat — pick whichever contribution dominates.
-    const lines = [];
-    if (contrib.damageDone > 0) lines.push({ label: 'Damage dealt',    value: contrib.damageDone });
-    if (contrib.kills      > 0) lines.push({ label: 'Cards killed',    value: contrib.kills });
-    if (contrib.absorbed   > 0) lines.push({ label: 'Damage absorbed', value: contrib.absorbed });
-    if (contrib.energy     > 0) lines.push({ label: 'Energy granted',  value: contrib.energy });
-    lines.sort((a, b) => b.value - a.value);
-    const top = lines[0];
-    const subStats = lines.slice(1, 3).map(l => `<span class="sotm-substat"><span class="sotm-substat-label">${l.label}</span><b>${l.value}</b></span>`).join('');
-    const runnerLine = (runnerName && runnerScore > 0)
-      ? `<div class="sotm-runner">Runner-up: <span class="${runnerSide === 'player' ? 'go-card-ally' : 'go-card-enemy'}">${runnerName}</span> · ${Math.round(runnerScore)} impact</div>`
-      : '';
-    return `
-      <div class="sotm-panel ${sideClass}">
-        <div class="sotm-banner">
-          <span class="sotm-icon">★</span>
-          <span class="sotm-title">Star of the Match</span>
-          <span class="sotm-side-tag">${sideLabel}</span>
-        </div>
-        <div class="sotm-body">
-          <div class="card sotm-card ${this.getCostClass(cost || 0)}">
-            ${cost !== '' ? `<span class="card-cost">${cost}</span>` : ''}
-            <div class="card-name-banner"><div class="card-name">${starName}</div></div>
-            ${abilities}
-            ${desc}
-            ${stats}
-          </div>
-          <div class="sotm-stats">
-            <div class="sotm-headline">
-              <span class="sotm-headline-label">${top ? top.label : 'Impact'}</span>
-              <b class="sotm-headline-value">${top ? top.value : Math.round(starScore)}</b>
-            </div>
-            <div class="sotm-substats">${subStats}</div>
-            <div class="sotm-impact">Impact score · <b>${Math.round(starScore)}</b></div>
-            ${runnerLine}
-          </div>
-        </div>
-      </div>`;
-  },
   // Dual MVP row — sabermetrics-inspired Aaron Judge / Mike Trout split:
   //   MVP    — the card with the highest raw weighted impact (the
   //            "finisher" — your big damage / kill / energy contributor)
@@ -31429,12 +31185,6 @@ const UI = {
     }
   },
 
-  // Compatibility shims — older code calls _playUiTone / _playClickCue
-  // / _playSelectCue / _playRejectCue. Forward to the new audio module
-  // so we don't have to chase down every caller.
-  _playUiTone(freq, dur, type, gain) {
-    this.audio.voice({ freq, dur, type, gain });
-  },
   _playClickCue()  { this.audio.click();  },
   _playSelectCue() { this.audio.select(); },
   _playRejectCue() { this.audio.reject(); },
@@ -35205,45 +34955,7 @@ const UI = {
     }
   },
 
-  // ===================== CASCADE STAGGER =====================
-  // Helper for multi-card simultaneous events (e.g. Thanos snap, Darkseid
-  // wipe). Instead of every card reacting in the same frame — which the
-  // eye reads as a chaotic flash — schedule each callback with a
-  // configurable per-item stagger so the chain visibly traces through
-  // the affected cards. Returns a Promise that resolves when the last
-  // staggered callback has fired.
-  cascadeStagger(items, perItemMs, fn) {
-    return new Promise((resolve) => {
-      if (!items || !items.length) return resolve();
-      const dt = perItemMs == null ? 50 : Math.max(0, perItemMs);
-      let i = 0;
-      const fire = () => {
-        try { fn(items[i], i); } catch (e) { console.error(e); }
-        i++;
-        if (i >= items.length) resolve();
-        else setTimeout(fire, dt);
-      };
-      fire();
-    });
-  },
 
-  // ===================== WILL-CHANGE HYGIENE =====================
-  // Add will-change before an animation, strip after. CSS `will-change`
-  // hints to the browser to keep an element on its own composite layer;
-  // leaving it on permanently fragments the GPU layer cache. Use this
-  // helper around any one-shot animation that mutates transform/opacity
-  // so the layer is reclaimed once the motion is done.
-  withWillChange(el, props, ms) {
-    if (!el) return;
-    el.style.willChange = props || 'transform, opacity';
-    setTimeout(() => {
-      // Only clear if we still own this slot — another animation may
-      // have re-set will-change in the meantime.
-      if (el.style.willChange === (props || 'transform, opacity')) {
-        el.style.willChange = '';
-      }
-    }, ms || 800);
-  },
 
   // (B) Energy spend flash — triggered from Game.playCard via a UI hook.
   // Takes an optional `amount` so we can pop a floating "-N" indicator
@@ -35975,6 +35687,33 @@ function newGame() {
 // button a pressed "Rematch…" state so the click reads as registered; it's
 // reset the moment the fresh state clears the overlay (render's !gameOver
 // guard) or if the button is re-shown.
+// THE 2v2 ROOM CODE IS CLICKABLE, AND NOW IT COPIES.
+//
+// The online-2v2 lobby renders the host's room code as
+// `onclick="UI._2v2CopyCode && UI._2v2CopyCode()"` — and UI._2v2CopyCode has
+// never existed. The `&&` guard meant the click did nothing at all, silently:
+// the code carried a pointer cursor and a "Room code" tooltip, the host clicked
+// it to share the room, and nothing happened. Found by sweeping for members
+// called on UI that are never defined on it.
+//
+// It reads the code off the element it was clicked on rather than off state,
+// because that element is what the host is actually looking at — a state read
+// could disagree with the screen after a re-render and copy the wrong room.
+UI._2v2CopyCode = function () {
+  const el = document.querySelector('.twov2-mm-codebig');
+  const code = el ? (el.textContent || '').trim() : '';
+  if (!code) return;
+  const done = (ok) => {
+    if (!ok) { try { window.prompt('Copy this room code:', code); } catch (e) {} return; }
+    if (UI.showAITrickToast) UI.showAITrickToast('Room Code Copied', code + ' — send it to the other three players', 'system');
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(code).then(() => done(true), () => done(false));
+  } else {
+    done(false);
+  }
+};
+
 UI._markRematchPending = function () {
   const btn = document.getElementById('game-over-rematch-btn');
   if (!btn) return;

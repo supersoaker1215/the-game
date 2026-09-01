@@ -5786,24 +5786,6 @@ body.hit-pause .ai-hand * {
   font-weight: 700; letter-spacing: 2px;
   text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247),0.45);
 }
-.drafted-tag {
-  display: inline-block;
-  background: #000000;
-  color: #7fd0ff;
-  border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.95);
-  padding: 3px 10px; border-radius: 4px; margin: 2px;
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 10px; font-weight: 700; letter-spacing: 1px;
-  text-transform: uppercase;
-  box-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247),0.35), 0 0 16px rgba(var(--theme-rgb, 79,195,247),0.15);
-  text-shadow: 0 0 4px rgba(var(--theme-rgb, 79,195,247),0.55);
-}
-.drafted-tag.drafted-tag-trick {
-  color: #d7b3e6;
-  border-color: rgba(155,89,182,0.95);
-  box-shadow: 0 0 8px rgba(155,89,182,0.35), 0 0 16px rgba(155,89,182,0.15);
-  text-shadow: 0 0 4px rgba(155,89,182,0.55);
-}
 .drafted-list-trick strong { color: #d7b3e6; }
 
 /* ---- Drafted tag rarity tiers ----
@@ -9527,137 +9509,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
    can paint a name independently of its column. */
 .game-over-stats .go-card-ally { color: #7fd0ff; }
 .game-over-stats .go-card-enemy { color: #ff9a8c; }
-
-/* ============================================================
-   STAR OF THE MATCH PANEL
-   ============================================================
-   Hero panel at the top of the game-over recap. Surfaces the most
-   impactful card across both sides with a card-shaped chrome on
-   the left and a stat readout on the right. Side tint follows the
-   star's owner — cyan for player, red-orange for AI. */
-.sotm-panel {
-  margin: 0 auto 18px;
-  max-width: 720px;
-  padding: 14px 18px 16px;
-  background: linear-gradient(180deg, rgba(8,14,22,0.85) 0%, rgba(8,14,22,0.95) 100%);
-  border: 1px solid rgba(var(--gold-rgb),0.28);
-  border-radius: 8px;
-  box-shadow: 0 0 22px rgba(var(--gold-rgb),0.10), 0 6px 24px rgba(0,0,0,0.45);
-  animation: sotmRise 0.55s var(--ease-out-soft);
-}
 @keyframes sotmRise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
-.sotm-banner {
-  display: flex; align-items: center; gap: 10px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid rgba(var(--gold-rgb),0.18);
-  margin-bottom: 12px;
-}
-.sotm-icon {
-  font-size: 18px;
-  color: #ffd95c;
-  text-shadow: 0 0 10px rgba(255,217,92,0.6);
-}
-.sotm-title {
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 3px;
-  text-transform: uppercase;
-  color: #ffd95c;
-  text-shadow: 0 0 8px rgba(255,217,92,0.3);
-  flex: 1;
-}
-.sotm-side-tag {
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 2px;
-  padding: 2px 8px;
-  border-radius: 2px;
-  border: 1px solid currentColor;
-}
-.sotm-panel.sotm-side-player .sotm-side-tag { color: #7fd0ff; background: rgba(127,208,255,0.10); }
-.sotm-panel.sotm-side-ai     .sotm-side-tag { color: #ff9a8c; background: rgba(255,154,140,0.10); }
-.sotm-body {
-  display: flex; align-items: stretch; gap: 16px;
-}
-.sotm-card {
-  flex-shrink: 0;
-  width: 180px;
-  /* Inherits .card chrome (cost orb, name banner, ability badges, etc.)
-     but with a static layout — no hover lift, no animations. */
-  position: relative;
-  background: rgba(8,14,22,0.92);
-  border: 2px solid currentColor;
-  border-radius: 8px;
-  padding: 10px 8px 24px;
-  color: var(--text-body, #e8eef6);
-  box-shadow: 0 0 18px rgba(var(--gold-rgb),0.18);
-}
-.sotm-panel.sotm-side-player .sotm-card { color: #7fd0ff; }
-.sotm-panel.sotm-side-ai     .sotm-card { color: #ff9a8c; }
-.sotm-stats {
-  flex: 1;
-  display: flex; flex-direction: column; gap: 8px;
-  padding: 4px 0;
-}
-.sotm-headline {
-  display: flex; align-items: baseline; justify-content: space-between;
-  padding: 6px 10px;
-  background: rgba(255,217,92,0.08);
-  border-left: 3px solid #ffd95c;
-  border-radius: 0 4px 4px 0;
-}
-.sotm-headline-label {
-  color: rgba(255,217,92,0.75);
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-}
-.sotm-headline-value {
-  color: #ffd95c;
-  font-family: var(--font-mono);
-  font-size: 28px;
-  font-weight: 700;
-  text-shadow: 0 0 8px rgba(255,217,92,0.45);
-  font-variant-numeric: tabular-nums;
-}
-.sotm-substats {
-  display: flex; gap: 16px;
-  font-size: 12px;
-  color: rgba(255,255,255,0.78);
-}
-.sotm-substat-label {
-  display: block;
-  color: rgba(255,255,255,0.42);
-  font-size: 9px;
-  letter-spacing: 1.4px;
-  text-transform: uppercase;
-  margin-bottom: 2px;
-}
-.sotm-substat b {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text-body, #e8eef6);
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-}
-.sotm-impact {
-  font-size: 11px;
-  color: rgba(255,255,255,0.55);
-  letter-spacing: 1px;
-  text-transform: uppercase;
-}
-.sotm-impact b { color: var(--text-body, #e8eef6); font-size: 13px; font-weight: 700; }
-.sotm-runner {
-  font-size: 11px;
-  color: rgba(255,255,255,0.55);
-  margin-top: auto;
-  padding-top: 6px;
-  border-top: 1px dashed rgba(255,255,255,0.15);
-}
 @media (max-width: 600px) {
   .sotm-body { flex-direction: column; align-items: center; gap: 12px; }
   .sotm-card { width: 90%; max-width: 220px; }
@@ -14642,13 +14494,6 @@ body, :root {
     inset 0 0 5px rgba(240,245,250,0.08) !important;
   text-shadow: 0 0 6px rgba(240,245,250,0.80), 0 0 10px rgba(240,245,250,0.40) !important;
 }
-/* Drafted-tag trick sidebar + AI mini-hand trick-back cards silver. */
-.drafted-tag.drafted-tag-trick {
-  color: var(--text-body, #e8eef6) !important;
-  border-color: rgba(240,245,250,0.85) !important;
-  box-shadow: 0 0 6px rgba(240,245,250,0.28), 0 0 12px rgba(240,245,250,0.10) !important;
-  text-shadow: 0 0 4px rgba(240,245,250,0.45) !important;
-}
 .ai-hand-mini .card-back.trick-back {
   border-color: rgba(240,245,250,0.75) !important;
   color: rgba(240,245,250,0.80) !important;
@@ -14756,12 +14601,6 @@ body.theme-purple, :root.theme-purple { --theme-r: 155; --theme-g: 89; --theme-b
     0 0 10px rgba(155,89,182,0.18),
     inset 0 0 5px rgba(155,89,182,0.10) !important;
   text-shadow: 0 0 6px rgba(155,89,182,0.85), 0 0 10px rgba(155,89,182,0.45) !important;
-}
-.drafted-tag.drafted-tag-trick {
-  color: #d7b3e6 !important;
-  border-color: rgba(155,89,182,0.95) !important;
-  box-shadow: 0 0 6px rgba(155,89,182,0.32), 0 0 12px rgba(155,89,182,0.14) !important;
-  text-shadow: 0 0 4px rgba(155,89,182,0.55) !important;
 }
 .ai-hand-mini .card-back.trick-back {
   border-color: rgba(155,89,182,0.95) !important;
@@ -32542,18 +32381,6 @@ body.round-tick .board::after {
   25%  { opacity: 0.85; }
   100% { transform: translateX(115%)  scaleX(1);   opacity: 0;   }
 }
-.spino-wake {
-  position: absolute;
-  left: 0;
-  top: 58%;
-  width: 100%;
-  height: 14%;
-  pointer-events: none;
-  background: linear-gradient(90deg, transparent 0%, rgba(140, 245, 200, 0.55) 45%, rgba(200, 255, 235, 0.75) 55%, transparent 100%);
-  filter: blur(1.5px);
-  animation: spinoWake 1s ease-in-out forwards;
-}
-.spino-wake.spino-wake-rev { animation-direction: reverse; }
 
 /* Hunt Meter discharge — one heavy lunge on the card itself. */
 @keyframes spinoRampage {

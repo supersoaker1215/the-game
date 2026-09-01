@@ -11096,15 +11096,6 @@ const Game = {
     return true;
   },
 
-  // Gate-filtered target lists — card-targeting tricks build BOTH their
-  // canPlay predicate and their play() prompt list through these, so the
-  // tray grey-out and the offered targets can never disagree.
-  trickableEnemies(owner, kind) {
-    return this.getEnemiesOf(owner).filter(t => this.canTrickLand(t, kind, owner));
-  },
-  trickableAllies(owner, kind) {
-    return this.getAlliesOf(owner).filter(t => this.canTrickLand(t, kind, owner));
-  },
 
   // ===================== ABILITY TARGET PREVIEW =====================
   // "Which enemies would this hand card's onPlay ability be able to target?"
@@ -12469,18 +12460,6 @@ const Game = {
     });
   },
 
-  // "ARE WE FIGHTING RIGHT NOW?" — one predicate, because the answer was
-  // already being spelled out inline in more than one place and 2v2 answers it
-  // differently (phase '2v2-combat' plus its own finished-flag) from 1v1
-  // (phase 'combat'). The combat zoom keys off this, so it can never disagree
-  // with the watchdog about when combat is live.
-  isInCombat() {
-    const s = this.state;
-    if (!s) return false;
-    if (s.phase === 'combat' || s._inCombat) return true;
-    const is2v2 = !!(this.is2v2 && this.is2v2());
-    return is2v2 && (s.phase === '2v2-combat' || !!s._combatFinishedThisRound);
-  },
 
   _tickStatusOnLaneResolve(card) {
     if (!card) return;

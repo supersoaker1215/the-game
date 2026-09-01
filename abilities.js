@@ -744,7 +744,12 @@ const CARD_ABILITIES = {
     // off the enemy onto your own.
     isDiscardEffect: true,
     onDiscard(G, owner, self) {
-      if (typeof UI !== 'undefined' && UI._fxPinheadChains) { try { UI._fxPinheadChains(); } catch (e) {} }
+      // (A call to UI._fxPinheadChains stood here and was removed: the function
+      // was never written, and could not usefully be. It fired as the FIRST line
+      // of onDiscard, before the two cards are chosen and chained, so there were
+      // no anchors to draw a chain between — and the cards it would link live in
+      // the ENEMY's hand, off-screen. A screen-level "the chains rattle" beat
+      // would work; that is a new effect, not a repair.)
       const opp = G.opponent(owner);
       // Which hand to raid. 1v1: the opponent's. 2v2: a random ENEMY seat that
       // has ≥2 cards (the two chained cards must share a hand, per "2 random
