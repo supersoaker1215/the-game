@@ -16627,18 +16627,27 @@ const Game = {
   // Appears at the top of a round, names four challenges, and returns 3-4
   // rounds later to hand a Wonder Weapon to whoever leads each one.
   //
-  // HE OPENS THE MATCH AND COMES BACK TO PAY. He appears at the start of round
-  // 1, states the four challenges, and returns at the start of a random round
-  // from 5 to 8 to hand out the prizes. (Owner: "he appears at the start of the
-  // game the beginning of round 1 and explains the rules and what he'll be
-  // tracking. Then at the start of round 5 or 6 or 7 or 8 any one of those at
-  // random he can return again to give out prizes.")
+  // HE OPENS AND COMES BACK TO PAY — but not before round 3. He states the four
+  // challenges, then returns at the start of a random round from 5 to 8 to hand
+  // out the prizes.
   //
-  // So the tracking window is the whole match up to that point — everything a
-  // player does from the first card counts, and nobody knows which of the four
-  // rounds ends it. The return also lands well inside a normal match: measured
-  // over 300 full games the median ends at round 10.
-  _SHADOW_FIRST_ROUND: 1,
+  // ROUND 3, NOT ROUND 1, AND THAT REVERSES AN EARLIER INSTRUCTION. This was 1
+  // because the owner asked for it: "he appears at the start of the game the
+  // beginning of round 1 and explains the rules and what he'll be tracking."
+  // The later rule supersedes it — "events start on turn 3 no events before
+  // that" — and it makes him consistent with the only other event that exists:
+  // _BALLYHOO_FIRST_ROUND has been 3 all along, for the reason recorded there,
+  // that rounds 1-2 are the opening and something arriving in them "reads as
+  // part of the deal rather than as an event".
+  //
+  // THE TRACKING WINDOW MOVES WITH HIM. Stats are initialised when he appears,
+  // so this is not just a later entrance — rounds 1 and 2 no longer count
+  // toward any challenge. That is the honest reading of the rule (nothing is an
+  // event before round 3, including the scoring) and it keeps the property that
+  // mattered: the challenges are announced BEFORE the play that decides them.
+  // It does shorten the window — announce at 3, pay at 5-8 is 2-5 rounds rather
+  // than 4-7. If that turns out too tight, _SHADOW_RETURN_MIN is the dial.
+  _SHADOW_FIRST_ROUND: 3,
   _SHADOW_RETURN_MIN: 5,
   _SHADOW_RETURN_MAX: 8,
   _SHADOW_CATEGORIES: ['kills', 'played', 'heroDmg', 'blocked'],

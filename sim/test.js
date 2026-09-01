@@ -5697,6 +5697,36 @@ test('Spinosaurus is spawn-only and never enters a draftable pool', function () 
 // this, making a card `_spawnOnly` and forgetting to file it silently deletes
 // it from the game — which is exactly what the deleted assertion above was
 // protecting against, in the form the design now takes.
+test('No event can fire before round 3', function () {
+  // Owner: "events start on turn 3 no events before that." Both constants are
+  // asserted AND the behaviour is driven, because the constant alone would not
+  // catch a caller that appeared him without consulting it.
+  assert(Game._BALLYHOO_FIRST_ROUND >= 3, 'Ballyhoo is gated to round 3+');
+  assert(Game._SHADOW_FIRST_ROUND >= 3, 'the Shadow Man is gated to round 3+');
+
+  var G = freshGame();
+  // Force his slot so `shows` cannot come up false and pass this vacuously.
+  G.state._matchEvent = 'shadowman';
+  G._rollShadowMan();
+  G.state._shadow.shows = true;
+  G._maybeShadowMan(1);
+  assertEq(!!G.state._shadow.appeared, false, 'round 1 — he stays away');
+  G._maybeShadowMan(2);
+  assertEq(!!G.state._shadow.appeared, false, 'round 2 — still nothing');
+  G._maybeShadowMan(3);
+  assertEq(G.state._shadow.appeared, true, 'round 3 — he arrives');
+
+  var H = freshGame();
+  H.state._matchEvent = 'ballyhoo';
+  H._rollBallyhoo();
+  H.state._ballyhoo.shows = true;
+  H.state._ballyhoo.appearAt = 1;   // even told to come early, the gate holds
+  H._maybeBallyhoo(1);
+  assertEq(!!H.state._ballyhoo.fired, false, 'round 1 — no candy');
+  H._maybeBallyhoo(2);
+  assertEq(!!H.state._ballyhoo.fired, false, 'round 2 — no candy');
+});
+
 test('Every environment is claimed by exactly one event franchise', function () {
   assert(typeof EVENT_FRANCHISES !== 'undefined', 'the franchise registry exists');
   // Two tiers: an EVENT is what gets rolled, its spawns are what come out. An
