@@ -47774,9 +47774,39 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    =========================================================================== */
 #classic-decision {
   position: absolute;
-  top: 0; right: 0;
-  width: 286px;
-  max-height: 100%;
+  /* NOT FLUSH TO THE EDGE. right:0 put the panel's border exactly on the
+     viewport's right edge at every size — measured at 1400x700 its right edge
+     WAS 1400. A few pixels of air is the difference between a panel and a
+     thing that has fallen off the screen. */
+  top: 6px; right: 10px;
+  /* WIDTH FOLLOWS THE VIEWPORT. A fixed 286px is one width for a 1024 screen
+     and a 2560 one; clamp keeps it readable on a small screen without eating
+     the board, and lets a wide screen give the choices room. */
+  width: clamp(232px, 21vw, 330px);
+  /* BOUNDED BY THE VIEWPORT AS WELL AS BY ITS CONTAINER. At 1180x620 the
+     board-section itself runs 69px past the bottom of the screen, and an
+     absolutely-positioned child capped only at `100% of the section` went with
+     it — measured 63px off-screen, with the last option under the edge. The
+     min() adds a second ceiling the section cannot lift.
+
+     136px is the panel's own top offset plus air: it starts at the section's
+     top, which is the HUD and the opponent band (~111px), plus this rule's 6px
+     inset. If that chrome ever grows the cap is still an over-estimate, so the
+     panel shrinks rather than escapes. */
+  /* THE SCREEN IS THE CEILING, NOT THE BOARD SECTION. Capping at `100% of the
+     section` did two opposite wrong things at different sizes: at 1180x620 the
+     section runs off-screen and the panel went with it (63px past the bottom,
+     last option under the edge), and at 1024x768 the section is SHORT and the
+     panel stopped 211px above the bottom of a screen that had the room, with an
+     option needing a scroll it did not need. One viewport-relative cap fixes
+     both directions — the panel is never off-screen and never smaller than the
+     space allows.
+
+     136px is the panel's own top offset plus air: it starts at the section's
+     top, which is the HUD and opponent band (~111px), plus this rule's 6px
+     inset. If that chrome ever grows this stays an over-estimate, so the panel
+     shrinks rather than escapes. */
+  max-height: calc(100vh - 136px);
   display: none;
   flex-direction: column;
   gap: 8px;
@@ -47888,3 +47918,68 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   color: rgba(198, 208, 219, 0.55);
   font-style: italic;
 }
+
+
+/* ===========================================================================
+   A DOCKED CHOICE FITS THE COLUMN (2026-09-01)
+   Owner: "the decision box needs to fit at all aspect ratios."
+
+   The choice tray was built as a full-width sheet across the middle of the
+   screen, so docked in a side panel it kept its one-per-row layout: measured,
+   three options at --card-w 140px stacked to 880px inside a 452px panel, with
+   350px of the choice hidden below the fold. It scrolled, so it was usable —
+   but a prompt you have to scroll to answer is a prompt you can miss.
+
+   The options flow into a grid instead, so the column's width does the work
+   the height was doing, and the cards come down to a size that fits two across.
+   overflow-y stays on the panel as the last resort: at some aspect ratio a
+   long enough choice will still need it, and scrolling beats clipping.
+   =========================================================================== */
+/* THE TRAY'S OWN HEADING GOES, because #prompt-banner directly above it is
+   already saying it. Measured verbatim: banner "Gorilla Grodd — Mind Control /
+   Choose an enemy with base cost 3 or less / 29s" at 113px, tray header the
+   same sentence at 59px — 172px of a 438px panel spent restating itself. The
+   banner is the one kept: it carries the countdown, which the header does not.
+   (V2 reached the same conclusion from the other side and dropped its echo.) */
+#classic-decision .choice-tray-header { display: none !important; }
+
+/* THE TRAY CHAIN FILLS THE COLUMN FIRST. Every one of these is shrink-to-fit,
+   so narrowing the cards narrowed their containers with them: measured, the
+   grid collapsed to 76px — one card wide — and auto-fill duly gave one column,
+   which is how making the cards SMALLER produced a TALLER tray. Width has to be
+   asserted down the chain before auto-fill has a meaningful box to fill. */
+#classic-decision #choice-tray,
+#classic-decision .choice-tray,
+#classic-decision .choice-tray-panel,
+#classic-decision .choice-tray-cards {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box;
+}
+
+#classic-decision .choice-tray-cards {
+  display: grid !important;
+  /* 70px, and the number is arithmetic rather than taste. The grid is 242px
+     wide with an 8px gap, so three columns need 3x + 16 <= 242, i.e. x <= 75.3.
+     96 gave two rows; 76 missed by two pixels and still gave two. At 70 the
+     three options sit in ONE row, so the whole choice is on screen at once —
+     which is the point of a choice. Wider panels fit more per row on their own,
+     because auto-fill is doing the deciding. */
+  grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)) !important;
+  gap: 8px !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  align-content: start;
+}
+#classic-decision .choice-tray-cards > * { width: 100% !important; min-width: 0 !important; }
+#classic-decision .choice-tray .card,
+#classic-decision .choice-tray-cards .card {
+  --card-w: 70px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+/* The header stops reserving sheet-sized space. */
+#classic-decision .choice-tray-header { padding: 0 0 6px !important; }
+#classic-decision .choice-tray-panel { padding: 10px !important; }
