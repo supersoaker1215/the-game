@@ -119,6 +119,15 @@ const CARD_DEFS = [
     desc: "While Active: The first enemy card to die in this lane rises on your side as a (2/2), as if newly played. An ally in that lane moves to an empty lane to make room. Game Over is then spent." },
   { name: "Enclosure", cost: 2, attack: 0, health: 1, type: "environment",
     _spawnOnly: true,
+    // isEnvironment, NOT just type:"environment". They are not the same flag:
+    // `type` is what the codex sorts on, `isEnvironment` is what the ENGINE
+    // reads — playCard's env-slot branch, canPlaceEnvironment, cleanupDead's
+    // invariant sweep. Without it this card was a combat body sitting in an env
+    // slot, which is precisely what the sweep prints: "[INVARIANT @cleanup]
+    // Enclosure (combat card) is in the ENV slot of lane 3". Every other
+    // environment in this file carries both; this one was written with only
+    // `type` and nothing had ever placed it, so nothing had ever noticed.
+    isEnvironment: true,
     abilities: [],
     desc: "Each Turn: Pay 1 Energy to keep the gate shut, or skip \u2014 skip once and the T-Rex is released here. An ally in that lane moves to an empty lane \u2014 with no empty lane it is destroyed and the T-Rex adds its stats." },
   { name: "Wetlands", cost: 2, attack: 0, health: 1, type: "environment",

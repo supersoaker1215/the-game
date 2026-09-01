@@ -4681,6 +4681,10 @@ const Game = {
     // never see him. Both are no-ops unless the match actually rolled them, and
     // _rollMatchEvent picks exactly one, so they can never both fire.
     this._maybeShadowMan(this.state.round);
+    // …and the seven habitat events, from the same seam. All three are no-ops
+    // unless the match actually rolled them, and _rollMatchEvent picks exactly
+    // one, so no two can ever fire together.
+    this._maybeHabitatEvent(this.state.round);
     this.state.lanes.forEach(l => l.protected = null);
     // Clear Parlay — one-round effect from Jack Sparrow (per-card flag;
     // legacy side-wide key deleted too for old saves)
@@ -4777,7 +4781,31 @@ const Game = {
       const optional = !!queue[idx].onDecline; // onDecline = skip is harmless (no collapse)
       const next = () => processNext(idx + 1);
       if (card.currentHealth <= 0 || this.findCardLane(card) < 0) { next(); return; }
+      // WHAT THE ENTRY WANTS SAID, NOT WHAT GARGANTUA WANTS SAID. Every string
+      // below was written when Gargantua was the only optional upkeep in the
+      // game, so a second one inherited his copy verbatim: the Enclosure's gate
+      // asked "Pay 1 Energy to pull all enemies 1 lane closer, or skip." The
+      // wording belongs to the card, with his as the default so nothing about
+      // him changes.
+      const q = queue[idx];
+      const payLabel   = q.payLabel   || 'Pay 1 Energy';
+      const payText    = q.payDesc    || ((optional ? 'Activate pull — ' : 'Keep ') + (label || card.name) + (optional ? ' pulls all enemies 1 lane closer.' : ' active.'));
+      const skipLabel  = q.skipLabel  || (optional ? 'Skip' : 'Let it Collapse');
+      const skipText   = q.skipDesc   || (optional
+        ? 'No pull this round — ' + (label || card.name) + ' stays put.'
+        : (label || card.name) + ' disappears — no energy spent.');
+      const askText    = q.promptDesc || (optional
+        ? 'Pay 1 Energy to pull all enemies 1 lane closer, or skip.'
+        : 'Pay 1 Energy to keep it active, or let it collapse.');
+      // AND WHICH WAY THE BOT LEANS. "Always pay if you can afford it" is right
+      // for Gargantua, where paying is pure upside — and it made the Enclosure a
+      // card that could not happen: measured over 400 full matches, the gate
+      // opened ZERO times, because energy resets every round and the AI could
+      // always afford to hold it shut. A card whose entire text is what happens
+      // when you STOP paying needs the other branch to be reachable.
+      const aiDeclines = optional && q.aiPrefer === 'decline';
       if (!this.isHuman(owner)) {
+        if (aiDeclines) { if (q.onDecline) q.onDecline(); next(); return; }
         // AI always auto-pays if it can afford.
         if (this.state[owner].currency >= 1) {
           this.state[owner].currency -= 1;
@@ -4804,20 +4832,13 @@ const Game = {
         if (typeof UI !== 'undefined' && UI.render) UI.render();
         next(); return;
       }
-      const payOpt  = { _upkeepPay:  true, name: 'Pay 1 Energy', cost: 1, attack: 0, health: 1,
-        type: 'environment', desc: (optional ? 'Activate pull — ' : 'Keep ') + (label || card.name) + (optional ? ' pulls all enemies 1 lane closer.' : ' active.'), isEnvironment: true };
-      const skipName = optional ? 'Skip' : 'Let it Collapse';
-      const skipDesc = optional
-        ? 'No pull this round — ' + (label || card.name) + ' stays put.'
-        : (label || card.name) + ' disappears — no energy spent.';
-      const skipOpt = { _upkeepSkip: true, name: skipName, cost: 0, attack: 0, health: 0,
-        type: 'environment', desc: skipDesc, isEnvironment: true };
-      const promptDesc = optional
-        ? 'Pay 1 Energy to pull all enemies 1 lane closer, or skip.'
-        : 'Pay 1 Energy to keep it active, or let it collapse.';
+      const payOpt  = { _upkeepPay:  true, name: payLabel, cost: 1, attack: 0, health: 1,
+        type: 'environment', desc: payText, isEnvironment: true };
+      const skipOpt = { _upkeepSkip: true, name: skipLabel, cost: 0, attack: 0, health: 0,
+        type: 'environment', desc: skipText, isEnvironment: true };
       this.promptCardChoice(owner, [payOpt, skipOpt],
         (label || card.name) + ' — Upkeep',
-        promptDesc,
+        askText,
         (picked) => {
           if (picked && picked._upkeepPay) {
             this.state[owner].currency -= 1;
@@ -4835,7 +4856,12 @@ const Game = {
           }
           next();
         },
-        (choices) => choices.find(c => c._upkeepPay) || choices[0]
+        // The auto-pick when a human's clock runs out follows the same lean as
+        // the bot's, so an unanswered prompt resolves the way the card expects
+        // rather than always defaulting to paying.
+        (choices) => (aiDeclines
+          ? (choices.find(c => c._upkeepSkip) || choices[0])
+          : (choices.find(c => c._upkeepPay) || choices[0]))
       );
     };
     processNext(0);
@@ -16608,17 +16634,193 @@ const Game = {
       this.log('[EVENT] Random events are switched off for this mode — no event this match.');
       return;
     }
-    // EVERY MODE, EVEN ODDS. He used to be 2v2-only, so 1v1 and solo always got
-    // Ballyhoo; his four challenges are contested between the two sides now.
-    // (Owner: "make sure for each game its a random chance on if you get a MC or
-    // shadow man random event and make sure this works for 2v2, 1v1 and solo".)
-    s._matchEvent = (this.rng() < 0.5) ? 'shadowman' : 'ballyhoo';
-    // SAY WHICH ONE IT IS, IN THE LOG. A player who does not see the Shadow Man
-    // all match has no way to tell whether he was rolled and something ate him,
-    // or the coin simply came up Ballyhoo — which made a report of "he never
-    // showed up in 2v2 online" impossible to act on, because every path I could
-    // test produced him correctly. One line makes the next report answerable.
-    this.log(`[EVENT] This match rolled: ${s._matchEvent === 'shadowman' ? 'Shadow Man' : 'MC Ballyhoo'}.`);
+    // EVERY EVENT, EVEN ODDS — all nine, not the two that had firing code.
+    //
+    // This was a straight coin flip between the Shadow Man and MC Ballyhoo,
+    // because they were the only two events anything ever fired. The other
+    // seven exist as finished cards with finished abilities, are listed in
+    // EVENT_FRANCHISES, are drawn in the codex — and were unreachable in play,
+    // since nothing rolled them and _spawnOnly keeps them out of every draft.
+    // Owner: "on round 3 for events is it random which event spawns? it should
+    // be, ive only seen shadow man, it should be all events have an equal
+    // chance." Two separate reasons he only ever saw the Shadow Man: he was one
+    // of two outcomes rather than one of nine, and he is pinned to round 3 while
+    // Ballyhoo picks a round from 3 to 7 — so round 3 in particular was almost
+    // always him.
+    //
+    // THE POOL IS EVENT_FRANCHISES, NOT A SECOND LIST HERE. That registry is
+    // already the one the codex reads, and its nesting is the rarity dial: a
+    // franchise with two events (Jurassic Park) is twice as likely to come up as
+    // one with a single event (Jaws), which is the honest reading of "each EVENT
+    // has an equal chance". Keeping the odds and the codex on one structure is
+    // what stops the two from drifting.
+    const pool = this.matchEventPool();
+    if (!pool.length) { s._matchEvent = 'none'; return; }
+    const pick = pool[Math.floor(this.rng() * pool.length)];
+    s._matchEventName = pick;
+    // The two scripted events keep their own keys, because _rollBallyhoo and
+    // _rollShadowMan test against them and the sim forces a match by setting
+    // _matchEvent directly. Everything else is a habitat that gets placed.
+    s._matchEvent = pick === 'Shadow Man' ? 'shadowman'
+                  : pick === 'MC Ballyhoo' ? 'ballyhoo'
+                  : 'habitat';
+    // SAY WHICH ONE IT IS, IN THE LOG. A player who does not see a given event
+    // all match has no way to tell whether it was rolled and something ate it,
+    // or the draw simply came up something else — which made a report of "he
+    // never showed up in 2v2 online" impossible to act on, because every path I
+    // could test produced him correctly. One line makes the next report
+    // answerable.
+    this.log(`[EVENT] This match rolled: ${pick}.`);
+  },
+
+  // The flat list of every event that can be drawn, in registry order. One entry
+  // per EVENT — the spawns underneath an event are what it produces, not
+  // alternatives to it, so they are not candidates.
+  matchEventPool() {
+    const out = [];
+    const FR = (typeof EVENT_FRANCHISES !== 'undefined') ? EVENT_FRANCHISES
+             : (typeof window !== 'undefined' && window.EVENT_FRANCHISES) ? window.EVENT_FRANCHISES
+             : [];
+    FR.forEach(fr => (fr.events || []).forEach(ev => { if (ev && ev.name) out.push(ev.name); }));
+    return out;
+  },
+
+  // ============================================================
+  // HABITAT EVENTS — the other seven
+  // ============================================================
+  // Everything in EVENT_FRANCHISES that is not the Shadow Man or MC Ballyhoo is
+  // an ENVIRONMENT card, and those two are the only ones that were ever fired.
+  // The seven habitats are finished (Boiler Room, Sewers, Open Water, Wetlands,
+  // Gargantua, Jigsaw's rooms, and the Enclosure, whose release ability lands in
+  // this same change) but nothing ever placed one, so they were unreachable in a
+  // real match. This is their clock.
+  //
+  // A round from 3 to 7, the same window as Ballyhoo and for the same reason —
+  // picked ONCE, up front, rather than rolled per tick, because 2v2 ticks the
+  // seam twice a round and a per-tick roll collapses toward the front (measured
+  // there at 57/33/11 rather than a third each).
+  _HABITAT_FIRST_ROUND: 3,
+  _HABITAT_LATEST_ROUND: 7,
+
+  // The environment an event actually places. It is the event's own name for
+  // every franchise but Saw: 'Jigsaw' is the event, and The Bathroom and Game
+  // Over are what it opens. One of the two is drawn here, at roll time rather
+  // than at fire time, so the answer is fixed for the match and identical on
+  // every client — and BOTH SIDES GET THE SAME ROOM. Handing one player the
+  // Bathroom and the other Game Over would be two different events wearing one
+  // name, which is exactly the fairness the owner asked for the opposite of.
+  _habitatPlacement(eventName) {
+    if (eventName === 'Jigsaw') {
+      const rooms = ['The Bathroom', 'Game Over'];
+      return rooms[Math.floor(this.rng() * rooms.length)];
+    }
+    return eventName;
+  },
+
+  _rollHabitatEvent() {
+    const s = this.state;
+    if (!s || s._habitat) return;
+    if (!s._matchEvent) this._rollMatchEvent();
+    const first = this._HABITAT_FIRST_ROUND | 0;
+    const last = Math.max(first, this._HABITAT_LATEST_ROUND | 0);
+    const shows = s._matchEvent === 'habitat';
+    s._habitat = {
+      shows,
+      name: shows ? (s._matchEventName || null) : null,
+      place: shows ? this._habitatPlacement(s._matchEventName) : null,
+      appearAt: first + Math.floor(this.rng() * (last - first + 1)),
+      fired: false,
+    };
+  },
+
+  // ONE ENVIRONMENT PER SIDE, IN DIFFERENT LANES.
+  //
+  // Not one shared environment: an env slot belongs to a side, and every one of
+  // these cards is written from its owner's point of view ("the first ENEMY card
+  // to enter this lane"). A single neutral copy has no owner to be an enemy of.
+  //
+  // And not the same lane for both: seating an environment destroys whatever
+  // environment is in that lane on EITHER side — see canPlaceEnvironment, where
+  // that rule is written down — so placing the second on top of the first would
+  // simply delete it. Two lanes, drawn at random, one each. The two sides get
+  // the identical card, so the event is symmetric however the lanes fall.
+  //
+  // (Owner, when this was being designed: "if something were to spawn but that
+  // side doesnt have space how would that work, those events couldnt show up?"
+  // They wait. `fired` is only set once the placement actually happens, so an
+  // event that finds fewer than two free lanes on its round tries again on the
+  // next one rather than being silently spent.)
+  _maybeHabitatEvent(roundNow) {
+    const s = this.state;
+    if (!s) return;
+    if (!s._habitat) this._rollHabitatEvent();
+    const h = s._habitat;
+    if (!h || h.fired || !h.shows) return;
+    if ((roundNow | 0) < (h.appearAt != null ? h.appearAt : this._HABITAT_FIRST_ROUND)) return;
+    const name = h.place || h.name;
+    if (!name) { h.fired = true; return; }
+    const def = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(d => d.name === name) : null;
+    if (!def) { h.fired = true; this.log(`[EVENT] ${name} has no card definition — event skipped.`); return; }
+
+    // canPlaceEnvironment reads both sides of a lane, so the answer does not
+    // depend on which side is asking; one list serves both placements.
+    const free = this.openEnvLanes('player').filter(i => {
+      const l = this.state.lanes[i];
+      return l && !l.destroyed && !(l._env && (l._env.player || l._env.ai));
+    });
+    if (free.length < 2) {
+      if (!h.waited) {
+        h.waited = true;
+        this.log(`[EVENT] ${name} is waiting — it needs two lanes clear of environments.`);
+      }
+      return;
+    }
+    const pick = free.slice();
+    this.shuffle(pick);
+    h.fired = true;
+    this._placeEventEnvironment('player', pick[0], name);
+    this._placeEventEnvironment('ai', pick[1], name);
+    this._announceHabitatEvent(h, name, def);
+  },
+
+  // Seat one event environment. Deliberately NOT playCard: there is no owner
+  // spending energy, no hand to remove it from and no discount to clear. It is
+  // the same short sequence Jigsaw's rooms use — clear the lane, instance,
+  // seat, announce, run On Play.
+  _placeEventEnvironment(owner, laneIdx, name) {
+    const def = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(d => d.name === name) : null;
+    const lane = this.state.lanes[laneIdx];
+    if (!def || !lane || lane.destroyed) return null;
+    if (!lane._env) lane._env = {};
+    // Only one environment may be active per lane, from either side — kill any
+    // existing one before seating so its effects are cleaned up rather than
+    // left as a dead zombie still receiving broadcasts.
+    [owner, this.opponent(owner)].forEach(side => {
+      const existing = lane._env[side];
+      if (existing) {
+        existing.currentHealth = 0;
+        this.handleDeath(existing, laneIdx, null);
+        lane._env[side] = null;
+      }
+    });
+    const env = this.createCardInstance(def, owner);
+    lane._env[owner] = env;
+    if (env.statsEnteredRound == null) env.statsEnteredRound = this.state.round || 1;
+    this.emitFX('envReveal', { lane: laneIdx, owner, name });
+    this.log(`[EVENT] ${name} opens in lane ${laneIdx + 1} on the ${owner === 'player' ? 'player' : 'enemy'} side.`);
+    if (env.onPlay) { try { env.onPlay(this, env, laneIdx); } catch (e) {} }
+    return env;
+  },
+
+  _announceHabitatEvent(h, name, def) {
+    if (typeof UI === 'undefined' || !UI.showCardReveal) return;
+    const FR = (typeof EVENT_FRANCHISES !== 'undefined') ? EVENT_FRANCHISES
+             : (typeof window !== 'undefined' && window.EVENT_FRANCHISES) ? window.EVENT_FRANCHISES : [];
+    let title = 'Event';
+    FR.forEach(fr => (fr.events || []).forEach(ev => { if (ev.name === h.name) title = fr.title; }));
+    try {
+      UI.showCardReveal(name, def.desc || '', def.cost, true, title.toUpperCase());
+    } catch (e) { /* an announcement must never be able to stop the event */ }
   },
 
   // ============================================================
@@ -19029,6 +19231,7 @@ const Game = {
     // just ended is paid out before he is asked to return again.
     this._shadowSettleDuels(tt.round);
     this._maybeShadowMan(tt.round);
+    this._maybeHabitatEvent(tt.round);
     // Wonder Weapon board effects age at the top of the round, after combat has
     // resolved the previous one.
     try { this.tickStormMarks(); } catch (e) { console.error('[storm mark]', e); }

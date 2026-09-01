@@ -5767,6 +5767,169 @@ test('Every environment is claimed by exactly one event franchise', function () 
   });
 });
 
+test('Every event in the registry can actually be rolled, at even odds', function () {
+  // Owner: "on round 3 for events is it random which event spawns? it should
+  // be, ive only seen shadow man, it should be all events have an equal
+  // chance." Before this, the roll was a coin flip between two events and the
+  // other seven were unreachable — so the assertion is not "the draw is random"
+  // (it always was) but "the draw can produce every event there is".
+  var pool = Game.matchEventPool();
+  var listed = [];
+  EVENT_FRANCHISES.forEach(function (fr) {
+    (fr.events || []).forEach(function (ev) { listed.push(ev.name); });
+  });
+  assertEq(pool.length, listed.length, 'the pool is exactly the registry, one entry per event');
+  listed.forEach(function (n) { assert(pool.indexOf(n) >= 0, n + ' is in the draw'); });
+
+  // Drive the real roll over many seeds and check nothing is unreachable. The
+  // bug being pinned was a pool of two, so a seen-set is the shape of the test;
+  // the counts are checked loosely because a fair 9-way draw over 900 trials
+  // sits near 100 each and this must not become a flaky statistics assertion.
+  var seen = {};
+  for (var i = 0; i < 900; i++) {
+    var G = freshGame();
+    G.seedMatch(i + 1);
+    G.state._matchEvent = null;
+    G.state._matchEventName = null;
+    G._rollMatchEvent();
+    if (G.state._matchEvent === 'none') continue;   // events switched off for this mode
+    seen[G.state._matchEventName] = (seen[G.state._matchEventName] || 0) + 1;
+  }
+  var missing = listed.filter(function (n) { return !seen[n]; });
+  assertEq(missing.join(','), '', 'no event is unreachable');
+  listed.forEach(function (n) {
+    assert(seen[n] > 20, n + ' comes up at a plausible rate (' + seen[n] + '/900)');
+  });
+});
+
+test('A habitat event opens the same environment on both sides, in different lanes', function () {
+  var G = freshGame();
+  G.state._matchEvent = 'habitat';
+  G.state._matchEventName = 'Open Water';
+  G._rollHabitatEvent();
+  G.state._habitat.appearAt = 3;
+
+  G._maybeHabitatEvent(2);
+  assertEq(!!G.state._habitat.fired, false, 'round 2 — nothing opens');
+
+  G._maybeHabitatEvent(3);
+  assertEq(G.state._habitat.fired, true, 'round 3 — it opens');
+
+  var mine = -1, theirs = -1;
+  for (var i = 0; i < G.LANE_COUNT; i++) {
+    var l = G.state.lanes[i];
+    if (l._env && l._env.player) { assertEq(l._env.player.name, 'Open Water', 'the player side gets Open Water'); mine = i; }
+    if (l._env && l._env.ai)     { assertEq(l._env.ai.name, 'Open Water', 'the enemy side gets the same card'); theirs = i; }
+  }
+  assert(mine >= 0, 'the player got one');
+  assert(theirs >= 0, 'the opponent got one');
+  assert(mine !== theirs, 'they are in different lanes — seating one on the other would destroy it');
+});
+
+test('A habitat event waits for space instead of being spent on it', function () {
+  // Owner, while this was being designed: "if something were to spawn but that
+  // side doesnt have space how would that work, those events couldnt show up?"
+  var G = freshGame();
+  G.state._matchEvent = 'habitat';
+  G.state._matchEventName = 'Sewers';
+  G._rollHabitatEvent();
+  G.state._habitat.appearAt = 3;
+
+  // Fill every lane but one with environments, so only one is free.
+  for (var i = 0; i < G.LANE_COUNT - 1; i++) G._placeEventEnvironment('player', i, 'Gargantua');
+  G._maybeHabitatEvent(3);
+  assertEq(!!G.state._habitat.fired, false, 'one free lane is not enough — it holds');
+
+  // Give it room back and it turns up on a later round.
+  G.state.lanes[0]._env = {};
+  G._maybeHabitatEvent(4);
+  assertEq(G.state._habitat.fired, true, 'with two lanes clear it opens');
+});
+
+test('The Enclosure lets the T-Rex out the round nobody pays', function () {
+  var G = freshGame();
+  var gate = G._placeEventEnvironment('player', 2, 'Enclosure');
+  assert(gate, 'the gate is standing');
+
+  // Paying keeps it shut.
+  G.state._pendingUpkeep = [];
+  gate.onTurnStart(G, gate);
+  assertEq(G.state._pendingUpkeep.length, 1, 'it asks for the upkeep');
+  G.state._pendingUpkeep[0].onPay();
+  assertEq(!!gate._encReleased, false, 'paid — the gate holds');
+  assertEq(G.state.lanes[2]._env.player, gate, 'and the paddock is still there');
+
+  // Skipping once lets it out.
+  G.state._pendingUpkeep = [];
+  gate.onTurnStart(G, gate);
+  G.state._pendingUpkeep[0].onDecline();
+  assertEq(gate._encReleased, true, 'skipped — the gate opens');
+  var rex = G.state.lanes[2].player;
+  assert(rex && rex.name === 'T-Rex', 'the T-Rex takes the lane');
+  assertEq(rex.attack, 3, 'at its printed attack');
+  assertEq(rex.currentHealth, 7, 'and its printed health');
+  assertEq(G.state.lanes[2]._env.player, null, 'the paddock is replaced, not kept');
+
+  // And a second decline cannot let out a second one.
+  G.state._pendingUpkeep = [];
+  gate.onTurnStart(G, gate);
+  assertEq(G.state._pendingUpkeep.length, 0, 'a spent gate stops asking');
+});
+
+test('An optional upkeep asks in its OWN words, and the bot can decline', function () {
+  // Gargantua was the only optional upkeep in the game when the resolver was
+  // written, so every string in it is his — a second one inherited "Pay 1
+  // Energy to pull all enemies 1 lane closer" for a paddock gate. And "always
+  // pay if you can afford it" made the Enclosure unreachable: energy resets
+  // every round, so the gate could always be held.
+  var G = freshGame();
+  var gate = G._placeEventEnvironment('ai', 1, 'Enclosure');
+  G.state.ai.currency = 5;                 // it can comfortably afford to hold
+
+  G.state._pendingUpkeep = [];
+  gate.onTurnStart(G, gate);
+  var entry = G.state._pendingUpkeep[0];
+  assert(entry.promptDesc.indexOf('gate') >= 0, 'the gate asks about the gate');
+  assert(entry.promptDesc.indexOf('lane closer') < 0, 'and not about Gargantua\'s pull');
+  assertEq(entry.aiPrefer, 'decline', 'the bot is told to open it');
+
+  var done = false;
+  G._resolveUpkeepPrompts(function () { done = true; });
+  assertEq(done, true, 'the queue drains');
+  assertEq(gate._encReleased, true, 'the bot opened the gate despite being able to pay');
+  assertEq(G.state.ai.currency, 5, 'and spent nothing doing it');
+  var rex = G.state.lanes[1].ai;
+  assert(rex && rex.name === 'T-Rex', 'the T-Rex is out');
+
+  // Gargantua is untouched: no aiPrefer, so the bot still pays.
+  var H = freshGame();
+  var garg = H._placeEventEnvironment('ai', 4, 'Gargantua');
+  H.state.ai.currency = 3;
+  H.state._pendingUpkeep = [];
+  garg.onTurnStart(H, garg);
+  assertEq(H.state._pendingUpkeep[0].aiPrefer, undefined, 'Gargantua states no preference');
+  H._resolveUpkeepPrompts(function () {});
+  assertEq(H.state.ai.currency, 2, 'so the bot still pays his upkeep');
+});
+
+test('The Enclosure absorbs a trapped ally when there is nowhere to move it', function () {
+  var G = freshGame();
+  var gate = G._placeEventEnvironment('player', 0, 'Enclosure');
+  var ally = place(G, 'Hulk', 'player', 0);
+  // Fill every other lane on the player side so the ally has nowhere to go.
+  for (var i = 1; i < G.LANE_COUNT; i++) place(G, 'Nightwing', 'player', i);
+  var atk = ally.attack, hp = ally.currentHealth;
+
+  G.state._pendingUpkeep = [];
+  gate.onTurnStart(G, gate);
+  G.state._pendingUpkeep[0].onDecline();
+
+  var rex = G.state.lanes[0].player;
+  assert(rex && rex.name === 'T-Rex', 'the T-Rex still takes the lane');
+  assertEq(rex.attack, 3 + atk, 'it absorbs the ally attack');
+  assertEq(rex.currentHealth, 7 + hp, 'and the ally health');
+});
+
 test('The T-Rex freezes an enemy on every move, not just its own hunt', function () {
   var G = freshGame();
   var rex = place(G, 'T-Rex', 'player', 0);

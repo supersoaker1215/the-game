@@ -63,6 +63,110 @@ const _aiKillPicker = (cards, damage) => {
   return cards.slice().sort((a, b) => score(b) - score(a))[0];
 };
 
+// ============================================================
+// HABITAT -> MONSTER, ONCE
+// ============================================================
+// Boiler Room births Freddy, Sewers births Pennywise, Open Water births Jaws,
+// Wetlands births Spinosaurus and the Enclosure lets out the T-Rex. All five do
+// the SAME five things in the same order, and the first four each carry their
+// own ~70-line copy of it — which is how three of them independently acquired
+// the same three bug fixes (clear a corpse before summoning, re-check the ally
+// on prompt resolve, never stamp the monster's stats onto a summon that bailed)
+// and one of them acquired only two.
+//
+// This is that sequence written once. The Enclosure is the only caller today —
+// the other four are working, tested code and are deliberately NOT rewritten in
+// the same change that introduces the helper. They are the obvious next
+// migration, one card at a time, each against the golden suite.
+//
+//   1. optionally hand the lane back (Boiler Room / Sewers / Open Water /
+//      Enclosure are REPLACED by what they birth; Wetlands stays underneath its
+//      Spinosaurus and drains when he dies)
+//   2. get the ally in the lane out of the way, or absorb it
+//   3. clear a corpse the death machinery has not swept yet
+//   4. summon, and verify something actually landed before touching its stats
+//   5. announce
+function releaseHabitatMonster(G, o) {
+  const owner = o.owner;
+  const laneIdx = o.laneIdx;
+  const lane = G.state && G.state.lanes && G.state.lanes[laneIdx];
+  if (!lane) return;
+  const tag = o.tag || String(o.name || '').toUpperCase();
+  // THE HABITAT HANDS THE LANE BACK FIRST. Done after the summon it would be
+  // the env slot of a lane the monster is already standing in.
+  if (o.clearEnv && lane._env && lane._env[owner] === o.habitat) lane._env[owner] = null;
+  const def = (typeof CARD_DEFS !== 'undefined')
+    ? CARD_DEFS.find(d => d.name === o.name) : null;
+  const allyInLane = lane[owner];
+
+  const finishSpawn = (atk, hp) => {
+    // A DEAD OCCUPANT STILL HOLDS THE SLOT. handleDeath defers clearing to
+    // cleanupDead, and can merely QUEUE the death while another is resolving,
+    // so the absorbed card is often still standing here — and summonCard bails
+    // on an occupied lane. Sewers and Wetlands both hit this before it was
+    // understood.
+    if (lane[owner] && lane[owner].currentHealth <= 0) lane[owner] = null;
+    const before = G.state.lanes[laneIdx][owner];
+    G.summonCard(owner, laneIdx, o.name, o.cost || 0, atk, hp, o.abilities || [], def);
+    const born = G.state.lanes[laneIdx][owner];
+    // VERIFY BEFORE STAMPING. Writing the monster's stats unconditionally is how
+    // Sewers once handed Pennywise's numbers to whatever card was already there.
+    if (!born || born === before || born.name !== o.name) {
+      G.log(`  [${tag}] ${o.name} can't take lane ${laneIdx + 1} — it is still occupied.`);
+      return;
+    }
+    born._habitatLane = laneIdx;
+    // summonCard ignores atk/hp when a sourceDef is passed; set them directly.
+    born.attack = atk;
+    born.currentHealth = hp;
+    born.maxHealth = hp;
+    G.log(`${o.name} is released into lane ${laneIdx + 1}!`);
+    if (o.onSpawned) { try { o.onSpawned(born, laneIdx); } catch (e) {} }
+  };
+
+  if (allyInLane && allyInLane.currentHealth > 0) {
+    const openLanes = G.getOpenLanes(owner).filter(l => l !== laneIdx);
+    if (openLanes.length > 0) {
+      G.promptLaneChoice(owner, openLanes,
+        `${o.name} — Move ${allyInLane.name}`,
+        `${o.name} takes this lane. Move ${allyInLane.name} to another lane.`,
+        (targetLane) => {
+          // RE-CHECK ON RESOLVE. The ally was alive when this armed; a prompt is
+          // answered later and a kill can still be cascading, so putting it back
+          // on the board unchecked resurrects a corpse.
+          const stillThere = allyInLane
+            && allyInLane.currentHealth > 0
+            && lane[owner] === allyInLane;
+          if (!stillThere) {
+            G.log(`  [DISPLACE SKIPPED] ${allyInLane ? allyInLane.name : 'the ally'} did not survive to be moved.`);
+            finishSpawn(o.atk, o.hp);
+            return;
+          }
+          lane[owner] = null;
+          G.state.lanes[targetLane][owner] = allyInLane;
+          G.log(`  [DISPLACED] ${allyInLane.name} moved to lane ${targetLane + 1} to make room for ${o.name}.`);
+          G.checkLaneTrap(allyInLane, targetLane);
+          if (allyInLane.onMoved) allyInLane.onMoved(G, allyInLane, targetLane);
+          finishSpawn(o.atk, o.hp);
+        });
+    } else {
+      const extraAtk = allyInLane.attack;
+      const extraHp  = allyInLane.currentHealth;
+      G.log(`  [ABSORB] ${o.name} absorbs ${allyInLane.name} (+${extraAtk}/+${extraHp})!`);
+      // Absorbed is genuinely dead: zero it BEFORE handleDeath so nothing
+      // downstream reads it as alive, then free the slot here (handleDeath
+      // does not reliably clear it — see finishSpawn).
+      allyInLane.currentHealth = 0;
+      G.handleDeath(allyInLane, laneIdx, null);
+      if (lane[owner] === allyInLane) lane[owner] = null;
+      finishSpawn(o.atk + extraAtk, o.hp + extraHp);
+    }
+  } else {
+    finishSpawn(o.atk, o.hp);
+  }
+}
+if (typeof window !== 'undefined') window.releaseHabitatMonster = releaseHabitatMonster;
+
 const CARD_ABILITIES = {
   // ==================== ROGUELITE STARTERS ====================
   // The 3 vanilla bodies from Roguelite.STARTER_DEFS. These get
@@ -7748,6 +7852,82 @@ const CARD_ABILITIES = {
   // ============================================================
   // ---- T-REX ------------------------------------------------
   // ============================================================
+  // ============================================================
+  // ---- THE ENCLOSURE ----------------------------------------
+  // ============================================================
+  // The only habitat with a PRICE rather than a trigger. Boiler Room waits for
+  // a burning card to die, Sewers and Open Water wait for someone to walk in or
+  // fall over, Wetlands waits for a Block Meter — every one of them is a clock
+  // you cannot stop. The gate is the opposite: it opens the moment you stop
+  // paying, so the round it breaks is a decision rather than an event.
+  //
+  // It rides the SAME upkeep queue as Gargantua (state._pendingUpkeep, drained
+  // by _resolveUpkeepPrompts before phase 1), which is what makes "pay 1 Energy
+  // or skip" a real prompt in every mode instead of a second private one.
+  "Enclosure": {
+    onTurnStart(G, self) {
+      if (self._encReleased) return;
+      if (G.findCardLane(self) < 0) return;
+      const AB = CARD_ABILITIES['Enclosure'];
+      if (!G.state._pendingUpkeep) G.state._pendingUpkeep = [];
+      G.state._pendingUpkeep.push({
+        card: self, owner: self.owner, label: 'Enclosure',
+        // Its own copy. The resolver's defaults are Gargantua's, and inheriting
+        // them had this gate asking "Pay 1 Energy to pull all enemies 1 lane
+        // closer, or skip."
+        payLabel: 'Pay 1 Energy',
+        payDesc: 'The gate holds for another round — nothing gets out.',
+        skipLabel: 'Open the Gate',
+        skipDesc: 'Stop paying and the T-Rex is released into this lane.',
+        promptDesc: 'Pay 1 Energy to keep the gate shut, or skip and let the T-Rex out.',
+        // THE BOT OPENS IT. The resolver's default is "always pay if you can
+        // afford it", which is correct for Gargantua and made this card
+        // impossible: energy resets every round, so the gate could always be
+        // held and the T-Rex came out zero times in 400 measured matches. The
+        // release is the card; a branch that never runs is not a card.
+        //
+        // Which side the T-Rex joins is the ONE balance judgement here, and it
+        // follows the printed text and its four sibling habitats — Jaws,
+        // Pennywise, Freddy and Spinosaurus all surface on the side that owns
+        // the habitat, and the Enclosure's displacement clause is written word
+        // for word like theirs. The original brief said "if you don't [pay] a
+        // T-Rex will spawn against you", which is the opposite; flipping it is
+        // one argument to _release plus a re-word of the card.
+        aiPrefer: 'decline',
+        onPay() { G.log('  [ENCLOSURE] The gate holds for another round.'); },
+        onDecline() {
+          // SKIP ONCE AND IT IS OUT. The latch is set before the release because
+          // the release can prompt (ally displacement) and a second decline
+          // resolving against a still-standing gate would let out a second
+          // T-Rex — the same trap Wetlands records against a second Block Meter.
+          if (self._encReleased) return;
+          const laneIdx = G.findCardLane(self);
+          if (laneIdx < 0) return;
+          self._encReleased = true;
+          G.log('  [ENCLOSURE] Nobody pays. The gate swings open.');
+          AB._release(G, self.owner, laneIdx, self);
+        },
+      });
+    },
+    _release(G, owner, laneIdx, habitat) {
+      releaseHabitatMonster(G, {
+        owner, laneIdx, habitat,
+        // REPLACED, NOT KEPT. Its own text says the T-Rex is released HERE and
+        // says nothing about the paddock outliving him — unlike Wetlands, which
+        // spells out that the habitat remains until Spinosaurus dies.
+        clearEnv: true,
+        tag: 'ENCLOSURE',
+        name: 'T-Rex', cost: 5, atk: 3, hp: 7,
+        abilities: ['Armor 1', 'Hunt', 'Overdrive'],
+        onSpawned() {
+          if (typeof UI !== 'undefined' && UI.emitFX) {
+            try { G.emitFX('envReveal', { lane: laneIdx, owner, name: 'T-Rex' }); } catch (e) {}
+          }
+        },
+      });
+    },
+  },
+
   "T-Rex": {
     onMoved(G, self, to) {
       // ONE HOOK, EVERY MOVER. moveCard fires onMoved for every relocation in
