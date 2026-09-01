@@ -48002,12 +48002,25 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    Classic only. Board V2 already routes these through its notices rail.
    =========================================================================== */
 body:not(.board-v2) .trick-reveal {
-  /* BOTTOM of the gutter, not the middle. The decision panel occupies the TOP
-     of this column, and at 1218x969 a vertically-centred reveal sat at y390-670
-     against a panel ending at 650 — the two would have covered each other,
-     which is the situation the report showed with the board instead. Sending
-     the reveal to the bottom lets both be up at once. */
+  /* TOP of the gutter, where the decision panel lives. Owner, arrow drawn from
+     the decision area down to a Shadow Man card at the bottom corner: "why is
+     this not here?"
+     It was at the bottom on purpose — a reveal is an announcement rather than a
+     prompt, and the panel owns the top of this column, so sending it down was
+     how both could be up at once without covering each other. The answer to the
+     question is that they belong in the same place, and the collision is
+     handled by the rule below instead of by exile. */
   align-items: flex-end;
+  justify-content: flex-start;
+  padding: 118px 10px 0 0;
+}
+/* UNLESS A DECISION IS ACTUALLY OPEN, in which case the reveal drops below it.
+   :has() asks the DOM whether the panel is holding anything — the same test
+   that decides whether the panel paints at all — so this can never disagree
+   with what is on screen. A prompt needs answering; a reveal only needs
+   reading, so the prompt keeps the top. */
+body:not(.board-v2):has(#classic-decision .cd-body > *) .trick-reveal,
+body:not(.board-v2):has(#classic-decision .cd-slot > *) .trick-reveal {
   justify-content: flex-end;
   padding: 0 10px 18px 0;
 }
