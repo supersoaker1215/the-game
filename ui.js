@@ -3061,6 +3061,10 @@ const UI = {
     // two pieces of Mario Party audio fighting each other is worse than
     // either alone. (Owner: "this sound fires and the other music stops".)
     BALLYHOO_VOICE_SRC: 'audio/ballyhoo-voice.mp3',
+    // Owner: "sound when you win." Supplied as .ogg and converted — nothing
+    // else in the project is ogg, and Safari's support for it is patchy enough
+    // that a PWA installed on an iPhone would simply have played nothing.
+    VICTORY_SRC: 'audio/win.mp3',
     // His sign-off, on the second text beat.
     BALLYHOO_VOICE2_SRC: 'audio/ballyhoo-voice-2.mp3',
 
@@ -3733,6 +3737,15 @@ const UI = {
           }
         }
       } catch (e) {}
+    },
+    // WIN ONLY. There is deliberately no defeat counterpart: the ask was for a
+    // sound when you WIN, and the procedural 'defeat' cue stays exactly as it
+    // was. Uncapped — the standing rule caps play/ability clips at 1.5-3s so
+    // they do not tail over the next action, but this is a 4.5s sting on a
+    // screen where nothing follows, and it is music, which that rule exempts.
+    playVictoryMusic() {
+      try { return this._playSample(this.VICTORY_SRC, { fadeIn: 0, fadeOut: 400 }); }
+      catch (e) { return null; }
     },
     playBallyhooVoice() {
       // Through _playSample so it rides the master bus (and its limiter) like
@@ -29092,7 +29105,13 @@ const UI = {
     if (!reduced) overlay.classList.add('go-cinema-hold');
     // Fanfare + haptic land IMMEDIATELY — the sound and feel of the
     // result shouldn't wait for the visual build.
+    // THE WIN GETS THE FILE, THE LOSS KEEPS THE SYNTH. showGameOverScreen is
+    // the one door both outcomes come through and it already guards against
+    // re-entry at the top (`overlay.style.display === 'flex'`), so this cannot
+    // double-fire on a re-render. The procedural 'victory' cue is left playing
+    // underneath as the transient hit — the sting lands on top of it.
     this.sfx.play(isVictory ? 'victory' : 'defeat');
+    if (isVictory && this.sfx.playVictoryMusic) this.sfx.playVictoryMusic();
     if (navigator.vibrate) {
       try { navigator.vibrate(isVictory ? [70, 60, 70, 60, 200] : [300]); } catch (e) {}
     }
