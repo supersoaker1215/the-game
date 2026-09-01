@@ -3080,6 +3080,27 @@ const UI = {
     // Owner: "when you click on a card." Converted from the supplied .WAV —
     // 73K of PCM against 7.5K as mp3, for a sound that fires on every tap.
     CARD_CLICK_SRC: 'audio/card-click.mp3',
+
+    // ===================== FILE-BACKED NAMED CUES =====================
+    // play(name) is otherwise a pure synth switch, so a named cue had no way to
+    // be a real recording. This is the same shape EFFECT_SFX already uses one
+    // tier down: a name in here is played from its file, a name absent from it
+    // falls through to the switch exactly as before.
+    //
+    // hpHit is here because the owner asked for a sound "when the health bar
+    // gets hit", and it is registered rather than patched into the two call
+    // sites — the engine fires it from the FX stream and the MULTIPLAYER GUEST
+    // fires it separately off a state diff (the guest runs no local engine, so
+    // it never sees the event). Backing the cue itself means both inherit;
+    // editing the call sites would have given the guest silence.
+    //
+    // cooldownMs guards against the burst: face damage arrives per lane, so up
+    // to six hpHits can land in one tick. The 0.12s synth could stack; a 0.32s
+    // swing six times over cannot. 60ms collapses only what is genuinely
+    // simultaneous and still lets separately-timed hits read as separate.
+    SAMPLE_CUES: {
+      hpHit: { src: 'audio/hp-hit.mp3', maxDur: 0.6, fadeIn: 0, fadeOut: 60, cooldownMs: 60 },
+    },
     // His sign-off, on the second text beat.
     BALLYHOO_VOICE2_SRC: 'audio/ballyhoo-voice-2.mp3',
 
@@ -4600,6 +4621,23 @@ const UI = {
 
     play(name, gainMul, pan) {
       if (!UI.settings || UI.settings.sfxVolume === 0) return;
+      // FILE FIRST. Checked before _init() because a sample does not need the
+      // WebAudio synth context at all, and before the switch so a registered
+      // name never also fires its procedural version underneath.
+      const cue = this.SAMPLE_CUES && this.SAMPLE_CUES[name];
+      if (cue) {
+        if (cue.cooldownMs) {
+          if (!this._cueLast) this._cueLast = {};
+          const now = Date.now();
+          if (now - (this._cueLast[name] || 0) < cue.cooldownMs) return null;
+          this._cueLast[name] = now;
+        }
+        try {
+          return this._playSample(cue.src, {
+            maxDur: cue.maxDur, fadeIn: cue.fadeIn, fadeOut: cue.fadeOut, category: 'effect',
+          });
+        } catch (e) { return null; }
+      }
       if (!this._init()) return;
       if (this._ctx.state === 'suspended') { try { this._ctx.resume().catch(() => {}); } catch (e) {} }
       switch (name) {
