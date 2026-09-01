@@ -655,7 +655,20 @@ const UI = {
           // selectedCard guard so the stop actually proceeds.
           if (typeof this.sfx._stopHover === 'function') this.sfx._stopHover(true);
           const inspectAudio = this.sfx.playCardSfx(card.name, 'hover');
-          if (!inspectAudio && typeof this.sfx.play === 'function') this.sfx.play('cardHover');
+          // NO GENERIC BLIP HERE ANY MORE. `play('cardHover')` is, in its own
+          // words, "the fallback for any card / trick with no registered hover
+          // file" — it existed so opening the inspect on a themeless card still
+          // made SOME sound. Clicking a card now has its own cue, so this fired
+          // immediately behind it and the click read as two sounds. (Owner:
+          // "when a card is on the field and i click a card i hear 2 sounds ...
+          // remove the original.")
+          //
+          // Only the INSPECT loses it. The two genuine hover paths —
+          // installCardSfx and _playTauntSound — keep the blip, because a hover
+          // has no click cue in front of it and would otherwise go silent on
+          // every themeless card. A card WITH a real theme is unaffected either
+          // way, and on desktop it is usually already playing from the hover, so
+          // the branch above adopts it instead of restarting it.
           this.sfx._currentHoverAudio = inspectAudio;
           this.sfx._currentHoverEl = modal;
           this.sfx._currentHoverName = card.name;
@@ -33317,7 +33330,10 @@ const UI = {
     if (this.sfx) {
       try {
         const audio = this.sfx.playTrickSfx(name, 'hover');
-        if (!audio) this.sfx.play('cardHover');
+        // Same removal as openCardInspect, for the same reason: this inspect is
+        // opened by a CLICK, and the click already sounds. A trick with a theme
+        // of its own still plays it.
+
         this.sfx._currentHoverAudio = audio;
         this.sfx._currentHoverEl = backdrop;
       } catch (e) { /* swallow */ }
