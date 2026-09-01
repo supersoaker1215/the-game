@@ -30328,6 +30328,13 @@ const UI = {
           return;
         }
         d.moved = true;
+        // THE DRAG SOUNDS LIKE THE TAP. Owner: "on drag play the same sound as
+        // on tap for cards." Fired at the moment the drag is RECOGNISED, not on
+        // pointerdown — a tap that never moves is not a drag and gets its cue
+        // from the click instead, so either gesture makes exactly one sound.
+        // The trailing click a drag synthesises is still suppressed by the
+        // _dragEndedAt stamp, so this cannot double with it.
+        if (this.sfx && this.sfx.playCardClick) this.sfx.playCardClick();
         // Ghost FIRST, then select, then render — the order is load-bearing.
         // The ghost is cloned from the live hand element, and the render below
         // rebuilds the hand, so cloning second would clone a detached node.
@@ -30519,6 +30526,9 @@ const UI = {
       if (!d.moved) {
         if (Math.hypot(dx, dy) < DRAG_PX) return;   // still a click, not a drag
         d.moved = true;
+        // Same cue as the touch path above — mouse and touch are deliberately
+        // separate drag implementations, so the sound has to be fired in both.
+        if (this.sfx && this.sfx.playCardClick) this.sfx.playCardClick();
         // Same ordering as the touch path above, for the same reasons: clone
         // the ghost off the live element before the render replaces it, then
         // select and render so the lane previews actually get built.
