@@ -3113,6 +3113,12 @@ const UI = {
     // simultaneous and still lets separately-timed hits read as separate.
     SAMPLE_CUES: {
       hpHit: { src: 'audio/hp-hit.mp3', maxDur: 0.6, fadeIn: 0, fadeOut: 60, cooldownMs: 60 },
+      // The round announcement. There was NO round sound before this — the
+      // banner was purely visual, verified by instrumenting play, _playSample
+      // and HTMLMediaElement.play across a real round rollover and seeing only
+      // a card hover and the combat hpHits. So this adds one rather than
+      // replacing anything.
+      roundStart: { src: 'audio/new-round.mp3', maxDur: 1.5, fadeIn: 0, fadeOut: 120 },
     },
     // His sign-off, on the second text beat.
     BALLYHOO_VOICE2_SRC: 'audio/ballyhoo-voice-2.mp3',
@@ -34965,6 +34971,15 @@ const UI = {
   showRoundBanner(round) {
     if (this._roundBannerShown === round) return;   // announce each round once
     this._roundBannerShown = round;
+    // THE ROUND NOW SOUNDS AS WELL AS SHOWS. Hung here rather than in
+    // startRound because this is the announcement, and it already carries the
+    // once-per-round guard above — the engine's round rollover can be reached
+    // from several paths (and on a 2v2 guest is DETECTED rather than executed,
+    // which is why the caller passes _round instead of reading s.round), so a
+    // cue placed there would need its own guard and could still miss the guest.
+    // Deliberately above the `el` bail-out: the sound should fire even if the
+    // banner element is missing from a layout.
+    if (this.sfx && this.sfx.play) { try { this.sfx.play('roundStart'); } catch (e) {} }
     const el = document.getElementById('round-banner');
     if (!el) return;
     this._stage((stageDone) => {
