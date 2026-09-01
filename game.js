@@ -5041,7 +5041,7 @@ const Game = {
       const bootRemain = Math.max(0, bootEnd - now);
       const aiDelay = Math.max(1200, bootRemain + 200);
       if (bootRemain > 0) delete this.state._bootSequenceEndsAt; // one-shot
-      this._schedule(() => { AI.playCards('ai', () => this.endPhase1()); }, aiDelay);
+      this._schedule(() => { AI.playCards('ai', () => this._endPhaseAfterHold('endPhase1')); }, aiDelay);
     }
   },
 
@@ -5162,6 +5162,20 @@ const Game = {
     if (typeof UI !== 'undefined' && UI.render) UI.render();
   },
 
+  // AN AI'S PHASE END MUST SURVIVE THE HOLD. endPhase1/endPhase3 refuse while an
+  // event is on screen, which is right for a human clicking Done — the button
+  // works again the moment the show ends. But the AI's completion callback is
+  // the ONLY thing that ends its turn, and when the hold turned that away
+  // nothing ever called it again: the hold's expiry handler drains 2v2 actions
+  // and resumes combat, neither of which advances a phase. In solo that is a
+  // permanent freeze after the Shadow Man hands out prizes — reported as "after
+  // the shadow man showed up to hand out prizes the Ai stalled out". Deferred
+  // by NAME, never as a closure, so nothing unserialisable lands on state.
+  _endPhaseAfterHold(name) {
+    if (this.ballyhooLocked && this.ballyhooLocked()) { this._pendingPhaseEnd = name; return; }
+    if (typeof this[name] === 'function') this[name]();
+  },
+
   endPhase1() {
     // No skipping past MC Ballyhoo either — the lock is a deadline, so a
     // click during his entrance is refused rather than queued, and the
@@ -5256,7 +5270,7 @@ const Game = {
           this._schedule(() => {
             const nextStep = () => {
               AI.playTrickPhaseCards('ai', () => {
-                AI.playTricks('ai', () => this.endPhase3());
+                AI.playTricks('ai', () => this._endPhaseAfterHold('endPhase3'));
               });
             };
             // Red Skull: AI may also deploy character cards during its trick phase.
@@ -17145,6 +17159,12 @@ const Game = {
           // all. The timer's whole job is to wake things up once the window has
           // passed, not to define when it passes.
           try { if (this._2v2DrainLockedActions) this._2v2DrainLockedActions(); } catch (e) {}
+          // …and the AI phase end the hold turned away. This is the only thing
+          // that moves a SOLO or 1v1 game forward again after an event.
+          try {
+            const held = this._pendingPhaseEnd;
+            if (held) { this._pendingPhaseEnd = null; if (typeof this[held] === 'function') this[held](); }
+          } catch (e) { console.error('[event hold] deferred phase end threw:', e); }
           try { if (this.resumeCombatIfWaiting) this.resumeCombatIfWaiting(); } catch (e) {}
           try { if (typeof UI !== 'undefined' && UI.render) UI.render(); } catch (e) {}
         }, ((s && s._eventHoldMs) || this._BALLYHOO_LOCK_MS) + 60);

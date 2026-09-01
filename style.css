@@ -47293,12 +47293,18 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    Four challenges, four players, live. Sits opposite the turn tracker so the
    two rails do not fight. Only rendered while he is out. */
 .shadow-tracker {
+  /* SIZED BY FONT, NOT BY TRANSFORM. Resizing used to apply transform:scale(),
+     which raster-scales the rendered text rather than laying it out larger —
+     the box grew but the lettering just got softer, which reads as "the text
+     stays the same and never actually gets bigger". Every size in here is now
+     multiplied by --sh-scale, so the panel re-renders at the real size and the
+     text is crisp at every step. The transform is left to POSITIONING only. */
   position: fixed;
   left: 12px;
   top: 50%;
   transform: translateY(-50%);
   z-index: 40;
-  min-width: 208px;
+  min-width: calc(208px * var(--sh-scale, 1));
   padding: 10px 12px 11px;
   border-radius: 8px;
   background: rgba(6, 4, 12, 0.92);
@@ -47326,29 +47332,29 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   background: rgba(150, 110, 220, 0.16);
   border: 1px solid rgba(150, 110, 220, 0.5);
   border-radius: 4px;
-  color: #cbb2ff; font-size: 10px; cursor: pointer;
+  color: #cbb2ff; font-size: calc(10px * var(--sh-scale, 1)); cursor: pointer;
 }
 .shadow-tracker .sh-size:hover { background: rgba(150, 110, 220, 0.32); }
 .shadow-tracker .sh-title {
-  font-size: 12px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase;
+  font-size: calc(12px * var(--sh-scale, 1)); font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase;
   color: #cbb2ff; text-align: center; margin-bottom: 7px;
   text-shadow: 0 0 9px rgba(150, 110, 220, 0.75);
 }
 .shadow-tracker .sh-head,
-.shadow-tracker .sh-row { display: flex; align-items: center; gap: 2px; }
+.shadow-tracker .sh-row { display: flex; align-items: center; gap: calc(2px * var(--sh-scale, 1)); }
 .shadow-tracker .sh-row { margin-top: 3px; }
 .shadow-tracker .sh-label {
-  flex: 0 0 92px; font-size: 10.5px; letter-spacing: 0.4px;
-  color: var(--text-dim, #c6d0db); display: flex; align-items: center; gap: 5px;
+  flex: 0 0 calc(92px * var(--sh-scale, 1)); font-size: calc(10.5px * var(--sh-scale, 1)); letter-spacing: 0.4px;
+  color: var(--text-dim, #c6d0db); display: flex; align-items: center; gap: calc(5px * var(--sh-scale, 1));
 }
-.shadow-tracker .sh-label i { font-style: normal; font-size: 11px; }
+.shadow-tracker .sh-label i { font-style: normal; font-size: calc(11px * var(--sh-scale, 1)); }
 .shadow-tracker .sh-col {
-  flex: 1 1 0; text-align: center; font-size: 10px; letter-spacing: 0.5px;
+  flex: 1 1 0; text-align: center; font-size: calc(10px * var(--sh-scale, 1)); letter-spacing: 0.5px;
   color: #9d92b8; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis;
 }
 .shadow-tracker .sh-col.sh-you { color: #6ef58b; }
 .shadow-tracker .sh-val {
-  flex: 1 1 0; text-align: center; font-size: 13px; font-weight: 700;
+  flex: 1 1 0; text-align: center; font-size: calc(13px * var(--sh-scale, 1)); font-weight: 700;
   color: var(--text-body, #e8eef6); font-variant-numeric: tabular-nums;
 }
 /* the one to beat in this row */
@@ -47361,12 +47367,12 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   border-top: 1px solid rgba(150, 110, 220, 0.28);
 }
 .shadow-tracker .sh-award {
-  font-size: 10px; letter-spacing: 0.4px; color: #ffd77a; text-align: center;
+  font-size: calc(10px * var(--sh-scale, 1)); letter-spacing: 0.4px; color: #ffd77a; text-align: center;
 }
 @media (max-width: 900px) {
   .shadow-tracker { min-width: 0; padding: 7px 8px; left: 6px; }
-  .shadow-tracker .sh-label { flex-basis: 74px; font-size: 9.5px; }
-  .shadow-tracker .sh-val { font-size: 11.5px; }
+  .shadow-tracker .sh-label { flex-basis: 74px; font-size: calc(9.5px * var(--sh-scale, 1)); }
+  .shadow-tracker .sh-val { font-size: calc(11.5px * var(--sh-scale, 1)); }
 }
 
 /* the weapon each Shadow Man challenge is playing for */

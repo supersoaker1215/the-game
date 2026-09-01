@@ -13158,8 +13158,17 @@ const UI = {
     });
     // Face-down options carry no readable face, so keep the historic
     // click-the-tile-to-pick shortcut there — there is nothing to misread.
-    tray.querySelectorAll('.choice-facedown').forEach(el => {
+    // BOTH PATHS PICK. Only the button and FACE-DOWN cards were clickable, so
+    // on a normal prompt (Invisible Woman and the rest) clicking the card art —
+    // the obvious thing to click — did nothing and you had to find the small
+    // button underneath. Every option in the tray carries data-idx already, so
+    // wiring the card itself costs nothing and makes the whole tile a target.
+    // (Owner: "i want both paths to work to where if they click the image of
+    // the card or the pick button it will fire".)
+    tray.querySelectorAll('[data-idx]').forEach(el => {
       const idx = +el.getAttribute('data-idx');
+      if (!(idx >= 0)) return;
+      el.style.cursor = 'pointer';
       el.addEventListener('click', (ev) => { ev.stopPropagation(); cardChoicePick(idx); });
     });
     this._wireGiveDrag(tray, cardChoicePick);
@@ -13762,13 +13771,18 @@ const UI = {
   _applyShadowTrackerBox(el) {
     const box = this._shadowBox();
     const scale = box.scale || 1;
+    // The size goes through a CSS variable that every font-size and width in
+    // the panel multiplies by, so the text is LAID OUT bigger and re-rendered
+    // crisply. transform is left to positioning alone — scaling with it only
+    // stretched the pixels of text drawn at the old size.
+    el.style.setProperty('--sh-scale', String(scale));
     if (box.x != null && box.y != null) {
       el.style.left = box.x + 'px';
       el.style.top = box.y + 'px';
-      el.style.transform = `scale(${scale})`;      // no vertical centring once moved
+      el.style.transform = 'none';                 // no vertical centring once moved
       el.style.transformOrigin = 'top left';
     } else {
-      el.style.transform = `translateY(-50%) scale(${scale})`;
+      el.style.transform = 'translateY(-50%)';
       el.style.transformOrigin = 'left center';
     }
   },
