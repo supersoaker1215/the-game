@@ -17555,6 +17555,11 @@ const UI = {
     const ov = document.getElementById('encyclopedia-overlay');
     if (!ov) return;
     const f = this._encyc;
+    // ENVIRONMENTS ARE EVENTS NOW, so the tab that used to hold them is gone and
+    // its content lives under the franchise that places it. A saved filter can
+    // still be pointing at the old tab, so it redirects rather than rendering an
+    // empty grid for anyone who had it open last session.
+    if (f.section === 'environments') f.section = 'events';
     const section = f.section || 'cards';
     // RANDOM EVENT — MC Ballyhoo and the four candies he hands out. They are
     // not in CARD_DEFS or TRICK_DEFS on purpose (nothing that reads those
@@ -17563,7 +17568,7 @@ const UI = {
     const isEvents = section === 'events';
     const isTricks = section === 'tricks' || isEvents;
     const isCards = !isTricks;   // 'cards' / 'summons' / 'environments' all use the card layout
-    const sectionNoun = isEvents ? 'random events'
+    const sectionNoun = isEvents ? 'event cards'
       : isTricks ? 'tricks'
       : section === 'summons' ? 'summons'
       : section === 'environments' ? 'environments' : 'cards';
@@ -17579,6 +17584,7 @@ const UI = {
     // Battle Droid and Doombot ended up absent from the encyclopedia.
     const SUMMON_TOKENS = (typeof SUMMON_TOKEN_DEFS !== 'undefined') ? SUMMON_TOKEN_DEFS : [];
     let rawPool;
+    let franchises = [];
     if (isEvents) {
       // MC Ballyhoo is an EVENT, not a card or a trick — he has no def
       // anywhere, so the codex row is synthesised here. Cost is null so the
@@ -17626,12 +17632,37 @@ const UI = {
             + "whatever dies in there is consumed — no When Killed. Once it has "
             + "eaten twice it is gorged, and closes.",
       };
-      rawPool = [ballyhoo, shadow, rift]
-        .concat(typeof CANDY_DEFS !== 'undefined' ? CANDY_DEFS : [])
-        .concat(typeof WONDER_DEFS !== 'undefined' ? WONDER_DEFS : []);
+      // ONE INDEX ACROSS FOUR ARRAYS. A franchise's members span CARD_DEFS (the
+      // environments and the monsters they hatch), CANDY_DEFS and WONDER_DEFS
+      // over in tricks.js, and these three synthesised rows — so EVENT_FRANCHISES
+      // can list plain names and let this resolve them wherever they live.
+      // `_encLayout` rides along because a franchise mixes both chromes: an
+      // environment or a monster is a real card and must render as one, while a
+      // candy, a wonder weapon and the hosts render as tricks.
+      const synths = [ballyhoo, shadow, rift];
+      const encIndex = {};
+      const addAll = (arr, layout) => (arr || []).forEach(d => {
+        if (d && d.name && !encIndex[d.name]) encIndex[d.name] = Object.assign({}, d, { _encLayout: layout });
+      });
+      addAll(synths, 'trick');
+      addAll(typeof CANDY_DEFS  !== 'undefined' ? CANDY_DEFS  : [], 'trick');
+      addAll(typeof WONDER_DEFS !== 'undefined' ? WONDER_DEFS : [], 'trick');
+      addAll(CARD_DEFS, 'card');
+      addAll(SUMMON_TOKENS, 'card');
+      const CANDIES = (typeof CANDY_DEFS  !== 'undefined' ? CANDY_DEFS  : []).map(d => d.name);
+      const WONDERS = (typeof WONDER_DEFS !== 'undefined' ? WONDER_DEFS : []).map(d => d.name);
+      franchises = ((typeof EVENT_FRANCHISES !== 'undefined') ? EVENT_FRANCHISES : []).map(fr => {
+        const names = [];
+        (fr.members || []).forEach(m => {
+          if (m === '@candies')      names.push.apply(names, CANDIES);
+          else if (m === '@wonders') names.push.apply(names, WONDERS);
+          else names.push(m);
+        });
+        return { fr, defs: names.map(n => encIndex[n]).filter(Boolean) };
+      }).filter(g => g.defs.length);
+      rawPool = franchises.reduce((acc, g) => acc.concat(g.defs), []);
     }
     else if (isTricks)                   rawPool = (typeof TRICK_DEFS !== 'undefined' ? TRICK_DEFS : []);
-    else if (section === 'environments') rawPool = CARD_DEFS.filter(c => c.isEnvironment);
     else if (section === 'summons')      rawPool = CARD_DEFS.filter(c => c._spawnOnly).concat(SUMMON_TOKENS);
     else                                 rawPool = CARD_DEFS.filter(c => !c.isEnvironment && !c._spawnOnly);
     const pool = rawPool.filter(c => !isRL(c.name));
@@ -17710,6 +17741,33 @@ const UI = {
           }
           return el.outerHTML;
         }).join('');
+      } else if (isEvents) {
+        // GROUPED BY FRANCHISE, because that is what an event now IS: a title
+        // with two or three outcomes under it. Rendered from EVENT_FRANCHISES in
+        // its own order rather than the flat `filtered` sort — a franchise reads
+        // as a story (the habitat, then the thing that gets out), and sorting it
+        // by cost or name would shuffle that into nonsense.
+        // `filtered` still decides membership so the search box keeps working;
+        // a franchise with nothing left after a search drops out entirely
+        // instead of leaving an empty heading behind.
+        const keep = new Set(filtered.map(d => d.name));
+        body = franchises.map(g => {
+          const rows = g.defs.filter(d => keep.has(d.name));
+          if (!rows.length) return '';
+          const cards = rows.map(d => d._encLayout === 'card'
+            ? this.makeCardEl(this._synthFace(d, { descOverride: d.desc || '' }), true, 'player',
+                { static: true, extraClass: 'enc-card' }).outerHTML
+            : this.makeTrickEl(d, { extraClass: 'enc-trick' })).join('');
+          return '<section class="enc-fr">'
+               + '<header class="enc-fr-head">'
+               +   '<h2 class="enc-fr-title">' + g.fr.title + '</h2>'
+               +   (g.fr.blurb ? '<p class="enc-fr-blurb">' + g.fr.blurb + '</p>' : '')
+               +   '<span class="enc-fr-count">' + rows.length + '</span>'
+               + '</header>'
+               + '<div class="db-grid encyc-grid enc-fr-grid">' + cards + '</div>'
+               + '</section>';
+        }).join('');
+        if (!body) body = emptyBody;
       } else {
         // Tricks — render as purple-tinted compact trick cards (mirrors
         // how they appear in the draft + trick panel).
@@ -17731,9 +17789,8 @@ const UI = {
           <div class="encyc-tabs">
             <button type="button" class="db-tab ${section==='cards'?'db-filter-active':''}" onclick="UI._encycSetSection('cards')">Cards</button>
             <button type="button" class="db-tab ${section==='summons'?'db-filter-active':''}" onclick="UI._encycSetSection('summons')">Summons</button>
-            <button type="button" class="db-tab ${section==='environments'?'db-filter-active':''}" onclick="UI._encycSetSection('environments')">Environments</button>
             <button type="button" class="db-tab ${section==='tricks'?'db-filter-active':''}" onclick="UI._encycSetSection('tricks')">Tricks</button>
-            <button type="button" class="db-tab ${section==='events'?'db-filter-active':''}" onclick="UI._encycSetSection('events')">Random Event</button>
+            <button type="button" class="db-tab ${section==='events'?'db-filter-active':''}" onclick="UI._encycSetSection('events')">Events</button>
           </div>
         </div>
         <div class="encyc-toolbar">
@@ -17748,7 +17805,7 @@ const UI = {
             <span class="encyc-rl-dot"></span>Roguelite ${f.rl ? 'ON' : 'OFF'}
           </button>` : ''}
         </div>
-        <div class="db-grid encyc-grid">${body}</div>
+        <div class="${isEvents ? 'encyc-franchises' : 'db-grid encyc-grid'}">${body}</div>
       </div>`;
     // Preserve focus on the search box as the user types.
     const input = document.getElementById('encyc-search');

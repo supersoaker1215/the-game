@@ -88,6 +88,7 @@ const CARD_DEFS = [
     abilities: [],
     desc: "While Active: Add (+1/+1) when dealing damage to the opponent's HP." },
   { name: "Boiler Room", cost: 1, attack: 0, health: 1, type: "environment",
+    _spawnOnly: true,
     isEnvironment: true,
     abilities: [],
     desc: "While Active: Apply Burning 1 to enemies in this lane, and each turn Burning spreads to adjacent enemies. When a Burning enemy is destroyed, Freddy Krueger spawns in this lane, replacing Boiler Room, and Burning ends. If an ally is present, choose a lane to move them — if no open lanes exist, the ally is consumed and Freddy absorbs their stats." },
@@ -97,10 +98,12 @@ const CARD_DEFS = [
 
   // ==================== COST 2 ====================
   { name: "Sewers", cost: 2, attack: 0, health: 1, type: "environment",
+    _spawnOnly: true,
     isEnvironment: true,
     abilities: [],
     desc: "While Active: The first enemy card to enter this lane turns Sewers into a (3/5) Pennywise on your side. An ally in that lane moves to an empty lane — with no empty lane it is destroyed and Pennywise adds its stats." },
   { name: "Open Water", cost: 2, attack: 0, health: 1, type: "environment",
+    _spawnOnly: true,
     isEnvironment: true,
     abilities: [],
     desc: "While Active: The first card destroyed in this lane turns Open Water into a (4/4) Jaws on your side. An ally in that lane moves to an empty lane — with no empty lane it is destroyed and Jaws adds its stats." },
@@ -115,6 +118,7 @@ const CARD_DEFS = [
     abilities: [],
     desc: "While Active: The first enemy card to die in this lane rises on your side as a (2/2), as if newly played. An ally in that lane moves to an empty lane to make room. Game Over is then spent." },
   { name: "Wetlands", cost: 2, attack: 0, health: 1, type: "environment",
+    _spawnOnly: true,
     isEnvironment: true,
     abilities: [],
     desc: "While Active: Each time either player's Block Meter fires, this lane loses 1 Power. At 0, Spinosaurus is released here, destroying the enemy in this lane. An ally there moves to an empty lane — with no empty lane it is destroyed and Spinosaurus adds its stats. The habitat remains until Spinosaurus dies." },
@@ -374,6 +378,7 @@ const CARD_DEFS = [
     abilities: [],
     desc: "While Active: Alternates every round. Shields up (1st round on the field, 3rd, 5th…): Damage Immunity — takes no damage from any source. Shields down (2nd round, 4th…): deals double his ATK when he attacks." },
   { name: "Gargantua", cost: 2, attack: 0, health: 1, type: "environment",
+    _spawnOnly: true,
     isEnvironment: true,
     abilities: [],
     desc: "Each Turn: Pay 1 Energy to pull all enemies 1 lane closer, or skip — Gargantua stays either way. An enemy pulled into this lane collides with the enemy already there — each deals its ATK to the other. If the occupant is destroyed, the pulled enemy takes the lane." },
@@ -508,3 +513,57 @@ const CARD_DEFS = [
     desc: "Add (+1/+1) each time you play a card, even before Doomsday is drawn. While in Hand: costs 1 less each time an ally is destroyed. When Destroyed: Revive once at full HP with Immunity and Untrickable." }
 ];
 
+
+
+// ============================================================
+// EVENT FRANCHISES (2026-09-01)
+// ============================================================
+// Owner: "i want the events to have titles then from there there will be 2-3
+// to choose from", and "id rather have environments be events".
+//
+// Environments are no longer bought and aimed by a player — every one is now
+// `_spawnOnly`, placed by the match itself. This is the list that says WHICH
+// event places them, and it is the codex's organising spine: an event is a
+// FRANCHISE, and a franchise holds two or three outcomes that share a world.
+//
+// DEPTH IS THE RARITY DIAL, and that is the reason this is a list of groups
+// rather than a flat tag on each card. Rolling a franchise and then rolling
+// inside it means a lone outcome fires every time its franchise comes up,
+// while one of three fires a third as often — so the swingiest content belongs
+// in the deepest group. Gargantua sits alone deliberately: it is an optional
+// per-turn pull you can ignore. Anything that puts a body on the board wants
+// siblings first.
+//
+// MEMBERS ARE NAMES, NOT DEFS. A franchise spans four different arrays —
+// CARD_DEFS (the environments and their monsters), CANDY_DEFS and WONDER_DEFS
+// in tricks.js, and three rows the codex synthesises because they have no def
+// anywhere (MC Ballyhoo, the Shadow Man, the Apothicon Rift are events, never
+// cards). Names resolve against all of them at render time, so nothing here
+// has to know where a member lives.
+const EVENT_FRANCHISES = [
+  { key: 'jurassic', title: 'Jurassic Park',
+    blurb: 'The habitat holds, or it does not.',
+    members: ['Wetlands', 'Spinosaurus'] },
+  { key: 'jaws', title: 'Jaws',
+    blurb: 'Something is already in the water.',
+    members: ['Open Water', 'Jaws'] },
+  { key: 'elmstreet', title: 'A Nightmare on Elm Street',
+    blurb: 'The fire below never quite went out.',
+    members: ['Boiler Room', 'Freddy Krueger'] },
+  { key: 'it', title: 'IT',
+    blurb: 'Everything down here floats.',
+    members: ['Sewers', 'Pennywise'] },
+  { key: 'saw', title: 'Saw',
+    blurb: 'He does not kill anyone. He gives them a choice.',
+    members: ['Jigsaw', 'The Bathroom', 'Game Over'] },
+  { key: 'interstellar', title: 'Interstellar',
+    blurb: 'A tide you can pay to hold back, for as long as you can afford it.',
+    members: ['Gargantua'] },
+  { key: 'marioparty', title: 'Mario Party',
+    blurb: 'Everybody gets a candy. Nobody gets the same one.',
+    members: ['MC Ballyhoo', '@candies'] },
+  { key: 'zombies', title: 'Call of Duty: Zombies',
+    blurb: 'Four challenges, named up front, paid out later.',
+    members: ['Shadow Man', 'Apothicon Rift', '@wonders'] },
+];
+if (typeof window !== 'undefined') window.EVENT_FRANCHISES = EVENT_FRANCHISES;

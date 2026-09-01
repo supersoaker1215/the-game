@@ -5679,9 +5679,49 @@ test('Spinosaurus is spawn-only and never enters a draftable pool', function () 
   var pool = CARD_DEFS.filter(function (d) { return !d._spawnOnly; });
   assertEq(pool.some(function (d) { return d.name === 'Spinosaurus'; }), false,
     'excluded from the draftable pool');
-  // Wetlands is the opposite — it MUST be draftable or the pair is unreachable.
-  assertEq(!!cardByName('Wetlands')._spawnOnly, false, 'Wetlands is draftable');
+  // WETLANDS IS SPAWN-ONLY TOO NOW, and this assertion used to say the exact
+  // opposite: "it MUST be draftable or the pair is unreachable." That was true
+  // while a player bought the habitat and the habitat released the monster.
+  // Environments are events now (owner: "id rather have environments be
+  // events"), so nobody buys one and the reachability guarantee moves with it —
+  // from "a player can draft it" to "an event is responsible for placing it".
+  assertEq(!!cardByName('Wetlands')._spawnOnly, true, 'Wetlands is spawn-only too');
   assertEq(cardByName('Wetlands').isEnvironment, true, 'and is an environment');
+});
+
+// THE REPLACEMENT GUARANTEE. The old test kept the habitat/monster pair
+// reachable by insisting the habitat stayed in the draft. Now that every
+// environment is placed by an event instead, the thing that must hold is that
+// no environment is orphaned: each one is claimed by exactly one franchise, so
+// there is always something whose job it is to put it on the board. Without
+// this, making a card `_spawnOnly` and forgetting to file it silently deletes
+// it from the game — which is exactly what the deleted assertion above was
+// protecting against, in the form the design now takes.
+test('Every environment is claimed by exactly one event franchise', function () {
+  assert(typeof EVENT_FRANCHISES !== 'undefined', 'the franchise registry exists');
+  var claims = {};
+  EVENT_FRANCHISES.forEach(function (fr) {
+    (fr.members || []).forEach(function (m) {
+      if (m.charAt(0) === '@') return;            // @candies / @wonders expand at render
+      claims[m] = (claims[m] || 0) + 1;
+    });
+  });
+  CARD_DEFS.filter(function (d) { return d.isEnvironment; }).forEach(function (env) {
+    assertEq(claims[env.name] || 0, 1, env.name + ' is named by exactly one franchise');
+    assertEq(!!env._spawnOnly, true, env.name + ' is spawn-only');
+  });
+  // And every name a franchise lists must actually resolve to something, or the
+  // codex renders a franchise with a hole in it.
+  var known = {};
+  CARD_DEFS.forEach(function (d) { known[d.name] = true; });
+  if (typeof SUMMON_TOKEN_DEFS !== 'undefined') SUMMON_TOKEN_DEFS.forEach(function (d) { known[d.name] = true; });
+  ['MC Ballyhoo', 'Shadow Man', 'Apothicon Rift'].forEach(function (n) { known[n] = true; });
+  EVENT_FRANCHISES.forEach(function (fr) {
+    (fr.members || []).forEach(function (m) {
+      if (m.charAt(0) === '@') return;
+      assert(known[m], fr.title + ' names a real member: ' + m);
+    });
+  });
 });
 
 // ============================================================
