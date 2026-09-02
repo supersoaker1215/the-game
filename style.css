@@ -7277,8 +7277,8 @@ body.hit-pause .ai-hand * {
    scale delta tiny (1.000 ↔ 1.018) so the card doesn't fight its
    bounding box. */
 @keyframes vibeTitanBreathe {
-  0%,100% { transform: scale(1); filter: brightness(1); }
-  50%     { transform: scale(1.018); filter: brightness(1.06); }
+  0%,100% { transform: scale(1); filter: var(--card-tube) brightness(1); }
+  50%     { transform: scale(1.018); filter: var(--card-tube) brightness(1.06); }
 }
 .card.vibe-titan:not(.card-enter):not(.card-exit) {
   animation: vibeTitanBreathe 3.6s ease-in-out infinite;
@@ -7287,8 +7287,8 @@ body.hit-pause .ai-hand * {
 
 /* PHASE — opacity pulse. For intangibles (Invisible Woman, J'onn). */
 @keyframes vibePhaseShimmer {
-  0%,100% { opacity: 1;    filter: brightness(1); }
-  50%     { opacity: 0.82; filter: brightness(1.15); }
+  0%,100% { opacity: 1;    filter: var(--card-tube) brightness(1); }
+  50%     { opacity: 0.82; filter: var(--card-tube) brightness(1.15); }
 }
 .card.vibe-phase:not(.card-enter):not(.card-exit) {
   animation: vibePhaseShimmer 2.8s ease-in-out infinite;
@@ -7309,8 +7309,8 @@ body.hit-pause .ai-hand * {
 
 /* MAGNETIC — hue cycle + pulsing metallic halo. For tech/metal cards. */
 @keyframes vibeMagneticShift {
-  0%,100% { filter: hue-rotate(0deg) saturate(1);    }
-  50%     { filter: hue-rotate(-16deg) saturate(1.12); }
+  0%,100% { filter: var(--card-tube) hue-rotate(0deg) saturate(1);    }
+  50%     { filter: var(--card-tube) hue-rotate(-16deg) saturate(1.12); }
 }
 @keyframes vibeMagneticPulse {
   0%,100% { box-shadow: 0 0 12px rgba(155,89,182,0.42), 0 0 24px rgba(155,89,182,0.20); }
@@ -43893,10 +43893,10 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
      i dont see a difference in neon"). A wider bloom is what reads as a brighter
      tube once the glass is already at full — so the boost scales the blur as
      well as the opacity, and the halo genuinely grows. */
-  filter:
-    drop-shadow(0 0 calc(1px  * var(--neon-boost, 1)) rgba(var(--frame-core-rgb), 0.85))
-    drop-shadow(0 0 calc(5px  * var(--neon-boost, 1)) rgba(var(--cf-rgb), calc(0.50 + (1 - 0.50) * var(--neon-lift, 0))))
-    drop-shadow(0 0 calc(12px * var(--neon-boost, 1)) rgba(var(--cf-rgb), calc(0.22 + (1 - 0.22) * var(--neon-lift, 0))));
+  /* NO FILTER HERE. `.card .cf-frame { filter: none }` further down zeroes it
+     unconditionally — the glow was deliberately moved onto .card itself, where
+     `filter` runs AFTER the clip-path and therefore survives it. Anything
+     declared here is dead; the live tube stack is on .card. */
 }
 .card .cf-edge {
   position: absolute; inset: 0;
@@ -44023,10 +44023,48 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
     calc(100% - var(--cf-inset) - var(--chamfer)) calc(100% - var(--cf-inset)),
     var(--cf-inset) calc(100% - var(--cf-inset)),
     var(--cf-inset) calc(var(--cf-inset) + var(--chamfer)));
-  filter:
-    drop-shadow(0 0 1px  rgba(var(--frame-core-rgb), 0.75))
-    drop-shadow(0 0 5px  rgba(var(--cf-rgb), 0.45))
-    drop-shadow(0 0 14px rgba(var(--cf-rgb), 0.20));
+  /* THE TUBE. Owner: "i want the border of the cards to be a tube glow."
+     The ring already had the right anatomy — a coloured stroke with a
+     near-white filament inside it — but three drop-shadows cannot describe
+     glass. You get a line with a halo, which is a line.
+
+     A neon tube is three distances at once, and this stack is that in order.
+     Tight WHITE on the stroke is the filament seen through the glass.
+     Mid-radius COLOUR is the gas immediately around it — the part that makes
+     the tube look full rather than outlined. Two wide colour layers are the
+     light thrown into the room, and the falloff between them is what reads as
+     depth rather than a sticker.
+
+     The white layers do NOT take the alpha lift: a filament is already as
+     bright as it gets, and what --neon-boost has to say about it is how far
+     the light carries, which is the radius.
+
+     AND IT IS WIRED TO THE KNOB, which it never was. This is the stack that
+     actually paints — the one on .cf-frame is zeroed below — so every earlier
+     attempt at boosting the card glow was editing a dead rule.
+
+     IT LIVES IN A VARIABLE because `filter` is ONE property, and the vibe
+     animations (titan's breathe, phase's shimmer, magnetic's hue drift) each
+     declare a filter of their own. A running keyframe replaces the whole
+     stack, so on every card carrying a vibe class the glow was being erased
+     for the entire life of the animation — which is `infinite`. Those
+     keyframes now say `var(--card-tube) brightness(...)` and compose. */
+  --card-tube:
+    /* filament */
+    drop-shadow(0 0 calc(1px  * var(--neon-boost, 1)) rgba(var(--frame-core-rgb), 0.95))
+    drop-shadow(0 0 calc(2px  * var(--neon-boost, 1)) rgba(var(--frame-core-rgb), 0.55))
+    /* the gas, hugging the glass */
+    drop-shadow(0 0 calc(4px  * var(--neon-boost, 1)) rgba(var(--cf-rgb), 0.55))
+    /* what it throws on the dark. THE ALPHAS ARE FIXED and only the radii take
+       the boost — a tube is a FALLOFF, and running these through the lift as
+       well destroyed it: at boost 3 the 24px layer computed to 0.71 against a
+       core of 0.95, so a 72px bloom was nearly as solid as the filament and the
+       card sat in a flat red slab. Fixed alphas keep 0.55 -> 0.30 -> 0.14 as a
+       falloff at every setting; the boost pushes the light further out, which
+       is the part alpha cannot express anyway. */
+    drop-shadow(0 0 calc(10px * var(--neon-boost, 1)) rgba(var(--cf-rgb), 0.30))
+    drop-shadow(0 0 calc(24px * var(--neon-boost, 1)) rgba(var(--cf-rgb), 0.14));
+  filter: var(--card-tube);
 }
 /* the frame layer's own glow comes off now — it would double the card's */
 .card .cf-frame { filter: none; }
@@ -45960,7 +45998,10 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   position: absolute;
   inset: var(--cf-stroke);
   --cf-k2: calc(var(--cf-k) - 0.4142 * var(--cf-core));
-  background: rgba(var(--frame-core-rgb), 0.9);
+  /* Full white. At 0.9 the filament was tinted by whatever showed through it,
+     so the hottest part of the tube was not actually the hottest colour on the
+     card — which is the one thing a filament has to be. */
+  background: rgb(var(--frame-core-rgb));
   clip-path: polygon(
     var(--cf-k) 0,
     100% 0,
