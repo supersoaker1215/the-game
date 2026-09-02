@@ -22945,8 +22945,18 @@ const UI = {
     // instead (measured: its top edge at y=854 against a tricks row starting at
     // 757). The gutter is exactly as tall as the board.
     root.style.setProperty('--decision-bottom', Math.round(section.getBoundingClientRect().bottom) + 'px');
-    root.style.setProperty('--decision-shift',
-      (reserve ? Math.max(0, Math.round(reserve - gutter - sectionPadR)) : 0) + 'px');
+    // WHERE LANE 1 STARTS. Published for the hand + tricks row, which used to be
+    // centred on the VIEWPORT — so once the board moved left to clear the
+    // decision column, the cards sat off its axis and the tricks ran past the
+    // board's right edge into the reserved gutter. Owner: "can you have the
+    // cards start left too?" Derived from the same three numbers as the shift
+    // rather than measured off the board's rect, because this runs BEFORE the
+    // new --board-card-w has been laid out and a rect read here is a frame
+    // stale.
+    const laneShift = reserve ? Math.max(0, Math.round(reserve - gutter - sectionPadR)) : 0;
+    root.style.setProperty('--decision-shift', laneShift + 'px');
+    root.style.setProperty('--board-left',
+      Math.max(0, Math.round(num(section, 'paddingLeft') + gutter - laneShift)) + 'px');
     // ...and whether the column EXISTS at all. On a phone the reserve is
     // declined (see above), so there is no gutter to dock anything in and the
     // notice and the reveal have to stay where they were. A class rather than a

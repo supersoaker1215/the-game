@@ -40798,7 +40798,19 @@ body.in-match .lane {
    1 / -1 so they stay full width. Scoped above the phone breakpoint; the mobile
    fit-to-width layout is untouched. */
 @media (min-width: 521px) {
-  body.in-match #game-area { grid-template-columns: 1fr auto auto 1fr; }
+  /* ...AND THE GROUP STARTS WHERE LANE 1 DOES (2026-09-02).
+     The two 1fr spacers centred the pair on the VIEWPORT, which was right until
+     the board moved left to clear the decision column — after that the cards sat
+     off the board's axis and the tricks ran past its right edge into the
+     reserved gutter. Owner: "can you have the cards start left too?"
+     The left spacer becomes the board's own left offset (--board-left, solved in
+     _fitBoardToViewport beside the shift), so the first card lines up with lane
+     1 and the tricks follow the last one. minmax(0, …) rather than a flat length
+     so the track can still give way on a narrow window instead of pushing the
+     row into a scroll. The right spacer keeps the leftovers, gutter included. */
+  body.in-match #game-area {
+    grid-template-columns: minmax(0, var(--board-left, 1fr)) auto auto minmax(0, 1fr);
+  }
   body.in-match #game-area > .player-hand-section { grid-column: 2; }
   body.in-match #game-area > .tricks-section { grid-column: 3; }
 }
