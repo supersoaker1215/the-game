@@ -7956,10 +7956,23 @@ const CARD_ABILITIES = {
   // by _resolveUpkeepPrompts before phase 1), which is what makes "pay 1 Energy
   // or skip" a real prompt in every mode instead of a second private one.
   "Enclosure": {
+    // FOUR TURNS, THEN THE PARK CLOSES. Without a life it was an unbounded
+    // 1-Energy tax with no way out: the toll came round every turn forever, the
+    // bot's default is to pay while it can afford to, and energy refills before
+    // upkeep runs — so on the AI's side the gate never opened and never left.
+    // Measured before this: 10 rounds in, still standing, still charging.
+    // (Owner: "the t rex enclosure stays on the field for 4 turns.")
+    // Refusing still lets the T-Rex out at any point; paying all four buys the
+    // paddock out and it is dismantled.
+    TURNS: 4,
     onTurnStart(G, self) {
       if (self._encReleased) return;
       if (G.findCardLane(self) < 0) return;
       const AB = CARD_ABILITIES['Enclosure'];
+      // Counted on the CARD, not on the state: the event seats one Enclosure per
+      // side and each one owes its own tolls.
+      self._encTurns = (self._encTurns | 0) + 1;
+      const lastToll = self._encTurns >= AB.TURNS;
       if (!G.state._pendingUpkeep) G.state._pendingUpkeep = [];
       G.state._pendingUpkeep.push({
         card: self, owner: self.owner, label: 'Enclosure',
@@ -7967,10 +7980,14 @@ const CARD_ABILITIES = {
         // them had this gate asking "Pay 1 Energy to pull all enemies 1 lane
         // closer, or skip."
         payLabel: 'Pay the Park',
-        payDesc: 'The gate holds for another round — nothing gets out.',
+        payDesc: lastToll
+          ? 'The last toll — the park closes and the enclosure comes down.'
+          : 'The gate holds for another round — nothing gets out.',
         skipLabel: 'Refuse',
         skipDesc: 'The gate opens and the T-Rex is released AGAINST you.',
-        promptDesc: 'Pay 1 Energy to keep the gate shut, or refuse and let the T-Rex out against you.',
+        promptDesc: lastToll
+          ? 'The final toll. Pay 1 Energy and the park closes for good, or refuse and let the T-Rex out against you.'
+          : 'Pay 1 Energy to keep the gate shut, or refuse and let the T-Rex out against you.',
         // NO aiPrefer. The resolver's default — pay while you can afford it — is
         // the right play now that the T-Rex is a punishment rather than a prize,
         // and it is what a bot should do with a toll. It does mean the gate only
@@ -7979,7 +7996,10 @@ const CARD_ABILITIES = {
         // BEFORE upkeep runs, so a bot can always find the 1. That is the card
         // working as written, not a branch going unreached — the decision was
         // always the player's.
-        onPay() { G.log('  [ENCLOSURE] The park is paid. The gate holds.'); },
+        onPay() {
+          if (lastToll) AB._close(G, self);
+          else G.log('  [ENCLOSURE] The park is paid. The gate holds.');
+        },
         onDecline() {
           // SKIP ONCE AND IT IS OUT. The latch is set before the release because
           // the release can prompt (ally displacement) and a second decline
@@ -7993,6 +8013,20 @@ const CARD_ABILITIES = {
           AB._release(G, self.owner, laneIdx, self);
         },
       });
+    },
+    // Paid out. Vacate the env slot the same way _release does — a plain null,
+    // not handleDeath: nothing killed the paddock, its four turns simply ran
+    // out, and routing a timed expiry through a death would fire death triggers
+    // for it.
+    _close(G, self) {
+      const laneIdx = G.findCardLane(self);
+      if (laneIdx < 0) return;
+      const lane = G.state.lanes[laneIdx];
+      if (lane._env && lane._env[self.owner] === self) lane._env[self.owner] = null;
+      // Latch it shut as well, so an upkeep already queued for this turn cannot
+      // find the card object and ask for a fifth toll.
+      self._encReleased = true;
+      G.log(`  [ENCLOSURE] Four tolls paid — the park closes and the enclosure comes down in lane ${laneIdx + 1}.`);
     },
     _release(G, owner, laneIdx, habitat) {
       releaseHabitatMonster(G, {

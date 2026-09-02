@@ -9307,6 +9307,80 @@ test('Redraw refuses a trick whose own pile is empty, without spending anything'
   assertEq(G.state.player.redrawsUsed | 0, 0, 'the counter did not move, so the price did not go up');
 });
 
+// ============================================================
+// THE ENCLOSURE HAS A LIFE
+// ------------------------------------------------------------
+// It had none: the toll came round every turn forever. The bot's default is to
+// pay while it can afford to and energy refills BEFORE upkeep runs, so on the
+// AI's side the gate never opened and never left — an unbounded 1-Energy tax
+// with no exit. Owner: "the t rex enclosure stays on the field for 4 turns."
+// ============================================================
+test('The Enclosure charges four tolls and then closes for good', function () {
+  var G = freshGame();
+  var gate = G._placeEventEnvironment('player', 3, 'Enclosure');
+  assert(gate, 'the gate is standing');
+
+  for (var turn = 1; turn <= 3; turn++) {
+    G.state._pendingUpkeep = [];
+    gate.onTurnStart(G, gate);
+    assertEq(G.state._pendingUpkeep.length, 1, 'turn ' + turn + ' asks for its toll');
+    G.state._pendingUpkeep[0].onPay();
+    assertEq(G.state.lanes[3]._env.player, gate, 'turn ' + turn + ' paid — still standing');
+  }
+
+  // The fourth toll is the last one.
+  G.state._pendingUpkeep = [];
+  gate.onTurnStart(G, gate);
+  assertEq(G.state._pendingUpkeep.length, 1, 'the fourth turn still asks');
+  assert(/final toll/i.test(G.state._pendingUpkeep[0].promptDesc || ''), 'and it says it is the last one');
+  G.state._pendingUpkeep[0].onPay();
+  assertEq(G.state.lanes[3]._env.player, null, 'paid four times — the paddock comes down');
+  assertEq(G.state.lanes[3].ai, null, 'and nothing was released for paying');
+  assertEq(G.state.lanes[3].player, null, 'on either side');
+
+  // A fifth turn must not resurrect the toll.
+  G.state._pendingUpkeep = [];
+  gate.onTurnStart(G, gate);
+  assertEq(G.state._pendingUpkeep.length, 0, 'a closed park stops asking');
+});
+
+test('Refusing on the LAST toll still lets the T-Rex out', function () {
+  // The close and the release both fire off the fourth upkeep; the wrong order
+  // would dismantle the paddock and quietly cancel the punishment.
+  var G = freshGame();
+  var gate = G._placeEventEnvironment('player', 1, 'Enclosure');
+  for (var turn = 1; turn <= 3; turn++) {
+    G.state._pendingUpkeep = [];
+    gate.onTurnStart(G, gate);
+    G.state._pendingUpkeep[0].onPay();
+  }
+  G.state._pendingUpkeep = [];
+  gate.onTurnStart(G, gate);
+  G.state._pendingUpkeep[0].onDecline();
+  var rex = G.state.lanes[1].ai;
+  assert(rex && rex.name === 'T-Rex', 'refusing the fourth toll still releases it');
+  assertEq(rex.owner, 'ai', 'against the side that refused');
+  assertEq(G.state.lanes[1]._env.player, null, 'and the paddock is spent');
+});
+
+test('Each Enclosure counts its own tolls', function () {
+  // The event seats one per side. A counter on the state rather than the card
+  // would have the second one close on the first one\'s clock.
+  var G = freshGame();
+  var mine  = G._placeEventEnvironment('player', 0, 'Enclosure');
+  var yours = G._placeEventEnvironment('ai', 4, 'Enclosure');
+  for (var turn = 1; turn <= 4; turn++) {
+    G.state._pendingUpkeep = [];
+    mine.onTurnStart(G, mine);
+    if (G.state._pendingUpkeep.length) G.state._pendingUpkeep[0].onPay();
+  }
+  assertEq(G.state.lanes[0]._env.player, null, 'four tolls closed mine');
+  assertEq(G.state.lanes[4]._env.ai, yours, 'the other one is untouched');
+  G.state._pendingUpkeep = [];
+  yours.onTurnStart(G, yours);
+  assertEq(G.state._pendingUpkeep.length, 1, 'and still owes its first toll');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 
