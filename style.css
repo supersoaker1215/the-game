@@ -47891,6 +47891,42 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   pointer-events: none;
   z-index: 1;
 }
+/* ===========================================================================
+   THE PICTURE ONLY COVERS ITS OWNER'S HALF (2026-09-02)
+   An environment belongs to ONE side — lane._env is keyed by it — but the
+   backdrop painted a single art across the whole lane, so an enemy Open Water
+   washed over the player's half too, and a lane holding one environment per
+   side could only ever show one of the two. Owner: "since environments are for
+   1 side now should they only be half way up … i just want them faded out to
+   black not cut off and look bad."
+
+   FADED, NOT CUT. The mask runs to transparent at the midline, so the art
+   dissolves into the lane's own black rather than ending on a hard edge. It
+   holds full strength across the outer 62% of its half and gives up the last
+   38% to the fade — enough distance that the falloff reads as depth instead of
+   as a gradient band, and it lands exactly on the centre line, where the
+   ownership wash below already ends.
+
+   Each half is `cover` on its OWN box, so the picture is framed for the space
+   it actually occupies instead of being a cropped slice of a full-lane image.
+   =========================================================================== */
+.env-half {
+  position: absolute;
+  left: 0; right: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-repeat: no-repeat;
+}
+.env-half-ai {
+  top: 0; bottom: 50%;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 62%, transparent 100%);
+          mask-image: linear-gradient(to bottom, #000 0%, #000 62%, transparent 100%);
+}
+.env-half-player {
+  top: 50%; bottom: 0;
+  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 62%, transparent 100%);
+          mask-image: linear-gradient(to top, #000 0%, #000 62%, transparent 100%);
+}
 /* Theirs — the top half, down to the centre line. */
 .lane-env-bg.env-own-ai::before {
   top: 0; bottom: 50%;

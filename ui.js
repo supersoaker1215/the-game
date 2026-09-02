@@ -23588,47 +23588,45 @@ const UI = {
           envBg.className = 'lane-env-bg ' + safeClass
             + (envAi ? ' env-own-ai' : '')
             + (envPl ? ' env-own-player' : '');
-          const artPath = this.getCardArtPath(primary.name);
+          // EACH SIDE'S ART ON ITS OWN HALF. An environment belongs to ONE side
+          // — lane._env is keyed by it — but the backdrop painted a single art
+          // across the whole lane, so an enemy Open Water washed over the
+          // player's half as well and a lane holding one environment per side
+          // could only ever show one of them. (Owner: "since environments are
+          // for 1 side now should they only be half way up … i just want them
+          // faded out to black not cut off and look bad.")
+          //
+          // Two children rather than two .lane-env-bg elements: the container
+          // keeps the click-to-inspect target, the render sweep's KEEP_ENV
+          // entry, the rift frame and the two ownership washes, all of which
+          // are already tuned. Only what is INSIDE it changed.
+          //
+          // Faded, not cut: each half carries a mask that runs to transparent
+          // at the midline, so the art dissolves into the lane's black instead
+          // of ending on a hard edge.
+          const paintHalf = (side, env) => {
+            const cls = 'env-half env-half-' + side;
+            let half = envBg.querySelector(':scope > .env-half-' + side);
+            if (!env) { if (half) half.remove(); return; }
+            if (!half) {
+              half = document.createElement('div');
+              envBg.appendChild(half);
+            }
+            if (half.className !== cls) half.className = cls;
+            const p = this._envArtBackground(env);
+            if (half.style.background !== p) half.style.background = p;
+          };
+          paintHalf('ai', envAi);
+          paintHalf('player', envPl);
+
+          // The container itself only paints for the RIFT, which belongs to
+          // nobody and so has no half to sit in — it keeps the full lane.
+          const artPath = riftEnv && !envAi && !envPl ? this.getCardArtPath(primary.name) : null;
           if (artPath) {
-            // MATCH THE CARD, DO NOT RE-CROP. This was `center/cover`, and a
-            // lane is roughly 1:4.4 while the card's portrait is far squarer —
-            // so `cover` scaled a card-shaped image up until it covered the
-            // lane's HEIGHT and threw the sides away, leaving the narrow
-            // vertical slice the owner reported ("the card looks so good but
-            // it's cropped way too thin").
-            //   * It still COVERS, because the owner wants these rooms to fill
-            //     their lane like every other environment does — a fitted
-            //     picture left dark bands above and below and read as a
-            //     different kind of object on the board. Filling a 1:3.83 lane
-            //     with a 1:1.43 picture necessarily crops the sides; what can
-            //     be chosen is WHICH slice, which is what the focal point below
-            //     is for.
-            //   * the focal point and zoom are read from the SAME source the
-            //     card face uses (_artFocalFor / _artSizeFor with the 'card'
-            //     context — the Gallery Audit overrides), so re-framing a card
-            //     in the gallery now moves its room on the board too, rather
-            //     than the two drifting apart.
-            const artFile = this.getCardArtVariant(primary.name);
-            // BOARD-ONLY FOCAL. A lane crops FAR harder than a card face does —
-            // at these sizes the card shows ~72% of the picture's width but the
-            // lane shows ~37% — so a subject that sits comfortably inside the
-            // card can land right on the lane's cut edge. Game Over's figure
-            // is at x≈33% and was being sliced in half, which is why that lane
-            // read as an anonymous green wash.
-            // Deliberately NOT the shared focalCard map: that also drives the
-            // CARD face, and the owner's point was that the cards already look
-            // right. This map moves the LANE crop only, and still defers to a
-            // Gallery Audit card focal when one has been set.
-            const ENV_FOCAL = {
-              'The Bathroom': '40% 50%',  // frames the tub and the blood pool
-              'Game Over':   '33% 50%',  // centres the figure in the doorway
-            };
-            const pos = this._artFocalFor(primary.name, artFile, 'card')
-              || ENV_FOCAL[primary.name] || 'center';
-            const zoom = this._artSizeFor(primary.name, artFile, 'card');
-            const size = (zoom && zoom !== 'cover') ? zoom : 'cover';
-            envBg.style.background =
-              `linear-gradient(rgba(0,0,0,0.35), rgba(0,0,0,0.35)), url("${artPath}") ${pos}/${size} no-repeat`;
+            // Rift only — the shared builder does the framing (see
+            // _envArtBackground), so the halves and the rift crop identically.
+            const _rb = this._envArtBackground(primary);
+            if (envBg.style.background !== _rb) envBg.style.background = _rb;
           } else {
             envBg.style.background = '';
           }
@@ -23650,7 +23648,14 @@ const UI = {
             }
             if (warn.textContent !== want) warn.textContent = want;
             warn.classList.toggle('rift-warn-lethal', firstStill);
-          } else if (envBg.innerHTML !== '') envBg.innerHTML = '';
+          } else {
+            // Targeted removal, NOT innerHTML = ''. The halves are children of
+            // this element now, and wiping the container erased them on every
+            // render of every non-rift lane — the art vanished and rebuilt each
+            // frame, which is the flicker the element reuse exists to avoid.
+            const _oldWarn = envBg.querySelector(':scope > .rift-warn');
+            if (_oldWarn) _oldWarn.remove();
+          }
           // Class on the LANE, not the backdrop, so the rim glow can sit on the
           // lane frame. Cleared in the else-branch and whenever the rift ends,
           // which matters because lane elements are reused between renders —
@@ -28245,6 +28250,46 @@ const UI = {
     if (id == null) return -1;
     const arr = list || (Game.state && Game.state.player && Game.state.player.trickHand) || [];
     return arr.findIndex(t => t && String(t.id) === String(id));
+  },
+
+  // ONE FRAMING RULE for every environment picture on the board — the two
+  // per-side halves and the full-lane rift all come through here, so a change
+  // to the crop cannot land on one and miss the others.
+  //
+  // MATCH THE CARD, DO NOT RE-CROP. This was `center/cover`, and a lane is
+  // roughly 1:4.4 while the card's portrait is far squarer — so `cover` scaled
+  // a card-shaped image up until it covered the lane's HEIGHT and threw the
+  // sides away, leaving the narrow vertical slice the owner reported ("the card
+  // looks so good but it's cropped way too thin").
+  //   * It still COVERS: a fitted picture left dark bands and read as a
+  //     different kind of object on the board. Filling the lane with a 1:1.43
+  //     picture necessarily crops the sides; what can be chosen is WHICH slice,
+  //     which is what the focal point is for.
+  //   * focal and zoom come from the SAME source the card face uses
+  //     (_artFocalFor / _artSizeFor, 'card' context — the Gallery Audit
+  //     overrides), so re-framing a card in the gallery moves its room on the
+  //     board too rather than the two drifting apart.
+  _envArtBackground(env) {
+    if (!env || !env.name) return '';
+    const artPath = this.getCardArtPath(env.name);
+    if (!artPath) return '';
+    const artFile = this.getCardArtVariant(env.name);
+    // BOARD-ONLY FOCAL. A lane crops FAR harder than a card face does — at
+    // these sizes the card shows ~72% of the picture's width but the lane shows
+    // ~37% — so a subject that sits comfortably inside the card can land right
+    // on the lane's cut edge. Game Over's figure is at x≈33% and was being
+    // sliced in half, which is why that lane read as an anonymous green wash.
+    // Deliberately NOT the shared focalCard map: that also drives the CARD
+    // face, and the owner's point was that the cards already look right.
+    const ENV_FOCAL = {
+      'The Bathroom': '40% 50%',  // frames the tub and the blood pool
+      'Game Over':   '33% 50%',  // centres the figure in the doorway
+    };
+    const pos  = this._artFocalFor(env.name, artFile, 'card')
+      || ENV_FOCAL[env.name] || 'center';
+    const zoom = this._artSizeFor(env.name, artFile, 'card');
+    const size = (zoom && zoom !== 'cover') ? zoom : 'cover';
+    return `linear-gradient(rgba(0,0,0,0.35), rgba(0,0,0,0.35)), url("${artPath}") ${pos}/${size} no-repeat`;
   },
 
   renderPlayerTricks(s) {
