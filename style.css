@@ -40836,7 +40836,12 @@ body.in-match .lane {
 :root { --hand-meter-w: 44px; }
 .hand-meter {
   --fill: 0%;
-  align-self: center;
+  /* TOP, NOT MIDDLE. Centred in the row it floated halfway down a 220px column
+     of cards with nothing beside it, which read as unplaced. Owner drew an arrow
+     up from it. Level with the card tops it reads as the label for the row.
+     6px is the hand section's own top padding — same line as the first card. */
+  align-self: start;
+  margin-top: 6px;
   justify-self: end;
   width: var(--hand-meter-w); height: var(--hand-meter-w);
   border-radius: 50%;
@@ -40844,8 +40849,17 @@ body.in-match .lane {
   background:
     conic-gradient(from -90deg,
       rgba(var(--theme-rgb, 79,195,247), 0.95) 0 var(--fill),
-      rgba(var(--theme-rgb, 79,195,247), 0.10) var(--fill) 100%);
-  border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);
+      rgba(var(--theme-rgb, 79,195,247), 0.16) var(--fill) 100%);
+  /* A HAIRLINE ON PURE BLACK IS NOT A CIRCLE. The block meter's 1px at 0.55
+     works because it sits on the info bar, shoulder to shoulder with other
+     chrome; this one is alone in the black under the board, and at the same
+     weight the owner read it as "no circle, it's just the numbers". Double the
+     stroke, raise the alpha, and give it the neon halo that was asked for —
+     "neon highlight in the circle". */
+  border: 2px solid rgba(var(--theme-rgb, 79,195,247), 0.9);
+  box-shadow:
+    0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.35),
+    inset 0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.18);
   display: flex; align-items: center; justify-content: center;
   transition: border-color 240ms var(--ease-snap), box-shadow 240ms var(--ease-snap), background 240ms var(--ease-snap);
 }
