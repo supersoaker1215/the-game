@@ -12707,6 +12707,10 @@ body.turn-combat .board .lane.lane-active {
   cursor: help;
 }
 .lane-glyph.glyph-destroyed { color: #e74c3c; }
+/* Environment countdown — same pip, coloured by whose environment is running
+   out rather than by what it does, so the row reads as one family of timers. */
+.lane-glyph.glyph-env-player { color: rgb(var(--theme-rgb, 79,195,247)); }
+.lane-glyph.glyph-env-ai     { color: rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 1); }
 .lane-glyph.glyph-hill { color: #ffcf5c; font-weight: 700; letter-spacing: 0.06em; background: rgba(40,30,6,0.85); }
 /* King of the Hill — a gold glow so the contested lane is unmistakable. */
 .lane.lane-hill {

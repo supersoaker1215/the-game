@@ -7956,23 +7956,20 @@ const CARD_ABILITIES = {
   // by _resolveUpkeepPrompts before phase 1), which is what makes "pay 1 Energy
   // or skip" a real prompt in every mode instead of a second private one.
   "Enclosure": {
-    // FOUR TURNS, THEN THE PARK CLOSES. Without a life it was an unbounded
-    // 1-Energy tax with no way out: the toll came round every turn forever, the
-    // bot's default is to pay while it can afford to, and energy refills before
-    // upkeep runs — so on the AI's side the gate never opened and never left.
-    // Measured before this: 10 rounds in, still standing, still charging.
-    // (Owner: "the t rex enclosure stays on the field for 4 turns.")
-    // Refusing still lets the T-Rex out at any point; paying all four buys the
-    // paddock out and it is dismantled.
-    TURNS: 4,
+    // ONE CLOCK, NOT TWO. The paddock used to have no life at all — the toll
+    // came round every turn forever, the bot pays while it can afford to, and
+    // energy refills before upkeep runs, so on the AI's side the gate never
+    // opened and never left. It now runs down on the SHARED environment clock
+    // (Game.ENV_TURNS, ticked in postCombat), rather than counting its own
+    // tolls: a second counter here would drift from the pip the lane prints the
+    // moment anything seated it mid-round.
+    // Refusing still lets the T-Rex out at any point in those rounds.
     onTurnStart(G, self) {
       if (self._encReleased) return;
       if (G.findCardLane(self) < 0) return;
-      const AB = CARD_ABILITIES['Enclosure'];
-      // Counted on the CARD, not on the state: the event seats one Enclosure per
-      // side and each one owes its own tolls.
-      self._encTurns = (self._encTurns | 0) + 1;
-      const lastToll = self._encTurns >= AB.TURNS;
+      // Last round on the clock — the tick at the end of THIS round takes the
+      // paddock away, so this is the final toll it will ever ask for.
+      const lastToll = (self._envTurns | 0) <= 1;
       if (!G.state._pendingUpkeep) G.state._pendingUpkeep = [];
       G.state._pendingUpkeep.push({
         card: self, owner: self.owner, label: 'Enclosure',
@@ -7981,7 +7978,7 @@ const CARD_ABILITIES = {
         // closer, or skip."
         payLabel: 'Pay the Park',
         payDesc: lastToll
-          ? 'The last toll — the park closes and the enclosure comes down.'
+          ? 'The last toll — the park closes at the end of this round.'
           : 'The gate holds for another round — nothing gets out.',
         skipLabel: 'Refuse',
         skipDesc: 'The gate opens and the T-Rex is released AGAINST you.',
@@ -7997,10 +7994,12 @@ const CARD_ABILITIES = {
         // working as written, not a branch going unreached — the decision was
         // always the player's.
         onPay() {
-          if (lastToll) AB._close(G, self);
-          else G.log('  [ENCLOSURE] The park is paid. The gate holds.');
+          G.log(lastToll
+            ? '  [ENCLOSURE] The last toll is paid. The park closes for good.'
+            : '  [ENCLOSURE] The park is paid. The gate holds.');
         },
         onDecline() {
+          const AB = CARD_ABILITIES['Enclosure'];
           // SKIP ONCE AND IT IS OUT. The latch is set before the release because
           // the release can prompt (ally displacement) and a second decline
           // resolving against a still-standing gate would let out a second
@@ -8014,20 +8013,6 @@ const CARD_ABILITIES = {
         },
       });
     },
-    // Paid out. Vacate the env slot the same way _release does — a plain null,
-    // not handleDeath: nothing killed the paddock, its four turns simply ran
-    // out, and routing a timed expiry through a death would fire death triggers
-    // for it.
-    _close(G, self) {
-      const laneIdx = G.findCardLane(self);
-      if (laneIdx < 0) return;
-      const lane = G.state.lanes[laneIdx];
-      if (lane._env && lane._env[self.owner] === self) lane._env[self.owner] = null;
-      // Latch it shut as well, so an upkeep already queued for this turn cannot
-      // find the card object and ask for a fifth toll.
-      self._encReleased = true;
-      G.log(`  [ENCLOSURE] Four tolls paid — the park closes and the enclosure comes down in lane ${laneIdx + 1}.`);
-    },
     _release(G, owner, laneIdx, habitat) {
       releaseHabitatMonster(G, {
         owner, laneIdx, habitat,
@@ -8036,7 +8021,8 @@ const CARD_ABILITIES = {
         into: G.opponent(owner),
         // REPLACED, NOT KEPT. Its own text says the T-Rex is released HERE and
         // says nothing about the paddock outliving him — unlike Wetlands, which
-        // spells out that the habitat remains until Spinosaurus dies.
+        // keeps its habitat underneath the monster for whatever is left of the
+        // shared environment clock.
         clearEnv: true,
         tag: 'ENCLOSURE',
         name: 'T-Rex', cost: 5, atk: 3, hp: 7,

@@ -7526,6 +7526,8 @@ const Game = {
         }
       }
     });
+    // Environments run down on the same beat as the lane counter above.
+    this._tickEnvironments();
     // Capture peak-round HP damage for the victory stats panel. _roundStats
     // resets each round at startRound, so "how much HP damage did this
     // player deal THIS round" is in {player,ai}DamageDealt — we keep the
@@ -15410,6 +15412,34 @@ const Game = {
 
   // ===================== CARD INSTANCE =====================
 
+  // Run every environment's clock down one round and clear the ones that reach
+  // zero. Its own method rather than four lines inside postCombat so a test can
+  // advance the clock without standing up a whole combat.
+  //
+  // A plain null on the slot, not handleDeath: nothing killed the environment,
+  // its rounds ran out, and routing a timed expiry through a death would fire
+  // When Destroyed triggers for it.
+  _tickEnvironments() {
+    this.state.lanes.forEach((lane, i) => {
+      if (!lane._env) return;
+      ['player', 'ai'].forEach(side => {
+        const env = lane._env[side];
+        if (!env || !(env._envTurns > 0)) return;
+        env._envTurns--;
+        if (env._envTurns === 0) {
+          lane._env[side] = null;
+          this.log(`[ENV] ${env.name} fades from lane ${i + 1} — its ${this.ENV_TURNS} rounds are up.`);
+        }
+      });
+    });
+  },
+
+  // How many rounds an environment holds its lane before it fades. One number,
+  // read by createCardInstance's stamp, by the postCombat tick and by the
+  // Enclosure's "final toll" copy, so the rule, the countdown pip and the card
+  // text can never disagree.
+  ENV_TURNS: 4,
+
   createCardInstance(def, owner) {
     // Defensive coercion — if a def arrives with NaN/undefined stats
     // (possible when a dead-pile entry was corrupted by an earlier
@@ -15532,6 +15562,14 @@ const Game = {
       statsEnergyGenerated: 0,
       statsEnteredRound: null,
       statsLeftRound: null,
+      // EVERY ENVIRONMENT IS ON A CLOCK. Owner: "all environments stay on the
+      // field for 4 turns." Stamped here rather than at each seating site
+      // because there are four of those (playCard's env branch, the free-play
+      // branch, Jigsaw's rooms, _placeEventEnvironment) and a fifth would have
+      // arrived without one. Ticked in postCombat beside destroyedTurns, which
+      // is the same round cadence the lane counter runs on — that is what makes
+      // the two readouts mean the same thing.
+      _envTurns: def.isEnvironment ? this.ENV_TURNS : 0,
       onPlay: def.onPlay || null, onDeath: def.onDeath || null,
       onDamaged: def.onDamaged || null, onKill: def.onKill || null,
       onEvade: def.onEvade || null, onAllyKilled: def.onAllyKilled || null, onEnemyKilled: def.onEnemyKilled || null,

@@ -23496,6 +23496,19 @@ const UI = {
         const title = turns != null ? `Lane collapsed — reforms in ${turns} round${turns === 1 ? '' : 's'}` : 'Lane destroyed';
         statusRow.push(`<span class="lane-glyph glyph-destroyed" title="${title}">${label}</span>`);
       }
+      // ENVIRONMENT COUNTDOWN — the same pip the destroyed lane prints, in the
+      // same row, for the same reason: an effect that leaves on a clock has to
+      // say how long is left. Owner: "all environments stay on the field for 4
+      // turns, have the counter like the destroyed lanes at the bottom."
+      // One per side, because both may hold an environment in the same lane;
+      // coloured by side so it is obvious whose is running out.
+      ['ai', 'player'].forEach(side => {
+        const env = lane._env && lane._env[side];
+        const left = env && (env._envTurns | 0);
+        if (!env || !(left > 0)) return;
+        const title = `${env.name} — ${left} round${left === 1 ? '' : 's'} left`;
+        statusRow.push(`<span class="lane-glyph glyph-env glyph-env-${side}" title="${this._esc ? this._esc(title) : title}">${left}</span>`);
+      });
       if (lane.protected) statusRow.push(`<span class="lane-glyph glyph-protected glyph-${lane.protected}" title="Protected from ${lane.protected}">&#x1F6E1;</span>`);
       if (lane.trap) statusRow.push(`<span class="lane-glyph glyph-trap glyph-${lane.trap.placedBy}" title="Bear Trap by ${lane.trap.placedBy}">&#x26A0;</span>`);
       if (forcedAi === i) statusRow.push(`<span class="lane-glyph glyph-forced glyph-forced-ai" title="AI's next card forced here">&#x21E3; AI</span>`);

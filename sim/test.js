@@ -9308,77 +9308,102 @@ test('Redraw refuses a trick whose own pile is empty, without spending anything'
 });
 
 // ============================================================
-// THE ENCLOSURE HAS A LIFE
+// EVERY ENVIRONMENT IS ON A CLOCK
 // ------------------------------------------------------------
-// It had none: the toll came round every turn forever. The bot's default is to
-// pay while it can afford to and energy refills BEFORE upkeep runs, so on the
-// AI's side the gate never opened and never left — an unbounded 1-Energy tax
-// with no exit. Owner: "the t rex enclosure stays on the field for 4 turns."
+// None of them had one. An environment held its lane until something replaced
+// or killed it, and the Enclosure was the worst case: its toll came round every
+// turn forever, the bot pays while it can afford to, and energy refills BEFORE
+// upkeep runs, so on the AI's side the gate never opened and never left.
+// Owner: "all environments stay on the field for 4 turns."
 // ============================================================
-test('The Enclosure charges four tolls and then closes for good', function () {
+test('Every environment fades after Game.ENV_TURNS rounds', function () {
+  var G = freshGame();
+  assertEq(G.ENV_TURNS, 4, 'four rounds is the rule');
+  var env = G._placeEventEnvironment('player', 2, 'Boiler Room');
+  assert(env, 'the environment is seated');
+  assertEq(env._envTurns, G.ENV_TURNS, 'and it arrives with a full clock');
+
+  for (var r = 1; r < G.ENV_TURNS; r++) {
+    G._tickEnvironments();
+    assertEq(G.state.lanes[2]._env.player, env, 'still there after ' + r + ' round(s)');
+    assertEq(env._envTurns, G.ENV_TURNS - r, 'with ' + (G.ENV_TURNS - r) + ' left on the clock');
+  }
+  G._tickEnvironments();
+  assertEq(G.state.lanes[2]._env.player, null, 'the fourth tick clears the lane');
+});
+
+test('A timed environment expiry is not a death', function () {
+  // Routing it through handleDeath would fire When Destroyed for a card nothing
+  // killed — Xenomorph would Splash the lane on its way out.
+  var G = freshGame();
+  var env = G._placeEventEnvironment('player', 0, 'Boiler Room');
+  var died = false;
+  env.onDeath = function () { died = true; };
+  for (var i = 0; i < G.ENV_TURNS; i++) G._tickEnvironments();
+  assertEq(G.state.lanes[0]._env.player, null, 'it is gone');
+  assertEq(died, false, 'and its When Destroyed never fired');
+});
+
+test('Each environment runs its own clock', function () {
+  var G = freshGame();
+  var mine  = G._placeEventEnvironment('player', 0, 'Boiler Room');
+  G._tickEnvironments();
+  G._tickEnvironments();
+  var yours = G._placeEventEnvironment('ai', 4, 'Boiler Room');
+  assertEq(mine._envTurns, 2, 'the older one is halfway through');
+  assertEq(yours._envTurns, G.ENV_TURNS, 'the new one starts fresh');
+  G._tickEnvironments();
+  G._tickEnvironments();
+  assertEq(G.state.lanes[0]._env.player, null, 'the older one runs out first');
+  assertEq(G.state.lanes[4]._env.ai, yours, 'the newer one is still standing');
+});
+
+test("The Enclosure's last toll lands on its final round", function () {
   var G = freshGame();
   var gate = G._placeEventEnvironment('player', 3, 'Enclosure');
-  assert(gate, 'the gate is standing');
 
-  for (var turn = 1; turn <= 3; turn++) {
+  // Rounds 1-3: an ordinary toll, and paying keeps the gate shut.
+  for (var turn = 1; turn < G.ENV_TURNS; turn++) {
     G.state._pendingUpkeep = [];
     gate.onTurnStart(G, gate);
     assertEq(G.state._pendingUpkeep.length, 1, 'turn ' + turn + ' asks for its toll');
+    assert(!/final toll/i.test(G.state._pendingUpkeep[0].promptDesc || ''),
+      'turn ' + turn + ' is not billed as the last one');
     G.state._pendingUpkeep[0].onPay();
     assertEq(G.state.lanes[3]._env.player, gate, 'turn ' + turn + ' paid — still standing');
+    G._tickEnvironments();
   }
 
-  // The fourth toll is the last one.
+  // Round 4 is the last one the clock allows, and the prompt says so.
   G.state._pendingUpkeep = [];
   gate.onTurnStart(G, gate);
-  assertEq(G.state._pendingUpkeep.length, 1, 'the fourth turn still asks');
+  assertEq(G.state._pendingUpkeep.length, 1, 'the final round still asks');
   assert(/final toll/i.test(G.state._pendingUpkeep[0].promptDesc || ''), 'and it says it is the last one');
   G.state._pendingUpkeep[0].onPay();
-  assertEq(G.state.lanes[3]._env.player, null, 'paid four times — the paddock comes down');
+  G._tickEnvironments();
+  assertEq(G.state.lanes[3]._env.player, null, 'paid it out — the park closes');
   assertEq(G.state.lanes[3].ai, null, 'and nothing was released for paying');
   assertEq(G.state.lanes[3].player, null, 'on either side');
-
-  // A fifth turn must not resurrect the toll.
-  G.state._pendingUpkeep = [];
-  gate.onTurnStart(G, gate);
-  assertEq(G.state._pendingUpkeep.length, 0, 'a closed park stops asking');
 });
 
-test('Refusing on the LAST toll still lets the T-Rex out', function () {
-  // The close and the release both fire off the fourth upkeep; the wrong order
-  // would dismantle the paddock and quietly cancel the punishment.
+test('Refusing on the final round still lets the T-Rex out', function () {
+  // The clock and the release both land on the last round; the wrong order
+  // would take the paddock away and quietly cancel the punishment.
   var G = freshGame();
   var gate = G._placeEventEnvironment('player', 1, 'Enclosure');
-  for (var turn = 1; turn <= 3; turn++) {
+  for (var turn = 1; turn < G.ENV_TURNS; turn++) {
     G.state._pendingUpkeep = [];
     gate.onTurnStart(G, gate);
     G.state._pendingUpkeep[0].onPay();
+    G._tickEnvironments();
   }
   G.state._pendingUpkeep = [];
   gate.onTurnStart(G, gate);
   G.state._pendingUpkeep[0].onDecline();
   var rex = G.state.lanes[1].ai;
-  assert(rex && rex.name === 'T-Rex', 'refusing the fourth toll still releases it');
+  assert(rex && rex.name === 'T-Rex', 'refusing the final toll still releases it');
   assertEq(rex.owner, 'ai', 'against the side that refused');
   assertEq(G.state.lanes[1]._env.player, null, 'and the paddock is spent');
-});
-
-test('Each Enclosure counts its own tolls', function () {
-  // The event seats one per side. A counter on the state rather than the card
-  // would have the second one close on the first one\'s clock.
-  var G = freshGame();
-  var mine  = G._placeEventEnvironment('player', 0, 'Enclosure');
-  var yours = G._placeEventEnvironment('ai', 4, 'Enclosure');
-  for (var turn = 1; turn <= 4; turn++) {
-    G.state._pendingUpkeep = [];
-    mine.onTurnStart(G, mine);
-    if (G.state._pendingUpkeep.length) G.state._pendingUpkeep[0].onPay();
-  }
-  assertEq(G.state.lanes[0]._env.player, null, 'four tolls closed mine');
-  assertEq(G.state.lanes[4]._env.ai, yours, 'the other one is untouched');
-  G.state._pendingUpkeep = [];
-  yours.onTurnStart(G, yours);
-  assertEq(G.state._pendingUpkeep.length, 1, 'and still owes its first toll');
 });
 
 // ---- RUNNER ------------------------------------------------
