@@ -1081,25 +1081,35 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
 
 /* Banners glow at the same perceived brightness as the white chrome. Red and
    blue need higher alpha than white to appear equally luminous. */
+/* THE BARS READ THE TOKENS NOW. Both spelled their edges out as literals —
+   `rgba(var(--enemy-r) …, 0.95)` and a 0.30 inset — so they used the right HUE
+   but never the alpha ladder, and the neon knob could not reach them however
+   far it was turned. (Owner, after three attempts: "looks the same still." The
+   measurement said why: the player bar painted a flat 0.95 border while the AI
+   bar next to it had drifted to 0.984, because only one of the two happened to
+   go through --enemy-accent-bright somewhere else.)
+   Edges take *-accent-bright, the insets take *-glow-inner lifted to the same
+   0.30 they were authored at. The 0.08 background washes stay literal on
+   purpose — those are fills, and the knob deliberately leaves fills alone. */
 .info-bar.ai-bar {
   background:
     linear-gradient(180deg, rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.08), transparent 50%),
     linear-gradient(180deg, #000000, #000000);
-  border-top: 1px solid rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95);
-  border-bottom: 1px solid rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95);
+  border-top: 1px solid var(--enemy-accent-bright);
+  border-bottom: 1px solid var(--enemy-accent-bright);
   box-shadow:
-    inset 0 1px 0 rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.30),
-    inset 0 -1px 0 rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.30);
+    inset 0 1px 0 rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), calc(0.30 + (1 - 0.30) * var(--neon-lift, 0))),
+    inset 0 -1px 0 rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), calc(0.30 + (1 - 0.30) * var(--neon-lift, 0)));
 }
 .info-bar.player-bar {
   background:
     linear-gradient(0deg, rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.08), transparent 50%),
     linear-gradient(180deg, #000000, #000000);
-  border-top: 1px solid rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95);
-  border-bottom: 1px solid rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95);
+  border-top: 1px solid var(--player-accent-bright);
+  border-bottom: 1px solid var(--player-accent-bright);
   box-shadow:
-    inset 0 1px 0 rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.30),
-    inset 0 -1px 0 rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.30);
+    inset 0 1px 0 rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), calc(0.30 + (1 - 0.30) * var(--neon-lift, 0))),
+    inset 0 -1px 0 rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), calc(0.30 + (1 - 0.30) * var(--neon-lift, 0)));
 }
 
 /* Mini enemy hand centered in the enemy banner */
@@ -14731,9 +14741,10 @@ body {
     linear-gradient(180deg, #000000, #000000) !important;
   border-top-color: var(--enemy-accent-bright) !important;
   border-bottom-color: var(--enemy-accent-bright) !important;
+  /* Its edge already read the ladder; the insets did not. Now both do. */
   box-shadow:
-    inset 0 1px 0 rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.22),
-    inset 0 -1px 0 rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.22) !important;
+    inset 0 1px 0 rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), calc(0.22 + (1 - 0.22) * var(--neon-lift, 0))),
+    inset 0 -1px 0 rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), calc(0.22 + (1 - 0.22) * var(--neon-lift, 0))) !important;
 }
 /* Player health bar + fill */
 .player-bar .health-bar {
@@ -29415,15 +29426,22 @@ input[type="number"]::-webkit-outer-spin-button {
 /* Player bar gradient + borders + glow — was hardcoded blue
    wash + blue border + blue inset highlights via --player-*
    vars. Now follows theme. */
+/* THIS is the player bar that actually paints — it is declared four times in
+   this sheet and this one, latest and !important, wins. Which is why routing
+   the FIRST declaration through the tokens did nothing, and why the AI bar
+   drifted to 0.984 under the neon knob while the player bar beside it stayed
+   flat at 0.95: their winning rules are different rules, and only the AI's
+   went through a token. (Owner, three attempts in: "looks the same still.")
+   Both edges and both insets now read the ladder, so the pair moves together. */
 .info-bar.player-bar {
   background:
     linear-gradient(0deg, rgba(var(--theme-rgb, 79,195,247), 0.08), transparent 50%),
     linear-gradient(180deg, #000000, #000000) !important;
-  border-top-color: rgba(var(--theme-rgb, 79,195,247), 0.95) !important;
-  border-bottom-color: rgba(var(--theme-rgb, 79,195,247), 0.95) !important;
+  border-top-color: var(--theme-accent-bright) !important;
+  border-bottom-color: var(--theme-accent-bright) !important;
   box-shadow:
-    inset 0 1px 0 rgba(var(--theme-rgb, 79,195,247), 0.22),
-    inset 0 -1px 0 rgba(var(--theme-rgb, 79,195,247), 0.22) !important;
+    inset 0 1px 0 rgba(var(--theme-rgb, 79,195,247), calc(0.22 + (1 - 0.22) * var(--neon-lift, 0))),
+    inset 0 -1px 0 rgba(var(--theme-rgb, 79,195,247), calc(0.22 + (1 - 0.22) * var(--neon-lift, 0))) !important;
 }
 
 /* Player HP bar — was using --player-accent-bright. Theme it. */
