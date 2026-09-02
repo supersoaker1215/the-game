@@ -40969,13 +40969,31 @@ body.in-match .lane {
   justify-self: end;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
+  /* ONE AXIS, EVEN SPACING. Right-aligning the three boxes did not right-align
+     what is IN them: the readout's text sits hard right in its track while the
+     ♪ and the redraw pair are centred inside 44px touch targets, so the three
+     ink blocks landed on three different axes and the column read ragged.
+     Centred boxes put all three on the same line. (Owner: "make these uniform
+     vertically.")
+     The 12px is measured, not chosen. Ink centres are: readout 770.5 (19px tall
+     at y761), ♪ 802+gap, redraw 846+gap — so the first spacing is 31.5+gap and
+     the second is a flat 44 (two 44px targets, no gap between them). They are
+     equal at gap 12.5; 12 lands them 43.5 and 44 apart, which is the same
+     spacing to the eye. If the readout's font-size moves, this moves with it. */
+  align-items: center;
+  gap: 12px;
 }
 /* Inside a column flex, .hand-meter's own align-self: start means the CROSS
    axis — it would pin the number to the LEFT of the track. The stack owns
    alignment now. */
-.hand-meter-col > .hand-meter { align-self: flex-end; margin-top: 0; }
+/* Same 44px box as the two controls below it, contents centred, so the number
+   sits on the shared axis instead of hanging off the right edge of the track. */
+.hand-meter-col > .hand-meter {
+  align-self: center;
+  margin-top: 0;
+  width: 44px;
+  justify-content: center;
+}
 /* .hand-tools was absolutely positioned for its old home over the tricks, then
    flowed inline in the bottom bar. Here it is a vertical pair. */
 .hand-meter-col .hand-tools {
@@ -40983,7 +41001,7 @@ body.in-match .lane {
   left: auto; top: auto; transform: none;
   z-index: auto;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: center;
   gap: 0;
 }
 /* Trick-hand readout — same number, same type, same neon as the cards' one, at
