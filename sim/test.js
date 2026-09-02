@@ -5806,11 +5806,10 @@ test('Every event in the registry can actually be rolled, at even odds', functio
   for (var i = 0; i < 900; i++) {
     var G = freshGame();
     G.seedMatch(i + 1);
-    G.state._matchEvent = null;
-    G.state._matchEventName = null;
-    G._rollMatchEvent();
-    if (G.state._matchEvent === 'none') continue;   // events switched off for this mode
-    seen[G.state._matchEventName] = (seen[G.state._matchEventName] || 0) + 1;
+    G.state._eventsUsed = [];
+    var pick = G._drawEventFor();
+    if (!pick) continue;                            // events switched off for this mode
+    seen[pick] = (seen[pick] || 0) + 1;
   }
   var missing = listed.filter(function (n) { return !seen[n]; });
   assertEq(missing.join(','), '', 'no event is unreachable');
@@ -5824,13 +5823,12 @@ test('A habitat event opens the same environment on both sides, in different lan
   G.state._matchEvent = 'habitat';
   G.state._matchEventName = 'Open Water';
   G._rollHabitatEvent();
-  G.state._habitat.appearAt = 3;
 
   G._maybeHabitatEvent(2);
-  assertEq(!!G.state._habitat.fired, false, 'round 2 — nothing opens');
+  assertEq(!!G.state._habitats[0].fired, false, 'round 2 — nothing opens');
 
   G._maybeHabitatEvent(3);
-  assertEq(G.state._habitat.fired, true, 'round 3 — it opens');
+  assertEq(G.state._habitats[0].fired, true, 'round 3 — it opens');
 
   var mine = -1, theirs = -1;
   for (var i = 0; i < G.LANE_COUNT; i++) {
@@ -5850,17 +5848,16 @@ test('A habitat event waits for space instead of being spent on it', function ()
   G.state._matchEvent = 'habitat';
   G.state._matchEventName = 'Sewers';
   G._rollHabitatEvent();
-  G.state._habitat.appearAt = 3;
 
   // Fill every lane but one with environments, so only one is free.
   for (var i = 0; i < G.LANE_COUNT - 1; i++) G._placeEventEnvironment('player', i, 'Gargantua');
   G._maybeHabitatEvent(3);
-  assertEq(!!G.state._habitat.fired, false, 'one free lane is not enough — it holds');
+  assertEq(!!G.state._habitats[0].fired, false, 'one free lane is not enough — it holds');
 
   // Give it room back and it turns up on a later round.
   G.state.lanes[0]._env = {};
   G._maybeHabitatEvent(4);
-  assertEq(G.state._habitat.fired, true, 'with two lanes clear it opens');
+  assertEq(G.state._habitats[0].fired, true, 'with two lanes clear it opens');
 });
 
 test('The Enclosure releases the T-Rex AGAINST whoever stopped paying', function () {
@@ -5942,6 +5939,94 @@ test('The T-Rex clears the lane it lands in, and eats what cannot move', functio
   assert(rex && rex.name === 'T-Rex', 'the T-Rex still takes the lane');
   assertEq(rex.attack, 3 + atk, 'it absorbs the attack');
   assertEq(rex.currentHealth, 7 + hp, 'and the health');
+});
+
+test('An event lands on round 3, 6 and 9 — and never the same one twice', function () {
+  // Owner: "on turn 6 another event should fire, and on turn 9 — right now its
+  // just turn 3." A match used to draw exactly one event at match start.
+  var G = freshGame();
+  G.seedMatch(99);
+  assertEq(G._eventRoundDue(2), false, 'round 2 is not an event round');
+  assertEq(G._eventRoundDue(3), true,  'round 3 is');
+  assertEq(G._eventRoundDue(4), false, 'round 4 is not');
+  assertEq(G._eventRoundDue(6), true,  'round 6 is');
+  assertEq(G._eventRoundDue(9), true,  'round 9 is');
+
+  var drawn = [];
+  [1,2,3,4,5,6,7,8,9].forEach(function (r) {
+    G.state.round = r;
+    G._maybeMatchEvent(r);
+    var got = (G.state._eventRounds || {})[r];
+    if (got && got !== 'none') drawn.push(r + ':' + got);
+  });
+  assertEq(drawn.length, 3, 'three events across nine rounds, one each on 3/6/9 — got ' + drawn.join(', '));
+  assert(drawn[0].indexOf('3:') === 0, 'the first is round 3');
+  assert(drawn[1].indexOf('6:') === 0, 'the second is round 6');
+  assert(drawn[2].indexOf('9:') === 0, 'the third is round 9');
+  var names = drawn.map(function (d) { return d.split(':')[1]; });
+  assertEq(new Set(names).size, 3, 'and no event repeats within a match');
+
+  // Asking twice for the same round does not draw twice.
+  G.state.round = 9;
+  G._maybeMatchEvent(9);
+  assertEq((G.state._eventsUsed || []).length, 3, 'a round draws exactly once');
+});
+
+test('A hidden deploy still counts as a card you played', function () {
+  // Owner: "why is deadpool not buffed from BP, he was deployed upside down /
+  // hidden." The face-down branch returns early — rightly, since it has just
+  // silenced the card's own hooks — but the early return also skipped what
+  // OTHER cards do when a card enters. Black Panther reads "While Active: Add
+  // (+1/+1) to each card you play".
+  var G = freshGame();
+  var bp = place(G, 'Black Panther', 'player', 0);
+  assertEq(bp.passive, 'cardPlayedBuff', 'Black Panther carries the aura');
+
+  var hidden = createInHand(G, 'Deadpool', 'player');
+  var atk = hidden.attack, hp = hidden.currentHealth;
+  G.state.player.currency = 20;
+  G.state.player.faceDownAvailable = true;
+  hidden._playFaceDown = true;
+  G.playCard('player', hidden, 3);
+
+  var seated = G.state.lanes[3].player;
+  assert(seated === hidden, 'the hidden card is seated');
+  assertEq(!!seated.isFaceDown, true, 'and it is face down');
+  assertEq(seated.attack, atk + 1, 'the aura still adds +1 attack');
+  assertEq(seated.currentHealth, hp + 1, 'and +1 health');
+  // Its OWN abilities stay silenced — that is what hiding it is for.
+  assertEq(seated.onPlay, null, "the hidden card's own hooks are still off");
+});
+
+test('A 2v2 upkeep rotates between the two teammates, and costs that seat', function () {
+  // Owner, on the Enclosure: "in 2v2 the player on each team rotates."
+  var G = freshGame();
+  G.start2v2Match({ names: { p1: 'Henry', p2: 'Vega', p3: 'Ryan', p4: 'Bot2' },
+                    teamAssignment: { A: ['p1', 'p3'], B: ['p2', 'p4'] } });
+  var tt = G.state.twoVTwo;
+  tt.online = false; tt.you = 'p1';
+  ['p1', 'p2', 'p3', 'p4'].forEach(function (k) {
+    tt.players[k].isAI = true; tt.players[k].energy = 9; tt.players[k].usedEnergy = 0;
+  });
+
+  G.state.round = 3; var a = G._upkeepSeatFor('player');
+  G.state.round = 4; var b = G._upkeepSeatFor('player');
+  G.state.round = 5; var c = G._upkeepSeatFor('player');
+  assert(a && b, 'a seat is named each round');
+  assert(a !== b, 'the two teammates alternate');
+  assertEq(c, a, 'and it comes back round');
+  assert(['p1', 'p3'].indexOf(a) >= 0 && ['p1', 'p3'].indexOf(b) >= 0, 'both are on that team');
+
+  // The spend lands on the payer's own energy, not on the discarded side proxy.
+  G.state.round = 4;
+  var payer = G._upkeepSeatFor('player');
+  var gate = G._placeEventEnvironment('player', 2, 'Enclosure');
+  G.state._pendingUpkeep = [];
+  gate.onTurnStart(G, gate);
+  G._resolveUpkeepPrompts(function () {});
+  assertEq(tt.players[payer].usedEnergy, 1, 'the payer spent 1');
+  var mate = ['p1', 'p3'].filter(function (k) { return k !== payer; })[0];
+  assertEq(tt.players[mate].usedEnergy, 0, 'the teammate paid nothing');
 });
 
 test('A chained pair cannot be split by a FREE play', function () {
