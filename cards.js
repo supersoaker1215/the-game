@@ -226,7 +226,14 @@ const CARD_DEFS = [
     desc: "When Played: Give adjacent allies Damage Immunity, and shield the adjacent lanes so uncontested enemies there can't attack — for 1 turn." },
   { name: "Jigsaw", cost: 2, attack: 0, health: 0, type: "villain",
     abilities: [],
-    desc: "When Discarded: Place The Bathroom and Game Over in empty enemy lanes. Then move an enemy to an empty lane." },
+    // EVENT-ONLY now, like the other habitat environments (Sewers, Boiler Room,
+    // Open Water, Gargantua, Wetlands, Enclosure). _spawnOnly keeps him out of
+    // the classic draw pile, the draft pool AND the summon deck (game.js
+    // buildDecks / _initSummonDeck all filter it) so he can only arrive through
+    // the Saw event. (Owner: these environments "should not be able to be drawn
+    // ... make sure the environments are not draftable or drawable.")
+    _spawnOnly: true,
+    desc: "Appears only through the Saw event." },
   { name: "Brainiac", cost: 2, attack: 0, health: 0, type: "villain",
     // "Draw 1" is carried for the BADGE, the same arrangement Iron Giant uses
     // and for the same reason: his discard really does draw, and that should be

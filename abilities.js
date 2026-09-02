@@ -1682,7 +1682,10 @@ const CARD_ABILITIES = {
     }
   },
   "Jigsaw": {
-    isDiscardEffect: true,
+    // NOT a discard effect any more (owner). Jigsaw is _spawnOnly now and
+    // arrives through the Saw event rather than from a hand, so the discard flag
+    // is gone; the _placeRoom / onDiscard logic below is kept as the basis for
+    // the event-driven rework still being flushed out.
     // Environments are normally placed by playCard, which inlines the slot
     // handling. Nothing exposes it, so this mirrors that block: clear whatever
     // occupies the sub-slot on EITHER side (a live env left dangling keeps
