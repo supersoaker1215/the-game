@@ -14228,7 +14228,7 @@ body, :root {
 
      Alphas clamp at 1 on their own, so a bright token like --*-accent-bright
      (0.95) simply saturates instead of overflowing. */
-  --neon-boost: 1.45;
+  --neon-boost: 2;
   --theme-accent:       rgb(var(--theme-r), var(--theme-g), var(--theme-b));
   --theme-accent-dim:   rgba(var(--theme-r), var(--theme-g), var(--theme-b), calc(0.28 * var(--neon-boost)));
   --theme-accent-edge:  rgba(var(--theme-r), var(--theme-g), var(--theme-b), calc(0.55 * var(--neon-boost)));
