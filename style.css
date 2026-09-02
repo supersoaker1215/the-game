@@ -30150,7 +30150,16 @@ body > .grid-bg {
      "the white I use is the same as the seven cost and eight
      cost cards white." Single source of truth for the whole
      game's "neutral" color. */
-  --lane-mid-color: rgba(240, 245, 250, 0.85);
+  /* WHITE, NOT OFF-WHITE-AT-85%. Owner: "the grey should be white for the
+     lanes." It was rgba(240,245,250,0.85) — a slightly blue-grey base at 85%
+     alpha, which over pure black paints about #CCD0D4. Two things making it
+     grey at once, so both go: full white, full alpha.
+     This deliberately breaks step with the 7/8-cost "special tier" white the
+     old comment pointed at. That ramp is for CARD chrome sitting on artwork,
+     where 0.85 reads as bright; this line sits on black, where the same value
+     reads as grey. Only the NEUTRAL band changes — occ-player, occ-ai and the
+     contested blend keep their faction colours below. */
+  --lane-mid-color: #ffffff;
   border-image: linear-gradient(180deg,
       rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95)   0%,
       rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95)   3%,
@@ -30500,12 +30509,22 @@ body > .grid-bg {
    4-of-6 player lanes will have its 2 empties subtly green-
    tinted, a board you're losing has empties red-tinted. */
 .board-section .lane.occ-none {
+  /* FULL ALPHA ON ALL THREE TERMS. Owner: "the grey should be white for the
+     lanes." Every lane on an opening board is occ-none, so THIS rule is what
+     paints the long vertical line the eye actually follows — and its neutral
+     term was white at 0.30, which over black is about #4D4D4D. Grey, and the
+     grey the note was about; the neutral declared on .board-section .lane is
+     only a fallback, since every lane carries an occ-* class.
+     The two tint terms go to full alpha as well, so the dominance bias stays a
+     HUE shift instead of also being a brightness drop — mixing a 1.0 white
+     against a 0.30 tint would have dimmed the line on exactly the boards that
+     are meant to read as claimed. */
   --lane-mid-color: color-mix(in srgb,
-    rgba(255, 255, 255, 0.30) calc(100% - (var(--player-dominance, 0) + var(--enemy-dominance, 0)) * 12%),
+    rgba(255, 255, 255, 1) calc(100% - (var(--player-dominance, 0) + var(--enemy-dominance, 0)) * 12%),
     color-mix(in srgb,
-      rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.30)
+      rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 1)
         calc(50% + (var(--player-dominance, 0) - var(--enemy-dominance, 0)) * 50%),
-      rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.30)
+      rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 1)
         calc(50% - (var(--player-dominance, 0) - var(--enemy-dominance, 0)) * 50%))
     calc((var(--player-dominance, 0) + var(--enemy-dominance, 0)) * 12%));
   transition: border-image 800ms var(--ease-snap);
