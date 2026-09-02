@@ -286,6 +286,89 @@ t('L2-9 both teammates are paid even when the trick pile runs out', function () 
   eq('the teammate is queued', (Game.state._2v2BlockQueue || []).length, 1);
 });
 
+// ============================================================
+// L2-10 — a card acts for ITS OWN seat in a local 2v2, not the last one
+//         that happened to move.
+// ============================================================
+// Owner: "jack sparrow in 2v2 parlay is nt working."
+//
+// _2v2ActFor is what resolveCombat calls before each card's onBeforeCombat so
+// the hook acts for the seat that owns the card, and isHuman(side) in 2v2
+// answers by asking that acting seat. It was gated on tt.online — the same
+// substitution as L2-1 and L2-2 — so in local play it did nothing and the stale
+// seat stood. Jack's Parlay fires from the one moment in a 2v2 round when no
+// seat is taking a turn, so the stale seat was routinely the BOT teammate:
+// isHuman came back false, Jack took his AI branch, and the human never saw the
+// prompt.
+//
+// The assertion is the MECHANISM, not the outcome. Both branches parlay
+// somebody, so "an enemy got parlayed" passes either way; what was wrong is
+// WHICH branch ran, and that is what isHuman decides.
+function parlayTable(online) {
+  var tt = table(online);
+  tt.players.p1.isAI = false;   // the human
+  tt.players.p3.isAI = true;    // bot teammate, same side
+  Game.state.round = 3;
+  return tt;
+}
+function seat(name, side, lane, playedBy) {
+  var def = CARD_DEFS.find(function (d) { return d.name === name; });
+  var c = Game.createCardInstance(def, side);
+  if (playedBy) c._2v2PlayedBy = playedBy;
+  Game.state.lanes[lane][side] = c;
+  return c;
+}
+
+t('L2-10 _2v2ActFor corrects a stale acting seat in a LOCAL 2v2', function () {
+  parlayTable(false);
+  var jack = seat('Jack Sparrow', 'player', 0, 'p1');   // the HUMAN played him
+  // What a real combat leaves behind: the last seat to have acted was the bot.
+  Game._2v2CurrentActingPlayer = 'p3';
+  eq('a stale bot seat reads the side as non-human', Game.isHuman('player'), false);
+  Game._2v2ActFor(jack);
+  eq('the acting seat is corrected to the card owner', Game._2v2CurrentActingPlayer, 'p1');
+  eq('so the side reads human again', Game.isHuman('player'), true);
+});
+
+t('L2-10b local and online agree about who owns a combat-time hook', function () {
+  var seen = {};
+  [false, true].forEach(function (online) {
+    parlayTable(online);
+    var jack = seat('Jack Sparrow', 'player', 0, 'p1');
+    Game._2v2CurrentActingPlayer = 'p3';
+    Game._2v2ActFor(jack);
+    seen[online ? 'online' : 'local'] = Game.isHuman('player');
+  });
+  eq('local answers human', seen.local, true);
+  eq('online answers human', seen.online, true);
+  eq('and they agree', seen.local, seen.online);
+});
+
+t('L2-10c Jack asks the human instead of auto-picking, in a local 2v2', function () {
+  parlayTable(false);
+  var jack = seat('Jack Sparrow', 'player', 0, 'p1');
+  seat('Hulk', 'ai', 2, 'p2');
+  seat('Bane', 'ai', 4, 'p4');
+  Game._2v2CurrentActingPlayer = 'p3';       // stale bot seat, as combat leaves it
+
+  var asked = null;
+  var origPL = Game.promptLaneChoice;
+  Game.promptLaneChoice = function (owner, lanes, title) {
+    asked = { owner: owner, lanes: lanes.slice(), title: title };
+    // Do NOT resolve — the point is whether the question was asked at all.
+  };
+  // Exactly what resolveCombat's pre-combat pass does.
+  Game._2v2ActFor(jack);
+  jack.onBeforeCombat(Game, jack, Game.findCardLane(jack));
+  Game.promptLaneChoice = origPL;
+
+  eq('the human is asked', !!asked, true);
+  eq('and asked about the right lanes', asked && JSON.stringify(asked.lanes), JSON.stringify([2, 4]));
+  // Nothing was decided for them.
+  eq('no enemy was parlayed behind their back',
+     [2, 4].filter(function (i) { return !!Game.state.lanes[i].ai._parlayedThisRound; }).length, 0);
+});
+
 // ---- run ----------------------------------------------------
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];

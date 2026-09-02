@@ -5877,7 +5877,7 @@ const Game = {
     // _2v2OnlinePlayCard; AI-driven seats call playCard directly and never did,
     // so their cards fell back to team-derivation. Tagging here (idempotent —
     // skipped when already set) makes every seat's plays route precisely.
-    if (card && this.state.twoVTwo && this.state.twoVTwo.online && !card._2v2PlayedBy) {
+    if (card && this.state.twoVTwo && this.state.twoVTwo.players && !card._2v2PlayedBy) {
       // UNCONDITIONAL. This used to require _2v2CurrentActingPlayer to already
       // be set, so a card played when it happened to be null recorded no owner
       // at all — and every prompt that card raised later fell through to the
@@ -6293,7 +6293,7 @@ const Game = {
     // Ghost Rider playing Darkseid from hand, a jump, Mother Box, etc.) so its
     // onPlay AND later hooks route their prompts to that player instead of an
     // auto-resolving AI seat. Same idempotent tag as playCard.
-    if (card && this.state.twoVTwo && this.state.twoVTwo.online && !card._2v2PlayedBy) {
+    if (card && this.state.twoVTwo && this.state.twoVTwo.players && !card._2v2PlayedBy) {
       // UNCONDITIONAL. This used to require _2v2CurrentActingPlayer to already
       // be set, so a card played when it happened to be null recorded no owner
       // at all — and every prompt that card raised later fell through to the
@@ -12889,7 +12889,24 @@ const Game = {
 
   _2v2ActFor(card) {
     const tt = this.state && this.state.twoVTwo;
-    if (!tt || !tt.online || !card) return;
+    // SEATS, NOT A WIRE. `tt.online` says whether somebody is on the far end of
+    // a connection; it says nothing about whether this table has four seats,
+    // and in EVERY 2v2 it does. Gated on it, this whole function was a no-op in
+    // local play — third instance of the same substitution (Doomsday's discount
+    // and the block-meter offer queue were the first two).
+    //
+    // WHAT IT COST. This is what resolveCombat calls before each card's
+    // onBeforeCombat so the hook acts for the seat that owns the card, and
+    // isHuman(side) in 2v2 answers by asking that acting seat. Jack Sparrow's
+    // Parlay fires from exactly there — "the one moment in a 2v2 round when NO
+    // seat is taking a turn", as his own comment says — so with this neutered
+    // the stale seat stood. Measured, local 2v2, human p1 with a bot teammate
+    // p3 and Jack played by p1: acting seat stayed p3, isHuman('player') came
+    // back FALSE, and Jack took his AI branch and auto-picked a lane. The
+    // player never saw the prompt. (Owner: "jack sparrow in 2v2 parlay is nt
+    // working.") Every other combat-time hook that asks isHuman was reading the
+    // same wrong seat; Parlay is just the one with a badge on the board.
+    if (!tt || !tt.players || !card) return;
     // Same stale-stamp guard as _2v2SeatOwning — a converted or stolen card
     // must not keep acting for the seat that used to own it.
     let seat = card._2v2PlayedBy || null;
