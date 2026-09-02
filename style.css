@@ -17988,7 +17988,9 @@ body.theme-purple .board-section {
   transform: translateZ(12px);
 }
 .hand-card-wrapper:hover .card.hand-card .stat-circle {
-  transform: translateZ(18px);
+  /* No lift — corner-anchored, see the note beside the !important rule further
+     down. Kept in the ladder so the depth list still reads as a whole. */
+  transform: none;
 }
 .hand-card-wrapper:hover .card.hand-card .card-cost {
   /* THE CORNER STAYS WELDED. Every other content layer pops forward on
@@ -30402,8 +30404,20 @@ body > .grid-bg {
 /* (The cost corner used to take translateZ(40px) here — the deepest layer of
    all. It is welded to the card's edges now and takes no lift; see the
    `transform: none` rule above for why zero and not merely less.) */
+/* THE STAT PLATES ARE CORNERS TOO, and they went the same way as the cost one.
+   translateZ scales a child about the card's CENTRE under `perspective: 800px`,
+   so a corner-anchored element does not come toward you — it slides diagonally
+   OUTWARD. At 28px the plates drifted 1.38% of the card's width left/right and
+   1.52% of its height down, and the card's own chamfer clip-path does not move
+   with them: measured on a hovered card, the health plate's bottom-right corner
+   landed at local (98.18, 203.66) against a chamfer edge of x + y = 299.2, so
+   it summed to 301.85 — 1.87px OUTSIDE the clip, and a clip-path cuts its
+   descendants. That is the corner the owner watched disappear ("the damage and
+   health squares are cliping a bit on zoom").
+   Zero, not smaller, for the same reason the cost corner got zero: any lift at
+   all moves a corner outward, and the clip is only ~1.4px away at rest. */
 .hand-card-wrapper:hover .card.hand-card .stat-circle {
-  transform: translateZ(28px) !important;
+  transform: none !important;
 }
 .hand-card-wrapper:hover .card.hand-card .status-badges {
   transform: translateZ(20px) !important;
