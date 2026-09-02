@@ -6289,6 +6289,26 @@ const Game = {
       this.log(`[ASLEEP] ${card.name} is still dreaming — it cannot be played this turn.`);
       return false;
     }
+    // PINHEAD'S CHAINS, ON THIS DOOR TOO. playCard has intercepted a chained
+    // card since the chain existed; this function never did — and it is the door
+    // every FREE play walks through: jumps (Freddy, Ghostface, Jason, Michael
+    // Myers, Predator…), Mother Box, Kang, Ghost Rider, a Paul Atreides
+    // zero-cost. All of them take the card straight out of a HAND, which is
+    // exactly where a chain lives. Measured: free-playing a chained Optimus
+    // Prime seated him alone and left Mr. Freeze in hand still flagged chained
+    // to a card that was now on the board — so the pair could never be honoured
+    // afterwards either. (Owner: "mr freeze and optums prime are bounded yet
+    // optimus was played wiythout mr freeze.")
+    //
+    // FREE MEANS FREE FOR BOTH. The paid path refuses the play when the pair's
+    // combined cost is unaffordable, which is right when a player chose to
+    // spend; here nobody is spending, and a refusal would silently strand the
+    // effect that triggered it — a jump that does not jump, a Mother Box that
+    // summons nothing. The chain's price is the -1/-1 it puts on both, and that
+    // still lands.
+    if (card && card._chained && !card._chainResolving) {
+      return this._playChainedCard(owner, card, laneIdx, { free: true });
+    }
     // 2v2 online: tag the free-played card with the acting seat (the summoner —
     // Ghost Rider playing Darkseid from hand, a jump, Mother Box, etc.) so its
     // onPlay AND later hooks route their prompts to that player instead of an
@@ -10828,7 +10848,12 @@ const Game = {
   // Both must be affordable together and there must be a second open lane; then
   // both are seated (running their own On Play) and each takes a permanent -1/-1
   // "from the chains weakening them on arrival". The chain is then broken.
-  _playChainedCard(owner, card, laneIdx) {
+  _playChainedCard(owner, card, laneIdx, opts) {
+    // opts.free — the pair is being seated by an effect rather than bought, so
+    // there is no energy check and both halves go through playCardFree. See the
+    // note at the interception in playCardFree.
+    const _free = !!(opts && opts.free);
+    const _seat = (c, l) => _free ? this.playCardFree(owner, c, l) : this.playCard(owner, c, l);
     // The hand actually holding the pair — a seat in 2v2, the side in 1v1.
     const holder = (this._2v2HandTarget ? this._2v2HandTarget(owner, card) : this.state[owner]) || this.state[owner];
     const hand = holder.hand || [];
@@ -10837,7 +10862,7 @@ const Game = {
     // is broken, so the lone card just plays normally, at full stats.
     if (!partner) {
       card._chained = false; card._chainPartnerId = null; card._chainPartnerName = null;
-      return this.playCard(owner, card, laneIdx);
+      return _seat(card, laneIdx);
     }
     const costA = this.getCardCost(owner, card);
     const costB = this.getCardCost(owner, partner);
@@ -10846,7 +10871,7 @@ const Game = {
       if (typeof UI !== 'undefined' && UI.showAITrickToast) { try { UI.showAITrickToast('Chained', msg, 'error'); } catch (e) {} }
       return false;
     };
-    if ((this.state[owner].currency || 0) < costA + costB) {
+    if (!_free && (this.state[owner].currency || 0) < costA + costB) {
       return _fail(`${card.name} & ${partner.name} are chained — you need ${costA + costB} energy to play both together.`);
     }
     // The partner needs its own open lane (different from the one being used now).
@@ -10859,9 +10884,9 @@ const Game = {
     card._chained = false; card._chainPartnerId = null; card._chainPartnerName = null;
     partner._chained = false; partner._chainPartnerId = null; partner._chainPartnerName = null;
     card._chainResolving = true; partner._chainResolving = true;
-    const okA = this.playCard(owner, card, laneIdx);
+    const okA = _seat(card, laneIdx);
     if (okA) this._chainWeaken(card);
-    const okB = this.playCard(owner, partner, partnerLane);
+    const okB = _seat(partner, partnerLane);
     if (okB) this._chainWeaken(partner);
     delete card._chainResolving; delete partner._chainResolving;
     this.log(`  [CHAINED] ${card.name} and ${partner.name} enter together, weakened by the chains (-1/-1 each).`);
@@ -19227,7 +19252,22 @@ const Game = {
     // resolved the previous one.
     try { this.tickStormMarks(); } catch (e) { console.error('[storm mark]', e); }
     try { this.tickRifts(); } catch (e) { console.error('[rift]', e); }
-    this._2v2StartSubPhase();
+    // ASK THE UPKEEPS BEFORE ANYONE PLAYS. 1v1's startRound has always ended
+    // `this._resolveUpkeepPrompts(() => this.startPhase1())`; this function
+    // back-ported the rest of that block and not this line, and it was the ONLY
+    // caller in the file — so in 2v2 the queue was filled every round by
+    // onTurnStart and drained by nothing.
+    //
+    // Two cards live entirely in that queue, and neither has ever worked in a
+    // 2v2: Gargantua never pulled, and the Enclosure never asked for its toll,
+    // so its gate could not open and the T-Rex could not be released. Both just
+    // sat in their lanes. (Owner, having watched an Enclosure event place two
+    // paddocks and then do nothing: "for the t rex enclosure event 2 enviromens
+    // should spwan like open water and jaws".)
+    //
+    // Same shape as 1v1 — the sub-phase starts from the callback, so a human's
+    // upkeep prompt is answered BEFORE their turn opens rather than racing it.
+    this._resolveUpkeepPrompts(() => this._2v2StartSubPhase());
   },
 
   _2v2StartSubPhase() {

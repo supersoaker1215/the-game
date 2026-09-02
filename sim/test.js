@@ -93,6 +93,15 @@ function place(G, name, owner, lane) {
   return card;
 }
 
+// The hand equivalent of place() — for anything whose behaviour depends on the
+// card being IN HAND rather than on the board (Pinhead's chain, discards).
+function createInHand(G, name, owner) {
+  var card = G.createCardInstance(cardByName(name), owner);
+  G.state[owner].hand = G.state[owner].hand || [];
+  G.state[owner].hand.push(card);
+  return card;
+}
+
 // ============================================================
 // ---- TESTS -------------------------------------------------
 // ============================================================
@@ -5933,6 +5942,69 @@ test('The T-Rex clears the lane it lands in, and eats what cannot move', functio
   assert(rex && rex.name === 'T-Rex', 'the T-Rex still takes the lane');
   assertEq(rex.attack, 3 + atk, 'it absorbs the attack');
   assertEq(rex.currentHealth, 7 + hp, 'and the health');
+});
+
+test('A chained pair cannot be split by a FREE play', function () {
+  // Owner: "mr freeze and optums prime are bounded yet optimus was played
+  // wiythout mr freeze." playCard has intercepted Pinhead's chain since the
+  // chain existed; playCardFree — the door every jump, Mother Box, Kang and
+  // Ghost Rider play walks through, all of which take the card out of a HAND —
+  // never did.
+  var G = freshGame();
+  var a = createInHand(G, 'Optimus Prime', 'player');
+  var b = createInHand(G, 'Mr. Freeze', 'player');
+  G.state.player.currency = 20;
+  a._chained = true; a._chainPartnerId = b.id; a._chainPartnerName = b.name;
+  b._chained = true; b._chainPartnerId = a.id; b._chainPartnerName = a.name;
+
+  G.playCardFree('player', a, 0);
+
+  var seated = [];
+  for (var i = 0; i < G.LANE_COUNT; i++) {
+    if (G.state.lanes[i].player) seated.push(G.state.lanes[i].player.name);
+  }
+  assertEq(seated.length, 2, 'both halves of the chain enter');
+  assert(seated.indexOf('Optimus Prime') >= 0, 'the played one is there');
+  assert(seated.indexOf('Mr. Freeze') >= 0, 'and so is its partner');
+  assertEq(G.state.player.hand.length, 0, 'neither is left behind in hand');
+  // And the chain's own price still lands on both.
+  var opt = G.state.lanes[0].player;
+  assertEq(!!opt._chained, false, 'the chain is spent, not left dangling');
+});
+
+test('Han Solo shoots what he can KILL, and weighs staying against redirecting', function () {
+  // Owner: "the right play to survive is shooting apocalypse with han. he shot
+  // gorr and they lost, terrible play, fix this." The bot sorted redirect lanes
+  // by raw attack * currentHealth and never considered its own lane at all —
+  // and a redirect MOVES the shot (it sets _skipNormalAttack), so the enemy
+  // opposite Han goes unhit.
+  var G = freshGame();
+  // The AI branch is the one under test — freshGame leaves both seats human.
+  G.state.player.isHuman = false;
+  var han = place(G, 'Han Solo', 'player', 0);
+  han.attack = 4;
+  // Lane 3: a wall he cannot kill but which wins on atk*hp (3 * 7 = 21).
+  var wall = place(G, 'Hulk', 'ai', 3);
+  wall.attack = 3; wall.currentHealth = 7; wall.maxHealth = 7;
+  // Lane 5: a real threat he CAN kill (4 * 4 = 16, so the old sort lost).
+  var killable = place(G, 'Bane', 'ai', 5);
+  killable.attack = 4; killable.currentHealth = 4; killable.maxHealth = 4;
+
+  han.onBeforeCombat(G, han, 0);
+  assertEq(han._hanRedirectLane, 5, 'he takes the shot he can actually kill');
+
+  // ...and when his OWN lane holds the best target he stays instead of moving
+  // the shot off it.
+  var H = freshGame();
+  H.state.player.isHuman = false;
+  var han2 = place(H, 'Han Solo', 'player', 2);
+  han2.attack = 6;
+  var here = place(H, 'Bane', 'ai', 2);
+  here.attack = 5; here.currentHealth = 5; here.maxHealth = 5;   // killable, big threat
+  var away = place(H, 'Nightwing', 'ai', 4);
+  away.attack = 1; away.currentHealth = 1; away.maxHealth = 1;   // killable, trivial
+  han2.onBeforeCombat(H, han2, 2);
+  assertEq(han2._hanRedirectLane, undefined, 'no redirect — his own lane was the better shot');
 });
 
 test('The T-Rex freezes an enemy on every move, not just its own hunt', function () {

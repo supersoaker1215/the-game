@@ -5942,12 +5942,59 @@ const CARD_ABILITIES = {
           G.state.pendingLaneChoice.heroStrikeLane = lane;
         }
       } else {
-        redirectLanes.sort((a, b) => {
-          const ea = G.state.lanes[a][opp], eb = G.state.lanes[b][opp];
-          return (eb.attack * eb.currentHealth) - (ea.attack * ea.currentHealth);
-        });
-        self._hanRedirectLane = redirectLanes[0];
-        G.log(`[HAN SOLO] Lining up a shot into lane ${redirectLanes[0] + 1}!`);
+        // THE BOT SCORES THE SHOT, AND IT SCORES STAYING TOO.
+        //
+        // This used to sort the REDIRECT lanes by raw `attack * currentHealth`
+        // and take the top one — two mistakes at once. (Owner, after a match
+        // that hinged on it: "the right play to survive is shooting apocalypse
+        // with han. he shot gorr and they lost, terrible play, fix this.")
+        //
+        //   1. His own lane was never a candidate. A redirect sets
+        //      _skipNormalAttack, so choosing another lane means the enemy
+        //      opposite him is not hit BY ANYONE this combat — the shot is moved,
+        //      not added. Never comparing the two meant Han redirected away from
+        //      a better target roughly whenever anything at all stood elsewhere.
+        //   2. atk * hp is not what a first strike is for. Striking BEFORE the
+        //      exchange only earns anything when it KILLS: a corpse does not
+        //      swing back. Chip damage on the biggest stat block pre-empts
+        //      nothing, and atk*hp happily prefers a 3/7 wall it cannot kill
+        //      over a 4/5 threat it can — which is the shape of the reported
+        //      board.
+        //
+        // So: every lane he could shoot, his own included, scored kill-first and
+        // then by AI.threatScore — the same canonical "which enemy is worth
+        // removing" the rest of the bot's targeting already uses (it reads
+        // armor / evade / invincibility / strategic value, none of which atk*hp
+        // can see). Ties keep the lowest lane so the choice stays deterministic.
+        const score = (i) => {
+          const e = G.state.lanes[i][opp];
+          if (!e || e.currentHealth <= 0) {
+            // An uncontested own lane is a free hit on the enemy HERO. Worth
+            // taking when nothing on the board is worth killing, and worth less
+            // than any kill — a dead attacker is damage prevented every round,
+            // the hero hit is damage dealt once.
+            return (i === lane) ? 1 : -1;
+          }
+          const threat = (typeof AI !== 'undefined' && AI.threatScore)
+            ? AI.threatScore(e) : (e.attack || 0) * (e.currentHealth || 0);
+          const kills = (typeof AI !== 'undefined' && AI.wouldKill)
+            ? AI.wouldKill(self, e)
+            : Math.max(0, (self.attack || 0) - (e.armorValue || 0)) >= e.currentHealth;
+          // A kill is worth more than any amount of chip, whatever the numbers
+          // underneath say — hence the offset rather than a multiplier.
+          return (kills ? 1000 : 0) + threat;
+        };
+        let best = lane, bestScore = score(lane);
+        for (const i of redirectLanes) {
+          const sc = score(i);
+          if (sc > bestScore) { best = i; bestScore = sc; }
+        }
+        if (best !== lane) {
+          self._hanRedirectLane = best;
+          G.log(`[HAN SOLO] Lining up a shot into lane ${best + 1}!`);
+        } else {
+          G.log(`[HAN SOLO] Han Solo stays and fights his own lane.`);
+        }
       }
     },
     onBeforeAttack(G, self) {

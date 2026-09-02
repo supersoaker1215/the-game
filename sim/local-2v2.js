@@ -369,6 +369,38 @@ t('L2-10c Jack asks the human instead of auto-picking, in a local 2v2', function
      [2, 4].filter(function (i) { return !!Game.state.lanes[i].ai._parlayedThisRound; }).length, 0);
 });
 
+// ============================================================
+// L2-11 — the upkeep queue is drained in a 2v2 too.
+// ============================================================
+// 1v1's startRound has always ended with
+//   this._resolveUpkeepPrompts(() => this.startPhase1())
+// and start2v2Round back-ported the rest of that block but not that line —
+// while being the only other round-start in the file. So in 2v2 the queue was
+// filled every round by onTurnStart and drained by nothing, and the two cards
+// that live entirely in it had never worked in a 2v2 at all: Gargantua never
+// pulled, and the Enclosure never asked for its toll, so its gate could not
+// open and the T-Rex could not be released. (Owner, watching an Enclosure event
+// place two paddocks and then do nothing for the rest of the match: "for the t
+// rex enclosure event 2 enviromens should spwan like open water and jaws".)
+t('L2-11 a 2v2 round drains the upkeep queue', function () {
+  table(false);
+  Game.state.round = 3;
+  var gate = Game._placeEventEnvironment('player', 2, 'Enclosure');
+  var garg = Game._placeEventEnvironment('ai', 5, 'Gargantua');
+  eq('the gate is standing', !!gate, true);
+  eq('Gargantua is standing', !!garg, true);
+
+  var drains = 0;
+  var orig = Game._resolveUpkeepPrompts;
+  Game._resolveUpkeepPrompts = function (cb) { drains++; return orig.call(Game, cb); };
+  Game.state.round = 4;
+  Game.start2v2Round();
+  Game._resolveUpkeepPrompts = orig;
+
+  eq('the round asked the upkeeps', drains > 0, true);
+  eq('and left nothing queued', (Game.state._pendingUpkeep || []).length, 0);
+});
+
 // ---- run ----------------------------------------------------
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];
