@@ -1045,10 +1045,29 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
 }
 
 /* ---- INFO BARS (Enemy above lanes, Player below lanes) ---- */
-/* Identical grid for both banners — guarantees column alignment + equal height */
+/* Same grid on both banners. Equal height and a shared right edge still hold —
+   the HP block, the block circle and the dead pile land on the same x on both.
+   The centre cell is content-sized now, and the two bars' centre content differs
+   (152px of buttons against 140px of hand pips), so the energy diamond sits 4px
+   apart between them. That is the price of exactly-equal gaps within each bar,
+   which is what was asked for; pinning the centre track to a shared width would
+   re-align the diamonds and put the unevenness back into the gaps instead. */
 .info-bar {
   display: grid;
-  grid-template-columns: 220px 64px 1fr 64px 96px;
+  /* EIGHT TRACKS, FOUR OF THEM EMPTY SPACERS. The five cells used to sit in five
+     tracks with a single 1fr in the middle, which parks the energy diamond and
+     the dead pile hard against the right edge: measured ink-to-ink on a 1311px
+     bar, the gaps ran 26 / 332 / 332 / 71 — a void either side of the centre and
+     the last two controls crushed together in the corner. (Owner, arrowing them
+     leftward: "move these over uniformly.")
+     A fraction can only equalise TRACKS, and these groups are different widths
+     (152px of buttons, a 44px diamond, a 51px pill), so equal tracks would still
+     give unequal gaps. Equal GAPS need the gap itself to be the fr: every cell
+     sizes to its own content and three identical 1fr spacers sit between them.
+     The block column is auto now too — at a fixed 64px its centred 44px circle
+     left 10px of slack that showed up as one gap being 10px wider than the
+     other two. */
+  grid-template-columns: 220px auto 1fr auto 1fr auto 1fr auto;
   align-items: center;
   padding: 10px 20px;
   gap: 16px;
@@ -1073,11 +1092,14 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
    (see block below); without explicit columns, grid auto-flow would place the
    subsequent cells (bar-energy, bar-dead) into the vacated tracks, collapsing
    the layout and causing the energy orb to render over the Done button. */
+/* 3, 5 and 7 are the empty spacer tracks — see the template above. Every
+   breakpoint's template must keep all eight, or a cell pinned to 6 or 8 would
+   create implicit tracks and overflow the bar. */
 .bar-hp     { grid-column: 1; justify-content: flex-start; }
 .bar-block  { grid-column: 2; justify-content: center; }
-.bar-center { grid-column: 3; justify-content: center; min-width: 0; }
-.bar-energy { grid-column: 4; justify-content: center; }
-.bar-dead   { grid-column: 5; justify-content: flex-end; }
+.bar-center { grid-column: 4; justify-content: center; min-width: 0; }
+.bar-energy { grid-column: 6; justify-content: center; }
+.bar-dead   { grid-column: 8; justify-content: flex-end; }
 
 /* Banners glow at the same perceived brightness as the white chrome. Red and
    blue need higher alpha than white to appear equally luminous. */
@@ -9697,7 +9719,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   .turn-hud { padding-right: 130px; }
 }
 @media (max-width: 800px) {
-  .info-bar { padding: 8px var(--match-gutter); gap: 10px; grid-template-columns: 180px 52px 1fr 52px 88px; }
+  .info-bar { padding: 8px var(--match-gutter); gap: 10px; grid-template-columns: 180px auto 1fr auto 1fr auto 1fr auto; }
   .health-bar { width: 130px; height: 16px; }
   .block-circle { width: 40px; height: 40px; }
   .energy-text { width: 40px; height: 40px; font-size: 16px; }
@@ -9960,7 +9982,7 @@ body.turn-combat .board .lane.lane-active {
   /* HP number is OVERLAID inside the bar (absolute) so it can never
      overlap the 0/8 block circle. User feedback: "the number of the
      health bar in the block circle are overlapping... change this." */
-  .info-bar { padding: 4px 6px; gap: 4px; grid-template-columns: 96px 34px 1fr 34px 54px; height: 52px; }
+  .info-bar { padding: 4px 6px; gap: 4px; grid-template-columns: 96px auto 1fr auto 1fr auto 1fr auto; height: 52px; }
   .info-bar.ai-bar,
   .info-bar.player-bar {
     background: transparent !important;
@@ -40915,7 +40937,10 @@ body.in-match .lane {
    AI bar's shared 64px — left at 150px it would have parked the diamond in the
    middle of 86px of nothing. */
 .bar-cell.bar-energy { display: flex; align-items: center; justify-content: center; gap: 8px; }
-.info-bar.player-bar { grid-template-columns: 220px 64px 1fr 64px 96px; }
+/* No per-bar template. This existed only to widen the player's energy column
+   for the ♪ + redraw tools that used to share it; those live in the hand's left
+   margin now, and both bars take the shared eight-track grid so their columns
+   stay aligned with each other across the board. */
 
 /* HAND + TRICKS AS ONE CENTERED GROUP (desktop). The bottom grid row used to be
    `1fr auto`, so the hand cards sat in a wide 1fr column and the tricks were
