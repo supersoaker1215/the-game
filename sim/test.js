@@ -5561,11 +5561,32 @@ test('Wetlands at 0 Power releases Spinosaurus and takes the enemy in the lane',
   assert(!!spino && spino.name === 'Spinosaurus', 'Spinosaurus surfaced in the lane');
   assertEq(spino.attack, 4, 'at printed 4 ATK');
   assertEq(spino.currentHealth, 6, 'and 6 HP');
-  // THE HABITAT STAYS. This is the one thing that separates Wetlands from
-  // Boiler Room / Sewers / Open Water, all of which clear their own env slot
-  // on spawn — so it is the assertion most likely to regress if someone
-  // "fixes" Wetlands to match its siblings.
-  assertEq(G.state.lanes[2]._env.player, wet, 'the habitat is still in the lane');
+  // THE HABITAT IS CONSUMED, like Boiler Room / Sewers / Open Water / Enclosure.
+  // This assertion used to say the opposite, and was written as a guard against
+  // someone "fixing" Wetlands to match its siblings — which is exactly what the
+  // owner then asked for once every environment went on the shared four-round
+  // clock: "just change wetlands to fit the global rule and the wording."
+  assertEq(G.state.lanes[2]._env.player, null, 'the habitat is consumed by the release');
+});
+
+test('Spinosaurus leaving does not have to drain anything behind him', function () {
+  // The swamp used to outlive its own release, which needed three pieces of
+  // private machinery to clean up after: an onDeath on Spinosaurus, a
+  // self-heal on Wetlands.onTurnStart for the ways he can leave WITHOUT dying
+  // (Phantom Zone bounces him to a hand, Devour voids him past handleDeath),
+  // and the _habitatLane breadcrumb both read. All three are gone; this pins
+  // that killing him leaves a clean lane rather than a zombie habitat.
+  var G = freshGame();
+  var wet = placeEnv(G, 'Wetlands', 'player', 2);
+  CARD_ABILITIES['Wetlands'].onPlay(G, wet, 2);
+  G._notifyBlockMeterFired('ai');
+  var spino = G.state.lanes[2].player;
+  assert(!!spino && spino.name === 'Spinosaurus', 'he surfaced');
+  assertEq(G.state.lanes[2]._env.player, null, 'and the swamp went with the release');
+  G.killCard(spino, null);
+  G.cleanupDead();
+  assertEq(G.state.lanes[2]._env.player, null, 'still nothing in the env slot');
+  assertEq(CARD_ABILITIES['Spinosaurus'].onDeath, undefined, 'and he no longer carries a When Destroyed for it');
 });
 
 test('A further Block Meter never releases a SECOND Spinosaurus', function () {
@@ -5661,34 +5682,14 @@ test('At 3 the Hunt Meter is spent for permanent Overdrive', function () {
     'the whole-board rampage hook is removed');
 });
 
-test('The habitat drains the moment Spinosaurus dies', function () {
-  var G = freshGame();
-  var wet = placeEnv(G, 'Wetlands', 'player', 2);
-  CARD_ABILITIES['Wetlands'].onPlay(G, wet, 2);
-  G._notifyBlockMeterFired('ai');
-  G._notifyBlockMeterFired('ai');
-  G._notifyBlockMeterFired('ai');
-  var spino = G.state.lanes[2].player;
-  assert(!!spino && spino.name === 'Spinosaurus', 'released');
-  assertEq(G.state.lanes[2]._env.player, wet, 'habitat present while he lives');
-  spino.currentHealth = 0;
-  CARD_ABILITIES['Spinosaurus'].onDeath(G, spino, 2);
-  assertEq(G.state.lanes[2]._env.player, null, 'habitat goes with him');
-});
-
-test('A drained habitat cleans itself up when Spinosaurus leaves without dying', function () {
-  // Phantom Zone bounces him to a hand and Devour voids him past handleDeath —
-  // neither fires onDeath, so the habitat would otherwise sit there forever.
-  var G = freshGame();
-  var wet = placeEnv(G, 'Wetlands', 'player', 2);
-  CARD_ABILITIES['Wetlands'].onPlay(G, wet, 2);
-  G._notifyBlockMeterFired('ai');
-  G._notifyBlockMeterFired('ai');
-  G._notifyBlockMeterFired('ai');
-  G.state.lanes[2].player = null;              // bounced away, no death
-  CARD_ABILITIES['Wetlands'].onTurnStart(G, wet);
-  assertEq(G.state.lanes[2]._env.player, null, 'the water drains on its own');
-});
+// (Two tests stood here — "The habitat drains the moment Spinosaurus dies" and
+// "A drained habitat cleans itself up when Spinosaurus leaves without dying".
+// Both pinned machinery that only existed because the swamp outlived its own
+// release: Spinosaurus's onDeath and Wetlands' onTurnStart self-heal. The
+// habitat is consumed at release now, on the shared environment clock, so both
+// hooks are gone and there is nothing left for either test to assert. Their
+// replacement is "Spinosaurus leaving does not have to drain anything behind
+// him", above.)
 
 test('Spinosaurus is spawn-only and never enters a draftable pool', function () {
   var def = cardByName('Spinosaurus');

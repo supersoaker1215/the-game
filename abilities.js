@@ -79,9 +79,9 @@ const _aiKillPicker = (cards, damage) => {
 // the same change that introduces the helper. They are the obvious next
 // migration, one card at a time, each against the golden suite.
 //
-//   1. optionally hand the lane back (Boiler Room / Sewers / Open Water /
-//      Enclosure are REPLACED by what they birth; Wetlands stays underneath its
-//      Spinosaurus and drains when he dies)
+//   1. hand the lane back — every habitat is REPLACED by what it births
+//      (Wetlands was the one exception until the shared environment clock made
+//      "how long does it last" a board-wide rule)
 //   2. get the ally in the lane out of the way, or absorb it
 //   3. clear a corpse the death machinery has not swept yet
 //   4. summon, and verify something actually landed before touching its stats
@@ -126,7 +126,6 @@ function releaseHabitatMonster(G, o) {
       G.log(`  [${tag}] ${o.name} can't take lane ${laneIdx + 1} — it is still occupied.`);
       return;
     }
-    born._habitatLane = laneIdx;
     // summonCard ignores atk/hp when a sourceDef is passed; set them directly.
     born.attack = atk;
     born.currentHealth = hp;
@@ -7924,10 +7923,11 @@ const CARD_ABILITIES = {
   },
 
   // ===================== WETLANDS / SPINOSAURUS =====================
-  // The third habitat environment, and the one that does NOT consume itself.
-  // Boiler Room and Sewers are replaced by what they birth; Wetlands stays on
-  // the board underneath Spinosaurus and drains away only when he dies — so
-  // the lane keeps reading "this is his water" for as long as he is standing.
+  // The third habitat environment. It used to be the one that did NOT consume
+  // itself — it stayed underneath Spinosaurus and drained when he died, so the
+  // lane kept reading "this is his water" while he stood. That exception is
+  // gone: every environment now runs on the shared four-round clock and every
+  // habitat is replaced by what it births.
   //
   // Its clock is the BLOCK METER, not a card entering or dying: every time
   // either side's meter fills and eats a hit, the swamp loses 1 Power. Starting
@@ -8095,25 +8095,31 @@ const CARD_ABILITIES = {
         AB._release(G, self.owner, laneIdx, self);
       }
     },
-    // Self-heal: the habitat is supposed to outlive the release and die WITH
-    // Spinosaurus, which his onDeath handles. But a Spinosaurus can leave the
-    // board without dying — Phantom Zone bounces him to a hand, Devour voids
-    // him past handleDeath entirely — and either way onDeath never fires, so
-    // the drained habitat would sit in the lane forever with nothing in it.
-    // Reconcile from the live board each round instead of trusting the exit.
-    onTurnStart(G, self) {
-      if (!self._wetReleased) return;
-      const laneIdx = G.findCardLane(self);
-      if (laneIdx < 0) return;
-      const spino = G.getAllCardsOf(self.owner)
-        .some(c => c.name === 'Spinosaurus' && c.currentHealth > 0);
-      if (spino) return;
-      const lane = G.state.lanes[laneIdx];
-      if (lane._env && lane._env[self.owner] === self) lane._env[self.owner] = null;
-      G.log(`  [WETLANDS] No Spinosaurus remains — the wetlands drain away.`);
-    },
+    // (No onTurnStart. It used to be a self-heal for a habitat that outlived its
+    // own release: Spinosaurus could leave the board without DYING — Phantom
+    // Zone bounces him to a hand, Devour voids him past handleDeath — and the
+    // drained swamp would then sit in the lane with nothing in it forever. The
+    // habitat is consumed at release now, so there is no such state to
+    // reconcile.)
     _release(G, owner, laneIdx, habitat) {
       const lane = G.state.lanes[laneIdx];
+      // THE HABITAT IS CONSUMED, like all four of its siblings. It used to be
+      // the one exception — it stayed underneath Spinosaurus and drained when
+      // he died — and that exception cost it three pieces of private
+      // machinery: this clear, a self-heal on onTurnStart for the ways he can
+      // leave without dying, and an onDeath on Spinosaurus himself. All of it
+      // existed to answer "how long does the swamp last", which the shared
+      // environment clock now answers for every environment on the board.
+      // (Owner: "just change wetlands to fit the global rule and the wording.")
+      // Cleared up front rather than on a successful spawn, matching
+      // releaseHabitatMonster: the other four hand the lane back before they
+      // summon, so a blocked spawn leaves the same board either way.
+      if (lane._env && lane._env[owner] === habitat) {
+        lane._env[owner] = null;
+        if (typeof UI !== 'undefined' && UI._fxWetlandsDrain) {
+          try { UI._fxWetlandsDrain(laneIdx, owner); } catch (e) {}
+        }
+      }
       const opp = G.opponent(owner);
       const def = (typeof CARD_DEFS !== 'undefined')
         ? CARD_DEFS.find(d => d.name === 'Spinosaurus') : null;
@@ -8150,13 +8156,10 @@ const CARD_ABILITIES = {
           G.log(`  [WETLANDS] Spinosaurus can't surface in lane ${laneIdx + 1} — the lane is still occupied.`);
           return;
         }
-        spino._habitatLane = laneIdx;
         // summonCard ignores atk/hp when sourceDef is provided; set directly.
         spino.attack = atk;
         spino.currentHealth = hp;
         spino.maxHealth = hp;
-        // The habitat STAYS. Unlike Boiler Room / Sewers / Open Water, the env
-        // slot is NOT cleared here — Spinosaurus's onDeath is what drains it.
         G.log(`Spinosaurus is released into lane ${laneIdx + 1}!`);
         if (typeof UI !== 'undefined' && UI._spinosaurusRelease) {
           setTimeout(() => { try { UI._spinosaurusRelease(laneIdx, owner); } catch (e) {} }, 60);
@@ -8257,19 +8260,9 @@ const CARD_ABILITIES = {
     // than left guarded: a hook that can never fire is a trap for the next
     // person reading the card, and _skipNormalAttack with it — he no longer
     // spends his swing on anything.
-    onDeath(G, self, laneIdx) {
-      // The habitat goes with him, in the same beat.
-      const l = (self._habitatLane !== undefined) ? self._habitatLane : laneIdx;
-      const lane = G.state.lanes[l];
-      const env = lane && lane._env && lane._env[self.owner];
-      if (env && env.name === 'Wetlands') {
-        lane._env[self.owner] = null;
-        G.log(`  [WETLANDS] Spinosaurus falls — the wetlands drain away with him.`);
-        if (typeof UI !== 'undefined' && UI._fxWetlandsDrain) {
-          try { UI._fxWetlandsDrain(l, self.owner); } catch (e) {}
-        }
-      }
-    },
+    // (No onDeath. Its only job was draining the Wetlands he was standing in,
+    // and the swamp is consumed the moment he surfaces now — there is nothing
+    // left under him to take with him.)
   },
 
   "Gargantua": {

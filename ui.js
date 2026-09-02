@@ -8884,7 +8884,8 @@ const UI = {
     setTimeout(() => stage.remove(), 900);
   },
 
-  // The habitat drains when Spinosaurus dies.
+  // The swamp drains as Spinosaurus surfaces — the habitat is consumed by the
+  // release now, so this plays on the way in rather than on his death.
   _fxWetlandsDrain(laneIdx) {
     const stage = this._fxLaneStage(laneIdx, 'wetlands-drain-stage');
     if (!stage) return;

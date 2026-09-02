@@ -134,7 +134,7 @@ const CARD_DEFS = [
     _spawnOnly: true,
     isEnvironment: true,
     abilities: [],
-    desc: "While Active: Each time either player's Block Meter fires, this lane loses 1 Power. At 0, Spinosaurus is released here, destroying the enemy in this lane. An ally there moves to an empty lane — with no empty lane it is destroyed and Spinosaurus adds its stats. The habitat remains beneath him until its own rounds run out." },
+    desc: "While Active: Each time either player's Block Meter fires, this lane loses 1 Power. At 0, Spinosaurus is released here, destroying the enemy in this lane. An ally there moves to an empty lane — with no empty lane it is destroyed and Spinosaurus adds its stats." },
   { name: "Bane", cost: 2, attack: 2, health: 3, type: "villain",
     abilities: ["Overdrive"],
     desc: "When Played: An enemy takes (−1/−1) and loses all Evade. While Active: Add (+1/+1) when damaged." },
