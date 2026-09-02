@@ -14228,7 +14228,7 @@ body, :root {
 
      Alphas clamp at 1 on their own, so a bright token like --*-accent-bright
      (0.95) simply saturates instead of overflowing. */
-  --neon-boost: 2;
+  --neon-boost: 3;
   --theme-accent:       rgb(var(--theme-r), var(--theme-g), var(--theme-b));
   --theme-accent-dim:   rgba(var(--theme-r), var(--theme-g), var(--theme-b), calc(0.28 * var(--neon-boost)));
   --theme-accent-edge:  rgba(var(--theme-r), var(--theme-g), var(--theme-b), calc(0.55 * var(--neon-boost)));
@@ -43806,10 +43806,16 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
      multiplies the bloom: same three layers, more light off each.
      (Owner: "i want the colors neon to pop more.") Every card on screen carries
      this, so it is the single biggest surface the knob reaches. */
+  /* THE RADIUS MOVES TOO, and past a boost of ~2 it is the ONLY thing that can.
+     Alpha saturates: 0.50 x 2 and 0.95 x 2 both clamp at 1, so turning the knob
+     further stopped changing anything and the owner rightly said so ("make it 3,
+     i dont see a difference in neon"). A wider bloom is what reads as a brighter
+     tube once the glass is already at full — so the boost scales the blur as
+     well as the opacity, and the halo genuinely grows. */
   filter:
-    drop-shadow(0 0 1px  rgba(var(--frame-core-rgb), 0.85))
-    drop-shadow(0 0 5px  rgba(var(--cf-rgb), calc(0.50 * var(--neon-boost, 1))))
-    drop-shadow(0 0 12px rgba(var(--cf-rgb), calc(0.22 * var(--neon-boost, 1))));
+    drop-shadow(0 0 calc(1px  * var(--neon-boost, 1)) rgba(var(--frame-core-rgb), 0.85))
+    drop-shadow(0 0 calc(5px  * var(--neon-boost, 1)) rgba(var(--cf-rgb), calc(0.50 * var(--neon-boost, 1))))
+    drop-shadow(0 0 calc(12px * var(--neon-boost, 1)) rgba(var(--cf-rgb), calc(0.22 * var(--neon-boost, 1))));
 }
 .card .cf-edge {
   position: absolute; inset: 0;
