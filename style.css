@@ -76,8 +76,8 @@
      surviving theme sweeps. Ten live consumers — the game log, the scrollbar
      thumb, section eyebrows — went on painting cyan in every theme. */
   --tron:       var(--theme-accent);   /* primary accent (edges, labels) */
-  --tron-dim:   rgba(var(--theme-rgb, 79,195,247),calc(0.28 + (1 - 0.28) * var(--neon-lift, 0)));  /* standard 1px border */
-  --tron-edge:  rgba(var(--theme-rgb, 79,195,247),calc(0.55 + (1 - 0.55) * var(--neon-lift, 0)));  /* hover / active border */
+  --tron-dim:   rgba(var(--theme-rgb, 79,195,247),0.28);  /* standard 1px border — stays quiet, see the ladder note */
+  --tron-edge:  rgba(var(--theme-rgb, 79,195,247),0.55);  /* hover / active border */
   /* GLOW ONLY — box-shadow / drop-shadow. Never `color`: at 0.22 alpha it paints
      a mark you can barely see on black, AND kills any currentColor glow that
      mark throws. Foreground ink is --theme-accent. Two controls (the hand's
@@ -1100,6 +1100,9 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
   box-shadow:
     inset 0 1px 0 rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), calc(0.30 + (1 - 0.30) * var(--neon-lift, 0))),
     inset 0 -1px 0 rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), calc(0.30 + (1 - 0.30) * var(--neon-lift, 0)));
+  /* An OUTER halo, which is what the bars were missing entirely — they had two
+     inset hairlines and nothing thrown onto the black around them. */
+  filter: drop-shadow(0 0 calc(3px * var(--neon-boost, 1)) var(--enemy-glow-outer));
 }
 .info-bar.player-bar {
   background:
@@ -14258,10 +14261,25 @@ body, :root {
      right place for the part of "pop" that alpha physically cannot deliver. */
   --neon-lift: calc((var(--neon-boost) - 1) / var(--neon-boost));
   --theme-accent:       rgb(var(--theme-r), var(--theme-g), var(--theme-b));
-  --theme-accent-dim:   rgba(var(--theme-r), var(--theme-g), var(--theme-b), calc(0.28 + (1 - 0.28) * var(--neon-lift)));
-  --theme-accent-edge:  rgba(var(--theme-r), var(--theme-g), var(--theme-b), calc(0.55 + (1 - 0.55) * var(--neon-lift)));
-  --theme-accent-ring:  rgba(var(--theme-r), var(--theme-g), var(--theme-b), calc(0.70 + (1 - 0.70) * var(--neon-lift)));
-  --theme-accent-bright:rgba(var(--theme-r), var(--theme-g), var(--theme-b), calc(0.95 + (1 - 0.95) * var(--neon-lift)));
+  /* STROKES KEEP THEIR AUTHORED ALPHAS. Owner: "the neon looks the same
+     everywhere, it shouldnt." Exactly right, and it was the boost's fault:
+     lifting every token equally raises the FLOOR along with the ceiling, and
+     neon only reads because most of the frame is dark and a little of it is
+     lit. Boosted uniformly, the dim 1px borders came up to meet the bright
+     faction edges and the whole board went evenly milky — brighter, flatter,
+     and no more "neon" than before.
+     So the ladder is left alone: dim recedes at 0.28, edge sits at 0.55, ring
+     0.70, bright 0.95, exactly as authored. Structure keeps its contrast. */
+  --theme-accent-dim:   rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.28);
+  --theme-accent-edge:  rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.55);
+  --theme-accent-ring:  rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.70);
+  --theme-accent-bright:rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.95);
+  /* GLOWS ARE THE POP, and they are the only thing the knob still touches.
+     A halo is light thrown ONTO the dark; making it stronger raises contrast
+     instead of erasing it, which is the opposite of what a stroke boost does.
+     Note --theme-glow-inner (0.22) lifts while --theme-accent-dim (0.28) does
+     not: same sort of number, opposite ROLE. One is a halo, one is a border
+     that is meant to stay quiet. Role decides, not the value. */
   --theme-glow-inner:   rgba(var(--theme-r), var(--theme-g), var(--theme-b), calc(0.22 + (1 - 0.22) * var(--neon-lift)));
   --theme-glow-outer:   rgba(var(--theme-r), var(--theme-g), var(--theme-b), calc(0.45 + (1 - 0.45) * var(--neon-lift)));
   --theme-wash-08:      rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.08);
@@ -14712,13 +14730,13 @@ body.theme-purple, :root.theme-purple {
 }
 body {
   --player-accent:       rgb(var(--player-r), var(--player-g), var(--player-b));
-  --player-accent-edge:  rgba(var(--player-r), var(--player-g), var(--player-b), calc(0.55 + (1 - 0.55) * var(--neon-lift)));
-  --player-accent-bright:rgba(var(--player-r), var(--player-g), var(--player-b), calc(0.95 + (1 - 0.95) * var(--neon-lift)));
+  --player-accent-edge:  rgba(var(--player-r), var(--player-g), var(--player-b), 0.55);
+  --player-accent-bright:rgba(var(--player-r), var(--player-g), var(--player-b), 0.95);
   --player-glow-inner:   rgba(var(--player-r), var(--player-g), var(--player-b), calc(0.22 + (1 - 0.22) * var(--neon-lift)));
   --player-glow-outer:   rgba(var(--player-r), var(--player-g), var(--player-b), calc(0.45 + (1 - 0.45) * var(--neon-lift)));
   --player-wash-08:      rgba(var(--player-r), var(--player-g), var(--player-b), 0.08);
-  --enemy-accent-edge:   rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), calc(0.55 + (1 - 0.55) * var(--neon-lift)));
-  --enemy-accent-bright: rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), calc(0.95 + (1 - 0.95) * var(--neon-lift)));
+  --enemy-accent-edge:   rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.55);
+  --enemy-accent-bright: rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.95);
   --enemy-glow-inner:    rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), calc(0.22 + (1 - 0.22) * var(--neon-lift)));
   --enemy-glow-outer:    rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), calc(0.45 + (1 - 0.45) * var(--neon-lift)));
   --enemy-wash-08:       rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.08);
@@ -29442,6 +29460,7 @@ input[type="number"]::-webkit-outer-spin-button {
   box-shadow:
     inset 0 1px 0 rgba(var(--theme-rgb, 79,195,247), calc(0.22 + (1 - 0.22) * var(--neon-lift, 0))),
     inset 0 -1px 0 rgba(var(--theme-rgb, 79,195,247), calc(0.22 + (1 - 0.22) * var(--neon-lift, 0))) !important;
+  filter: drop-shadow(0 0 calc(3px * var(--neon-boost, 1)) var(--theme-glow-outer));
 }
 
 /* Player HP bar — was using --player-accent-bright. Theme it. */
@@ -39491,7 +39510,7 @@ body.low-fx .mm-mw3 .mm-hero-img { animation: none; }
      Theme hue, and it rides the boost like everything else. The verdict rails
      below are untouched — win/lose/trade are a SIGNAL and keep their own
      colours; only the no-forecast default moves. */
-  --rail: rgba(var(--theme-rgb, 79,195,247), calc(0.16 + (1 - 0.16) * var(--neon-lift, 0)));
+  --rail: rgba(var(--theme-rgb, 79,195,247), 0.16);
   background:
     linear-gradient(var(--rail), var(--rail)) left  center / 1px 100% no-repeat,
     linear-gradient(var(--rail), var(--rail)) right center / 1px 100% no-repeat;
