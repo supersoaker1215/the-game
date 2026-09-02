@@ -8316,7 +8316,16 @@ const CARD_ABILITIES = {
 
           if (occupant.currentHealth <= 0 && card.currentHealth > 0) {
             // Occupant was destroyed; pulled card takes the lane.
-            G.state.lanes[curLane][opp]    = null;
+            // CLEAR BY IDENTITY, FROM A FRESH READ. curLane was taken at the
+            // top of this iteration, BEFORE the two dealDamage calls above —
+            // and those kill cards, which runs onDeath hooks, which can move
+            // this very card (a habitat release displacing it, a Hunt chase, a
+            // bounce). Nulling the stale index then leaves the card where it
+            // actually is AND writes it into laneIdx: one object, two lanes.
+            // Caught in the fuzz as "duplicate id 8 on lane: Trigon + Trigon",
+            // after Open Water's Jaws had displaced Trigon mid-pull.
+            const nowA = G.findCardLane(card);
+            if (nowA >= 0 && G.state.lanes[nowA][opp] === card) G.state.lanes[nowA][opp] = null;
             G.state.lanes[laneIdx][opp]    = card;
             G.log(`[GARGANTUA] ${card.name} takes lane ${laneIdx + 1}!`);
             G.checkLaneTrap(card, laneIdx);
@@ -8326,7 +8335,11 @@ const CARD_ABILITIES = {
           }
         } else if (!occupant || occupant.currentHealth <= 0) {
           // Target lane is clear — pull the card one step toward Gargantua.
-          G.state.lanes[curLane][opp]     = null;
+          // Same fresh-read-and-match rule as the collision branch above: this
+          // loop moves several cards and fires hooks between them, so the index
+          // read at the top of the iteration cannot be trusted at the write.
+          const nowB = G.findCardLane(card);
+          if (nowB >= 0 && G.state.lanes[nowB][opp] === card) G.state.lanes[nowB][opp] = null;
           G.state.lanes[targetLane][opp]  = card;
           G.log(`[GARGANTUA] ${card.name} pulled from lane ${curLane + 1} → lane ${targetLane + 1}.`);
           G.checkLaneTrap(card, targetLane);

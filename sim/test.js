@@ -5941,6 +5941,60 @@ test('The T-Rex clears the lane it lands in, and eats what cannot move', functio
   assertEq(rex.currentHealth, 7 + hp, 'and the health');
 });
 
+test("Gargantua's pull re-reads a card's lane before moving it", function () {
+  // The fuzz found "duplicate id 8 on lane: Trigon + Trigon" — ONE object in
+  // two lanes at once. _doPull reads curLane at the top of each iteration and
+  // wrote `lanes[curLane] = null` several statements later, AFTER the two
+  // dealDamage calls of a collision. Those kill cards, which runs onDeath and
+  // onDamaged hooks, which can move the very card being pulled (a habitat
+  // release displacing it, a Hunt chase, a bounce). Nulling the stale index
+  // then leaves the card where it actually is AND writes it into the
+  // destination.
+  //
+  // The window is BETWEEN the damage and the write, so the hook here fires
+  // from onDamaged — exactly where Open Water's displacement was firing when
+  // the fuzz caught it.
+  var G = freshGame();
+  G.state.player.isHuman = false;
+  var garg = G._placeEventEnvironment('player', 0, 'Gargantua');
+  assert(garg, 'Gargantua is standing');
+
+  // An enemy standing in Gargantua's own lane — this is what makes the pulled
+  // card COLLIDE rather than simply step across.
+  // PLAIN BODIES, deliberately. The first draft used Nightwing and Trigon and
+  // neither branch ran: Nightwing has Evade so it dodged the killing blow, and
+  // Trigon has Immunity so it took no damage and its onDamaged never fired.
+  // Hulk and Apocalypse carry no keywords.
+  var occupant = place(G, 'Hulk', 'ai', 0);
+  // It needs a BITE as well as a low HP total: the collision deals damage both
+  // ways, and the victim's onDamaged is what fires inside the window. At 0
+  // attack the victim takes nothing and the hook never runs.
+  occupant.attack = 2; occupant.currentHealth = 1; occupant.maxHealth = 1;
+
+  // The card that gets pulled into that collision, from the adjacent lane.
+  var victim = place(G, 'Apocalypse', 'ai', 1);
+  victim.attack = 9; victim.currentHealth = 9; victim.maxHealth = 9;
+
+  // Mid-collision, something relocates the victim — the displacement that a
+  // habitat release performs when the collision's deaths cascade into it.
+  victim.onDamaged = function (g, self) {
+    if (self._moved) return;
+    self._moved = true;
+    var from = g.findCardLane(self);
+    if (from < 0) return;
+    g.state.lanes[from].ai = null;
+    g.state.lanes[4].ai = self;
+  };
+
+  CARD_ABILITIES['Gargantua']._doPull(G, garg);
+
+  var seats = [];
+  for (var i = 0; i < G.LANE_COUNT; i++) {
+    if (G.state.lanes[i].ai === victim) seats.push(i);
+  }
+  assertEq(seats.length, 1, 'the pulled card occupies exactly one lane, not ' + seats.length + ' (lanes ' + seats.join(',') + ')');
+});
+
 test('An event lands on round 3, 6 and 9 — and never the same one twice', function () {
   // Owner: "on turn 6 another event should fire, and on turn 9 — right now its
   // just turn 3." A match used to draw exactly one event at match start.
