@@ -9407,23 +9407,47 @@ test('Refusing on the final round still lets the T-Rex out', function () {
   assertEq(G.state.lanes[1]._env.player, null, 'and the paddock is spent');
 });
 
-test('An environment declares which side it turns on, and the flag survives instancing', function () {
-  // The lane backdrop paints an environment's picture on the half it acts
-  // AGAINST (owner: "the picture should be on the side its against"), which is
-  // the opponent's for almost all of them and the OWNER'S for the Enclosure —
-  // its T-Rex is released against whoever stopped paying. The renderer reads
-  // this off the instance, and createCardInstance builds from an explicit
-  // literal, so a def-only flag would silently arrive as undefined there.
-  assertEq(cardByName('Enclosure').actsAgainstOwner, true, 'the Enclosure turns on its owner');
+test('An environment declares where its monster lands, and the flag survives instancing', function () {
+  // The lane backdrop paints an environment's picture on the half its MONSTER
+  // lands on — owner: "the t rex breaks out of the enclousre so he spawns on
+  // the enviroment", and the mirror for Wetlands. releaseHabitatMonster reads
+  // the same flag to decide where to put the monster, so the two cannot
+  // disagree. The renderer reads it off the INSTANCE, and createCardInstance
+  // builds from an explicit literal, so a def-only flag would arrive undefined.
+  assertEq(cardByName('Enclosure').spawnsOnOpponentSide, true, "the T-Rex breaks out onto the opponent's side");
   ['Boiler Room', 'Sewers', 'Open Water', 'The Bathroom', 'Game Over', 'Wetlands'].forEach(function (n) {
-    assertEq(!!cardByName(n).actsAgainstOwner, false, n + ' works for its owner');
+    assertEq(!!cardByName(n).spawnsOnOpponentSide, false, n + ' surfaces its monster for its owner');
   });
 
   var G = freshGame();
   var gate = G.createCardInstance(cardByName('Enclosure'), 'player');
   var room = G.createCardInstance(cardByName('Boiler Room'), 'player');
-  assertEq(gate.actsAgainstOwner, true, 'the flag reaches the instance');
-  assertEq(room.actsAgainstOwner, false, 'and is false, not undefined, on the rest');
+  assertEq(gate.spawnsOnOpponentSide, true, 'the flag reaches the instance');
+  assertEq(room.spawnsOnOpponentSide, false, 'and is false, not undefined, on the rest');
+});
+
+test('The release reads the spawn side off the card, with no `into` argument', function () {
+  // The Enclosure used to pass into: opponent(owner) by hand. The direction
+  // lives on the card now so the backdrop can read the same declaration — this
+  // pins that removing the argument did not change where the T-Rex lands.
+  var G = freshGame();
+  var gate = G._placeEventEnvironment('player', 2, 'Enclosure');
+  G.state._pendingUpkeep = [];
+  gate.onTurnStart(G, gate);
+  G.state._pendingUpkeep[0].onDecline();
+  var rex = G.state.lanes[2].ai;
+  assert(rex && rex.name === 'T-Rex', "the T-Rex lands on the opponent's side");
+  assertEq(rex.owner, 'ai', 'and fights for them');
+  assertEq(G.state.lanes[2].player, null, 'never on the side that owned the paddock');
+
+  // …and the mirror: a habitat with the flag off still surfaces for its owner.
+  var G2 = freshGame();
+  var wet = G2._placeEventEnvironment('player', 1, 'Wetlands');
+  CARD_ABILITIES['Wetlands'].onPlay(G2, wet, 1);
+  G2._notifyBlockMeterFired('ai');
+  var spino = G2.state.lanes[1].player;
+  assert(spino && spino.name === 'Spinosaurus', 'Spinosaurus surfaces for the owner');
+  assertEq(G2.state.lanes[1].ai, null, 'not against them');
 });
 
 // ---- RUNNER ------------------------------------------------

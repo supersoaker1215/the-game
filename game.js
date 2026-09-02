@@ -15457,15 +15457,13 @@ const Game = {
       // raw def — roguelite drives drawPile with pre-built instances.
       _isCardInstance: true,
       isEnvironment: !!def.isEnvironment,
-      // WHICH SIDE DOES THIS ENVIRONMENT TURN ON. Almost every one works FOR
-      // its owner and against the opponent — Boiler Room burns enemies, Sewers
-      // and Open Water and Game Over hand the owner a monster, Wetlands'
-      // Spinosaurus eats the enemy in the lane. The Enclosure is the one that
-      // turns on the side that owns it: refuse the toll and the T-Rex is
-      // released AGAINST you. A flag rather than a name check in the renderer,
-      // so the next environment that points the other way declares it on the
-      // card and every surface inherits it.
-      actsAgainstOwner: !!def.actsAgainstOwner,
+      // WHICH SIDE THIS ENVIRONMENT'S MONSTER LANDS ON. Boiler Room, Sewers,
+      // Open Water, Game Over and Wetlands all surface theirs for the side that
+      // owns the habitat; the Enclosure's T-Rex breaks out and joins the
+      // opponent. A flag on the card rather than a name check at each reader,
+      // so the release and the lane backdrop cannot disagree about it and the
+      // next habitat that points the other way declares it on itself.
+      spawnsOnOpponentSide: !!def.spawnsOnOpponentSide,
       name: def.name, cost: def.actualCost || def.cost, baseCost: def.cost,
       attack: safeAtk, currentHealth: safeHp, maxHealth: safeHp,
       // Snapshot of the def's starting stats so the UI can tell at render

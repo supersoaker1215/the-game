@@ -92,9 +92,16 @@ function releaseHabitatMonster(G, o) {
   // For four of the five it is the same thing — Jaws, Pennywise, Freddy and
   // Spinosaurus all surface for whoever put the habitat down. The Enclosure is
   // the exception on purpose: it is a toll, not a nursery, so the thing that
-  // gets out is the OPPONENT's problem. `into` carries that; everything else in
-  // here still belongs to `owner`, including the env slot being handed back.
-  const side = o.into || owner;
+  // gets out is the OPPONENT's problem.
+  // READ FROM THE CARD, not passed in. The lane backdrop paints an
+  // environment's picture on the half its monster lands on, so the direction
+  // has to be one declaration both of them read — spawnsOnOpponentSide on the
+  // def — rather than an `into` argument here that the renderer would have to
+  // duplicate by name. `into` is still honoured for a caller that genuinely
+  // needs to override it; everything else in here still belongs to `owner`,
+  // including the env slot being handed back.
+  const side = o.into
+    || ((o.habitat && o.habitat.spawnsOnOpponentSide) ? G.opponent(owner) : owner);
   const laneIdx = o.laneIdx;
   const lane = G.state && G.state.lanes && G.state.lanes[laneIdx];
   if (!lane) return;
@@ -8016,9 +8023,8 @@ const CARD_ABILITIES = {
     _release(G, owner, laneIdx, habitat) {
       releaseHabitatMonster(G, {
         owner, laneIdx, habitat,
-        // AGAINST the side that stopped paying — the one thing that separates
-        // this habitat from the other four.
-        into: G.opponent(owner),
+        // No `into` — the direction lives on the card (spawnsOnOpponentSide),
+        // so the release and the lane backdrop read the same declaration.
         // REPLACED, NOT KEPT. Its own text says the T-Rex is released HERE and
         // says nothing about the paddock outliving him — unlike Wetlands, which
         // keeps its habitat underneath the monster for whatever is left of the

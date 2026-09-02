@@ -23624,17 +23624,21 @@ const UI = {
             const p = this._envArtBackground(env);
             if (half.style.background !== p) half.style.background = p;
           };
-          // WHICH HALF an environment lands on is the side it acts AGAINST,
-          // which is the opponent's for almost all of them and the OWNER'S for
-          // the Enclosure — its T-Rex is released against whoever stopped
-          // paying. That direction is declared on the card (actsAgainstOwner)
-          // rather than name-checked here, so the crossing is one rule and not
-          // a list. (Owner: "same with t rex enclosure.")
+          // WHICH HALF an environment paints on is where its MONSTER LANDS —
+          // "the t rex breaks out of the enclousre so he spawns on the
+          // enviroment", and the mirror for Wetlands, "the enemy spino spawns
+          // in the envirmonet so if your facing him the enviroment is on the
+          // enemy side". For five of the six that is the owner's own half;
+          // the Enclosure's T-Rex breaks out onto the opponent's, so its
+          // paddock paints there.
+          // Same flag releaseHabitatMonster uses to decide where to put the
+          // monster, so the picture cannot end up on a different half from the
+          // thing that comes out of it.
           const _halves = { top: null, bottom: null };
           [envAi, envPl].forEach(env => {
             if (!env) return;
-            const against = env.actsAgainstOwner ? env.owner : Game.opponent(env.owner);
-            _halves[against === 'ai' ? 'top' : 'bottom'] = env;
+            const lands = env.spawnsOnOpponentSide ? Game.opponent(env.owner) : env.owner;
+            _halves[lands === 'ai' ? 'top' : 'bottom'] = env;
           });
           paintHalf('top', _halves.top);
           paintHalf('bottom', _halves.bottom);
