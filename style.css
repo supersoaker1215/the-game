@@ -76,13 +76,13 @@
      surviving theme sweeps. Ten live consumers — the game log, the scrollbar
      thumb, section eyebrows — went on painting cyan in every theme. */
   --tron:       var(--theme-accent);   /* primary accent (edges, labels) */
-  --tron-dim:   rgba(var(--theme-rgb, 79,195,247),0.28);  /* standard 1px border */
-  --tron-edge:  rgba(var(--theme-rgb, 79,195,247),0.55);  /* hover / active border */
+  --tron-dim:   rgba(var(--theme-rgb, 79,195,247),calc(0.28 * var(--neon-boost, 1)));  /* standard 1px border */
+  --tron-edge:  rgba(var(--theme-rgb, 79,195,247),calc(0.55 * var(--neon-boost, 1)));  /* hover / active border */
   /* GLOW ONLY — box-shadow / drop-shadow. Never `color`: at 0.22 alpha it paints
      a mark you can barely see on black, AND kills any currentColor glow that
      mark throws. Foreground ink is --theme-accent. Two controls (the hand's
      music note and redraw) had made exactly this mistake. */
-  --tron-glow:  rgba(var(--theme-rgb, 79,195,247),0.22);  /* ambient outer glow */
+  --tron-glow:  rgba(var(--theme-rgb, 79,195,247),calc(0.22 * var(--neon-boost, 1)));  /* ambient outer glow */
   --tron-ink:   rgba(var(--theme-rgb, 79,195,247),0.08);  /* fill wash for subtle bg */
 
   /* Keyword palette — single source of truth for trait / debuff / mechanic
@@ -14209,13 +14209,33 @@ body.theme-gold,   :root.theme-gold   { --theme-r: 255; --theme-g: 215; --theme-
 body.theme-green,  :root.theme-green  { --theme-r: 46;  --theme-g: 204; --theme-b: 113; }
 body.theme-silver, :root.theme-silver { --theme-r: 220; --theme-g: 226; --theme-b: 234; }
 body, :root {
+  /* ===== NEON INTENSITY, ON ONE KNOB (2026-09-02) =====================
+     Owner: "i want the colors neon to pop more."
+
+     Every edge and glow in the game already resolves through the ladder below
+     (and its player/enemy twins) — 102 consumers of --theme-accent-edge, 134 of
+     --theme-glow-inner, 264 of --theme-glow-outer. So the brightness is one
+     number, not a sweep: each alpha is its AUTHORED value times --neon-boost.
+     Set it to 1 and the game is byte-identical to before this line existed;
+     raise it and every neon line and halo in the product comes up together,
+     in step, in every theme.
+
+     WASHES AND INKS ARE DELIBERATELY LEFT OUT. --theme-wash-*, --tron-ink and
+     --*-wash-08 are BACKGROUND fills, and the house rule is that panel
+     interiors stay pure black — boosting them would put a coloured film over
+     the interiors rather than making the light lines brighter, which is the
+     opposite of "pop". Only the strokes and the halos move.
+
+     Alphas clamp at 1 on their own, so a bright token like --*-accent-bright
+     (0.95) simply saturates instead of overflowing. */
+  --neon-boost: 1.45;
   --theme-accent:       rgb(var(--theme-r), var(--theme-g), var(--theme-b));
-  --theme-accent-dim:   rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.28);
-  --theme-accent-edge:  rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.55);
-  --theme-accent-ring:  rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.70);
-  --theme-accent-bright:rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.95);
-  --theme-glow-inner:   rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.22);
-  --theme-glow-outer:   rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.45);
+  --theme-accent-dim:   rgba(var(--theme-r), var(--theme-g), var(--theme-b), calc(0.28 * var(--neon-boost)));
+  --theme-accent-edge:  rgba(var(--theme-r), var(--theme-g), var(--theme-b), calc(0.55 * var(--neon-boost)));
+  --theme-accent-ring:  rgba(var(--theme-r), var(--theme-g), var(--theme-b), calc(0.70 * var(--neon-boost)));
+  --theme-accent-bright:rgba(var(--theme-r), var(--theme-g), var(--theme-b), calc(0.95 * var(--neon-boost)));
+  --theme-glow-inner:   rgba(var(--theme-r), var(--theme-g), var(--theme-b), calc(0.22 * var(--neon-boost)));
+  --theme-glow-outer:   rgba(var(--theme-r), var(--theme-g), var(--theme-b), calc(0.45 * var(--neon-boost)));
   --theme-wash-08:      rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.08);
   --theme-wash-05:      rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.05);
   /* Referenced at the viewport toggle but never declared, so that rule always
@@ -14664,15 +14684,15 @@ body.theme-purple, :root.theme-purple {
 }
 body {
   --player-accent:       rgb(var(--player-r), var(--player-g), var(--player-b));
-  --player-accent-edge:  rgba(var(--player-r), var(--player-g), var(--player-b), 0.55);
-  --player-accent-bright:rgba(var(--player-r), var(--player-g), var(--player-b), 0.95);
-  --player-glow-inner:   rgba(var(--player-r), var(--player-g), var(--player-b), 0.22);
-  --player-glow-outer:   rgba(var(--player-r), var(--player-g), var(--player-b), 0.45);
+  --player-accent-edge:  rgba(var(--player-r), var(--player-g), var(--player-b), calc(0.55 * var(--neon-boost)));
+  --player-accent-bright:rgba(var(--player-r), var(--player-g), var(--player-b), calc(0.95 * var(--neon-boost)));
+  --player-glow-inner:   rgba(var(--player-r), var(--player-g), var(--player-b), calc(0.22 * var(--neon-boost)));
+  --player-glow-outer:   rgba(var(--player-r), var(--player-g), var(--player-b), calc(0.45 * var(--neon-boost)));
   --player-wash-08:      rgba(var(--player-r), var(--player-g), var(--player-b), 0.08);
-  --enemy-accent-edge:   rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.55);
-  --enemy-accent-bright: rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.95);
-  --enemy-glow-inner:    rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.22);
-  --enemy-glow-outer:    rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.45);
+  --enemy-accent-edge:   rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), calc(0.55 * var(--neon-boost)));
+  --enemy-accent-bright: rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), calc(0.95 * var(--neon-boost)));
+  --enemy-glow-inner:    rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), calc(0.22 * var(--neon-boost)));
+  --enemy-glow-outer:    rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), calc(0.45 * var(--neon-boost)));
   --enemy-wash-08:       rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.08);
 }
 
@@ -39426,7 +39446,16 @@ body.low-fx .mm-mw3 .mm-hero-img { animation: none; }
    Painted as background slices on .lane, whose background is unset — both
    .lane pseudo-elements are already taken. */
 .lane[data-forecast-cls] {
-  --rail: rgba(255,255,255,0.16);
+  /* THE NEUTRAL RAIL IS NEON, NOT GREY. These two 1px slices are the board's
+     dominant line — six lanes' worth of them, floor to ceiling — and they were
+     white at 16%, which is why the board read grey and dim however bright the
+     tokens around it got. (Owner: "i want the colors neon to pop more." The
+     --neon-boost knob lifts every TOKEN consumer, and this rule was holding a
+     literal, so the biggest surface on screen ignored it.)
+     Theme hue, and it rides the boost like everything else. The verdict rails
+     below are untouched — win/lose/trade are a SIGNAL and keep their own
+     colours; only the no-forecast default moves. */
+  --rail: rgba(var(--theme-rgb, 79,195,247), calc(0.16 * var(--neon-boost, 1)));
   background:
     linear-gradient(var(--rail), var(--rail)) left  center / 1px 100% no-repeat,
     linear-gradient(var(--rail), var(--rail)) right center / 1px 100% no-repeat;
@@ -43770,10 +43799,17 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card .cf-frame {
   position: absolute; inset: var(--cf-inset);
   pointer-events: none; z-index: 5;
+  /* THE HALO IS WHAT MAKES IT READ AS NEON. The ring itself is already near
+     full alpha (--cf-rgb resolves to a solid rgb), so there is no headroom
+     left in the STROKE — a neon tube looks lit because of what it throws onto
+     the dark around it, not because the glass is brighter. So --neon-boost
+     multiplies the bloom: same three layers, more light off each.
+     (Owner: "i want the colors neon to pop more.") Every card on screen carries
+     this, so it is the single biggest surface the knob reaches. */
   filter:
     drop-shadow(0 0 1px  rgba(var(--frame-core-rgb), 0.85))
-    drop-shadow(0 0 5px  rgba(var(--cf-rgb), 0.50))
-    drop-shadow(0 0 12px rgba(var(--cf-rgb), 0.22));
+    drop-shadow(0 0 5px  rgba(var(--cf-rgb), calc(0.50 * var(--neon-boost, 1))))
+    drop-shadow(0 0 12px rgba(var(--cf-rgb), calc(0.22 * var(--neon-boost, 1))));
 }
 .card .cf-edge {
   position: absolute; inset: 0;
