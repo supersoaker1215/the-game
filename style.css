@@ -1100,9 +1100,20 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
   box-shadow:
     inset 0 1px 0 rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), calc(0.30 + (1 - 0.30) * var(--neon-lift, 0))),
     inset 0 -1px 0 rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), calc(0.30 + (1 - 0.30) * var(--neon-lift, 0)));
-  /* An OUTER halo, which is what the bars were missing entirely — they had two
-     inset hairlines and nothing thrown onto the black around them. */
-  filter: drop-shadow(0 0 calc(3px * var(--neon-boost, 1)) var(--enemy-glow-outer));
+  /* NO `filter` here — and none on .info-bar.player-bar either.
+     The turn-focus system above (body.turn-player / body.turn-ai, ~line 907)
+     already writes `filter` on both bars, and `filter` is ONE property: a halo
+     declared here is REPLACED wholesale by that rule, never merged. So this
+     drop-shadow could only ever paint in the phases that carry NO turn class —
+     `combat`, `tricks`, `draft-*` — which made it read as a glow that switches
+     ON for the attack phase and off again the moment cards resolve.
+     Measured 2026-09-02, body.turn-combat: both bars fell through to
+     drop-shadow(rgba(...,0.816) 0 0 9px) while turn-player/turn-ai gave
+     brightness(1.04) saturate(1.1). Owner: "this glow shouldnt appear during
+     the attack phase."
+     If an outer halo is ever wanted on these bars, it must be composed INTO
+     every arm of the turn-focus system (var(--bar-halo) brightness(...)), not
+     declared standalone here. */
 }
 .info-bar.player-bar {
   background:
@@ -29467,7 +29478,9 @@ input[type="number"]::-webkit-outer-spin-button {
   box-shadow:
     inset 0 1px 0 rgba(var(--theme-rgb, 79,195,247), calc(0.22 + (1 - 0.22) * var(--neon-lift, 0))),
     inset 0 -1px 0 rgba(var(--theme-rgb, 79,195,247), calc(0.22 + (1 - 0.22) * var(--neon-lift, 0))) !important;
-  filter: drop-shadow(0 0 calc(3px * var(--neon-boost, 1)) var(--theme-glow-outer));
+  /* No `filter` — see the note on .info-bar.ai-bar (~line 1103). The
+     turn-focus rules own this property; a standalone halo here only paints in
+     the no-turn-class phases and reads as a combat-only glow. */
 }
 
 /* Player HP bar — was using --player-accent-bright. Theme it. */
