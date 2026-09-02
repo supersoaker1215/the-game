@@ -47900,6 +47900,13 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    1 side now should they only be half way up … i just want them faded out to
    black not cut off and look bad."
 
+   AND IT SITS ON THE HALF IT ACTS AGAINST, not the half that owns it — owner:
+   "yes swap it, the picture should be on the side its against." Which is why
+   these two are named by POSITION and not by side: owner and position are
+   deliberately crossed, and a class called .env-half-ai would be wrong half the
+   time. The ownership wash below is NOT crossed — the picture answers "where
+   does this act", the wash answers "whose is it".
+
    FADED, NOT CUT. The mask runs to transparent at the midline, so the art
    dissolves into the lane's own black rather than ending on a hard edge. It
    holds full strength across the outer 62% of its half and gives up the last
@@ -47917,12 +47924,12 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   pointer-events: none;
   background-repeat: no-repeat;
 }
-.env-half-ai {
+.env-half-top {
   top: 0; bottom: 50%;
   -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 62%, transparent 100%);
           mask-image: linear-gradient(to bottom, #000 0%, #000 62%, transparent 100%);
 }
-.env-half-player {
+.env-half-bottom {
   top: 50%; bottom: 0;
   -webkit-mask-image: linear-gradient(to top, #000 0%, #000 62%, transparent 100%);
           mask-image: linear-gradient(to top, #000 0%, #000 62%, transparent 100%);

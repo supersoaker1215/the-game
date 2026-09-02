@@ -119,6 +119,11 @@ const CARD_DEFS = [
     desc: "While Active: The first enemy card to die in this lane rises on your side as a (2/2), as if newly played. An ally in that lane moves to an empty lane to make room. Game Over is then spent." },
   { name: "Enclosure", cost: 2, attack: 0, health: 1, type: "environment",
     _spawnOnly: true,
+    // The one environment that turns on the side that owns it — the T-Rex is
+    // released AGAINST whoever stopped paying. Everything else works for its
+    // owner. Read by the lane backdrop, which paints an environment's picture
+    // on the half it acts against.
+    actsAgainstOwner: true,
     // isEnvironment, NOT just type:"environment". They are not the same flag:
     // `type` is what the codex sorts on, `isEnvironment` is what the ENGINE
     // reads — playCard's env-slot branch, canPlaceEnvironment, cleanupDead's

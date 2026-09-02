@@ -23588,13 +23588,21 @@ const UI = {
           envBg.className = 'lane-env-bg ' + safeClass
             + (envAi ? ' env-own-ai' : '')
             + (envPl ? ' env-own-player' : '');
-          // EACH SIDE'S ART ON ITS OWN HALF. An environment belongs to ONE side
-          // — lane._env is keyed by it — but the backdrop painted a single art
-          // across the whole lane, so an enemy Open Water washed over the
-          // player's half as well and a lane holding one environment per side
-          // could only ever show one of them. (Owner: "since environments are
-          // for 1 side now should they only be half way up … i just want them
-          // faded out to black not cut off and look bad.")
+          // THE PICTURE SITS ON THE HALF THE ENVIRONMENT ACTS AGAINST, not the
+          // half that owns it. lane._env is keyed by side, but the backdrop
+          // painted a single art across the whole lane, so an enemy Open Water
+          // washed over the player's half as well and a lane holding one
+          // environment per side could only ever show one of them. (Owner:
+          // "since environments are for 1 side now should they only be half way
+          // up … i just want them faded out to black not cut off and look bad",
+          // then: "yes swap it, the picture should be on the side its against.")
+          //
+          // So the halves are named by POSITION, not by owner — env-half-top /
+          // env-half-bottom — because owner and position are deliberately
+          // crossed here and a name that said "ai" would be a lie half the
+          // time. The colour wash below stays keyed to the OWNER: the picture
+          // answers "where does this act", the wash answers "whose is it", and
+          // they are different questions.
           //
           // Two children rather than two .lane-env-bg elements: the container
           // keeps the click-to-inspect target, the render sweep's KEEP_ENV
@@ -23604,9 +23612,9 @@ const UI = {
           // Faded, not cut: each half carries a mask that runs to transparent
           // at the midline, so the art dissolves into the lane's black instead
           // of ending on a hard edge.
-          const paintHalf = (side, env) => {
-            const cls = 'env-half env-half-' + side;
-            let half = envBg.querySelector(':scope > .env-half-' + side);
+          const paintHalf = (where, env) => {
+            const cls = 'env-half env-half-' + where;
+            let half = envBg.querySelector(':scope > .env-half-' + where);
             if (!env) { if (half) half.remove(); return; }
             if (!half) {
               half = document.createElement('div');
@@ -23616,8 +23624,20 @@ const UI = {
             const p = this._envArtBackground(env);
             if (half.style.background !== p) half.style.background = p;
           };
-          paintHalf('ai', envAi);
-          paintHalf('player', envPl);
+          // WHICH HALF an environment lands on is the side it acts AGAINST,
+          // which is the opponent's for almost all of them and the OWNER'S for
+          // the Enclosure — its T-Rex is released against whoever stopped
+          // paying. That direction is declared on the card (actsAgainstOwner)
+          // rather than name-checked here, so the crossing is one rule and not
+          // a list. (Owner: "same with t rex enclosure.")
+          const _halves = { top: null, bottom: null };
+          [envAi, envPl].forEach(env => {
+            if (!env) return;
+            const against = env.actsAgainstOwner ? env.owner : Game.opponent(env.owner);
+            _halves[against === 'ai' ? 'top' : 'bottom'] = env;
+          });
+          paintHalf('top', _halves.top);
+          paintHalf('bottom', _halves.bottom);
 
           // The container itself only paints for the RIFT, which belongs to
           // nobody and so has no half to sit in — it keeps the full lane.

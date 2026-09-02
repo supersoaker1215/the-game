@@ -9407,6 +9407,25 @@ test('Refusing on the final round still lets the T-Rex out', function () {
   assertEq(G.state.lanes[1]._env.player, null, 'and the paddock is spent');
 });
 
+test('An environment declares which side it turns on, and the flag survives instancing', function () {
+  // The lane backdrop paints an environment's picture on the half it acts
+  // AGAINST (owner: "the picture should be on the side its against"), which is
+  // the opponent's for almost all of them and the OWNER'S for the Enclosure —
+  // its T-Rex is released against whoever stopped paying. The renderer reads
+  // this off the instance, and createCardInstance builds from an explicit
+  // literal, so a def-only flag would silently arrive as undefined there.
+  assertEq(cardByName('Enclosure').actsAgainstOwner, true, 'the Enclosure turns on its owner');
+  ['Boiler Room', 'Sewers', 'Open Water', 'The Bathroom', 'Game Over', 'Wetlands'].forEach(function (n) {
+    assertEq(!!cardByName(n).actsAgainstOwner, false, n + ' works for its owner');
+  });
+
+  var G = freshGame();
+  var gate = G.createCardInstance(cardByName('Enclosure'), 'player');
+  var room = G.createCardInstance(cardByName('Boiler Room'), 'player');
+  assertEq(gate.actsAgainstOwner, true, 'the flag reaches the instance');
+  assertEq(room.actsAgainstOwner, false, 'and is false, not undefined, on the rest');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 
