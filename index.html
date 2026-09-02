@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=1363">
+  <link rel="stylesheet" href="style.css?v=1365">
   <!-- BOARD V2 — the redesign, off by default. Every rule inside is scoped to
        body.board-v2 so it is inert until BoardV2.set(true). -->
   <link rel="stylesheet" href="board-v2.css?v=105">
@@ -522,6 +522,14 @@
       </div>
     </div>
 
+    <!-- HAND SIZE — a ring showing how full your hand is, sitting in the margin
+         to the LEFT of the first card, where the owner drew it. Its own grid
+         column (see the four-column rule in style.css) rather than an absolute
+         overlay, so it can never land on top of a card at a narrow width; that
+         column is max(--board-left, its own width), so on a wide screen it fits
+         inside the margin the board already leaves and the cards do not move. -->
+    <div id="hand-meter" class="hand-meter" title="Cards in hand"></div>
+
     <!-- PLAYER HAND (cards above tricks) -->
     <div class="player-hand-section">
       <div id="player-hand" class="hand-cards"></div>
@@ -900,7 +908,7 @@
        shared). Loaded BEFORE leaderboard.js so the client sees it on boot. -->
   <script>window.CLB_STATS_URL = "https://card-lane-battle-stats.ryanvtagle.workers.dev";</script>
   <script src="leaderboard.js?v=4"></script>
-  <script src="ui.js?v=1553"></script>
+  <script src="ui.js?v=1554"></script>
   <script src="board-v2.js?v=32"></script>
   <!-- Party voice chat. Loads after ui.js because it paints its own panel and
        reads Game/Multiplayer state; it asks for nothing until you press Join. -->

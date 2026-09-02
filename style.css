@@ -12778,17 +12778,17 @@ body.turn-combat .board .lane.lane-active {
   gap: 4px;
   padding: 4px 0;
   background: linear-gradient(180deg, rgba(8,14,22,0.55) 0%, rgba(8,14,22,0.85) 100%);
-  /* Theme-driven neon highlight. Reads --theme-rgb (the same triplet
-     the rest of the project's theming uses — see body::before, lane
-     borders, glow halos). White theme → white neon; blue → blue;
-     green → green. Falls back to the project's default sky-blue
-     (79,195,247) if --theme-rgb hasn't been set. User spec: "I want
-     it to match whatever neon highlight you have." */
-  border-top:    1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);
-  border-bottom: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.40);
-  box-shadow:
-    inset 0  1px 0 rgba(var(--theme-rgb, 79,195,247), 0.18),
-    inset 0 -1px 0 rgba(var(--theme-rgb, 79,195,247), 0.10);
+  /* NO EDGES OF ITS OWN (2026-09-02). This carried a theme-tinted 1px hairline
+     top and bottom, plus matching inset glows. The top one drew a faint blue
+     line straight across the whole screen at the board's bottom edge — full
+     width, so the part of it crossing the empty decision column had nothing to
+     belong to and read as a stray rule rather than as chrome. Owner drew a line
+     along it: "there is currently a faint neon highlight blue line across the
+     screen, can you remove that."
+     The bottom one was invisible anyway: the player bar directly beneath opens
+     with its own 1px at 0.95 alpha, on the same pixel row. So the band is still
+     closed on both sides — by the board above and that bar below — and the strip
+     keeps its own dark gradient to sit on. */
   font-family: 'Rajdhani', 'Inter', sans-serif;
 }
 .lane-forecast-strip .lf-cell {
@@ -40809,11 +40809,77 @@ body.in-match .lane {
      so the track can still give way on a narrow window instead of pushing the
      row into a scroll. The right spacer keeps the leftovers, gutter included. */
   body.in-match #game-area {
-    grid-template-columns: minmax(0, var(--board-left, 1fr)) auto auto minmax(0, 1fr);
+    /* max(), so the hand meter in column 1 always has its own width even when
+       the board's margin is thinner than the ring. On a wide screen --board-left
+       wins and nothing moves; at the tight end the cards give up a few pixels
+       rather than the meter being squeezed out of existence. */
+    grid-template-columns:
+      minmax(0, max(var(--board-left, 0px), calc(var(--hand-meter-w) + 10px)))
+      auto auto minmax(0, 1fr);
   }
+  body.in-match #game-area > .hand-meter { grid-column: 1; }
   body.in-match #game-area > .player-hand-section { grid-column: 2; }
   body.in-match #game-area > .tricks-section { grid-column: 3; }
 }
+
+/* ===========================================================================
+   HAND SIZE RING (2026-09-02)
+   Owner, circling the empty margin left of the first card: "put n/7 for hand
+   size here, neon highlight, in the circle."
+
+   Built as the block meter's sibling on purpose — same 44px ring, same
+   conic-gradient fill, same punched-out middle — because it is the same KIND of
+   readout (a capacity you are filling) and the bar already taught that shape.
+   The only difference is the hue: theme neon rather than the block meter's gold,
+   so the two are never mistaken for each other at a glance.
+   =========================================================================== */
+:root { --hand-meter-w: 44px; }
+.hand-meter {
+  --fill: 0%;
+  align-self: center;
+  justify-self: end;
+  width: var(--hand-meter-w); height: var(--hand-meter-w);
+  border-radius: 50%;
+  position: relative;
+  background:
+    conic-gradient(from -90deg,
+      rgba(var(--theme-rgb, 79,195,247), 0.95) 0 var(--fill),
+      rgba(var(--theme-rgb, 79,195,247), 0.10) var(--fill) 100%);
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color 240ms var(--ease-snap), box-shadow 240ms var(--ease-snap), background 240ms var(--ease-snap);
+}
+/* Punches the middle out so the conic paints a RING, not a pie — same trick the
+   block circle uses, same 5px stroke. */
+.hand-meter::after {
+  content: '';
+  position: absolute; inset: 5px;
+  border-radius: 50%;
+  background: #000;
+}
+.hand-meter-text {
+  position: relative; z-index: 1;
+  /* var(--font-mono): Rajdhani has no tnum, so `tabular-nums` on it is inert and
+     the count would jitter as it walked 1/7 -> 7/7. */
+  font-family: var(--font-mono, 'Rajdhani', monospace);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.95);
+  text-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.45);
+}
+/* FULL is an event, so it gets the bloom — the same way the block meter marks
+   its own. A full hand means the next draw is thrown away. */
+.hand-meter.full {
+  border-color: rgba(var(--theme-rgb, 79,195,247), 1);
+  box-shadow:
+    0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.55),
+    0 0 22px rgba(var(--theme-rgb, 79,195,247), 0.25);
+}
+.hand-meter.full .hand-meter-text { color: #ffffff; }
+/* Below the desktop breakpoint the four-column rule does not apply and there is
+   no margin to sit in. */
+@media (max-width: 520px) { .hand-meter { display: none; } }
 
 /* HUD CONTROLS STAY ABOVE THE BOARD ON SCROLL. The battle-log, help (?) and
    settings buttons are position:fixed at body level (outside #game-area's

@@ -8067,6 +8067,7 @@ const UI = {
     // rendering — so moving the call can't change which changes are detected.)
     this._safe('animateStatChanges',      () => this.animateStatChanges());
     this._safe('renderPlayerHand',        () => this.renderPlayerHand(s));
+    this._safe('renderHandMeter',         () => this.renderHandMeter(s));
     this._safe('renderAIHand',            () => this.renderAIHand(s));
     this._safe('renderPlayerTricks',      () => this.renderPlayerTricks(s));
     this._safe('renderInlineChoiceFallback', () => this.renderInlineChoiceFallback(s));
@@ -28634,6 +28635,38 @@ const UI = {
         });
       });
     });
+  },
+
+  // HOW FULL YOUR HAND IS, as a ring in the margin left of the first card.
+  // Owner: "put n/7 for hand size here, neon highlight, in the circle."
+  //
+  // The CAP is read from the seat, not hard-coded: Mobius Chair raises
+  // maxHandSize permanently, so a fixed 7 would have gone on saying /7 while the
+  // real ceiling was 8 and the ring stopped filling before it looked full.
+  renderHandMeter(s) {
+    const el = document.getElementById('hand-meter');
+    if (!el) return;
+    // The hand this player is actually holding — a SEAT in 2v2, the side in 1v1.
+    // Reading state.player straight would have shown the empty side proxy at a
+    // 2v2 table (see the seat-vs-side note in Game.seatStatesOnSide).
+    const tt = s.twoVTwo;
+    const you = tt && tt.you;
+    const seat = (you && tt.players && tt.players[you]) ? tt.players[you] : s.player;
+    if (!seat) { el.style.display = 'none'; return; }
+    el.style.display = '';
+    const n = (seat.hand || []).length;
+    const cap = Math.max(1, (seat.maxHandSize != null ? seat.maxHandSize : 7) | 0);
+    const pct = Math.max(0, Math.min(100, Math.round((n / cap) * 100)));
+    el.style.setProperty('--fill', pct + '%');
+    el.classList.toggle('full', n >= cap);
+    const label = n + '/' + cap;
+    // Write only when it changed — this runs every render, and replacing the
+    // node each time would restart the ring's transition mid-fill.
+    if (el.dataset.label !== label) {
+      el.dataset.label = label;
+      el.innerHTML = '<span class="hand-meter-text">' + label + '</span>';
+    }
+    el.title = 'Cards in hand — ' + label;
   },
 
   // ===================== LANE FORECAST =====================
