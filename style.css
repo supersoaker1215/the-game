@@ -40833,64 +40833,41 @@ body.in-match .lane {
    The only difference is the hue: theme neon rather than the block meter's gold,
    so the two are never mistaken for each other at a glance.
    =========================================================================== */
-:root { --hand-meter-w: 44px; }
+/* NO RING. Just the number. It was built as the block meter's twin — 44px
+   circle, conic fill, punched-out middle — and that was wrong: the owner asked
+   for "n/7 ... in the circle" meaning at the spot they had circled on the
+   screenshot, not inside a drawn one. Twice re-read as a styling defect and
+   twice made MORE circular before the plain reading landed. */
+:root { --hand-meter-w: 40px; }
 .hand-meter {
-  --fill: 0%;
-  /* TOP, NOT MIDDLE. Centred in the row it floated halfway down a 220px column
-     of cards with nothing beside it, which read as unplaced. Owner drew an arrow
-     up from it. Level with the card tops it reads as the label for the row.
-     6px is the hand section's own top padding — same line as the first card. */
+  /* Level with the card tops — 6px is the hand section's own top padding, so it
+     sits on the same line as the first card rather than floating halfway down a
+     220px column of them. */
   align-self: start;
   margin-top: 6px;
   justify-self: end;
-  width: var(--hand-meter-w); height: var(--hand-meter-w);
-  border-radius: 50%;
-  position: relative;
-  background:
-    conic-gradient(from -90deg,
-      rgba(var(--theme-rgb, 79,195,247), 0.95) 0 var(--fill),
-      rgba(var(--theme-rgb, 79,195,247), 0.16) var(--fill) 100%);
-  /* A HAIRLINE ON PURE BLACK IS NOT A CIRCLE. The block meter's 1px at 0.55
-     works because it sits on the info bar, shoulder to shoulder with other
-     chrome; this one is alone in the black under the board, and at the same
-     weight the owner read it as "no circle, it's just the numbers". Double the
-     stroke, raise the alpha, and give it the neon halo that was asked for —
-     "neon highlight in the circle". */
-  border: 2px solid rgba(var(--theme-rgb, 79,195,247), 0.9);
-  box-shadow:
-    0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.35),
-    inset 0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.18);
-  display: flex; align-items: center; justify-content: center;
-  transition: border-color 240ms var(--ease-snap), box-shadow 240ms var(--ease-snap), background 240ms var(--ease-snap);
-}
-/* Punches the middle out so the conic paints a RING, not a pie — same trick the
-   block circle uses, same 5px stroke. */
-.hand-meter::after {
-  content: '';
-  position: absolute; inset: 5px;
-  border-radius: 50%;
-  background: #000;
+  width: var(--hand-meter-w);
+  display: flex; align-items: center; justify-content: flex-end;
 }
 .hand-meter-text {
-  position: relative; z-index: 1;
   /* var(--font-mono): Rajdhani has no tnum, so `tabular-nums` on it is inert and
-     the count would jitter as it walked 1/7 -> 7/7. */
+     the count would jitter as it walks 1/7 -> 7/7. */
   font-family: var(--font-mono, 'Rajdhani', monospace);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
   color: rgba(var(--theme-rgb, 79,195,247), 0.95);
-  text-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.45);
+  text-shadow:
+    0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.55),
+    0 0 18px rgba(var(--theme-rgb, 79,195,247), 0.25);
 }
-/* FULL is an event, so it gets the bloom — the same way the block meter marks
-   its own. A full hand means the next draw is thrown away. */
-.hand-meter.full {
-  border-color: rgba(var(--theme-rgb, 79,195,247), 1);
-  box-shadow:
-    0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.55),
-    0 0 22px rgba(var(--theme-rgb, 79,195,247), 0.25);
+/* FULL is an event — a full hand means the next draw is thrown away. */
+.hand-meter.full .hand-meter-text {
+  color: #ffffff;
+  text-shadow:
+    0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.9),
+    0 0 24px rgba(var(--theme-rgb, 79,195,247), 0.45);
 }
-.hand-meter.full .hand-meter-text { color: #ffffff; }
 /* Below the desktop breakpoint the four-column rule does not apply and there is
    no margin to sit in. */
 @media (max-width: 520px) { .hand-meter { display: none; } }
