@@ -5919,7 +5919,14 @@ body.hit-pause .ai-hand * {
     inset 0 -12px 18px -12px rgba(var(--theme-rgb, 79,195,247),0.40);
 }
 .board {
-  display: flex; gap: 4px; justify-content: center; min-height: 230px;
+  /* 12px between lanes, was 4. Owner: "there can be a little more space between
+     lanes." Safe to change here and nowhere else: _fitBoardToViewport reads
+     this very value back — `getComputedStyle(board).gap * (lanes - 1)` — into
+     its width budget, so the lanes give the pixels up on their own if the board
+     cannot afford them. The narrow-screen overrides further down (2px, and 1px
+     under 700) are deliberately left alone; there the gap is competing with the
+     cards for a width that is already short. */
+  display: flex; gap: 12px; justify-content: center; min-height: 230px;
   /* No vertical padding — lanes sit flush against the banners above and below
      so the Tron circuit reads as one continuous light path with no dark gap. */
   padding: 0;
