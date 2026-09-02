@@ -20414,12 +20414,20 @@ body::before {
       rgba(0, 0, 0, 0.25) 100%),
     #000;
 }
+/* NO GLOW UNDER THE BOARD. This was an ellipse centred at 50% 50% of #board —
+   and the board's centre is not a lane, it is the GAP between lanes 3 and 4.
+   The lanes paint over the glow everywhere else, so the only place it was ever
+   visible was in the gaps, brightest in the middle one: a soft floor-to-ceiling
+   band of theme blue showing through the seam. That is what the owner circled:
+   "behind the board the is somthing remove that underneath."
+   Removing the layer rather than dimming it — at 0.035 it was already as faint
+   as a visible thing gets, and the fault was WHERE it peaked, not how strong it
+   was. The room's ambience lives on .board-section (its own radials plus the
+   dot grid), which is centred on the SECTION and so has no peak sitting in a
+   lane seam. */
 #game-area #board,
 .board {
-  background:
-    radial-gradient(ellipse at 50% 50%,
-      rgba(var(--theme-rgb, 79,195,247), 0.035) 0%,
-      rgba(0, 0, 0, 0) 62%);
+  background: none;
 }
 
 /* ---- 5. Energy orb playable-pulse ----
