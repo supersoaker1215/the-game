@@ -1590,11 +1590,15 @@ const Game = {
     if (pk) {
       const tt = s.twoVTwo, seat = tt.players[pk];
       if (!this.redrawPhaseOk(owner, pk)) return 'Only on your turn';
-      if (!seat.hand || !seat.hand.length) return 'No cards to redraw';
-      // The 2v2 deck lives on tt, not on state.drawPile (the side proxy only
-      // holds it while a bridge is open), so getDrawPile would read an empty
-      // 1v1 pile here and refuse every redraw.
-      if (!(tt.drawPile || []).length) return 'Draw pile empty';
+      // Same card-or-trick rule as 1v1 below.
+      const _sHand  = (seat.hand || []).length;
+      const _sTrick = (seat.trickHand || []).length;
+      if (!_sHand && !_sTrick) return 'Nothing to redraw';
+      // The 2v2 decks live on tt, not on state.drawPile / state.trickDrawPile
+      // (the side proxy only holds them while a bridge is open), so getDrawPile
+      // would read an empty 1v1 pile here and refuse every redraw.
+      if (!(_sHand  > 0 && (tt.drawPile || []).length      > 0) &&
+          !(_sTrick > 0 && (tt.trickDrawPile || []).length > 0)) return 'Draw pile empty';
       if (this._lexDrawRestriction(this._2v2TeamSide[seat.team]).blocked) return 'Lex Luthor blocks draws';
       // An open prompt or a mid-resolution ability owns the table; a redraw
       // landing in that window would draw from a pile another seat's effect is
@@ -1611,8 +1615,15 @@ const Game = {
     // lock existed, so the redraw button stayed lit while the engine refused.
     if (this.ballyhooLocked && this.ballyhooLocked()) return 'MC Ballyhoo is here';
     if (!this.redrawPhaseOk(owner)) return 'Only on your turn';
-    if (!p.hand || !p.hand.length) return 'No cards to redraw';
-    if (!this.getDrawPile(owner).length) return 'Draw pile empty';
+    // Cards and tricks are both redrawable and draw from separate piles, so the
+    // button stays live while EITHER side can still be replaced. redrawCard
+    // refuses the individual pick whose own pile has run dry.
+    const _nHand  = (p.hand || []).length;
+    const _nTrick = (p.trickHand || []).length;
+    if (!_nHand && !_nTrick) return 'Nothing to redraw';
+    const _cardStock  = _nHand  > 0 && this.getDrawPile(owner).length  > 0;
+    const _trickStock = _nTrick > 0 && this.getTrickPile(owner).length > 0;
+    if (!_cardStock && !_trickStock) return 'Draw pile empty';
     // Lex Luthor stops draws, and a redraw IS a draw. Checking here means the
     // control is refused up front rather than eating the card and the energy
     // and then silently failing inside drawCards.
@@ -1649,7 +1660,16 @@ const Game = {
     const reason = this.redrawBlockedReason(owner);
     if (reason) { this._redrawRefused(reason); return false; }
     const p = this.state[owner];
-    if (!card || p.hand.indexOf(card) === -1) return false;
+    if (!card) return false;
+    // A REDRAW COVERS TRICKS TOO. This used to resolve the pick against p.hand
+    // alone, so a trick handed to it fell straight through the guard and
+    // returned false: the player picked, nothing happened, and nothing said
+    // why. Cards and tricks each go back to their OWN pile and draw from it.
+    // (Owner: "for tricks as well it should do the yellow.")
+    const _handIdx  = p.hand.indexOf(card);
+    const _trickIdx = _handIdx === -1 ? (p.trickHand || []).indexOf(card) : -1;
+    if (_handIdx === -1 && _trickIdx === -1) return false;
+    const isTrick = _trickIdx !== -1;
 
     // MULTIPLAYER GUEST: forward, do not apply. Same rule as playCard — the
     // host owns the deck and the draw, so a guest redrawing locally would pull
@@ -1670,29 +1690,56 @@ const Game = {
     if (this.isPlayerTurn() || (this.isMultiplayer() && this.mp && this.mp.role === 'host'))
       this.snapshot(owner);
 
+    // WHICH pile this costs is not known until the pick lands here, so the
+    // stock check cannot live in redrawBlockedReason — that gate only knows
+    // that ONE of the two still has cards. Refuse before any energy moves.
+    const _pile = isTrick ? this.getTrickPile(owner) : this.getDrawPile(owner);
+    if (!_pile || !_pile.length) {
+      this._redrawRefused(isTrick ? 'Trick pile empty' : 'Draw pile empty');
+      return false;
+    }
+
     const cost = this.getRedrawCost(owner);
     p.currency -= cost;
     if (this.state._stats && this.state._stats[owner]) this.state._stats[owner].energySpent += cost;
 
     // DISCARD BEFORE DRAWING, and the order is load-bearing: drawCards refuses
     // to add to a hand already at maxHandSize, so drawing first would spend the
-    // energy and hand back nothing on a full hand.
-    const idx = p.hand.indexOf(card);
-    p.hand.splice(idx, 1);
-    p.discardPile.push({
-      name: card.name, cost: card.baseCost || card.cost,
-      type: card.type, abilities: card.abilities, desc: card.desc,
-      _sourceInstance: card
-    });
+    // energy and hand back nothing on a full hand. addToTrickHand has the same
+    // cap, so the trick branch obeys the same order.
+    if (isTrick) {
+      // No discardPile entry and no playedTrickPile entry: the dead pile is a
+      // CARD surface, and playedTrickPile drives the round recap — a trick
+      // binned for a redraw was never played, so recording it there would put
+      // a trick the opponent never saw into the "tricks played" readout.
+      const ti = p.trickHand.indexOf(card);
+      if (ti > -1) p.trickHand.splice(ti, 1);
+    } else {
+      const idx = p.hand.indexOf(card);
+      p.hand.splice(idx, 1);
+      p.discardPile.push({
+        name: card.name, cost: card.baseCost || card.cost,
+        type: card.type, abilities: card.abilities, desc: card.desc,
+        _sourceInstance: card
+      });
+    }
 
     p.redrawsUsed = (p.redrawsUsed | 0) + 1;
     this.logEither(owner,
       `${this.seatLabel(owner)} redraws ${card.name} for ${cost} Energy (next redraw: ${this.getRedrawCost(owner)}).`,
-      `${this.seatLabel(owner)} redraws a card for ${cost} Energy.`);
+      `${this.seatLabel(owner)} redraws a ${isTrick ? 'trick' : 'card'} for ${cost} Energy.`);
     // Through drawCards, NOT addToHand — that is the documented trap. Foresee
     // once bypassed the Lex guard by calling addToHand directly, and a redraw
     // reaching into the pile itself would repeat it.
-    this.drawCards(owner, 1);
+    // The trick side has no drawCards equivalent; addToTrickHand IS the one
+    // door (it stamps the id the tray's data-trick-id handler needs, and it
+    // honours maxTrickHandSize).
+    if (isTrick) {
+      const def = _pile.pop();
+      if (def) this.addToTrickHand(owner, { ...def, id: nextCardId++ });
+    } else {
+      this.drawCards(owner, 1);
+    }
     return true;
   },
 
@@ -1719,9 +1766,14 @@ const Game = {
     if (reason) { this._redrawRefused(reason); return false; }
     // Resolve against the SEAT's own hand — a card id off the wire must never
     // be trusted to be the object the host is holding.
-    const idx = (seat.hand || []).findIndex(c => c && c.id === card.id);
-    if (idx < 0) return false;
-    const live = seat.hand[idx];
+    let idx = (seat.hand || []).findIndex(c => c && c.id === card.id);
+    let isTrick = false, live = null;
+    if (idx >= 0) { live = seat.hand[idx]; }
+    else {
+      idx = (seat.trickHand || []).findIndex(t => t && t.id === card.id);
+      if (idx < 0) return false;
+      isTrick = true; live = seat.trickHand[idx];
+    }
     const cost = this.getRedrawCost(null, seatKey);
     const side = this._2v2TeamSide[seat.team];
     // Inside the bridge: drawCards then pulls from the shared 2v2 pile (not the
@@ -1731,7 +1783,18 @@ const Game = {
       p.currency -= cost;
       if (this.state._stats && this.state._stats[side]) this.state._stats[side].energySpent += cost;
       // Discard BEFORE drawing — drawCards refuses a hand already at max, so
-      // the other order spends the energy and hands back nothing.
+      // the other order spends the energy and hands back nothing. Same order on
+      // the trick side, where addToTrickHand carries the identical cap.
+      if (isTrick) {
+        // Inside the bridge s.trickDrawPile IS tt.trickDrawPile, so getTrickPile
+        // reaches the shared 2v2 pile rather than the empty 1v1 one.
+        const t2 = p.trickHand.indexOf(live);
+        if (t2 > -1) p.trickHand.splice(t2, 1);
+        const tPile = this.getTrickPile(side) || [];
+        const tDef = tPile.pop();
+        if (tDef) this.addToTrickHand(side, { ...tDef, id: nextCardId++ });
+        return;
+      }
       const i2 = p.hand.indexOf(live);
       if (i2 > -1) p.hand.splice(i2, 1);
       p.discardPile.push({
@@ -1758,7 +1821,7 @@ const Game = {
     // Woman"), and seatKey is stable across clients where a side is not.
     this.logEither(seatKey,
       `${seat.name || seatKey} redraws ${live.name} for ${cost} Energy (next redraw: ${this.getRedrawCost(null, seatKey)}).`,
-      `${seat.name || seatKey} redraws a card for ${cost} Energy.`);
+      `${seat.name || seatKey} redraws a ${isTrick ? 'trick' : 'card'} for ${cost} Energy.`);
     if (typeof UI !== 'undefined' && UI.render) UI.render();
     this._pushOnlineState();
     return true;
@@ -2514,8 +2577,11 @@ const Game = {
           // Guest asked to redraw. Resolve the id against THAT seat's hand so a
           // guest cannot name a card it does not hold, then run the normal
           // path — which re-checks phase, cost and Lex before spending anything.
-          const rHand = (this.state[actor] && this.state[actor].hand) || [];
-          const rCard = rHand.find(c => c && c.id === msg.cardId);
+          // Hand OR trick hand — a redraw can bin either, and an id that
+          // matched neither is simply not that seat's to spend.
+          const rSeat = this.state[actor] || {};
+          const rCard = ((rSeat.hand || []).find(c => c && c.id === msg.cardId))
+                     || ((rSeat.trickHand || []).find(t => t && t.id === msg.cardId));
           if (rCard) this.redrawCard(actor, rCard);
           break;
         }

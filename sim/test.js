@@ -9227,6 +9227,86 @@ test("Ant-Man still summons when there is nothing to destroy", function () {
   assertEq(ants, 1, 'and it actually reaches the board');
 });
 
+// ============================================================
+// REDRAW COVERS TRICKS
+// ------------------------------------------------------------
+// The pick used to be resolved against p.hand alone, so a trick handed to
+// redrawCard fell through the guard and returned false — silently. The owner
+// asked for tricks to be offered by the redraw prompt with the same gold
+// highlight the hand cards get, which only works if the engine can actually
+// bin one. Cards and tricks go back to, and draw from, their OWN piles.
+// ============================================================
+test('Redraw swaps a TRICK for a new one from the trick pile', function () {
+  var G = freshGame();
+  G.state.phase = 'player-tricks';
+  G.state.player.currency = 8;
+  var keepCard = G.createCardInstance(cardByName('Catwoman'), 'player');
+  G.state.player.hand = [keepCard];
+  G.getDrawPile('player').push(cardByName('Hawkeye'));
+
+  var doomed = Object.assign({}, TRICK_DEFS[0], { id: 90001 });
+  var other  = Object.assign({}, TRICK_DEFS[1], { id: 90002 });
+  G.state.player.trickHand = [doomed, other];
+  var replacement = TRICK_DEFS[2];
+  G.getTrickPile('player').push(replacement);
+  var beforeTricks = G.state.player.trickHand.length;
+  var beforePile   = G.getTrickPile('player').length;
+
+  var ok = G.redrawCard('player', doomed);
+  assertEq(ok, true, 'redrawing a trick succeeds');
+  assertEq(G.state.player.currency, 6, 'spends the same 2 energy the card redraw does');
+  assertEq(G.state.player.trickHand.length, beforeTricks, 'trick hand size unchanged: one out, one in');
+  assertEq(G.state.player.trickHand.indexOf(doomed), -1, 'the redrawn trick leaves the trick hand');
+  assertEq(G.state.player.trickHand.some(function (t) { return t.name === replacement.name; }), true,
+    'and the replacement came off the TRICK pile');
+  assertEq(G.getTrickPile('player').length, beforePile - 1, 'trick pile drops by exactly one');
+  assertEq(G.state.player.hand.length, 1, 'the card hand is untouched');
+  assertEq(G.state.player.redrawsUsed, 1, 'counter increments, so the next one costs 4');
+
+  // A binned trick was never PLAYED — it must not show up in the round recap's
+  // "tricks played" readout.
+  assertEq((G.state.player.playedTrickPile || []).some(function (t) { return t.name === doomed.name; }), false,
+    'a binned trick is not recorded as played');
+});
+
+test('Redraw stays available when only TRICKS are left to replace', function () {
+  var G = freshGame();
+  G.state.phase = 'player-tricks';
+  G.state.player.currency = 8;
+  G.state.player.hand = [];                       // no cards at all
+  G.state.player.trickHand = [Object.assign({}, TRICK_DEFS[0], { id: 90003 })];
+  G.getTrickPile('player').push(TRICK_DEFS[1]);
+  assertEq(G.redrawBlockedReason('player'), null,
+    'an empty card hand no longer refuses a redraw when a trick can still be swapped');
+
+  // ...and the mirror: nothing on either side is still a refusal.
+  var G2 = freshGame();
+  G2.state.phase = 'player-tricks';
+  G2.state.player.currency = 8;
+  G2.state.player.hand = [];
+  G2.state.player.trickHand = [];
+  assertEq(G2.redrawBlockedReason('player'), 'Nothing to redraw', 'empty hand AND empty tricks refuses');
+});
+
+test('Redraw refuses a trick whose own pile is empty, without spending anything', function () {
+  var G = freshGame();
+  G.state.phase = 'player-tricks';
+  G.state.player.currency = 8;
+  // A full CARD pile must not let a trick redraw run on an empty trick pile —
+  // the gate only knows one of the two has stock; redrawCard decides which.
+  G.state.player.hand = [G.createCardInstance(cardByName('Catwoman'), 'player')];
+  G.getDrawPile('player').push(cardByName('Hawkeye'));
+  var stuck = Object.assign({}, TRICK_DEFS[0], { id: 90004 });
+  G.state.player.trickHand = [stuck];
+  G.getTrickPile('player').length = 0;
+
+  assertEq(G.redrawBlockedReason('player'), null, 'the button is live — the card side still has stock');
+  assertEq(G.redrawCard('player', stuck), false, 'but the trick pick itself is refused');
+  assertEq(G.state.player.currency, 8, 'no energy spent');
+  assertEq(G.state.player.trickHand.length, 1, 'and the trick is still in hand');
+  assertEq(G.state.player.redrawsUsed | 0, 0, 'the counter did not move, so the price did not go up');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

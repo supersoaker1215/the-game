@@ -13083,6 +13083,13 @@ const UI = {
     if (s.player && s.player.hand) {
       s.player.hand.forEach(c => { if (c && c.id !== undefined) visibleIds.add(c.id); });
     }
+    // The player's TRICK tray is on screen beside the hand and renderPlayerTricks
+    // now paints .target-highlight on its options, so a trick option is already
+    // pickable in place — listing it here keeps the redundant floating tray from
+    // opening over the board the moment a prompt includes one.
+    if (s.player && s.player.trickHand) {
+      s.player.trickHand.forEach(t => { if (t && t.id !== undefined) visibleIds.add(t.id); });
+    }
     // AI hand cards are NOT visible to the human player, so don't include
     // them — otherwise revealed/stolen AI cards (Lasso of Truth, Deadpool)
     // get filtered out and the choice tray never renders.
@@ -28228,6 +28235,16 @@ const UI = {
 
   renderPlayerTricks(s) {
     this.playerTricks.innerHTML = '';
+    // A pending card choice can name TRICKS as options (the redraw does). Those
+    // wear the same gold .target-highlight the hand and board already use, and
+    // take the pick handler INSTEAD of the play/inspect wiring — otherwise the
+    // affordability branch below dims them exactly when they are the thing
+    // being asked for. inlineTray prompts are excluded for the same reason the
+    // hand excludes them: the tray is the interactive copy there.
+    const _cc = s.pendingCardChoice;
+    const _ccMine = !!(_cc && Game.promptIsMine(_cc, 'card') && !_cc.inlineTray);
+    const _ccIds = new Set();
+    if (_ccMine) (_cc.cards || []).forEach(c => { if (c && c.id !== undefined) _ccIds.add(String(c.id)); });
     const canTrick = this.canPlayerPlayTricks(s);
     const playerActive = s.phase && s.phase.startsWith('player-') && !s.gameOver;
     // Clear stale selection if the trick is no longer in hand
@@ -28284,6 +28301,16 @@ const UI = {
       <div class="cf-band-diag" aria-hidden="true"></div>
       <div class="cf-cut-tl" aria-hidden="true"></div>
       `;
+
+      if (_ccMine && trick.id != null && _ccIds.has(String(trick.id))) {
+        el.classList.add('target-highlight');
+        const _pickIdx = _cc.cards.findIndex(c => c && String(c.id) === String(trick.id));
+        // Property assignment, not addEventListener — same reason the hand gives:
+        // a reused element would otherwise stack a fresh handler every render.
+        el.onclick = () => cardChoicePick(_pickIdx);
+        this.playerTricks.appendChild(el);
+        return;
+      }
 
       const isAnytime = !!trick.anytime;
       // A trick countered by Time Stone this round is frozen — visibly
@@ -30696,7 +30723,15 @@ const UI = {
     const _seat = (_tt && Game.is2v2 && Game.is2v2() && _tt.players) ? _tt.players[_tt.you] : null;
     const _side = _seat ? (this._2v2LocalSide() || 'player') : 'player';
     const hand = ((_seat ? _seat.hand : s.player.hand) || []).slice();
-    if (!hand.length) return;
+    // TRICKS ARE REDRAWABLE TOO. A dead trick is as dead as a dead card, and
+    // the engine now bins either and draws a replacement from that item's own
+    // pile. They go on the END of the list so a hand card's index is unchanged
+    // — the tray, the hand render and cardChoicePick all index into this exact
+    // array. (Owner: "for tricks as well it should do the yellow, the peacmaker
+    // highlight is perfect.")
+    const tricks = ((_seat ? _seat.trickHand : s.player.trickHand) || []).slice();
+    const options = hand.concat(tricks);
+    if (!options.length) return;
     const cost = Game.getRedrawCost('player');
     // ONE CARD IS NOT A CHOICE. Asking "which card do you want to bin?" about a
     // single card routed a non-question through the whole prompt system —
@@ -30705,16 +30740,16 @@ const UI = {
     // player. (User: "trying to redraw my only card in hand and it gives me the
     // notice but never lets me do it.") Nothing here is a decision, so nothing
     // here needs a prompt: bin it and draw.
-    if (hand.length === 1) {
-      const only = hand[0];
+    if (options.length === 1) {
+      const only = options[0];
       if (_seat) Game.redrawCard(_side, only, _tt.you);
       else Game.submitCommand({ type: 'redraw', payload: { card: only } });
       this.render();
       return;
     }
     if (_seat) {
-      Game.promptCardChoice(_side, hand, 'Redraw',
-        `Choose a card to bin and replace — ${cost} Energy`,
+      Game.promptCardChoice(_side, options, 'Redraw',
+        `Choose a card or trick to replace for ${cost} Energy`,
         (card) => {
           if (!card) return;
           Game.redrawCard(_side, card, _tt.you);
@@ -30728,8 +30763,8 @@ const UI = {
         { localOnly: true, inlineTray: true, seat: _tt.you });
       return;
     }
-    Game.promptCardChoice('player', hand, 'Redraw',
-      `Choose a card to bin and replace — ${cost} Energy`,
+    Game.promptCardChoice('player', options, 'Redraw',
+      `Choose a card or trick to replace for ${cost} Energy`,
       (card) => {
         if (!card) return;
         Game.submitCommand({ type: 'redraw', payload: { card } });
