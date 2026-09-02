@@ -40956,6 +40956,8 @@ body.in-match .lane {
    screenshot, not inside a drawn one. Twice re-read as a styling defect and
    twice made MORE circular before the plain reading landed. */
 :root { --hand-meter-w: 40px; --hand-col-w: 54px; }
+/* One knob for the card frame's minimum stroke — see the note on .card. */
+:root { --cf-stroke-min: 1.6px; }
 /* THE LEFT MARGIN IS A COLUMN OF THREE. Readout on top, then the ♪ hand-audio
    toggle, then redraw — the order the owner drew them in, arrows running from
    the bottom bar down into this margin. Right-aligned as one edge so the three
@@ -43950,7 +43952,21 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    sets --chamfer / --band-outer / --cf-stroke. */
 .card {
   --cf-inset:  calc(var(--card-w) * 0.0343);
-  --cf-stroke: calc(var(--card-w) * 0.00571);
+  /* FLOORED, because the ratio was authored against a card two to three times
+     the size the game actually renders. The ladder's reading width is 250-350px,
+     where these ratios give a 1.5-1.9px stroke; the board tile is 126px wide and
+     a hand card 110px, so the same ratios resolved to 0.836px and 0.625px — under
+     one CSS pixel, which antialiases across two device rows at partial alpha and
+     reads as a grey hairline rather than a lit edge. (Owner: "for the cards the
+     border is too thin.") max() keeps the proportional rule wherever the card is
+     big enough to earn it and holds the designed weight everywhere else.
+     NOT the .cf-edge::after core ring, which would have been the other half of
+     this: that pseudo sits one stroke further in, i.e. exactly inside the hole
+     its PARENT's clip-path punches, and a parent clip-path clips its
+     descendants. Forced to 4px on a live board card it changed nothing on
+     screen. It is inert on every in-match surface and reviving it is a separate
+     job, not a side effect of making the stroke visible. */
+  --cf-stroke: max(var(--cf-stroke-min, 1.6px), calc(var(--card-w) * 0.00571));
   --chamfer:   calc(var(--card-w) * 0.080);
   --band-box:  calc(var(--card-w) * 0.297);
   --band-out:  calc(var(--card-w) * 0.263);
@@ -44045,7 +44061,8 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 /* board tile takes the 250-wide column of the ladder */
 .board .card, .card.ally-card, .card.enemy-card {
   --cf-inset:  calc(var(--card-w) * 0.032);
-  --cf-stroke: calc(var(--card-w) * 0.006);
+  /* Same floor as .card — see the note there. */
+  --cf-stroke: max(var(--cf-stroke-min, 1.6px), calc(var(--card-w) * 0.006));
   --chamfer:   calc(var(--card-w) * 0.072);
   --band-box:  calc(var(--card-w) * 0.272);
   --band-out:  calc(var(--card-w) * 0.248);
@@ -44322,7 +44339,9 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .trick-card {
   --card-w:    132px;
   --cf-inset:  4px;
-  --cf-stroke: calc(var(--card-w) * 0.00571);
+  /* Floored with the cards. A trick sits in the same row as the hand, so a
+     0.75px ring beside a 1.6px one reads as a rendering fault, not a category. */
+  --cf-stroke: max(var(--cf-stroke-min, 1.6px), calc(var(--card-w) * 0.00571));
   --chamfer:   calc(var(--card-w) * 0.080);
   --band-box:  calc(var(--card-w) * 0.297);
   --band-out:  calc(var(--card-w) * 0.263);
@@ -44440,7 +44459,10 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card-inspect-modal .card.card, .fp-trick-preview .card.card {
   --card-w:    var(--read-card-w);
   --cf-inset:  calc(var(--card-w) * 0.0291);
-  --cf-stroke: calc(var(--card-w) * 0.00545);
+  /* Above the floor at the reading width (350 x 0.00545 = 1.9px), so this max()
+     changes nothing today — it is here so a smaller read size cannot fall
+     through the same hole the board tiles did. */
+  --cf-stroke: max(var(--cf-stroke-min, 1.6px), calc(var(--card-w) * 0.00545));
   --cf-core:   calc(var(--card-w) * 0.00182);
   --chamfer:   calc(var(--card-w) * 0.0618);
   --band-box:  calc(var(--card-w) * 0.2109);
