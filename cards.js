@@ -111,6 +111,12 @@ const CARD_DEFS = [
     isEnvironment: true,
     _spawnOnly: true,
     abilities: [],
+    // It never spawns anything — what it does happens entirely to the cards
+    // standing OPPOSITE it, so that is the half its picture belongs on. Owner,
+    // watching a room on their own half chain the card above it: "if thr
+    // bathroom is on my side my cards are gtting chained becasue im in the
+    // bathroom." The rule is unchanged; the picture moved to where it applies.
+    actsOnOpponentSide: true,
     desc: "While Active: The next 2 enemy cards to enter this lane take (−2/−2) and are Chained — if moved they lose (−2/−2). The room drains away when the second one dies." },
   { name: "Game Over", cost: 2, attack: 0, health: 1, type: "environment",
     isEnvironment: true,
@@ -119,17 +125,16 @@ const CARD_DEFS = [
     desc: "While Active: The first enemy card to die in this lane rises on your side as a (2/2), as if newly played. An ally in that lane moves to an empty lane to make room. Game Over is then spent." },
   { name: "Enclosure", cost: 2, attack: 0, health: 1, type: "environment",
     _spawnOnly: true,
-    // WHERE THE MONSTER LANDS. Every other habitat surfaces its monster on the
-    // side that owns it; the T-Rex breaks OUT of the paddock and joins the
+    // WHICH HALF THIS ROOM ACTS ON. Every other habitat's monster surfaces for
+    // the side that owns it; the T-Rex breaks OUT of the paddock and joins the
     // opponent, against whoever stopped paying. One declaration, read twice:
     // releaseHabitatMonster puts the T-Rex on that side, and the lane backdrop
-    // paints the environment's picture on that same half, because the picture
-    // should be where the thing inside it comes out. (Owner: "the t rex breaks
-    // out of the enclousre so he spawns on the enviroment so the enviroment
-    // would be opposite the player … same with wetlands, the enemy spino spawns
-    // in the envirmonet so if your facing him the enviroment is on the enemy
-    // side.") */
-    spawnsOnOpponentSide: true,
+    // paints the picture on that same half, because the picture should be where
+    // the room's business happens. (Owner: "the t rex breaks out of the
+    // enclousre so he spawns on the enviroment so the enviroment would be
+    // opposite the player … same with wetlands, the enemy spino spawns in the
+    // envirmonet so if your facing him the enviroment is on the enemy side.")
+    actsOnOpponentSide: true,
     // isEnvironment, NOT just type:"environment". They are not the same flag:
     // `type` is what the codex sorts on, `isEnvironment` is what the ENGINE
     // reads — playCard's env-slot branch, canPlaceEnvironment, cleanupDead's

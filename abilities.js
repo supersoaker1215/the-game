@@ -95,13 +95,13 @@ function releaseHabitatMonster(G, o) {
   // gets out is the OPPONENT's problem.
   // READ FROM THE CARD, not passed in. The lane backdrop paints an
   // environment's picture on the half its monster lands on, so the direction
-  // has to be one declaration both of them read — spawnsOnOpponentSide on the
+  // has to be one declaration both of them read — actsOnOpponentSide on the
   // def — rather than an `into` argument here that the renderer would have to
   // duplicate by name. `into` is still honoured for a caller that genuinely
   // needs to override it; everything else in here still belongs to `owner`,
   // including the env slot being handed back.
   const side = o.into
-    || ((o.habitat && o.habitat.spawnsOnOpponentSide) ? G.opponent(owner) : owner);
+    || ((o.habitat && o.habitat.actsOnOpponentSide) ? G.opponent(owner) : owner);
   const laneIdx = o.laneIdx;
   const lane = G.state && G.state.lanes && G.state.lanes[laneIdx];
   if (!lane) return;
@@ -8023,7 +8023,7 @@ const CARD_ABILITIES = {
     _release(G, owner, laneIdx, habitat) {
       releaseHabitatMonster(G, {
         owner, laneIdx, habitat,
-        // No `into` — the direction lives on the card (spawnsOnOpponentSide),
+        // No `into` — the direction lives on the card (actsOnOpponentSide),
         // so the release and the lane backdrop read the same declaration.
         // REPLACED, NOT KEPT. Its own text says the T-Rex is released HERE and
         // says nothing about the paddock outliving him — unlike Wetlands, which

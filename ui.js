@@ -23613,7 +23613,7 @@ const UI = {
             const p = this._envArtBackground(env);
             if (half.style.background !== p) half.style.background = p;
           };
-          // WHICH HALF an environment paints on is where its MONSTER LANDS —
+          // WHICH HALF an environment paints on is where its business HAPPENS —
           // "the t rex breaks out of the enclousre so he spawns on the
           // enviroment", and the mirror for Wetlands, "the enemy spino spawns
           // in the envirmonet so if your facing him the enviroment is on the
@@ -23626,7 +23626,7 @@ const UI = {
           const _halves = { top: null, bottom: null };
           [envAi, envPl].forEach(env => {
             if (!env) return;
-            const lands = env.spawnsOnOpponentSide ? Game.opponent(env.owner) : env.owner;
+            const lands = env.actsOnOpponentSide ? Game.opponent(env.owner) : env.owner;
             _halves[lands === 'ai' ? 'top' : 'bottom'] = env;
           });
           paintHalf('top', _halves.top);

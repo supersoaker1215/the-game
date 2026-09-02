@@ -9407,23 +9407,48 @@ test('Refusing on the final round still lets the T-Rex out', function () {
   assertEq(G.state.lanes[1]._env.player, null, 'and the paddock is spent');
 });
 
-test('An environment declares where its monster lands, and the flag survives instancing', function () {
-  // The lane backdrop paints an environment's picture on the half its MONSTER
-  // lands on — owner: "the t rex breaks out of the enclousre so he spawns on
-  // the enviroment", and the mirror for Wetlands. releaseHabitatMonster reads
-  // the same flag to decide where to put the monster, so the two cannot
-  // disagree. The renderer reads it off the INSTANCE, and createCardInstance
-  // builds from an explicit literal, so a def-only flag would arrive undefined.
-  assertEq(cardByName('Enclosure').spawnsOnOpponentSide, true, "the T-Rex breaks out onto the opponent's side");
-  ['Boiler Room', 'Sewers', 'Open Water', 'The Bathroom', 'Game Over', 'Wetlands'].forEach(function (n) {
-    assertEq(!!cardByName(n).spawnsOnOpponentSide, false, n + ' surfaces its monster for its owner');
+test('An environment declares which half it acts on, and the flag survives instancing', function () {
+  // The lane backdrop paints an environment's picture on the half its business
+  // happens on. For the five habitats with a monster that is where the monster
+  // surfaces — owner: "the t rex breaks out of the enclousre so he spawns on
+  // the enviroment", and the mirror for Wetlands — and releaseHabitatMonster
+  // reads the SAME flag to place it, so the two cannot disagree. The Bathroom
+  // has no monster at all: everything it does happens to the cards standing
+  // opposite it, so it is flagged too. The renderer reads it off the INSTANCE,
+  // and createCardInstance builds from an explicit literal, so a def-only flag
+  // would arrive undefined there.
+  assertEq(cardByName('Enclosure').actsOnOpponentSide, true, "the T-Rex breaks out onto the opponent's side");
+  assertEq(cardByName('The Bathroom').actsOnOpponentSide, true, 'the room chains the cards opposite it');
+  ['Boiler Room', 'Sewers', 'Open Water', 'Game Over', 'Wetlands'].forEach(function (n) {
+    assertEq(!!cardByName(n).actsOnOpponentSide, false, n + ' surfaces its monster for its owner');
   });
 
   var G = freshGame();
   var gate = G.createCardInstance(cardByName('Enclosure'), 'player');
   var room = G.createCardInstance(cardByName('Boiler Room'), 'player');
-  assertEq(gate.spawnsOnOpponentSide, true, 'the flag reaches the instance');
-  assertEq(room.spawnsOnOpponentSide, false, 'and is false, not undefined, on the rest');
+  assertEq(gate.actsOnOpponentSide, true, 'the flag reaches the instance');
+  assertEq(room.actsOnOpponentSide, false, 'and is false, not undefined, on the rest');
+});
+
+test('The Bathroom chains the cards OPPOSITE it, never its owner\'s', function () {
+  // Reported as "if thr bathroom is on my side my cards are gtting chained".
+  // The engine was already right — this pins it, because the fix was to move
+  // the PICTURE onto the half the room acts on, and a later change to that
+  // picture must not be mistaken for permission to change the rule.
+  var G = freshGame();
+  var room = G._placeEventEnvironment('player', 2, 'The Bathroom');
+  assertEq(room.owner, 'player', 'the room is mine');
+
+  var mine = G.createCardInstance(cardByName('Sabertooth'), 'player');
+  G.state.lanes[2].player = mine;
+  room.onAnyCardPlayed(G, room);
+  assertEq(!!mine._chained, false, 'my own card walks in untouched');
+  assertEq(mine.attack, cardByName('Sabertooth').attack, 'and keeps its ATK');
+
+  var theirs = G.createCardInstance(cardByName('Sabertooth'), 'ai');
+  G.state.lanes[2].ai = theirs;
+  room.onAnyCardPlayed(G, room);
+  assertEq(theirs._chained, true, 'theirs is the one it takes');
 });
 
 test('The release reads the spawn side off the card, with no `into` argument', function () {
