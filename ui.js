@@ -2313,6 +2313,12 @@ const UI = {
       // cap is 1.5s, which would cut a hypnotic sweep in half. See the maxDur
       // handling in playEffect below.
       mindControl: { src: 'audio/effects/mind-control.mp3', maxDur: 3 },
+      // Jurassic Park event fanfare — the "Welcome to Jurassic Park" line, fired
+      // once from _announceHabitatEvent when that franchise's event (Wetlands or
+      // Enclosure) appears. maxDur is generous so the whole line plays out; it
+      // is a marquee announcement, not a one-shot tick. (Owner supplied the clip
+      // and asked for it on the Jurassic Park event.)
+      jurassicWelcome: { src: 'audio/jurassic-welcome.mp3', maxDur: 12 },
       buff:        null,
       debuff:      null,
       summon:      null,

@@ -5891,9 +5891,13 @@ body.hit-pause .ai-hand * {
      lane gaps + outer padding instead of pure black. Fully static (no
      per-frame cost) so it can't reintroduce the perf regression that forced
      the animated motes off. */
+  /* Ambient floor lift raised (was rgba(40,72,108,0.10)/#000): a pure-black
+     arena read as "super dark" and gave the cards no field to sit against.
+     A slightly stronger center glow and a near-black navy base — not pure
+     #000 — let the cards stand out without turning the mood grey. */
   background:
-    radial-gradient(135% 100% at 50% 48%, rgba(40,72,108,0.10) 0%, rgba(8,14,24,0.05) 42%, #000 74%),
-    #000000;
+    radial-gradient(135% 100% at 50% 48%, rgba(48,86,128,0.16) 0%, rgba(12,20,34,0.10) 42%, #04070e 78%),
+    #04070e;
   /* No top/bottom border — the banners already carry those edges. Duplicating
      them created a 2px dead stripe where the colors abut. */
   border-top: none;
@@ -5922,7 +5926,10 @@ body.hit-pause .ai-hand * {
      others don't restyle/relay. paint containment is omitted (cards
      can overflow lane edges during animations). */
   contain: layout style;
-  background: #000000;
+  /* Transparent, not pure #000, so the board-section's ambient navy lift shows
+     through empty lanes instead of a black void — part of lifting the "super
+     dark" board without touching the lane frame/occupancy glows. */
+  background: transparent;
   /* Left/right only — no top/bottom borders. The red AI banner's bottom edge
      IS the top of every lane; the blue player banner's top edge IS the bottom
      of every lane. One shared circuit: the vertical white lane borders are
@@ -31055,12 +31062,17 @@ body.combat-anticipate::after  { content: none !important; }
        card at the art's bottom edge. That line was the "separation point"
        between art and card. Removed tile-scoped first; moved here so the
        codex, draft, deck-builder and every modal lose it too. */
-    /* Soft inner vignette — edges feather into card body */
-    inset 0 0 18px 4px rgba(0, 0, 0, 0.55);
+    /* Soft inner vignette — edges feather into card body. Softened from
+       0.55/18px/4px: on a pure-black board the heavy scrim swallowed the edges
+       of the painting and, stacked with the brightness grade below, made cards
+       hard to read (owner: "the board is super dark ... hard to see the cards").
+       Still feathers into the card body, just no longer eats the art. */
+    inset 0 0 14px 2px rgba(0, 0, 0, 0.38);
 
-  /* Slight desaturation in rest state — reads as embedded into the
-     card surface rather than a bright sticker on top. */
-  filter: saturate(0.94) brightness(0.97) brightness(var(--art-grade, 1));
+  /* Rest-state grade. Brightness lifted 0.97 -> 1.06 so board cards read
+     brighter against the near-black arena; art-grade per-image tuning still
+     rides on top. */
+  filter: saturate(0.96) brightness(1.06) brightness(var(--art-grade, 1));
   transition: filter 200ms var(--ease-out-soft);
 }
 

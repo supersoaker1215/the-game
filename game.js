@@ -4797,15 +4797,48 @@ const Game = {
       const askText    = q.promptDesc || (optional
         ? 'Pay 1 Energy to pull all enemies 1 lane closer, or skip.'
         : 'Pay 1 Energy to keep it active, or let it collapse.');
-      if (!this.isHuman(owner)) {
+      // 2v2 seat/energy plumbing. In 1v1 the toll is drawn from the owning
+      // SIDE's currency and a human side is prompted. In 2v2 a side is two
+      // people with two separate energy pools, so the toll is paid by the SEAT
+      // that actually owns the habitat (_2v2EnergySeatFor reads _2v2PlayedBy),
+      // from that seat's own energy, and a human seat's prompt is routed to it
+      // via { seat }. Without this the whole upkeep queue never even ran in 2v2
+      // (start2v2Round never drained it) so the Enclosure just sat on the board
+      // never asking for the Park toll. (Owner, host + 3 AI online: "when the
+      // jurassic park enclosure happens i never have a prompt to pay energy.")
+      const in2v2 = !!(this.is2v2 && this.is2v2());
+      let seat = in2v2 ? this._2v2EnergySeatFor(card, owner) : null;
+      // The Enclosure is placed by the Jurassic Park EVENT, not played by a
+      // seat, so it carries no _2v2PlayedBy and _2v2EnergySeatFor falls back to
+      // the first slot on the side — which can be a bot even when a human on
+      // that side should be the one deciding the toll. Prefer a human seat on
+      // the owning side so the gate is a real choice instead of a silent
+      // auto-pay. (Owner, host + 3 AI online, never saw the pay prompt.)
+      if (in2v2 && seat && this._2v2SeatIsAI(seat) && this.state.twoVTwo) {
+        const human = this._2v2SLOTS.find(pk => {
+          const p = this.state.twoVTwo.players[pk];
+          return p && !p.isAI && this._2v2SeatOnSide(pk, owner);
+        });
+        if (human) seat = human;
+      }
+      const seatPlayer = (seat && this.state.twoVTwo) ? this.state.twoVTwo.players[seat] : null;
+      const availEnergy = () => seatPlayer
+        ? Math.max(0, (seatPlayer.energy || 0) - (seatPlayer.usedEnergy || 0))
+        : (this.state[owner].currency || 0);
+      const spendEnergy = () => {
+        if (seatPlayer) seatPlayer.usedEnergy = (seatPlayer.usedEnergy || 0) + 1;
+        else this.state[owner].currency -= 1;
+      };
+      const payerIsHuman = seat ? !this._2v2SeatIsAI(seat) : this.isHuman(owner);
+      if (!payerIsHuman) {
         // AI always auto-pays if it can afford. Correct for both optional
         // upkeeps: Gargantua's pull is pure upside, and the Enclosure's toll
         // buys off a T-Rex pointed at you. Note the consequence rather than a
         // bug — energy is refilled at the top of the round, above, BEFORE this
         // runs, so a bot can always find the 1 and its gate never opens on its
         // own. The Enclosure's decision was always the human's to make.
-        if (this.state[owner].currency >= 1) {
-          this.state[owner].currency -= 1;
+        if (availEnergy() >= 1) {
+          spendEnergy();
           if (queue[idx].onPay) queue[idx].onPay();
         } else if (optional) {
           if (queue[idx].onDecline) queue[idx].onDecline();
@@ -4817,7 +4850,7 @@ const Game = {
         next(); return;
       }
       // Can't afford — optional upkeep just skips; mandatory collapses.
-      if (this.state[owner].currency < 1) {
+      if (availEnergy() < 1) {
         if (optional) {
           if (queue[idx].onDecline) queue[idx].onDecline();
           next(); return;
@@ -4838,7 +4871,7 @@ const Game = {
         askText,
         (picked) => {
           if (picked && picked._upkeepPay) {
-            this.state[owner].currency -= 1;
+            spendEnergy();
             this.log(`[UPKEEP] You pay 1 Energy — ${label || card.name} activates.`);
             if (queue[idx].onPay) queue[idx].onPay();
           } else if (optional) {
@@ -4856,7 +4889,9 @@ const Game = {
         // An unanswered prompt pays. Letting a timeout hand the opponent a T-Rex
         // (or drop Gargantua's pull) would make the clock, not the player, the
         // one deciding.
-        (choices) => choices.find(c => c._upkeepPay) || choices[0]
+        (choices) => choices.find(c => c._upkeepPay) || choices[0],
+        // Route a 2v2 prompt to the seat that owns the habitat.
+        seat ? { seat } : undefined
       );
     };
     processNext(0);
@@ -7976,7 +8011,7 @@ const Game = {
       chip -= attacker.armorValue;
     }
     if (this.yodaShieldCount(attacker.owner) > 0) {
-      chip = Math.ceil(chip / 2);
+      chip = this.yodaHalve(attacker.owner, chip);
       if (chip <= 0) return;
     }
     attacker.currentHealth -= chip;
@@ -8242,7 +8277,7 @@ const Game = {
     }
     // Yoda shield — target's side takes half combat damage (rounded up)
     if (this.yodaShieldCount(target.owner) > 0 && dmg > 0) {
-      const halved = Math.ceil(dmg / 2);
+      const halved = this.yodaHalve(target.owner, dmg);
       say(`  [YODA SHIELD] ${target.name} takes half damage (${dmg} → ${halved})`);
       dmg = halved;
     }
@@ -8622,7 +8657,7 @@ const Game = {
     if (amount <= 0) return;
     // Yoda shield — hero health takes half damage (rounded up)
     if (this.yodaShieldCount(owner) > 0) {
-      amount = Math.ceil(amount / 2);
+      amount = this.yodaHalve(owner, amount);
       if (amount <= 0) return;
     }
     const p = this.state[owner];
@@ -11357,7 +11392,7 @@ const Game = {
     if (this._absorbsDamage(card, amount, source)) return;
     // Yoda shield — allies take half damage (rounded up) while Yoda is active
     if (this.yodaShieldCount(card.owner) > 0) {
-      amount = Math.ceil(amount / 2);
+      amount = this.yodaHalve(card.owner, amount);
       if (amount <= 0) return;
     }
     // Taunt intercept — taunter ate the hit, so the prevention here is
@@ -11875,6 +11910,18 @@ const Game = {
       if (c && c.currentHealth > 0 && c.passive === 'yodaShield') n++;
     }
     return n;
+  },
+
+  // Yoda's Force shield halves incoming damage (rounded up) — and it STACKS:
+  // two Yodas on a side halve it twice (a quarter), three halve three times,
+  // and so on. Owner: "if there are 2 yodas ... his passive is half damage it
+  // should do that twice." Every damage path that used to write
+  // `Math.ceil(x / 2)` behind a `yodaShieldCount(owner) > 0` guard routes
+  // through here so the per-Yoda stacking is applied once, in one place.
+  yodaHalve(owner, amount) {
+    let n = this.yodaShieldCount(owner);
+    while (n-- > 0 && amount > 0) amount = Math.ceil(amount / 2);
+    return amount;
   },
 
   // GENERAL GRIEVOUS — same treatment, same reason. Is `owner`'s Block Meter
@@ -14917,7 +14964,7 @@ const Game = {
     }
 
     if (this.yodaShieldCount(card.owner) > 0) {
-      amount = Math.ceil(amount / 2);
+      amount = this.yodaHalve(card.owner, amount);
       if (amount <= 0) return true;
     }
     card.currentHealth -= amount;
@@ -16792,8 +16839,15 @@ const Game = {
              : (typeof window !== 'undefined' && window.EVENT_FRANCHISES) ? window.EVENT_FRANCHISES : [];
     let title = 'Event';
     FR.forEach(fr => (fr.events || []).forEach(ev => { if (ev.name === h.name) title = fr.title; }));
+    // The Jurassic Park event (Wetlands or Enclosure) gets its own fanfare — the
+    // "Welcome to Jurassic Park" line, fired the moment the reveal panel shows.
+    // Owner supplied the clip and asked for it on this event specifically.
+    const isJurassic = (title === 'Jurassic Park');
+    const opts = isJurassic ? { onShow: () => {
+      try { if (UI.sfx && UI.sfx.playEffect) UI.sfx.playEffect('jurassicWelcome'); } catch (e) {}
+    } } : undefined;
     try {
-      UI.showCardReveal(name, def.desc || '', def.cost, true, title.toUpperCase());
+      UI.showCardReveal(name, def.desc || '', def.cost, true, title.toUpperCase(), opts);
     } catch (e) { /* an announcement must never be able to stop the event */ }
   },
 
@@ -17929,7 +17983,7 @@ const Game = {
       if (absorb) { if (absorb === 'evade') tgt.evadeCharges--; return 0; }
       let dmg = raw;
       // Yoda shield — target's side takes half combat damage (rounded up).
-      if (this.yodaShieldCount(tgt.owner) > 0) dmg = Math.ceil(dmg / 2);
+      if (this.yodaShieldCount(tgt.owner) > 0) dmg = this.yodaHalve(tgt.owner, dmg);
       // Palpatine passive — a frozen target takes DOUBLE damage when the
       // attacker's side fields an active doubleFrozenDamage card.
       if (tgt.isFrozen && attacker && this.getAllCardsOf(attacker.owner).some(
@@ -18109,7 +18163,7 @@ const Game = {
       let raw;
       if (flatRaw != null) {
         raw = flatRaw | 0;
-        if (this.yodaShieldCount(final.ref.owner) > 0 && raw > 0) raw = Math.ceil(raw / 2);
+        if (this.yodaShieldCount(final.ref.owner) > 0 && raw > 0) raw = this.yodaHalve(final.ref.owner, raw);
       } else {
         raw = this._computeIncomingDamage(attacker, final.ref, { silent: true }) | 0;
       }
@@ -19210,7 +19264,13 @@ const Game = {
     // resolved the previous one.
     try { this.tickStormMarks(); } catch (e) { console.error('[storm mark]', e); }
     try { this.tickRifts(); } catch (e) { console.error('[rift]', e); }
-    this._2v2StartSubPhase();
+    // Drain the per-round upkeep queue (the Enclosure's "Pay the Park" toll,
+    // Gargantua's pull) BEFORE the first seat acts — 1v1's startRound does this
+    // via _resolveUpkeepPrompts, and 2v2 was skipping it entirely, so those
+    // optional upkeeps queued by onTurnStart above never resolved and the card
+    // just sat there. The callback starts the sub-phase, so a raised prompt
+    // holds the round open until it is answered, exactly like the 1v1 path.
+    this._resolveUpkeepPrompts(() => this._2v2StartSubPhase());
   },
 
   _2v2StartSubPhase() {

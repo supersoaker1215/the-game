@@ -969,23 +969,23 @@ const TRICK_DEFS = [
 const CANDY_DEFS = [
   {
     name: "Twice Candy", cost: 0, _isCandy: true,
-    desc: "Give an ally Overdrive and +2/+2 for 1 turn.",
+    desc: "Give an ally Overdrive and +2/+2 permanently.",
     canPlay(G, owner) { return G.getAlliesOf(owner).length > 0; },
     play(G, owner) {
       const allies = G.getAlliesOf(owner).filter(a => a.currentHealth > 0);
       if (!allies.length) { G.log('Twice Candy: no ally to feed it to.'); return; }
       G.promptCardChoice(owner, allies, "Twice Candy — Sugar Rush",
-        "Choose an ally to gain Overdrive and +2/+2 for a turn",
+        "Choose an ally to gain Overdrive and +2/+2 permanently",
         (t) => {
           if (!t) return;
           if (typeof UI !== 'undefined' && UI._fxCandyTwice) { try { UI._fxCandyTwice(t); } catch (e) {} }
-          // ONE TURN, per the house rule: a buff granted to ANOTHER card with
-          // no stated duration lasts a turn. grantTempBuff takes the numeric
-          // props additively and the boolean set-and-revert, so Overdrive
-          // arrives and leaves with the stats rather than sticking forever.
-          G.grantTempBuff(t, { attack: 2, currentHealth: 2, maxHealth: 2, isOverdrive: true }, 1,
-            { name: 'Twice Candy' });
-          G.log(`Twice Candy: ${t.name} gains Overdrive and +2/+2 for a turn!`);
+          // PERMANENT (owner). Not grantTempBuff/1-turn any more: buffCard is
+          // the permanent stat path (additive, survives the round), and
+          // isOverdrive is set-and-left rather than reverted, so both the +2/+2
+          // and the Overdrive keyword stick for the rest of the match.
+          G.buffCard(t, 2, 2);
+          t.isOverdrive = true;
+          G.log(`Twice Candy: ${t.name} gains Overdrive and +2/+2 — permanently!`);
         },
         // AI: the biggest attacker gets the most out of Overdrive, since it
         // only pays out when the card kills.

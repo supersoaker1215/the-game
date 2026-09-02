@@ -6003,7 +6003,19 @@ const CARD_ABILITIES = {
       //   2. The Force shield to a DIFFERENT ally — Invincible for 1 turn.
       // Both are re-chosen every Trick phase, so clear the prior mark first.
       if (self.currentHealth <= 0) return;
-      G.getAllCardsOf(self.owner).forEach(a => { delete a._mastersApprentice; });
+      // Clear only THIS Yoda's own prior apprentice, keyed by his id. The old
+      // code wiped EVERY _mastersApprentice mark on the side first, so with two
+      // Yodas the second one's onBeforeTricks erased the first's gift and only
+      // one apprentice survived. (Owner: two Yodas from Knull "should be able to
+      // give out 2 ... masters guidance not just one".) _mastersApprenticeBy is
+      // a plain id-map so it survives the 2v2 state serialize; _mastersApprentice
+      // stays as the derived boolean every combat path already reads.
+      G.getAllCardsOf(self.owner).forEach(a => {
+        if (a._mastersApprenticeBy) {
+          delete a._mastersApprenticeBy[self.id];
+          a._mastersApprentice = Object.keys(a._mastersApprenticeBy).length > 0;
+        }
+      });
       const allies = G.getAlliesOf(self.owner)
         .filter(a => a.currentHealth > 0 && a.id !== self.id && !a.isEnvironment);
       if (!allies.length) { G.log('[YODA] No apprentice to teach — Yoda waits.'); return; }
@@ -6021,6 +6033,8 @@ const CARD_ABILITIES = {
       };
       const teach = (a) => {
         if (!a) return;
+        a._mastersApprenticeBy = a._mastersApprenticeBy || {};
+        a._mastersApprenticeBy[self.id] = true;
         a._mastersApprentice = true;
         G.log(`[YODA] ${a.name} becomes Yoda's apprentice — overkill will strike the enemy player.`);
         fx(a);
@@ -6052,8 +6066,15 @@ const CARD_ABILITIES = {
       // because yodaShieldCount reads the board. This log is the only thing
       // left, and it is gated on there being no OTHER Yoda still standing.
       if (G.yodaShieldCount(self.owner) <= 1) G.log('Yoda falls — the Force shield fades.');
-      // The apprentice's gift fades when the master falls.
-      G.getAllCardsOf(self.owner).forEach(a => { delete a._mastersApprentice; });
+      // Only THIS Yoda's apprentice loses the gift when he falls — a second
+      // Yoda still standing keeps teaching his own. Same id-keyed map as
+      // onBeforeTricks so one master's death can't cancel the other's lesson.
+      G.getAllCardsOf(self.owner).forEach(a => {
+        if (a._mastersApprenticeBy) {
+          delete a._mastersApprenticeBy[self.id];
+          a._mastersApprentice = Object.keys(a._mastersApprenticeBy).length > 0;
+        }
+      });
     }
   },
   "Darth Maul": {
@@ -7182,7 +7203,7 @@ const CARD_ABILITIES = {
       const hand = G.state[opp].hand;
       const t = targets[Math.floor(Game.rng() * targets.length)];
       let dmg = self.attack || 1;
-      if (G.yodaShieldCount(opp) > 0) dmg = Math.ceil(dmg / 2);
+      if (G.yodaShieldCount(opp) > 0) dmg = G.yodaHalve(opp, dmg);
       const curHp = t.currentHealth !== undefined ? t.currentHealth : (t.health || 0);
       t.currentHealth = Math.max(0, curHp - dmg);
       G.log(`[FREDDY] Freddy stalks ${t.name} in the enemy's hand for ${dmg}!`);
