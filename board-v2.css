@@ -3171,19 +3171,6 @@ body.board-v2 #board .card-slot.target-highlight::before {
   }
 }
 
-/* The same ownership wash in V2's palette — this board runs its own two hues
-   (#35c9ff / --or-rgb) rather than --theme-rgb, so the shade has to follow the
-   board the player is actually looking at or a "your" environment would be
-   tinted in the other design's blue. */
-body.board-v2 #board .lane-env-bg.env-own-ai::before {
-  background: linear-gradient(to bottom,
-    rgba(var(--or-rgb), 0.30) 0%,
-    rgba(var(--or-rgb), 0.16) 55%,
-    rgba(var(--or-rgb), 0) 100%);
-}
-body.board-v2 #board .lane-env-bg.env-own-player::after {
-  background: linear-gradient(to top,
-    rgba(53, 201, 255, 0.30) 0%,
-    rgba(53, 201, 255, 0.16) 55%,
-    rgba(53, 201, 255, 0) 100%);
-}
+/* (V2's palette version of the ownership wash retired with the wash itself —
+   see the note in style.css. The environment's picture only covers one half of
+   the lane now, and which half it covers is what says whose it is.) */

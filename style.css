@@ -47917,14 +47917,8 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    ("the owner wants these rooms to fill their lane"). This is a wash over it,
    not a re-crop.
    =========================================================================== */
-.lane-env-bg::before,
-.lane-env-bg::after {
-  content: '';
-  position: absolute;
-  left: 0; right: 0;
-  pointer-events: none;
-  z-index: 1;
-}
+/* (.lane-env-bg::before / ::after were the scaffolding for the two ownership
+   washes — retired with them, see the note further down.) */
 /* ===========================================================================
    THE PICTURE ONLY COVERS ITS OWNER'S HALF (2026-09-02)
    An environment belongs to ONE side — lane._env is keyed by it — but the
@@ -47941,16 +47935,15 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    is the owner's own half for five of the six habitats and the OPPONENT's for
    the Enclosure, whose T-Rex breaks out. Which is why these two are named by
    POSITION and not by side: owner and position come apart on the Enclosure, and
-   a class called .env-half-ai would be wrong there. The ownership wash below is
-   keyed to the OWNER and does not move — the picture answers "where does the
-   thing inside it come out", the wash answers "whose is it".
+   a class called .env-half-ai would be wrong there. There is no separate
+   ownership wash any more: which half carries the picture is itself the answer
+   to whose environment it is.
 
    FADED, NOT CUT. The mask runs to transparent at the midline, so the art
    dissolves into the lane's own black rather than ending on a hard edge. It
    holds full strength across the outer 62% of its half and gives up the last
    38% to the fade — enough distance that the falloff reads as depth instead of
-   as a gradient band, and it lands exactly on the centre line, where the
-   ownership wash below already ends.
+   as a gradient band, and it lands exactly on the centre line.
 
    Each half is `cover` on its OWN box, so the picture is framed for the space
    it actually occupies instead of being a cropped slice of a full-lane image.
@@ -47972,22 +47965,14 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   -webkit-mask-image: linear-gradient(to top, #000 0%, #000 62%, transparent 100%);
           mask-image: linear-gradient(to top, #000 0%, #000 62%, transparent 100%);
 }
-/* Theirs — the top half, down to the centre line. */
-.lane-env-bg.env-own-ai::before {
-  top: 0; bottom: 50%;
-  background: linear-gradient(to bottom,
-    rgba(231, 76, 60, 0.30) 0%,
-    rgba(231, 76, 60, 0.16) 55%,
-    rgba(231, 76, 60, 0) 100%);
-}
-/* Yours — the bottom half, up to the centre line. */
-.lane-env-bg.env-own-player::after {
-  top: 50%; bottom: 0;
-  background: linear-gradient(to top,
-    rgba(var(--theme-rgb, 79, 195, 247), 0.30) 0%,
-    rgba(var(--theme-rgb, 79, 195, 247), 0.16) 55%,
-    rgba(var(--theme-rgb, 79, 195, 247), 0) 100%);
-}
+/* NO OWNERSHIP WASH. .env-own-ai::before painted the top half red and
+   .env-own-player::after painted the bottom half theme-blue, answering "whose
+   environment is this" back when the ART filled the whole lane and could not
+   say. It only occupies one half now, and which half it occupies IS the answer,
+   so the wash was restating what the picture already showed — two signals for
+   one fact, on top of each other. (Owner, circling one: "i dont think we need
+   this anymore for the enviroments.") The classes are no longer stamped either;
+   see the note in renderBoard. */
 
 /* ===========================================================================
    CLASSIC'S FORECAST LOSES THE BOXES (2026-09-01)

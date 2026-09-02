@@ -23569,25 +23569,14 @@ const UI = {
           // lane — the rift is the transient of the two.
           const primary = envAi || envPl || riftEnv;
           const safeClass = 'env-' + primary.name.toLowerCase().replace(/\s+/g, '-');
-          // WHOSE ENVIRONMENT IS THIS. Owner: "when environments are on the
-          // board i want them to have a slight shade of the color of who
-          // played it so its easy to know its my environment vs the
-          // opponents." Nothing in this element carried ownership at all — the
-          // class was the art and nothing else — so a Sewers you placed and an
-          // Open Water they placed rendered identically.
-          //
-          // BOTH FLAGS, NOT THE PRIMARY'S. The backdrop above deliberately
-          // shows ONE art per lane, but `_env` is per side and both can be
-          // occupied at once — which is the normal case the moment an event
-          // mirrors one environment onto each player. So ownership is recorded
-          // as two independent flags and the wash paints each side's half of
-          // the lane, letting a contested lane read as both without needing a
-          // second backdrop element.
-          //
-          // The rift gets neither flag on purpose: it belongs to nobody.
-          envBg.className = 'lane-env-bg ' + safeClass
-            + (envAi ? ' env-own-ai' : '')
-            + (envPl ? ' env-own-player' : '');
+          // NO OWNERSHIP FLAGS. env-own-ai / env-own-player used to be stamped
+          // here to drive a coloured half-lane wash, added back when the ART
+          // filled the whole lane and so could not say whose environment it was
+          // ("i want them to have a slight shade of the color of who played
+          // it"). The picture only covers one half now, and which half is
+          // itself the answer, so the wash was restating it. (Owner, circling
+          // one: "i dont think we need this anymore for the enviroments.")
+          envBg.className = 'lane-env-bg ' + safeClass;
           // THE PICTURE SITS ON THE HALF THE ENVIRONMENT ACTS AGAINST, not the
           // half that owns it. lane._env is keyed by side, but the backdrop
           // painted a single art across the whole lane, so an enemy Open Water
