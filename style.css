@@ -40895,22 +40895,13 @@ body.in-match .lane {
   .choice-card.curse-opt .curse-bolt { animation: none; }
 }
 
-/* HAND TOOLS relocated into the bottom bar (♪ + redraw), next to the energy.
-   .hand-tools was absolutely positioned for its old home over the tricks; in a
-   bar cell it must flow inline instead. */
-/* ENERGY CELL holds the ♪ + redraw tools ALONGSIDE the energy number, so the
-   player's energy sits on the same bar as the music symbol (owner), matching
-   the AI. .hand-tools was absolutely positioned for its old home over the
-   tricks; in the bar it must flow inline. Only the PLAYER bar has tools, so the
-   player energy column is widened to fit both — the AI bar keeps the shared
-   64px energy column. */
+/* ENERGY CELL. It held the ♪ + redraw tools alongside the energy number; the
+   owner has since moved both into the hand's left margin (see .hand-meter-col),
+   so the cell carries the energy alone again and its column goes back to the
+   AI bar's shared 64px — left at 150px it would have parked the diamond in the
+   middle of 86px of nothing. */
 .bar-cell.bar-energy { display: flex; align-items: center; justify-content: center; gap: 8px; }
-.bar-cell.bar-energy .hand-tools {
-  position: static;
-  left: auto; top: auto; transform: none;
-  z-index: auto;
-}
-.info-bar.player-bar { grid-template-columns: 220px 64px 1fr 150px 96px; }
+.info-bar.player-bar { grid-template-columns: 220px 64px 1fr 64px 96px; }
 
 /* HAND + TRICKS AS ONE CENTERED GROUP (desktop). The bottom grid row used to be
    `1fr auto`, so the hand cards sat in a wide 1fr column and the tricks were
@@ -40937,10 +40928,13 @@ body.in-match .lane {
        wins and nothing moves; at the tight end the cards give up a few pixels
        rather than the meter being squeezed out of existence. */
     grid-template-columns:
-      minmax(0, max(var(--board-left, 0px), calc(var(--hand-meter-w) + 10px)))
+      minmax(0, max(var(--board-left, 0px), var(--hand-col-w, 54px)))
       auto auto minmax(0, 1fr);
   }
-  body.in-match #game-area > .hand-meter { grid-column: 1; }
+  /* Column 1 holds the stack (readout + ♪ + redraw), not the bare readout. Its
+     floor is the TOOLS' width now, not the number's — a 44px button squeezed
+     into a 50px track was the failure mode the max() exists to prevent. */
+  body.in-match #game-area > .hand-meter-col { grid-column: 1; }
   body.in-match #game-area > .player-hand-section { grid-column: 2; }
   body.in-match #game-area > .tricks-section { grid-column: 3; }
 }
@@ -40961,7 +40955,57 @@ body.in-match .lane {
    for "n/7 ... in the circle" meaning at the spot they had circled on the
    screenshot, not inside a drawn one. Twice re-read as a styling defect and
    twice made MORE circular before the plain reading landed. */
-:root { --hand-meter-w: 40px; }
+:root { --hand-meter-w: 40px; --hand-col-w: 54px; }
+/* THE LEFT MARGIN IS A COLUMN OF THREE. Readout on top, then the ♪ hand-audio
+   toggle, then redraw — the order the owner drew them in, arrows running from
+   the bottom bar down into this margin. Right-aligned as one edge so the three
+   share a rule with the first card rather than each finding its own left.
+   align-self: start keeps the whole stack level with the card tops; the 6px is
+   the hand section's own top padding, so the readout lands on the same line as
+   the first card instead of floating in the middle of a 229px column. */
+.hand-meter-col {
+  align-self: start;
+  margin-top: 6px;
+  justify-self: end;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+/* Inside a column flex, .hand-meter's own align-self: start means the CROSS
+   axis — it would pin the number to the LEFT of the track. The stack owns
+   alignment now. */
+.hand-meter-col > .hand-meter { align-self: flex-end; margin-top: 0; }
+/* .hand-tools was absolutely positioned for its old home over the tricks, then
+   flowed inline in the bottom bar. Here it is a vertical pair. */
+.hand-meter-col .hand-tools {
+  position: static;
+  left: auto; top: auto; transform: none;
+  z-index: auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
+}
+/* Trick-hand readout — same number, same type, same neon as the cards' one, at
+   the same height, sitting over the first trick. Absolute so adding it does not
+   push #player-tricks out of its vertical centring: 6px matches the hand
+   section's top padding (so it lines up with n/7 to the pixel) and 16px is the
+   tricks section's own left padding (so it lines up with the first trick). */
+.tricks-section { position: relative; }
+/* .tricks-section > — NOT a bare .trick-meter. This block is authored ABOVE
+   .hand-meter, and the element carries both classes, so at equal specificity
+   (one class each) .hand-meter simply wins on order and its margin-top: 6px
+   stacked on `top: 6px`. Measured 768 against n/7's 761 before this. */
+.tricks-section > .trick-meter {
+  position: absolute;
+  left: 16px;
+  top: 6px;
+  width: auto;
+  justify-content: flex-start;
+  /* .hand-meter's own margin-top: 6px stacks ON TOP of `top`, which put this
+     7px below n/7 instead of level with it. Measured: 768 vs 761. */
+  margin-top: 0;
+}
 .hand-meter {
   /* Level with the card tops — 6px is the hand section's own top padding, so it
      sits on the same line as the first card rather than floating halfway down a
@@ -40992,8 +41036,15 @@ body.in-match .lane {
     0 0 24px rgba(var(--theme-rgb, 79,195,247), 0.45);
 }
 /* Below the desktop breakpoint the four-column rule does not apply and there is
-   no margin to sit in. */
-@media (max-width: 520px) { .hand-meter { display: none; } }
+   no margin to sit in, so both readouts go. The TOOLS stay — redraw and the
+   hand-audio toggle are controls, not decoration, and hiding the column would
+   take the only redraw button on the screen with it. The stack lies down into a
+   row so it costs one thin strip instead of 90px of height. */
+@media (max-width: 520px) {
+  .hand-meter { display: none; }
+  .hand-meter-col { flex-direction: row; align-items: center; justify-self: start; margin-top: 0; }
+  .hand-meter-col .hand-tools { flex-direction: row; gap: 2px; }
+}
 
 /* HUD CONTROLS STAY ABOVE THE BOARD ON SCROLL. The battle-log, help (?) and
    settings buttons are position:fixed at body level (outside #game-area's

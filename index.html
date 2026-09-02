@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=1384">
+  <link rel="stylesheet" href="style.css?v=1387">
   <!-- BOARD V2 — the redesign, off by default. Every rule inside is scoped to
        body.board-v2 so it is inert until BoardV2.set(true). -->
   <link rel="stylesheet" href="board-v2.css?v=105">
@@ -498,23 +498,13 @@
         <button id="btn-action" class="btn btn-primary" style="display:none">Done</button>
         <button id="btn-new-game" class="btn btn-danger" onclick="newGame()" style="display:none">New Game</button>
       </div>
-      <!-- ENERGY CELL — holds the ♪ hand-audio toggle + redraw button ALONGSIDE
-           the energy display, so the player's energy sits on the same bar as
-           the music symbol, matching the AI bar (owner). The .hand-tools left
-           its own cell so the bar keeps its clean 5-column grid (a 6th cell
-           overlapped the energy). -->
+      <!-- ENERGY CELL. The ♪ hand-audio toggle and the redraw button used to
+           share this cell; the owner moved them down into the hand's left
+           margin, stacked under the hand-size readout, where both act on the
+           hand they now sit beside. Only the address changed — same IDs, same
+           handlers, so _renderRedrawButton and syncHandAudioToggle still find
+           them by id / [data-hand-audio-toggle]. -->
       <div class="bar-cell bar-energy">
-        <div class="hand-tools">
-          <button type="button"
-                  id="hand-audio-toggle"
-                  class="hand-audio-toggle"
-                  data-hand-audio-toggle
-                  onclick="UI.toggleHandAudioPrivacy()"
-                  title="Hide hand sounds — replace per-card hover cues with one generic blip"
-                  aria-label="Hide hand sounds"
-                  aria-pressed="false"><span class="hand-audio-icon" aria-hidden="true">♪</span></button>
-          <button type="button" id="btn-redraw" class="hand-redraw-toggle" style="display:none"></button>
-        </div>
         <div class="energy-display" id="player-energy-display"></div>
       </div>
       <div class="bar-cell bar-dead">
@@ -528,19 +518,36 @@
          overlay, so it can never land on top of a card at a narrow width; that
          column is max(--board-left, its own width), so on a wide screen it fits
          inside the margin the board already leaves and the cards do not move. -->
-    <div id="hand-meter" class="hand-meter" title="Cards in hand"></div>
+    <div id="hand-meter-col" class="hand-meter-col">
+      <div id="hand-meter" class="hand-meter" title="Cards in hand"></div>
+      <!-- ♪ + redraw, stacked under the readout. Owner drew both arrows from
+           the bottom bar to this margin. -->
+      <div class="hand-tools">
+        <button type="button"
+                id="hand-audio-toggle"
+                class="hand-audio-toggle"
+                data-hand-audio-toggle
+                onclick="UI.toggleHandAudioPrivacy()"
+                title="Hide hand sounds — replace per-card hover cues with one generic blip"
+                aria-label="Hide hand sounds"
+                aria-pressed="false"><span class="hand-audio-icon" aria-hidden="true">♪</span></button>
+        <button type="button" id="btn-redraw" class="hand-redraw-toggle" style="display:none"></button>
+      </div>
+    </div>
 
     <!-- PLAYER HAND (cards above tricks) -->
     <div class="player-hand-section">
       <div id="player-hand" class="hand-cards"></div>
     </div>
 
-    <!-- TRICKS (below cards) — the ♪ + redraw controls used to live here, to the
-         left of the trick cards. Owner moved them into the bottom bar next to the
-         energy (see .bar-cell.bar-tools above) so they read as HUD controls, not
-         as something floating over the tricks. Same IDs/handlers — only the
-         address changed. -->
+    <!-- TRICKS (beside the cards). The ♪ + redraw controls have lived here, then
+         in the bottom bar, and now in the hand's left margin — see #hand-meter-col
+         above. What sits here instead is the trick-hand readout, the same n/cap
+         the cards get, at the same height as it: "add the same hand size for
+         tricks n/3". Absolutely placed rather than stacked in the flow so the
+         trick cards keep their own vertical centring. -->
     <div class="tricks-section">
+      <div id="trick-meter" class="hand-meter trick-meter" title="Tricks in hand"></div>
       <div id="player-tricks" class="trick-cards"></div>
     </div>
 
@@ -908,7 +915,7 @@
        shared). Loaded BEFORE leaderboard.js so the client sees it on boot. -->
   <script>window.CLB_STATS_URL = "https://card-lane-battle-stats.ryanvtagle.workers.dev";</script>
   <script src="leaderboard.js?v=4"></script>
-  <script src="ui.js?v=1555"></script>
+  <script src="ui.js?v=1556"></script>
   <script src="board-v2.js?v=32"></script>
   <!-- Party voice chat. Loads after ui.js because it paints its own panel and
        reads Game/Multiplayer state; it asks for nothing until you press Join. -->

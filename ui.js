@@ -28694,6 +28694,33 @@ const UI = {
       el.innerHTML = '<span class="hand-meter-text">' + label + '</span>';
     }
     el.title = 'Cards in hand — ' + label;
+
+    // TRICKS GET THE SAME READOUT. Owner: "can you add the same hand size for
+    // tricks n/3". Same seat, same shape, same class — the only differences are
+    // which hand is counted and which cap it is measured against, so the two
+    // numbers can never drift apart in type, colour or the full-hand rule.
+    this._paintMeter(document.getElementById('trick-meter'),
+      (seat.trickHand || []).length,
+      (seat.maxTrickHandSize != null ? seat.maxTrickHandSize : 3),
+      'Tricks in hand');
+  },
+
+  // The write half of renderHandMeter, shared with the trick readout. Writes
+  // only when the label changed: this runs every render, and replacing the node
+  // each time restarts the fill transition mid-sweep.
+  _paintMeter(el, n, rawCap, title) {
+    if (!el) return;
+    const cap = Math.max(1, rawCap | 0);
+    const pct = Math.max(0, Math.min(100, Math.round((n / cap) * 100)));
+    el.style.display = '';
+    el.style.setProperty('--fill', pct + '%');
+    el.classList.toggle('full', n >= cap);
+    const label = n + '/' + cap;
+    if (el.dataset.label !== label) {
+      el.dataset.label = label;
+      el.innerHTML = '<span class="hand-meter-text">' + label + '</span>';
+    }
+    el.title = title + ' — ' + label;
   },
 
   // ===================== LANE FORECAST =====================
