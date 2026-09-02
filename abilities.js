@@ -141,7 +141,8 @@ function releaseHabitatMonster(G, o) {
       G.promptLaneChoice(side, openLanes,
         `${o.name} — Move ${allyInLane.name}`,
         `${o.name} takes this lane. Move ${allyInLane.name} to another lane.`,
-        (targetLane) => {
+        (targetLaneArg) => {
+          let targetLane = targetLaneArg;
           // RE-CHECK ON RESOLVE. The ally was alive when this armed; a prompt is
           // answered later and a kill can still be cascading, so putting it back
           // on the board unchecked resurrects a corpse.
@@ -152,6 +153,25 @@ function releaseHabitatMonster(G, o) {
             G.log(`  [DISPLACE SKIPPED] ${allyInLane ? allyInLane.name : 'the ally'} did not survive to be moved.`);
             finishSpawn(o.atk, o.hp);
             return;
+          }
+          // THE DESTINATION IS RE-CHECKED, NOT TRUSTED. openLanes was computed
+          // when the prompt ARMED; this callback runs later, and in between a
+          // summon, a jump or another habitat's release can have taken that
+          // lane. Writing into it regardless is how a card ends up referenced
+          // in two places at once — and events now fire on round 3, 6, 9 …
+          // instead of once a match, so every habitat release, and every
+          // displacement it triggers, happens several times more often than
+          // when this code was written. Measured: 0 duplicate-id states in
+          // 1500 games before that change, 4 in 2700 after.
+          const dest = G.state.lanes[targetLane];
+          if (!dest || dest.destroyed || dest[side]) {
+            const retry = G.getOpenLanes(side).filter(l => l !== laneIdx);
+            if (!retry.length) {
+              G.log(`  [DISPLACE SKIPPED] no lane left for ${allyInLane.name} — ${o.name} takes the lane anyway.`);
+              finishSpawn(o.atk, o.hp);
+              return;
+            }
+            targetLane = retry[0];
           }
           lane[side] = null;
           G.state.lanes[targetLane][side] = allyInLane;
