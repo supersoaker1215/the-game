@@ -30218,6 +30218,9 @@ body > .grid-bg {
     ) 1 !important;
   border-width: 1px !important;
   border-style: solid !important;
+  /* No border-image-width here — see the TOP AND BOTTOM ONLY block at the end
+     of this sheet. It must sit after every `border-image` shorthand a lane can
+     take, because the shorthand resets the width longhand with it. */
   box-shadow: none !important;
 }
 
@@ -37449,6 +37452,37 @@ body.low-fx .card-portrait {
     rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 100%
   ) 1 !important;
 }
+
+/* ===========================================================================
+   TOP AND BOTTOM ONLY (2026-09-02)
+   The lane's border-image gradient runs VERTICALLY, so the left and right
+   slices painted that whole gradient down the full height of every lane —
+   twelve floor-to-ceiling rails, two in every gap, red over the enemy half and
+   blue over yours. That is the faint vertical lines the owner circled in each
+   gap: "see the fiant lines behind and in the middle the blue get rid of that."
+
+   border-image-WIDTH, not border-width: the border box stays 1px on all four
+   sides so nothing reflows (lane rects measure 146px before and after) and only
+   the paint on the two vertical sides is dropped. Zeroing border-left/right-
+   width would have handed those 2px back to the content box and nudged the
+   slots inside it.
+
+   LAST, AND OVER-SPECIFIED ON PURPOSE. Several rules in this sheet set the
+   `border-image` SHORTHAND on a lane, and a shorthand resets the width longhand
+   along with it — so one declaration up in .board-section .lane worked on an
+   empty lane and was silently undone on every occupied one (measured: an
+   occ-both lane read `border-image-width: 1` while its empty neighbours read
+   `1 0`). The repeated class takes this to (0,5,0), above the most specific of
+   them (.board-section .lane.occ-both.lane-active), and it is placed after all
+   of them.
+
+   The lane still reads as a column: top and bottom edges keep the faction
+   gradient, the corner brackets are untouched, and the occ-* wash carries whose
+   lane it is — including the contested red-to-blue blend, which is painted by
+   .lane.occ-both::before and never by these rails.
+   =========================================================================== */
+.board-section .lane.lane.lane.lane { border-image-width: 1 0 !important; }
+
 .lane.lane-active::after {
   background: linear-gradient(180deg,
     transparent 0%,
