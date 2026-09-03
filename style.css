@@ -1179,7 +1179,24 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
    fallback; every instance is scoped under .player-bar or .ai-bar in practice. */
 .block-circle {
   --fill: 0%;
-  width: 44px; height: 44px; border-radius: 50%;
+  /* IT IS A SHIELD NOW, and the ring still fills round it. Owner: "can you make
+     the block circle into a shield? just the hape of a shile and the ring still
+     fills around it."
+     One polygon, inherited by ::after, so the plate and the hole punched out of
+     it are the SAME silhouette at two sizes — which is what makes the lit conic
+     read as a shield-shaped ring rather than a circle wearing a mask. Flat
+     shoulders, straight flanks to the waist, then a taper to the point.
+     Percentages, so it scales with the 44px box and with the 28px one the
+     narrow breakpoint uses without a second shape to keep in sync. */
+  --shield: polygon(6% 3%, 94% 3%, 94% 50%, 50% 100%, 6% 50%);
+  clip-path: var(--shield);
+  width: 44px; height: 44px;
+  /* No radius and no border: a clip-path is applied AFTER both, so a rounded
+     corner is invisible under the polygon and a 1px border gets sliced off at
+     the silhouette — the same trap the card frame's outline hit. The conic's
+     own low-alpha track is the outline. */
+  border-radius: 0;
+  border: 0;
   position: relative;
   /* THE RING IS THE METER. --fill was already being written on every render as
      a percentage and only the .full state ever drew a conic-gradient, so at 6/8
@@ -1199,12 +1216,32 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
   transition: border-color 240ms var(--ease-snap), box-shadow 240ms var(--ease-snap), background 240ms var(--ease-snap);
   display: flex; align-items: center; justify-content: center;
 }
-/* Punches the middle out so the conic paints a RING, not a pie. */
-.block-circle::after {
-  content: "";
+/* Punches the middle out so the conic paints a RING, not a pie — in the SHIELD's
+   shape, inherited from --shield above. The inset is uniform while the polygon
+   is proportional, so the band is a little wider toward the point, which is how
+   a shield's edge reads anyway.
+   ::before, NOT ::after, and that is not a style choice. .block-circle carries
+   .tron-perimeter, and `.block-circle.tron-perimeter::after { content: none
+   !important }` near the end of this sheet turns its ::after off outright — so
+   the hole this rule has always claimed to punch was never drawn and the meter
+   has been a solid PIE, not a ring, since the gauge was written. (Measured:
+   getComputedStyle(el,'::after').content === 'none'.) ::before is free once the
+   `display: none` further up is answered, which the !important below does.
+   The hole cannot go on .block-circle itself as a second clip-path, tempting as
+   that is — a clip-path clips DESCENDANTS, and the "0/8" lives in the middle of
+   exactly the part that would be cut away. */
+/* .block-circle.block-circle — the doubled class is load-bearing. The
+   `display: none !important` at ~17730 is also `.block-circle::before` and sits
+   LATER in this sheet, so at equal specificity it wins on order however many
+   !importants this rule carries. Doubling takes it to (0,2,1) and settles it. */
+.block-circle.block-circle::before {
+  content: "" !important;
+  display: block !important;
   position: absolute; inset: 4px;
-  border-radius: 50%;
+  border-radius: 0;
+  clip-path: var(--shield);
   background: #000;
+  z-index: 1;
 }
 /* Label stays OFF. I switched it on when the ring became a gauge, reasoning
    the circle never said what it measured — but a 6.5px word hanging under a
@@ -1213,6 +1250,9 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
 .block-circle-label { display: none; }
 .block-circle-value {
   position: relative; z-index: 2;
+  /* A shield's mass is in its upper half, so the box's centre reads low inside
+     it. Two pixels up puts the fraction in the waist. */
+  margin-top: -2px;
   font-family: var(--font-mono);
   font-size: 12px; font-weight: 700; letter-spacing: 0.3px;
   color: var(--text-hi, #f5fbff);
@@ -1226,7 +1266,13 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
    "ready" without continuous motion. */
 .block-circle.full {
   background: conic-gradient(from -90deg, rgba(var(--gold-rgb),0.95) 0 100%, rgba(var(--gold-rgb),0.95) 100%);
-  box-shadow: 0 0 14px rgba(var(--gold-rgb),0.80), 0 0 28px rgba(var(--gold-rgb),0.40);
+  /* drop-shadow, NOT box-shadow. clip-path is applied after box-shadow and cuts
+     it off at the silhouette, so the 8/8 glow — where the bloom IS the event —
+     would have vanished the moment this became a shield. A filter runs after the
+     clip and traces the shape instead of a box. */
+  box-shadow: none;
+  filter: drop-shadow(0 0 6px rgba(var(--gold-rgb),0.80))
+          drop-shadow(0 0 14px rgba(var(--gold-rgb),0.40));
   animation: none;
 }
 .block-circle.full .block-circle-value { color: #ffd77a; text-shadow: 0 0 8px rgba(var(--gold-rgb),0.85); }
@@ -1255,8 +1301,10 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
 }
 .player-bar .block-circle.full {
   background: conic-gradient(from -90deg, rgba(var(--theme-rgb, 79,195,247), 0.92) 0 100%, rgba(var(--theme-rgb, 79,195,247), 0.92) 100%);
-  border-color: rgba(var(--theme-rgb, 79,195,247), 0.95);
-  box-shadow: 0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.95), 0 0 28px rgba(var(--theme-rgb, 79,195,247), 0.45);
+  /* Same clip-path rule as the gold state above — a filter, not a box-shadow. */
+  box-shadow: none;
+  filter: drop-shadow(0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.95))
+          drop-shadow(0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.45));
 }
 .player-bar .block-circle-value {
   color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 65%, white);
@@ -1276,8 +1324,9 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
 }
 .ai-bar .block-circle.full {
   background: conic-gradient(from -90deg, rgba(231,76,60,0.92) 0 100%, rgba(231,76,60,0.92) 100%);
-  border-color: rgba(231,76,60,0.95);
-  box-shadow: 0 0 14px rgba(231,76,60,0.95), 0 0 28px rgba(231,76,60,0.45);
+  box-shadow: none;
+  filter: drop-shadow(0 0 6px rgba(231,76,60,0.95))
+          drop-shadow(0 0 14px rgba(231,76,60,0.45));
 }
 .ai-bar .block-circle-value {
   color: #ff8a7a;
