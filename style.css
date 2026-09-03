@@ -20414,20 +20414,50 @@ body::before {
       rgba(0, 0, 0, 0.25) 100%),
     #000;
 }
-/* NO GLOW UNDER THE BOARD. This was an ellipse centred at 50% 50% of #board —
-   and the board's centre is not a lane, it is the GAP between lanes 3 and 4.
-   The lanes paint over the glow everywhere else, so the only place it was ever
-   visible was in the gaps, brightest in the middle one: a soft floor-to-ceiling
-   band of theme blue showing through the seam. That is what the owner circled:
-   "behind the board the is somthing remove that underneath."
-   Removing the layer rather than dimming it — at 0.035 it was already as faint
-   as a visible thing gets, and the fault was WHERE it peaked, not how strong it
-   was. The room's ambience lives on .board-section (its own radials plus the
-   dot grid), which is centred on the SECTION and so has no peak sitting in a
-   lane seam. */
+/* ===========================================================================
+   THE ARENA FLOOR (2026-09-02)
+   This started as `radial-gradient(ellipse at 50% 50%, theme 0.035, …)`, which
+   was wrong for one specific reason: the board's centre is not a lane, it is
+   the GAP between lanes 3 and 4. The lanes painted over the glow everywhere
+   else, so the only place it was ever visible was in the seams, brightest in
+   the middle one — a soft floor-to-ceiling band showing through. ("behind the
+   board the is somthing remove that underneath.")
+
+   Deleting it left the arena flat #000, which reads as a hole rather than a
+   floor: "the middle part thats black in between just looks a little stark
+   contrast like theblakc is all balck."
+
+   The floor is back as a VERTICAL gradient, and vertical is the whole trick. A
+   horizontal or radial falloff necessarily peaks at some x, and any x is either
+   inside a lane or inside a seam — that is what singled out the middle gap. A
+   vertical one gives every seam the identical profile, so no seam can stand out
+   from its neighbours however strong it gets.
+
+   It is brightest at the two ends and nearly nothing across the middle, which
+   also means the light gathers where the two players' edges are and the
+   contested centreline stays the darkest part of the board.
+
+   Paired with the transparent lane below: with the lanes opaque this floor
+   would only have shown in the seams again, which is the original bug wearing a
+   different gradient. */
 #game-area #board,
 .board {
-  background: none;
+  background: linear-gradient(180deg,
+    rgba(var(--theme-rgb, 79,195,247), 0.045)   0%,
+    rgba(var(--theme-rgb, 79,195,247), 0.012)  34%,
+    rgba(var(--theme-rgb, 79,195,247), 0.008)  50%,
+    rgba(var(--theme-rgb, 79,195,247), 0.012)  66%,
+    rgba(var(--theme-rgb, 79,195,247), 0.045) 100%);
+}
+/* THE LANE IS A FRAME, NOT A PANEL. It was painting an opaque #000 over the
+   board, which is what made every seam a visible edge: lane black against
+   whatever the gap happened to be showing. Transparent, the lane and the 12px
+   beside it are literally the same surface, so there is no seam left to
+   contrast — the lanes are described by their brackets and their faction
+   washes, which is how the design reads them anyway.
+   (The panel-interiors-are-pure-black rule still holds; a lane is not a panel.) */
+.board-section .lane {
+  background-color: transparent;
 }
 
 /* ---- 5. Energy orb playable-pulse ----
@@ -20710,12 +20740,17 @@ body {
   font-size: clamp(140px, 22vw, 280px);
   letter-spacing: 8px;
   color: rgb(var(--theme-rgb, 79,195,247));
-  opacity: 0.06;
+  /* 0.06 WITH A 50px GLOW WAS NEVER SEEN. The lanes painted opaque black over
+     it, so the number authored here as "pure ornament" was in practice not
+     rendered at all. The lanes are transparent now (see THE ARENA FLOOR) and it
+     came back as a legible printed digit across the middle of the board, which
+     is not what the comment above describes. Set to what it was always meant to
+     be: an embossed ghost you notice only if you look for it. The glow goes
+     with it — a text-shadow is what turned it from an emboss into a sign. */
+  opacity: 0.022;
   pointer-events: none;
   z-index: 0;
   user-select: none;
-  text-shadow:
-    0 0 50px rgba(var(--theme-rgb, 79,195,247), 0.25);
   transition: opacity 0.4s var(--ease-snap);
 }
 .board { position: relative; }
