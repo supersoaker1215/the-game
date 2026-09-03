@@ -9475,6 +9475,35 @@ test('The release reads the spawn side off the card, with no `into` argument', f
   assertEq(G2.state.lanes[1].ai, null, 'not against them');
 });
 
+test('Vampire Candy steals 2, and still cannot take the last point', function () {
+  // Owner: "vampite candy should be steal 2" (was 5). The card text, the clamp
+  // and the log all read one constant, so this pins the number in one place and
+  // catches any of the three drifting from the other two.
+  var G = freshGame();
+  // CANDY_DEFS, not TRICK_DEFS — the Ballyhoo candies are their own table.
+  var candy = CANDY_DEFS.find(function (t) { return t.name === 'Vampire Candy'; });
+  assert(!!candy, 'the candy exists');
+  assert(/Steal 2 health/.test(candy.desc), 'and its text says 2: ' + candy.desc);
+
+  G.state.ai.health = 30; G.state.player.health = 20;
+  candy.play(G, 'player');
+  assertEq(G.state.ai.health, 28, 'two off the enemy');
+  assertEq(G.state.player.health, 22, 'and the same two onto you');
+
+  // FLOORED, NOT SKIPPED — the clamp still holds at the bottom.
+  var G2 = freshGame();
+  G2.state.ai.health = 2; G2.state.player.health = 10;
+  candy.play(G2, 'player');
+  assertEq(G2.state.ai.health, 1, 'it drains down to 1 and stops');
+  assertEq(G2.state.player.health, 11, 'and you gain exactly what they lost');
+
+  var G3 = freshGame();
+  G3.state.ai.health = 1; G3.state.player.health = 10;
+  candy.play(G3, 'player');
+  assertEq(G3.state.ai.health, 1, 'at 1 there is nothing left to take');
+  assertEq(G3.state.player.health, 10, 'and nothing is gained');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 
