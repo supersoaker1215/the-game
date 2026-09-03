@@ -25855,6 +25855,45 @@ const UI = {
   // false/omitted for the opponent's plays. User direction: the reveal
   // fires for BOTH sides ("I played Eye of Agamotto and the new trick
   // screen didn't pop up").
+  // How long a trick's announcement holds. One number for both surfaces — the
+  // corner toast and the full reveal panel — so they cannot drift apart.
+  // (Owner: "all notices form tricks needs to sty on the screen for 3.5
+  // seconds.")
+  TRICK_NOTICE_MS: 3500,
+
+  // "…and the ai plays tricks too fst and its all one blur i want some sequnce
+  // and time."
+  //
+  // The AI's trick loop paced itself on aiStepMs (350ms at normal) and nothing
+  // else, while each trick raises an announcement that now holds 3500ms. Four
+  // tricks therefore resolved inside the first one's notice and the rest of the
+  // notices stacked up behind the board already having changed — the blur.
+  //
+  // So the loop waits on the ANNOUNCEMENTS rather than on a guessed number:
+  // one trick, its notice, then the next. Tying it to the real queues means the
+  // rhythm follows TRICK_NOTICE_MS automatically instead of needing a second
+  // constant kept in sync with it.
+  //
+  // Bounded, and deliberately: a stage item whose fn throws before reporting is
+  // caught by _stage's own safety net, but nothing guarantees the reveal queue
+  // drains on a pathological frame — and an AI turn that never ends is a worse
+  // bug than one that reads fast. maxMs is the ceiling; the callback fires once,
+  // whichever way it gets there.
+  _whenAnnouncementsIdle(cb, maxMs) {
+    if (typeof cb !== 'function') return;
+    let done = false;
+    const finish = () => { if (done) return; done = true; try { cb(); } catch (e) {} };
+    const cap = setTimeout(finish, Math.max(0, maxMs == null ? 6000 : maxMs));
+    const poll = () => {
+      if (done) return;
+      const staged = this._stageBusy || (this._stageQ && this._stageQ.length);
+      const revealing = this._trickRevealActive || (this._trickRevealQueue && this._trickRevealQueue.length);
+      if (!staged && !revealing) { clearTimeout(cap); finish(); return; }
+      setTimeout(poll, 120);
+    };
+    poll();
+  },
+
   showTrickReveal(name, desc, cost, mine) {
     if (this._reducedMotion && this._reducedMotion()) {
       // Reduced-motion fallback: opponent plays keep the corner toast
@@ -25862,7 +25901,11 @@ const UI = {
       if (!mine) this.showAITrickToast(name, desc || '');
       return;
     }
-    this._trickRevealQueue.push({ name, desc: desc || '', cost, mine: !!mine });
+    // holdMs on the ITEM, not on the shared 2100 default. That default is also
+    // showCardReveal's, which is every non-trick reveal in the game (Iron
+    // Giant's sacrifice, an event's card) — raising it would slow all of them to
+    // fix tricks. Per-item keeps the change where the owner pointed it.
+    this._trickRevealQueue.push({ name, desc: desc || '', cost, mine: !!mine, holdMs: this.TRICK_NOTICE_MS });
     if (!this._trickRevealActive) this._nextTrickReveal();
   },
   // Reveal a CARD the same way tricks are revealed — full art + a custom label —
@@ -26632,8 +26675,13 @@ const UI = {
     // other but not against the round banner — the collision the owner saw.
     // Now every announcement shares UI._stage.
     const KIND = {
-      discard: { label: () => UI.oppName() + ' played a Discard', cls: 'toast-kind-discard', ms: 4000 },
-      trick:   { label: () => UI.oppName() + ' played a Trick',   cls: 'toast-kind-trick',   ms: 4000 },
+      // 3500, the number the owner asked for: "all notices form tricks needs to
+      // sty on the screen for 3.5 seconds". Down from 4000 for these two, and
+      // the trick REVEAL panel comes up to meet it from 2100 — the point is
+      // that every announcement a trick raises holds for the same readable
+      // beat, whichever surface it lands on.
+      discard: { label: () => UI.oppName() + ' played a Discard', cls: 'toast-kind-discard', ms: 3500 },
+      trick:   { label: () => UI.oppName() + ' played a Trick',   cls: 'toast-kind-trick',   ms: 3500 },
       error:   { label: () => 'Cannot Play',                      cls: 'toast-kind-error',   ms: 2400 },
       info:    { label: () => 'Notice',                           cls: 'toast-kind-info',    ms: 3000 },
       system:  { label: () => 'System',                           cls: 'toast-kind-system',  ms: 2400 },

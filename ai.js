@@ -1959,13 +1959,31 @@ const AI = {
           if (Game.getTrickCost(owner, best) > s[owner].currency) { step(); return; }
           if (!Game.playTrick(owner, best)) refused.add(best.id);
           if (typeof UI !== 'undefined' && UI.render) UI.render();
-          step();
+          // ONE TRICK, ITS NOTICE, THEN THE NEXT. This used to call step()
+          // straight back, so the loop ran at aiStepMs (350ms) while each
+          // trick's announcement holds 3.5s — four tricks resolved inside the
+          // first one's notice and the board had finished changing before the
+          // player had read any of them. (Owner: "the ai plays tricks too fst
+          // and its all one blur i want some sequnce and time.")
+          // Waiting on the ANNOUNCEMENT queues rather than a fixed pause means
+          // the rhythm tracks UI.TRICK_NOTICE_MS on its own, and a trick that
+          // raises no notice at all still moves on immediately.
+          _afterCast();
         }, delay);
       } else {
+        // Instant pacing — no announcements to wait on, and the sim has no UI.
         if (!Game.playTrick(owner, best)) refused.add(best.id);
         if (typeof UI !== 'undefined' && UI.render) UI.render();
         step();
       }
+    };
+    // Hold until the trick's own notice has been up and come down, then take
+    // the next one. Falls straight through where there is no UI (the sim, the
+    // headless harness) so nothing there waits on a queue that cannot exist.
+    const _afterCast = () => {
+      if (typeof UI !== 'undefined' && UI._whenAnnouncementsIdle) {
+        UI._whenAnnouncementsIdle(step, (UI.TRICK_NOTICE_MS || 3500) + 2000);
+      } else step();
     };
     step();
   }
