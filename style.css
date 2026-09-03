@@ -1188,7 +1188,17 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
      shoulders, straight flanks to the waist, then a taper to the point.
      Percentages, so it scales with the 44px box and with the 28px one the
      narrow breakpoint uses without a second shape to keep in sync. */
-  --shield: polygon(6% 3%, 94% 3%, 94% 50%, 50% 100%, 6% 50%);
+  /* Fourteen points, not five. The five-point version was a crest — flat top,
+     straight flanks, hard corners — and the owner sent a reference where the
+     shoulders round over and the flanks CURVE in to a soft point. polygon()
+     cannot curve, so the curve is sampled: enough points that it reads round at
+     44px, still percentages so it scales to the 28px narrow breakpoint for
+     free. (clip-path: path() would give real beziers but takes absolute px, so
+     it would need a second path per breakpoint to stay in sync.) */
+  --shield: polygon(
+    10% 8%, 18% 4%, 50% 2%, 82% 4%, 90% 8%,
+    90% 44%, 86% 58%, 76% 72%, 62% 85%, 50% 96%,
+    38% 85%, 24% 72%, 14% 58%, 10% 44%);
   clip-path: var(--shield);
   width: 44px; height: 44px;
   /* No radius and no border: a clip-path is applied AFTER both, so a rounded
@@ -1208,11 +1218,19 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
       rgba(var(--gold-rgb),0.95) 0 var(--fill),
       rgba(var(--gold-rgb),0.10) var(--fill) 100%);
   border: 1px solid rgba(var(--gold-rgb),0.55);
-  /* No halo. Two stacked outer glows on a 44px circle bloomed into the bar and
-     read as cheap shine rather than instrumentation — the ring itself is the
-     signal now, so it does not need selling. The .full state below keeps its
-     glow, because there the bloom IS the event. */
+  /* THE LINE GLOWS AS IT FILLS. Owner: "thing line that glows when filling
+     around." The old note here refused a halo because two stacked outer glows
+     on a filled 44px disc bloomed into the bar — but this is a 2px line now,
+     and a 2px line with no glow reads as a hairline scratch rather than as lit.
+     drop-shadow, not box-shadow: a clip-path cuts box-shadow off at the
+     silhouette, and a filter runs after the clip and traces the shape.
+     It also glows PROPORTIONALLY for free — drop-shadow follows the alpha of
+     what is actually painted, so the lit arc throws light and the 0.10 track
+     behind it barely does. The meter brightens as it fills without anything
+     having to drive it. */
   box-shadow: none;
+  filter: drop-shadow(0 0 3px rgba(var(--bc, var(--gold-rgb)), 0.55))
+          drop-shadow(0 0 7px rgba(var(--bc, var(--gold-rgb)), 0.22));
   transition: border-color 240ms var(--ease-snap), box-shadow 240ms var(--ease-snap), background 240ms var(--ease-snap);
   display: flex; align-items: center; justify-content: center;
 }
@@ -1237,7 +1255,10 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
 .block-circle.block-circle::before {
   content: "" !important;
   display: block !important;
-  position: absolute; inset: 4px;
+  /* 2px, not 4 — "thin line". The inset is uniform while the polygon is
+     proportional, so the band is a touch wider toward the point, which is how a
+     drawn shield's edge behaves anyway. */
+  position: absolute; inset: 2px;
   border-radius: 0;
   clip-path: var(--shield);
   background: #000;
