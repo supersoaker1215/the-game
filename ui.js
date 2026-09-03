@@ -22954,6 +22954,19 @@ const UI = {
     // instead (measured: its top edge at y=854 against a tricks row starting at
     // 757). The gutter is exactly as tall as the board.
     root.style.setProperty('--decision-bottom', Math.round(section.getBoundingClientRect().bottom) + 'px');
+    // WHERE THE HAND ROW STARTS. The 2v2 turn-order tracker hangs off this so it
+    // can sit level with the cards instead of down in the corner (owner: "can
+    // you move the turn order in 2v2 up llevel with the cards"). Measured off
+    // the hand section itself rather than derived from the board's bottom plus
+    // an assumed bar height, because the bar's height is a breakpoint value —
+    // 64px on desktop, 52px on a phone — and a hard-coded 64 would drop the
+    // panel through the cards on the small layout. Falls back to the board's
+    // bottom while the hand has not rendered yet (first frame of a match).
+    const _handSec = document.querySelector('.player-hand-section');
+    const _handTop = _handSec
+      ? Math.round(_handSec.getBoundingClientRect().top)
+      : Math.round(section.getBoundingClientRect().bottom);
+    if (_handTop > 0) root.style.setProperty('--hand-top', _handTop + 'px');
     // WHERE LANE 1 STARTS. Published for the hand + tricks row, which used to be
     // centred on the VIEWPORT — so once the board moved left to clear the
     // decision column, the cards sat off its axis and the tricks ran past the

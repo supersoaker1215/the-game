@@ -42399,14 +42399,27 @@ body.low-fx .badge-asleep { animation: none; }
    tricks."
    Still draggable — this is only where it starts. */
 .twov2-tracker {
-  position: fixed; right: 6px; bottom: 6px; top: auto; transform: none;
+  /* LEVEL WITH THE CARDS, not down in the corner. Owner: "can you move the turn
+     order in 2v2 up llevel with the cards." --hand-top is the measured top of
+     .player-hand-section, published by _fitBoardToViewport beside the rest of
+     the board geometry, so the panel's top edge lands on the same line the
+     first card does at every breakpoint.
+     BOTH edges anchored on purpose: with top AND bottom set the height is
+     determined, so the chip list scrolls inside a fixed footprint instead of
+     growing. That keeps the promise the old bottom-only anchor was written for
+     ("when i open it up it expands up, that shouldnt happen") — it simply holds
+     a taller box now, in a place where growing was the problem. */
+  position: fixed; right: 6px; bottom: 6px; top: var(--hand-top, auto); transform: none;
   /* PINNED BOTTOM-RIGHT, AND IT STAYS THERE. Anchored on `bottom`, every extra
      row grows the panel UPWARD — so an 86vh ceiling meant opening it could
      climb 780px over the board. Owner: "when i open it up it expands up, that
      shouldnt happen it needs to fix bottom right." The ceiling is now a real
      bound and the chip list scrolls inside it, so the footprint is the same
      corner whatever the round holds. */
-  z-index: 60; width: 176px; max-height: min(46vh, 300px); overflow-y: auto;
+  z-index: 60; width: 176px; overflow-y: auto;
+  /* Only bounds the fallback case (no --hand-top yet, top:auto), where the panel
+     is bottom-anchored and would otherwise climb over the board. */
+  max-height: min(46vh, 300px);
   background: #000;
   border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);
   border-radius: 12px;
@@ -42425,7 +42438,7 @@ body.low-fx .badge-asleep { animation: none; }
 .twov2-tracker.is-dragging .twov2-tk-head { cursor: grabbing; }
 /* Placed by the player: absolute geometry replaces the right-edge anchor, and
    the chip list scrolls inside whatever height they gave it. */
-.twov2-tracker.is-placed { overflow-y: auto; }
+.twov2-tracker.is-placed { overflow-y: auto; top: auto; }
 .twov2-tracker.is-dragging, .twov2-tracker.is-sizing {
   box-shadow: 0 0 26px rgba(var(--theme-rgb, 79,195,247), 0.5),
               0 10px 30px rgba(0,0,0,0.7),
