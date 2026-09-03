@@ -48176,7 +48176,28 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
      estimated plus air; --decision-top IS that chrome, read off the section, so
      the panel can use every pixel between where it starts and the bottom of the
      screen and no more. */
-  max-height: calc(100vh - var(--decision-top, 111px) - 18px);
+  /* TWO CEILINGS, AND THE BOARD IS THE LOWER ONE. The viewport cap alone let the
+     panel run down over the player bar and the hand — the owner circled exactly
+     that, a decision panel whose bottom half sat below the board: "this is
+     bleeding over tahta shouldnt happen."
+     The notice in this same column has always been anchored to --decision-bottom
+     rather than to the screen, with the reason written on it: "everything below
+     the board runs the full width, so a toast anchored to the viewport floor
+     clears the lanes and lands on the trick cards instead." The panel is in the
+     same gutter and answers to the same edge; it simply never got told, because
+     --decision-bottom did not exist when this cap was written.
+     Both terms are kept. min() means the panel is off-screen at neither end: the
+     viewport term still fixes the 1180x620 case in the note above, where the
+     section itself runs past the bottom of the screen, and the board term fixes
+     this one. The 12px is the panel's own 6px top inset plus 6px of air, so it
+     lands just above the board's edge rather than on it.
+     max(160px, ...) so a stale or crossed pair of variables can never resolve to
+     a negative height and collapse the panel to nothing — it scrolls instead,
+     which overflow-y below already handles. */
+  max-height: max(160px, min(
+    calc(100vh - var(--decision-top, 111px) - 18px),
+    calc(var(--decision-bottom, 665px) - var(--decision-top, 111px) - 12px)
+  ));
   display: none;
   /* Above the three rows below the board (210 / 220 / 230), below the notice
      toast (600) and the full-screen modals (750). */
