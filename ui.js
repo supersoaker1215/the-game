@@ -7821,6 +7821,12 @@ const UI = {
         // fix is that they run at all.
         this._safe('handMeter2v2', () => this.renderHandMeter(s));
         this._safe('laneForecast2v2', () => this.renderLaneForecastStrip(s));
+        // A COLUMN NOBODY DOCKS INTO IS JUST A MARGIN. The board slides left in
+        // 2v2 now (see _fitBoardToViewport) to open a gutter on the right, and
+        // this is what puts the decisions and notices in it — the same adopter
+        // 1v1 uses, moving the live prompt/tray nodes rather than copying them,
+        // so their listeners and countdowns come with them.
+        this._safe('decision2v2', () => this.renderClassicDecision(s));
         // THE REDESIGN RUNS IN 2v2 TOO. BoardV2.render hangs off the END of the
         // 1v1 renderer, and every 2v2 path returns ~300 lines before it — so
         // with the layout switched on, 2v2 got the CSS (which is scoped to
@@ -22968,7 +22974,24 @@ const UI = {
     // on landing over the middle of the board. Everything that has to line up
     // with the gutter reads the same two numbers from one place.
     const root = document.documentElement;
-    root.style.setProperty('--decision-w', decW + 'px');
+    // 2v2 PAYS NO RESERVE BUT IT STILL HAS SLACK, and the owner wants that slack
+    // as a COLUMN on the right rather than split evenly either side: "now the
+    // board needs to be left in order for descicions and notices to be on the
+    // right like 1v1."
+    // Measured before this at 1564px: an eight-lane board 1252 wide, centred, so
+    // 156px of nothing on each side. Sliding it fully left turns two useless
+    // 156px margins into one 312px gutter — which is a real column, without
+    // taking a single pixel back off the lanes (they stay at the 126 the
+    // no-reserve solve just won them).
+    // The column is sized to the slack rather than to decW, because decW is
+    // what the board would have PAID for and this is what is actually left over;
+    // asking for 328 in 312 would hang the panel over lane 8. Declined below the
+    // same 232 readability floor the reserve uses.
+    const _slackCol = (reserve === 0 && typeof Game !== 'undefined' && Game.is2v2 && Game.is2v2())
+      ? Math.round(Math.max(0, 2 * gutter - decInset - decGap))
+      : 0;
+    const _use2v2Col = _slackCol >= 232;
+    root.style.setProperty('--decision-w', (_use2v2Col ? _slackCol : decW) + 'px');
     // WHERE THE COLUMN STARTS. The panel is fixed-positioned on <body> (see
     // _classicDecisionSlot), so it has no containing block that already knows
     // where the board begins — this is that number, measured off the section
@@ -23003,7 +23026,9 @@ const UI = {
     // rather than measured off the board's rect, because this runs BEFORE the
     // new --board-card-w has been laid out and a rect read here is a frame
     // stale.
-    const laneShift = reserve ? Math.max(0, Math.round(reserve - gutter - sectionPadR)) : 0;
+    const laneShift = reserve
+      ? Math.max(0, Math.round(reserve - gutter - sectionPadR))
+      : (_use2v2Col ? Math.max(0, Math.round(gutter - sectionPadR)) : 0);
     root.style.setProperty('--decision-shift', laneShift + 'px');
     root.style.setProperty('--board-left',
       Math.max(0, Math.round(num(section, 'paddingLeft') + gutter - laneShift)) + 'px');
@@ -23012,7 +23037,7 @@ const UI = {
     // notice and the reveal have to stay where they were. A class rather than a
     // `--decision-shift > 0` test, because the shift is legitimately 0 on a wide
     // screen where the column is real and simply already had the room.
-    document.body.classList.toggle('decision-column', reserve > 0);
+    document.body.classList.toggle('decision-column', reserve > 0 || _use2v2Col);
     // The lanes just moved, so anything pinned to them is now stale. The
     // forecast strip measured its cells during the render pass, which runs
     // BEFORE this solve — that is why its cells were sized to the pre-fit lane
