@@ -1411,17 +1411,24 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
     4px 0 12px rgba(174,214,241,0.55),
     6px 0 20px rgba(174,214,241,0.25) !important;
 }
+/* THE SNOWFLAKE SITS IN THE BAR. Owner: "te snowflake should be in the HP bar."
+   It was at left:-20px, i.e. outside the container entirely, sitting on the
+   hero avatar — which is also why it needed a dark disc behind it (see the
+   red-bleed override further down, now retired): out there it was lying over
+   whatever chrome the info bar happened to have. Inside the bar it is over the
+   ice fill, which is the surface it belongs to, so it needs no backdrop at all.
+   13px against a 16px bar; 6px in from the left so it reads as the bar's own
+   marker rather than something parked on top of it. */
 .health-container.hp-frozen::before {
   content: '❄';
-  position: absolute; left: -20px; top: 50%;
+  position: absolute; left: 6px; top: 50%;
   transform: translateY(-50%);
-  font-size: 18px; color: #aed6f1;
-  text-shadow: 0 0 8px rgba(133,193,233,0.9), 0 0 14px rgba(174,214,241,0.5);
+  font-size: 13px; line-height: 1; color: #eaf6ff;
+  text-shadow: 0 0 6px rgba(133,193,233,0.95), 0 0 12px rgba(174,214,241,0.6);
   pointer-events: none;
-  /* Sit ABOVE any red HP-bar box-shadow that leaks leftward from the
-     adjacent .health-bar — keeps the snowflake reading on a clean
-     dark backdrop instead of a red wash. */
-  z-index: 2;
+  /* Above the fill and its leading-edge cursor, both of which draw inside the
+     bar under it. */
+  z-index: 3;
 }
 /* When the HP bar is frozen, the underlying .health-bar should glow
    in the freeze hue instead of the side color (red for AI, cyan for
@@ -29160,17 +29167,10 @@ input[type="number"]::-webkit-outer-spin-button {
    WAVE A.5 — extra fixes from screenshot 2
    ============================================================ */
 
-/* FROZEN ICON RED BLEED FIX. The snowflake at .health-container.hp-frozen::before
-   sits at left:-20px which puts it OUTSIDE the health-container, on top
-   of whatever chrome the parent .ai-bar / .player-bar has. The red glow
-   from the AI side bleeds through the snowflake area as a subtle red
-   square. Solution: give the snowflake its own dark circular backdrop
-   that masks anything behind it. */
-.health-container.hp-frozen::before {
-  background: radial-gradient(circle, rgba(0,0,0,0.85) 50%, rgba(0,0,0,0) 80%) !important;
-  padding: 2px 4px !important;
-  border-radius: 50% !important;
-}
+/* (The FROZEN ICON RED BLEED FIX lived here — a dark disc behind the snowflake,
+   because at left:-20px it sat outside the container on top of the info bar's
+   red glow. The snowflake is inside the HP bar now, over the ice fill, so there
+   is nothing to mask and the disc would read as a hole punched in the bar.) */
 
 /* MODE-SELECT HOVER THEME ADOPTION. .mode-option:hover was hardcoded
    blue gradient + accent bar — on non-blue themes the fill stayed
