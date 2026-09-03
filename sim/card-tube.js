@@ -159,18 +159,33 @@ check('a resting card\'s winning `filter` composes var(--card-tube)',
 // the state this audit was written to stop coming back.
 var restingEdge = { classes: ['cf-edge'], ancestors: ['card', 'cf-frame', 'board', 'lane'] };
 var we = winner('background', restingEdge);
-check('the frame ring is LIT, not flat frame colour',
+check('the ring colour comes off the --cf-core-lift dial',
       we && (/--cf-core-lift/.test(we.value) || /--cf-core-white/.test(we.value)),
       we ? 'style.css:' + we.line + ' wins with `' + we.value.slice(0, 70) + '`'
          : 'no background declaration reaches .cf-edge');
-// and it lifts LIGHTNESS rather than mixing toward white, which is the whole
-// difference between a lit core and a pastel one — sRGB's path to #fff runs
-// through the desaturated middle, so every step lighter was a step greyer.
+// and the dial moves LIGHTNESS in oklch rather than mixing toward white, which
+// is the difference between a lit core and a pastel one: sRGB's path to #fff
+// runs through the desaturated middle, so every step lighter is a step greyer.
 // (Owner: "too white more saturation.")
-check('the lift holds chroma (oklch lightness, not a white mix)',
+check('the dial holds chroma (oklch lightness, not a white mix)',
       we && /oklch\(from/.test(we.value),
       we ? 'winning value is `' + we.value.slice(0, 70) + '` — that washes the frame colour out'
          : 'no background declaration reaches .cf-edge');
+// THE RULING, not a preference. Measured off the board reference: its frame
+// line is #4FC3F7, this game's own --cf-rgb, with no lift in it whatever. The
+// owner said "too white" three times across three different amounts, and the
+// third time put the reference beside a live card. Zero is the answer the art
+// gives; anything above it is the thing he rejected.
+var lift = /--cf-core-lift:\s*([^;]+);/.exec(BARE);
+check('--cf-core-lift ships at 0 (the reference line is the frame colour)',
+      lift && parseFloat(lift[1]) === 0,
+      lift ? 'default is ' + lift[1].trim() + ' — that is lighter than the reference'
+           : 'the dial has no default');
+var wht = /--cf-core-white:\s*([^;]+);/.exec(BARE);
+check('the no-relative-colour fallback agrees with it',
+      wht && parseFloat(wht[1]) === 0,
+      wht ? 'fallback whitens by ' + wht[1].trim() + ' where the live path does not'
+          : 'the fallback ratio is gone');
 
 // ---- 4. ONE LINE, NOT TWO. The owner has rejected an added white line inside
 // the stroke twice. The core is the line itself; the ::after ring stays dead.

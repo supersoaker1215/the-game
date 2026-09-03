@@ -48736,13 +48736,43 @@ body.in-match:not(.board-v2) .board {
    The outward stops are untouched: they are the design note's, copied exactly,
    and this was never a complaint about them. */
 
+/* ---- AND THEN THE REFERENCE SETTLED IT (2026-09-03, same day)
+   Owner, with the board reference beside a live card: "still too white ... the
+   rules i had in place before about glow need to be overriden to match this."
+
+   The note's rules lose to the art they were written about. MEASURED off the
+   reference tile: its frame line is #4FC3F7 — 79,195,247, L64 — which is this
+   game's own --cf-rgb for a blue card, unmodified. There is no lift in it at
+   all. Ours was shipping L74. That ten points IS the complaint, and no ratio of
+   a lift was ever going to close it, because the target is zero.
+
+     reference   79,195,247   L64
+     lift 0.12  122,235,255   L74   <- what he was looking at
+     lift 0.03   90,205,255   L68   <- still above it
+
+   AND THE GLOW IS NOT THE SHORTFALL, which is worth writing down because it is
+   the obvious next guess and it is wrong. Against card width the reference's
+   bloom is SMALLER than ours: ~14px on a 274px tile is 5.1%, our 10px on a
+   126px board tile is 7.9%, and its stroke is ~1.1% of card width against our
+   1.6px floor's 1.3%. Ours is already the fatter, wider treatment. The mockup
+   reads better because it is rendered at twice the size, not because it is lit
+   harder — so thickening the stroke or widening the halo to chase it would
+   overshoot a target we are already past.
+
+   The lift stays as a dial rather than being deleted, because everything it is
+   wired to — the chroma-preserving path, the @supports fallback, the audit —
+   is the part that took the work. It just ships at zero, which is what the
+   reference says the line is. */
+
 :root {
-  /* oklch lightness added to the frame colour for the core line. 0.12 measures
-     as the same lift 35% white gave, with the chroma still there. Past ~0.16
-     the bright frames clip a channel and start washing out for real. */
-  --cf-core-lift: 0.12;
-  /* the fallback path's ratio, for engines without relative colour syntax */
-  --cf-core-white: 20%;
+  /* oklch lightness added to the frame colour for the core line. SHIPS AT 0:
+     the reference's line is the frame colour itself. Turn it up and the core
+     lightens while holding its chroma — 0.12 was the measured equivalent of a
+     35% white mix, and past ~0.16 the bright frames clip a channel. */
+  --cf-core-lift: 0;
+  /* the fallback path's ratio, for engines without relative colour syntax.
+     Held at 0 alongside the lift so the two paths agree. */
+  --cf-core-white: 0%;
 }
 
 .card .cf-edge, .trick-card .cf-edge {
