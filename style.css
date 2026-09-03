@@ -48997,3 +48997,52 @@ body.in-match:not(.board-v2) .board {
     inset 0 0 30px -13px rgba(231, 76, 60, 0.60),
     inset 0 0 60px -30px rgba(231, 76, 60, 0.32);
 }
+
+/* ============================================================
+   THE MIDLINE IS A SEAM, NOT A GAP (2026-09-03)
+   ============================================================
+   Owner, circling the band between the two rows: "i know that the bue and red
+   are fro where the cards can be played but the black in the middle is not the
+   best what do you recommend."
+
+   MEASURED, and the black is not a design choice anyone made — it is a hole
+   between two gradients that were already reaching for each other:
+
+     .card-slot.ai-slot      transparent 52% -> 0.02 @76% -> 0.075 @100% (red,
+                             brightening DOWNWARD, toward the middle)
+     .card-slot.player-slot  the same in blue, brightening UPWARD
+     between them            28px where nothing paints at all
+
+   So both territories crescendo toward the line and then fall off a cliff, and
+   the lane pips end up floating in the void it leaves. The recommendation is
+   the obvious one once it is measured: carry each side the last 28px so they
+   MEET at the separator instead of stopping short of it. The band stops being
+   an absence and becomes the front line — which is what it actually is, the
+   place combat resolves — and it says so in the colour language the board
+   already uses rather than introducing a third one.
+
+   WHY NOT A TEXTURE. A hatch or a scanline in that band was the other option
+   and it is the wrong one here: the house rule is that interiors stay pure
+   black with no wash or scanline, and the band is 28px of a busy board. A
+   gradient adds no new marks to read.
+
+   THE NUMBERS CONTINUE THE SLOPE rather than starting a new one. 0.07 at each
+   edge is where the neighbouring slot's own gradient has just arrived, so there
+   is no step; 0.12 at the line is one more increment of the same rise. A first
+   pass at 0.15 with a transparent centre read as a red STRIPE laid over the
+   gap — a brighter thing in the middle rather than two fields touching — so the
+   peak came down and the centre closed up.
+
+   The separator's own cyan hairline still sits on top of all of it and stays
+   the brightest thing there, which is what keeps the seam reading as a line
+   rather than a smear. */
+
+.lane .lane-sep {
+  --seam-a: 0.12;   /* the two territories' alpha where they meet */
+  --seam-edge: 0.07; /* where each neighbouring slot's gradient hands off */
+  background-image: linear-gradient(to bottom,
+    rgba(255, 90, 74,  var(--seam-edge)) 0%,
+    rgba(255, 90, 74,  var(--seam-a))    46%,
+    rgba(79, 195, 247, var(--seam-a))    54%,
+    rgba(79, 195, 247, var(--seam-edge)) 100%);
+}
