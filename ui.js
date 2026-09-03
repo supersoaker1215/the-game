@@ -23103,7 +23103,28 @@ const UI = {
     if (bSlot && bLane && bSec) {
       const n = (el, ...p) => { const c = getComputedStyle(el);
         return p.reduce((t, k) => t + (parseFloat(c[k]) || 0), 0); };
-      const floorH = 2 * (140 * 182 / 92 + n(bSlot, 'paddingTop', 'paddingBottom'))
+      // THE FLOOR IS 140 IN 1v1 AND LESS IN 2v2, because 140 is a WIDTH and 2v2
+      // fits eight lanes across the same board. The constant charged every mode
+      // a six-lane board's minimum height, so in 2v2 the hand was solved against
+      // ~138px of board that the board was never going to use: the cards came
+      // out smaller than the same hand in 1v1 and the difference sat under them
+      // as dead black. (Owner: "well theres too much soace below in 2v2" …
+      // "the cards it should be the same as 1v1.")
+      // --board-card-w is safe to read here even though the board is solved
+      // AFTER the hand: it comes out of _fitBoardToViewport's WIDTH budget —
+      // gap, --lane-chrome, section padding and the lane count — and never out
+      // of the height, so it cannot start the hand/board feedback loop the
+      // comment above this block exists to prevent.
+      // min(), not the raw value: a board card WIDER than 140 must not raise the
+      // floor and take room back off the hand. Note this is not a 2v2-only
+      // change — a narrow 1v1 window also solves its board card below 140
+      // (measured 126 at 1311x987), so 1v1 gets the same honest floor. At that
+      // window it changes nothing observable, because the hand is already
+      // sitting on HAND_MIN; with --board-card-w forced to a 2v2-like 105 the
+      // same solve moved the hand from 110 to 114, which is the mechanism.
+      const _bcw = parseFloat(getComputedStyle(area).getPropertyValue('--board-card-w')) || 140;
+      const floorW = Math.min(140, _bcw);
+      const floorH = 2 * (floorW * 182 / 92 + n(bSlot, 'paddingTop', 'paddingBottom'))
                    + n(bLane, 'paddingTop', 'paddingBottom');
       others = others - bSec.getBoundingClientRect().height + floorH;
     }
