@@ -22986,8 +22986,23 @@ const UI = {
     // what the board would have PAID for and this is what is actually left over;
     // asking for 328 in 312 would hang the panel over lane 8. Declined below the
     // same 232 readability floor the reserve uses.
+    // FLUSH LEFT, LIKE A PAGE. The board used to be centred in whatever the
+    // reserve left over and then nudged left just far enough to clear it, which
+    // put 202px of nothing down the left at 1430px wide while the right held
+    // exactly the column. Owner, arrowing left at both the board and the hand
+    // row: "these all need to be left aligned like a paper."
+    // The margin is the HAND TOOLS COLUMN's width, not zero. Grid column 1 is
+    // max(--board-left, --hand-col-w), so a board at 0 would leave the hand row
+    // starting at 54 while the lanes started at 0 — the two things the owner
+    // drew arrows at, misaligned by exactly the thing meant to align them.
+    const _handColW = parseFloat(getComputedStyle(document.documentElement)
+      .getPropertyValue('--hand-col-w')) || 54;
+    const _leftMargin = Math.max(num(section, 'paddingLeft'), _handColW);
+    // Everything the board does not need now lands on the right, where the
+    // column already lives — so 2v2's slack column is measured from there
+    // rather than from an even split.
     const _slackCol = (reserve === 0 && typeof Game !== 'undefined' && Game.is2v2 && Game.is2v2())
-      ? Math.round(Math.max(0, 2 * gutter - decInset - decGap))
+      ? Math.round(Math.max(0, window.innerWidth - _leftMargin - laidBoardW - decInset - decGap))
       : 0;
     const _use2v2Col = _slackCol >= 232;
     root.style.setProperty('--decision-w', (_use2v2Col ? _slackCol : decW) + 'px');
@@ -23025,9 +23040,13 @@ const UI = {
     // rather than measured off the board's rect, because this runs BEFORE the
     // new --board-card-w has been laid out and a rect read here is a frame
     // stale.
-    const laneShift = reserve
-      ? Math.max(0, Math.round(reserve - gutter - sectionPadR))
-      : (_use2v2Col ? Math.max(0, Math.round(gutter - sectionPadR)) : 0);
+    // One rule for both modes now: if there is a column at all, the board goes to
+    // the left margin and the leftover is the column's. reserve-vs-gutter
+    // arithmetic only ever moved it far enough to stop overlapping, which is a
+    // different goal from lining it up.
+    const laneShift = (reserve || _use2v2Col)
+      ? Math.max(0, Math.round(num(section, 'paddingLeft') + gutter - _leftMargin))
+      : 0;
     root.style.setProperty('--decision-shift', laneShift + 'px');
     root.style.setProperty('--board-left',
       Math.max(0, Math.round(num(section, 'paddingLeft') + gutter - laneShift)) + 'px');
