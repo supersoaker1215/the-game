@@ -9504,6 +9504,83 @@ test('Vampire Candy steals 2, and still cannot take the last point', function ()
   assertEq(G3.state.player.health, 10, 'and nothing is gained');
 });
 
+// ============================================================
+// ONE WONDER WEAPON PER PLAYER
+// ------------------------------------------------------------
+// Owner: "for zombies a player can pnly recive 1 Wonder weapon so if you win 3
+// you can oly choose 1." A seat that swept the Shadow Man's categories used to
+// take a card AND a permanent +1 hand cap for each one — which is where a 6/9
+// hand meter comes from.
+// ============================================================
+test('A seat that leads several Shadow Man challenges keeps only one weapon', function () {
+  var G = freshGame();
+  var pool = (typeof WONDER_DEFS !== 'undefined') ? WONDER_DEFS : [];
+  assert(pool.length >= 3, 'there are weapons to win');
+
+  G.state._shadow = { shows: true, prizes: {
+    kills: pool[0].name, played: pool[1].name, heroDmg: pool[2].name } };
+  G.state.player.hand = [];
+  var capBefore = G.state.player.maxHandSize;
+
+  // Three categories, all led by the same side.
+  G._shadowAwardOnePerSeat([
+    { seat: 'player', key: 'kills' },
+    { seat: 'player', key: 'played' },
+    { seat: 'player', key: 'heroDmg' },
+  ]);
+  // A one-option prompt auto-resolves; three options raise a real pick.
+  if (G.state.pendingCardChoice) {
+    var cc = G.state.pendingCardChoice;
+    assertEq(cc.cards.length, 3, 'all three weapons are offered');
+    cc.onChoose ? cc.onChoose(cc.cards[1]) : (cc.callback && cc.callback(cc.cards[1]));
+  }
+  assertEq(G.state.player.hand.length, 1, 'exactly one weapon lands in hand');
+  assertEq(G.state.player.maxHandSize, capBefore + 1, 'and the cap rises by exactly one');
+});
+
+test('Leading a single challenge still pays out with no prompt', function () {
+  var G = freshGame();
+  var pool = (typeof WONDER_DEFS !== 'undefined') ? WONDER_DEFS : [];
+  G.state._shadow = { shows: true, prizes: { kills: pool[0].name } };
+  G.state.player.hand = [];
+  var capBefore = G.state.player.maxHandSize;
+  G._shadowAwardOnePerSeat([{ seat: 'player', key: 'kills' }]);
+  assertEq(!!G.state.pendingCardChoice, false, 'one win is not a choice');
+  assertEq(G.state.player.hand.length, 1, 'the weapon is handed over');
+  assertEq(G.state.player.hand[0].name, pool[0].name, 'and it is the one that challenge carried');
+  assertEq(G.state.player.maxHandSize, capBefore + 1, 'cap +1, once');
+});
+
+test('Two seats each owed a weapon are asked one at a time', function () {
+  // Two prompts armed into the single pendingCardChoice slot would clobber each
+  // other — the collision the prompt queue exists for, and four categories
+  // across two seats is exactly how the Shadow Man produces it.
+  var G = freshGame();
+  var pool = (typeof WONDER_DEFS !== 'undefined') ? WONDER_DEFS : [];
+  if (pool.length < 4) return;
+  G.state._shadow = { shows: true, prizes: {
+    kills: pool[0].name, played: pool[1].name, heroDmg: pool[2].name, blocked: pool[3].name } };
+  G.state.player.hand = []; G.state.ai.hand = [];
+  G._shadowAwardOnePerSeat([
+    { seat: 'player', key: 'kills' },  { seat: 'player', key: 'played' },
+    { seat: 'ai',     key: 'heroDmg' },{ seat: 'ai',     key: 'blocked' },
+  ]);
+  // The shim resolves prompts synchronously, so both picks may already be made
+  // by the time we look — drain whatever is still armed, then assert the RULE.
+  // (What this pins is that neither seat was skipped and neither got two; the
+  // one-at-a-time sequencing is a live-UI property the shim cannot show, and
+  // asserting a prompt object here would pass or fail on the shim's timing
+  // rather than on the code.)
+  for (var guard = 0; guard < 4 && G.state.pendingCardChoice; guard++) {
+    var cc = G.state.pendingCardChoice;
+    assert(cc.cards.length === 2, 'each seat is offered only what it won');
+    cc.onChoose ? cc.onChoose(cc.cards[0]) : (cc.callback && cc.callback(cc.cards[0]));
+  }
+  assertEq(G.state.player.hand.length, 1, 'one weapon each, not two');
+  assertEq(G.state.ai.hand.length, 1, 'for both seats');
+  assertEq(!!G.state.pendingCardChoice, false, 'and nothing is left armed');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

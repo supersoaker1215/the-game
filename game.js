@@ -17400,9 +17400,76 @@ const Game = {
     if (typeof UI !== 'undefined' && typeof UI.showShadowMan === 'function') {
       this._armEventHold((this._SHADOW_HOLD_MS | 0) + awards.length * 2600);
     }
-    awards.forEach(a => this._shadowAward(a.seat, a.key));
+    // ONE WEAPON PER PLAYER, HOWEVER MANY CHALLENGES YOU LED. Owner: "for
+    // zombies a player can pnly recive 1 Wonder weapon so if you win 3 you can
+    // oly choose 1." A seat that swept three categories used to take three
+    // cards AND three permanent +1s to its hand cap — which is where a 6/9 hand
+    // meter comes from.
+    // The surplus is FORFEIT, not passed down to the runner-up: that is the same
+    // reading the tie rule already uses ("lead it outright or you do not get
+    // it"), and handing second place a prize they did not lead would be a new
+    // rule nobody asked for.
+    // Grouped by seat first so the choice is offered once with everything that
+    // seat won, rather than a prompt per category.
+    this._shadowAwardOnePerSeat(awards);
     if (typeof UI !== 'undefined' && UI.render) { try { UI.render(); } catch (e) {} }
     if (this._pushOnlineState) { try { this._pushOnlineState(); } catch (e) {} }
+  },
+
+  // Hand out at most ONE weapon per seat. Seats that led a single category are
+  // paid immediately; a seat that led several picks which one it keeps.
+  //
+  // SEQUENTIAL, not a forEach of prompts. Two seats each owed a choice would
+  // otherwise arm two promptCardChoices into the one slot and the second would
+  // clobber the first — the same collision the prompt queue exists for, and the
+  // Shadow Man is exactly the event that can produce it (four categories, two
+  // seats). Each pick resolves before the next seat is asked.
+  _shadowAwardOnePerSeat(awards) {
+    const bySeat = new Map();
+    (awards || []).forEach(a => {
+      if (!bySeat.has(a.seat)) bySeat.set(a.seat, []);
+      bySeat.get(a.seat).push(a.key);
+    });
+    const queue = [...bySeat.entries()];
+    const step = () => {
+      const entry = queue.shift();
+      if (!entry) return;
+      const [seat, keys] = entry;
+      if (keys.length === 1) {
+        this._shadowAward(seat, keys[0]);
+        step();
+        return;
+      }
+      const sh = this.state && this.state._shadow;
+      const pool = (typeof WONDER_DEFS !== 'undefined') ? WONDER_DEFS : [];
+      // One option per category they led, carrying that challenge's own prize.
+      const opts = keys.map(k => {
+        const named = sh && sh.prizes && sh.prizes[k];
+        const def = (named && pool.find(w => w.name === named)) || null;
+        return def ? { key: k, def } : null;
+      }).filter(Boolean);
+      if (!opts.length) { step(); return; }
+      if (opts.length === 1) { this._shadowAward(seat, opts[0].key); step(); return; }
+      this.log(`  [SHADOW MAN] ${this._shadowName(seat)} led ${keys.length} challenges — only one weapon leaves with them.`);
+      const side = this._shadowSideOf(seat);
+      const cards = opts.map(o => this.createCardInstance(o.def, side));
+      this.promptCardChoice(side, cards, 'Wonder Weapon',
+        `You led ${keys.length} of the Shadow Man's challenges. Only one weapon is yours to keep — choose it.`,
+        (picked) => {
+          // Resolve by NAME, not by array index: the prompt hands back the
+          // instance it was given, and the award path builds its own from the
+          // def, so the name is the only identity the two paths share.
+          const hit = picked && opts.find(o => o.def.name === picked.name);
+          this._shadowAward(seat, (hit || opts[0]).key, (hit || opts[0]).def.name);
+          step();
+        },
+        null,
+        // The seat that won is the seat that chooses — 2v2 routes it to them
+        // rather than defaulting to the host. An AI seat auto-resolves through
+        // the same door every other prompt uses.
+        { seat: (this.state.twoVTwo && this.state.twoVTwo.players && this.state.twoVTwo.players[seat]) ? seat : undefined });
+    };
+    step();
   },
 
   // Resolve any sudden-death categories once their extra round has run.
