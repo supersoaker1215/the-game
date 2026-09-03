@@ -159,9 +159,17 @@ check('a resting card\'s winning `filter` composes var(--card-tube)',
 // the state this audit was written to stop coming back.
 var restingEdge = { classes: ['cf-edge'], ancestors: ['card', 'cf-frame', 'board', 'lane'] };
 var we = winner('background', restingEdge);
-check('the frame ring is lifted toward white, not flat frame colour',
-      we && /color-mix\(/.test(we.value) && /#fff|white/.test(we.value),
+check('the frame ring is LIT, not flat frame colour',
+      we && (/--cf-core-lift/.test(we.value) || /--cf-core-white/.test(we.value)),
       we ? 'style.css:' + we.line + ' wins with `' + we.value.slice(0, 70) + '`'
+         : 'no background declaration reaches .cf-edge');
+// and it lifts LIGHTNESS rather than mixing toward white, which is the whole
+// difference between a lit core and a pastel one — sRGB's path to #fff runs
+// through the desaturated middle, so every step lighter was a step greyer.
+// (Owner: "too white more saturation.")
+check('the lift holds chroma (oklch lightness, not a white mix)',
+      we && /oklch\(from/.test(we.value),
+      we ? 'winning value is `' + we.value.slice(0, 70) + '` — that washes the frame colour out'
          : 'no background declaration reaches .cf-edge');
 
 // ---- 4. ONE LINE, NOT TWO. The owner has rejected an added white line inside

@@ -48703,25 +48703,55 @@ body.in-match:not(.board-v2) .board {
    purpose — "it was inheriting the base trick-card bloom which made the one
    card you CANNOT use among the brightest" — so it is left alone below. */
 
+/* ---- stop 1: the core. The line itself, LIT rather than whitened.
+   Owner: "too white more saturation."
+
+   Right, and the reason is the colour space, not the amount. Mixing toward #fff
+   in sRGB is a straight line to white in a space where that line runs straight
+   through the desaturated middle, so every step toward "lighter" was also a
+   step toward "greyer" — there was no ratio that gave one without the other.
+   Measured across the five frame colours at the shipped 35%:
+
+     green   46,204,113  S63 L49  ->  119,222,163  S61 L67   a pastel mint
+     red    231, 76, 60  S78 L57  ->  239,139,128  S78 L72   a washed pink
+     purple 155, 89,182  S39 L53  ->  190,147,208  S39 L70
+
+   Raising LIGHTNESS in oklch and leaving chroma exactly where it was gets the
+   same lift with the colour still in it — same numbers, same measurement:
+
+     green   ->  98,244,150  S87 L67    (+26 saturation at identical lightness)
+     red     -> 255,117,97   S100 L69   a hot coral instead of a pink
+     purple  -> 193,126,222  S59 L68
+
+   The requirement never was "whiter". It was "lighter than the glow around it",
+   which is what makes a tube read as lit, and lightness is the only part of
+   that sentence that had to move.
+
+   NOT boosting chroma on top of the lift, though it was measured: at c * 1.25
+   green lands on 0,251,132 and gold on 255,227,0 — both are out of sRGB and
+   clip a channel to the wall, which drags LIGHTNESS back down (green L49, back
+   to where it started) and pins the hue to whatever the clip leaves. A core
+   that goes darker as you turn it up is not a knob anyone can use.
+
+   The outward stops are untouched: they are the design note's, copied exactly,
+   and this was never a complaint about them. */
+
 :root {
-  /* HOW MUCH WHITE GOES INTO THE LINE, and the note's own two sentences
-     disagree about it: the prose says "mix ~35% white into the frame color",
-     the snippet beside it says color-mix(... var(--frame) 35%, #fff), which is
-     35% frame and 65% WHITE. Rendered both. At 65% white the ring computes to
-     rgb(193,234,252) and a Mr. Freeze tile is a white-framed card with a blue
-     haze — it pops, and it stops being blue. At 35% white it computes to
-     rgb(141,216,250): plainly lighter than the rgb(79,195,247) glow around it,
-     which is the whole requirement, and still plainly BLUE.
-     The prose wins, because frame colour is not decoration in this game — the
-     ring is how a player tells an ally card from an enemy one and one rarity
-     from another, so a treatment that washes every frame toward white deletes
-     information the board is read by. */
-  --cf-core-white: 35%;
+  /* oklch lightness added to the frame colour for the core line. 0.12 measures
+     as the same lift 35% white gave, with the chroma still there. Past ~0.16
+     the bright frames clip a channel and start washing out for real. */
+  --cf-core-lift: 0.12;
+  /* the fallback path's ratio, for engines without relative colour syntax */
+  --cf-core-white: 20%;
 }
 
-/* ---- stop 1: the core. The line itself, lifted toward white. */
 .card .cf-edge, .trick-card .cf-edge {
   background: color-mix(in srgb, #fff var(--cf-core-white), rgb(var(--cf-rgb))) !important;
+}
+@supports (color: oklch(from red l c h)) {
+  .card .cf-edge, .trick-card .cf-edge {
+    background: oklch(from rgb(var(--cf-rgb)) calc(l + var(--cf-core-lift)) c h) !important;
+  }
 }
 
 /* ---- stops 2 and 3: the gas on the glass, then what it throws on the dark.
