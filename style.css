@@ -41168,6 +41168,16 @@ body.in-match .lane {
     0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.55),
     0 0 18px rgba(var(--theme-rgb, 79,195,247), 0.25);
 }
+/* A RAISED CAP IS EARNED, so it is marked rather than left to look like a typo.
+   7 is the number every match starts on; Mobius Chair, the Eye of Agamotto and
+   each Wonder Weapon push it up permanently. Gold because that is this UI's
+   colour for "you gained something", and the title says how many and from what. */
+.hand-meter.cap-raised .hand-meter-text {
+  color: rgba(var(--gold-rgb), 0.95);
+  text-shadow:
+    0 0 8px rgba(var(--gold-rgb), 0.55),
+    0 0 18px rgba(var(--gold-rgb), 0.25);
+}
 /* FULL is an event — a full hand means the next draw is thrown away. */
 .hand-meter.full .hand-meter-text {
   color: #ffffff;
