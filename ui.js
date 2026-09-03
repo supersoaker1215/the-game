@@ -22858,7 +22858,21 @@ const UI = {
     const decInset = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--decision-inset')) || 10;
     const decGap   = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--decision-gap')) || 12;
     const decW = Math.round(Math.max(232, Math.min(330, window.innerWidth * 0.21)));
-    let reserve = document.body.classList.contains('board-v2') ? 0 : (decW + decInset + decGap);
+    // 2v2 PAYS NOTHING FOR A PANEL IT NEVER MOUNTS. #classic-decision is
+    // rendered by renderClassicDecision, which hangs off renderHud — and every
+    // 2v2 path returns long before that, using renderInlineChoiceFallback
+    // instead. So the reserve was 317px of width held for an element that does
+    // not exist on that screen, and eight lanes were squeezed into what was
+    // left.
+    // Measured on a live 2v2 at 1399x987 before this: board card 103px, board
+    // 1068px wide ending at x=1083 with 317px of empty screen to its right, and
+    // 92px of dead space under the hand. That is the whole of "the board in 2v2
+    // should be basically the same as 1v1" and "the board is too small" — it was
+    // never a height problem, it was width being spent on nothing.
+    // Same exemption board-v2 already had, and for the same reason.
+    const _noDecisionCol = document.body.classList.contains('board-v2')
+      || !!(typeof Game !== 'undefined' && Game.is2v2 && Game.is2v2());
+    let reserve = _noDecisionCol ? 0 : (decW + decInset + decGap);
     // ...UNLESS THE SCREEN CANNOT AFFORD IT. On a 390px phone the reserve is
     // 254px of 390, which would leave 11px lanes — the panel is an overlay
     // there, not a column, and this rule must not quietly destroy the board to

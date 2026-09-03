@@ -1381,19 +1381,35 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
 /* Health Bars — Hearthstone style */
 .health-container { display: flex; align-items: center; gap: 8px; position: relative; }
 
-/* Frozen HP shield (Mr. Freeze) */
+/* Frozen HP (Mr. Freeze) — THE BAR FREEZES, NOT A BOX AROUND IT.
+   This used to wrap the whole .health-container in a rounded panel: padding,
+   a frosted gradient, a border and a double glow. Owner: "can you make the
+   helabar change to light ice blue with the FROZEN, not the box around the HP
+   ar."
+   Dropping it is also a layout fix. The box added `padding: 4px 10px` to a
+   container that has none the rest of the time, so the HP bar and everything
+   beside it jumped sideways the moment a freeze landed and jumped back when it
+   thawed — a 20px shift as a side effect of a decoration.
+   What stays is the freeze READING: the snowflake, the FROZEN label, the bar's
+   own ice-blue rim, and (below) the fill itself turning ice blue instead of
+   faction red or theme blue. */
 .health-container.hp-frozen {
-  padding: 4px 10px;
-  border-radius: 12px;
-  background:
-    linear-gradient(135deg, rgba(133,193,233,0.12), rgba(174,214,241,0.05)),
-    repeating-linear-gradient(45deg, rgba(174,214,241,0.08) 0 4px, transparent 4px 8px);
+  /* no box — see above. position: relative comes from .health-container so the
+     snowflake and the FROZEN label still anchor to it. */
+}
+/* THE FILL IS THE SIGNAL. Overriding both sides in one rule on purpose: frozen
+   is frozen, and a bar that stayed red-for-them / blue-for-you would be saying
+   whose it is at the moment the interesting fact is that it cannot move. The
+   leading-edge cursor comes with it — it is the brightest thing on the bar and
+   would otherwise sit there in the old faction colour. */
+.health-container.hp-frozen .health-fill.player-hp,
+.health-container.hp-frozen .health-fill.ai-hp {
+  background: linear-gradient(90deg, rgba(174,214,241,0.20), rgba(133,193,233,0.55)) !important;
   box-shadow:
-    0 0 14px rgba(133,193,233,0.55),
-    0 0 26px rgba(174,214,241,0.3),
-    inset 0 0 10px rgba(174,214,241,0.25),
-    inset 0 1px 0 rgba(255,255,255,0.3);
-  border: 1px solid rgba(174,214,241,0.5);
+    inset -2px 0 0 0 rgba(230,245,255,1),
+    2px 0 6px rgba(133,193,233,0.90),
+    4px 0 12px rgba(174,214,241,0.55),
+    6px 0 20px rgba(174,214,241,0.25) !important;
 }
 .health-container.hp-frozen::before {
   content: '❄';
