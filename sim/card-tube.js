@@ -200,6 +200,32 @@ MUST_COMPOSE.forEach(function (want) {
         body ? 'it replaces the filter outright' : 'keyframe not found');
 });
 
+// ---- 7. the inner hairline. It is the design note's two INSET stops, which
+// nothing else in the frame can express: drop-shadow() only throws light
+// outward, and box-shadow: inset on .cf-edge would be erased by that ring's own
+// clip-path. So it lives on .cf-frame::before — a sibling of the ring, not a
+// child of it — and it ships OFF, because a light line inside the stroke has
+// been refused twice. These three assertions are the deal: off by default, the
+// note's numbers verbatim, and not parented anywhere a clip-path can eat it.
+var hairRe = /\.card \.cf-frame::before[^{]*\{([\s\S]*?)\n\}/;
+var hair = hairRe.exec(BARE);
+check('the inner hairline exists on .cf-frame::before', !!hair,
+      'the opt-in inset stops are gone');
+if (hair) {
+  var hb = hair[1].replace(/\s+/g, ' ');
+  check('inner hairline copies the note\'s inset stops exactly',
+        /inset 0 0 4px rgba\(var\(--cf-rgb\), 0\.90\)/.test(hb) &&
+        /inset 0 0 10px rgba\(var\(--cf-rgb\), 0\.30\)/.test(hb),
+        'the stops drifted from 4px @0.90 / 10px @0.30 inset');
+  check('inner hairline is gated on the --cf-hairline token',
+        /opacity:\s*var\(--cf-hairline/.test(hb),
+        'it is no longer opt-in');
+}
+var tokenDefault = /--cf-hairline:\s*([^;]+);/.exec(BARE);
+check('--cf-hairline ships OFF (0)', tokenDefault && tokenDefault[1].trim() === '0',
+      tokenDefault ? 'default is ' + tokenDefault[1].trim() + ', not 0'
+                   : 'the token has no default');
+
 print('card-tube: ' + pass + ' passed, ' + fails.length + ' failed');
 if (fails.length) {
   print('Failures:');

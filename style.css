@@ -48815,3 +48815,69 @@ body.in-match:not(.board-v2) .board {
   0%, 100% { filter: var(--card-tube) brightness(0.78) saturate(0.90); }
   50%      { filter: var(--card-tube) brightness(0.90) saturate(1.00); }
 }
+
+/* ============================================================
+   THE INNER HAIRLINE, AS AN OPT-IN (2026-09-03)
+   ============================================================
+   Owner: "add the inner hairline back as an opt-in token and copy exactly."
+
+   This is the half of the design note that had no expression in the shipped
+   frame. Its stack is four stops, and only two of them point outward:
+
+     0 0 3px  frame 90%           <- shipped, exactly
+     0 0 4px  frame 90%  inset    <- HERE
+     0 0 10px frame 45%           <- shipped, exactly
+     0 0 10px frame 30%  inset    <- HERE
+
+   WHY IT COULD NOT JUST BE ADDED TO THE FILTER. The two inset stops are the
+   light on the INSIDE surface of the glass, and `drop-shadow()` cannot make
+   one — it traces an alpha silhouette outward and that is the whole of what it
+   does. `box-shadow: inset` can, but the ring it would have to sit on is
+   `.cf-edge`, which carries a clip-path, and a clip-path removes box-shadow
+   outright. So the inward light needs its own object, unclipped, sitting at the
+   ring's inner edge — which is exactly the "second element inside the ring"
+   this was always going to take, and exactly why it is arriving as a token
+   rather than switched on for everyone.
+
+   OFF BY DEFAULT, because a light line inside the stroke has been reported
+   three times and refused twice ("there doesnt need to be white on the inside
+   line next to the energy number"). --cf-hairline is that switch and also the
+   dial: 0 is off, 1 is the note's numbers verbatim, anything between is a
+   fraction of them.
+
+   NOTE WHAT IT IS AND IS NOT. These are the note's own two inset stops and
+   nothing else — an inward BLOOM off the frame's inner face. No white line is
+   added, because the note does not have one either: its light core is the
+   stroke itself, which is already how the ring is coloured.
+
+   GEOMETRY is the ring's inner hole, reproduced rather than guessed.
+   --cf-k is the inner chamfer's shortening, the same constant .cf-edge derives
+   its hole from: offsetting a 45 degree cut inward by one stroke moves its
+   endpoints along the edges by (sqrt2 - 1) of that stroke. Declared locally
+   because .cf-frame::before is a sibling of .cf-edge, not a child of it, so it
+   inherits nothing from where that constant currently lives. */
+
+:root {
+  /* 0 = off (the shipped default), 1 = the design note's inset stops verbatim */
+  --cf-hairline: 0;
+}
+
+.card .cf-frame::before, .trick-card .cf-frame::before {
+  content: '';
+  position: absolute;
+  inset: var(--cf-stroke);
+  --cf-k: calc(var(--chamfer) - 0.4142 * var(--cf-stroke));
+  pointer-events: none;
+  z-index: 1;
+  opacity: var(--cf-hairline, 0);
+  clip-path: polygon(
+    var(--cf-k) 0,
+    100% 0,
+    100% calc(100% - var(--cf-k)),
+    calc(100% - var(--cf-k)) 100%,
+    0 100%,
+    0 var(--cf-k));
+  box-shadow:
+    inset 0 0 4px  rgba(var(--cf-rgb), 0.90),
+    inset 0 0 10px rgba(var(--cf-rgb), 0.30);
+}
