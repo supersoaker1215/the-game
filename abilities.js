@@ -6377,6 +6377,36 @@ const CARD_ABILITIES = {
           });
           choices.push({ name: "Done", desc: "Stop destroying lanes" });
           const left = purgeCap === Infinity ? '' : ` (${purgeCap - purgedCount} left)`;
+          // AUTO-PICK CONTINUES THE PURGE — it does NOT stop at "Done". This is a
+          // multi-step prompt: the player picks a lane, it collapses, and the NEXT
+          // lane is offered from inside this callback. Each of those steps is its
+          // own prompt, and in 2v2 online each is a separate network round-trip
+          // with its own 30s timeout and stall-watchdog. When ANY one of them was
+          // interrupted — a dropped/late broadcast of the re-prompt, a timeout, a
+          // watchdog force-recovery — the fallback used to be `Done`, which
+          // abandoned the rest of Darkseid's payload. So a 9-cost bomb that reads
+          // "destroy up to 3 contested lanes" blew up exactly one and quit.
+          // (User: "i only got to blow up 1 lane when every lane was contested and
+          // wanted to blow up more.")
+          // The fallback now picks the best remaining TRADE (highest enemy threat
+          // over our own body, same scoring the AI arm uses) so an interrupted
+          // chain still delivers the full up-to-cap purge instead of stopping at
+          // one. A human who genuinely wants to stop early still clicks Done; this
+          // only fires when nobody answered.
+          const autoPick = (cs) => {
+            const laneOpts = cs.filter(o => o && o._lane != null);
+            if (!laneOpts.length) return cs[cs.length - 1]; // only Done left
+            let best = laneOpts[0], bestScore = -Infinity;
+            laneOpts.forEach(o => {
+              const myCard = G.state.lanes[o._lane][self.owner];
+              const enemy = G.state.lanes[o._lane][opp];
+              const mine = (myCard && AI.threatScore) ? AI.threatScore(myCard) : 0;
+              const theirs = (enemy && AI.threatScore) ? AI.threatScore(enemy) : 0;
+              const score = theirs - mine;
+              if (score > bestScore) { bestScore = score; best = o; }
+            });
+            return best;
+          };
           G.promptCardChoice(self.owner, choices,
             "Darkseid — Purge", `Pick a contested lane to destroy${left}, or Done`,
             (choice) => {
@@ -6384,7 +6414,7 @@ const CARD_ABILITIES = {
               destroyLane(choice._lane);
               purgedCount++;
               pickNext();
-            }, c => c[c.length - 1]);
+            }, autoPick);
         };
         pickNext();
       };

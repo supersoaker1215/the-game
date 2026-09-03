@@ -969,7 +969,7 @@ const TRICK_DEFS = [
 const CANDY_DEFS = [
   {
     name: "Twice Candy", cost: 0, _isCandy: true,
-    desc: "Give an ally Overdrive and +2/+2 permanently.",
+    desc: "Give an ally Overdrive and +2/+2 for the rest of the game.",
     canPlay(G, owner) { return G.getAlliesOf(owner).length > 0; },
     play(G, owner) {
       const allies = G.getAlliesOf(owner).filter(a => a.currentHealth > 0);
