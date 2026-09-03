@@ -142,8 +142,13 @@ t('LS-5 every log surface runs the same filter', function () {
   // headless test can check about a DOM renderer.
   var src = read('ui.js');
   ok('UI.readableLog exists', /readableLog\(log\)\s*\{/.test(src));
+  // Was >=3 and named the board aside as one of the three. That panel has been
+  // removed, so the number came down with it — the guarantee is "every surface
+  // that prints the log calls the shared filter", not a headcount of surfaces,
+  // and a stale count would have to be argued down every time one is added or
+  // dropped. What is left is the drawer and the replay.
   var uses = (src.match(/this\.readableLog\(/g) || []).length;
-  ok('and the drawer, the aside and the replay all go through it (>=3)', uses >= 3);
+  ok('and the drawer and the replay both go through it (>=2)', uses >= 2);
   eq('no surface still slices the raw log for display',
      /\(s\.log \|\| \[\]\)\.slice\(-3\)/.test(src), false);
   var bv2 = read('board-v2.js');

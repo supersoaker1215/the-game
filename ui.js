@@ -8101,7 +8101,6 @@ const UI = {
     // screen that is neither.
     this._safe('voice',                   () => { if (typeof Voice !== 'undefined') Voice.mount(); });
     this._safe('renderLog',               () => this.renderLog(s));
-    this._safe('renderBoardAside',        () => this.renderBoardAside(s));
     // BOARD V2 (separate redesign, off by default). Returns immediately unless
     // the flag is set, so the shipping board pays nothing for this call. Wrapped
     // like every other sub-renderer: a fault in the redesign must not be able to
@@ -29255,60 +29254,11 @@ const UI = {
   // Owner, from the board reference: bring "if combat resolves now" and a
   // running log onto the board itself.
   //
-  // THE FORECAST IS SIMULATED, NOT ESTIMATED. Game.previewCombatNow clones the
-  // state and runs the REAL resolver on it, so blocks, Evade, Armor, Overdrive,
-  // Taunt and every on-death cascade are counted by the only thing that knows
-  // the rules. Verified against a hand-built board: Thanos 6 unopposed reported
-  // "you deal 6", Godzilla 5 unopposed "you take 5", and lane 0 read ENEMY DIES
-  // because Wolverine's When-Damaged kills Bane back — which no sum of attack
-  // values could ever have predicted.
-  //
-  // THE LOG IS THE LAST FEW LINES, not the drawer. renderLog is deliberately
-  // skipped while that drawer is closed because rebuilding 300 entries was
-  // measured at ~28% of the frame; three lines is not that, and the drawer is
-  // still there for the full history.
-  //
-  // Recomputed only when the BOARD changes, not every frame: the sim clones the
-  // whole state and re-runs combat, which is far too expensive to do on a
-  // render that fired because a hand card got a hover class.
-  _asideSig(s) {
-    const lanes = (s.lanes || []).map(l =>
-      (l.player ? l.player.name + ':' + l.player.currentHealth + ':' + l.player.attack : '-') + '|' +
-      (l.ai ? l.ai.name + ':' + l.ai.currentHealth + ':' + l.ai.attack : '-')).join(',');
-    return [s.phase, lanes, s.player && s.player.health, s.ai && s.ai.health,
-            (s.log || []).length].join('~');
-  },
-  renderBoardAside(s) {
-    const el = document.getElementById('board-aside');
-    if (!el) return;
-    // Only while a board exists and only on the surfaces that have room. Hidden
-    // rather than emptied so nothing reflows when it comes back.
-    const live = s && s.lanes && !s.gameOver && /player-|ai-|2v2-p/.test(s.phase || '');
-    if (!live) { el.hidden = true; this._asideLast = null; return; }
-    const sig = this._asideSig(s);
-    if (sig === this._asideLast && !el.hidden) return;   // nothing moved
-    this._asideLast = sig;
-    el.hidden = false;
-    let f = null;
-    try { f = Game.previewCombatNow ? Game.previewCombatNow() : null; } catch (e) { f = null; }
-    const sign = (n) => n > 0 ? '+' + n : String(n);
-    // Null means the engine declined to guess (mid-combat, or the resolver
-    // threw). Say nothing rather than print a zero that looks like a fact.
-    const fc = f ? `
-      <div class="ba-rule"><span class="ba-rule-label">If combat resolves now</span><span class="ba-rule-line"></span></div>
-      <div class="ba-fc">
-        <div class="ba-fc-cell"><b class="ba-num ba-deal">${f.youDeal}</b><span class="ba-cap">You deal</span></div>
-        <div class="ba-fc-cell"><b class="ba-num ba-take">${f.youTake}</b><span class="ba-cap">You take</span></div>
-        <div class="ba-fc-cell"><b class="ba-num ${f.net >= 0 ? 'ba-good' : 'ba-bad'}">${sign(f.net)}</b><span class="ba-cap">Net</span></div>
-      </div>` : '';
-    const lines = this.readableLog(s.log).slice(-3).reverse()
-      .map((t, i) => `<div class="ba-log-line${i === 0 ? ' is-latest' : ''}">${t}</div>`).join('');
-    const lg = lines ? `
-      <div class="ba-rule"><span class="ba-rule-label">Log</span><span class="ba-rule-line"></span></div>
-      <div class="ba-log">${lines}</div>
-      <button type="button" class="ba-log-more" onclick="UI.toggleLogDrawer()">Full log &rarr;</button>` : '';
-    el.innerHTML = fc + lg;
-  },
+  // (renderBoardAside + _asideSig lived here — the fixed left-gutter panel with
+  // the "if combat resolves now" forecast and the last log lines. Removed on
+  // request. Game.previewCombatNow is kept: it is engine API and the only thing
+  // that simulates a dry-run combat, so it stays available even with nothing
+  // currently calling it.)
 
   renderLog(s) {
     // SKIP ENTIRELY WHILE CLOSED. The drawer ships collapsed (index.html:571,
