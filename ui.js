@@ -7807,6 +7807,20 @@ const UI = {
         this._safe('redrawBtn', () => this._renderRedrawButton(false));
         this._safe('heartbeat', () => this._updateDangerHeartbeat(s));
         this._safe('voice', () => { if (typeof Voice !== 'undefined') Voice.mount(); });
+        // TWO MORE FROM THE SHARED TAIL THAT 2v2 WAS MISSING. Both hang off the
+        // 1v1 renderer — the meter from its very end, the forecast strip from
+        // renderHud — and every 2v2 path returns before either. So a 2v2 board
+        // had no n/7 hand readout in the margin and no green/red arrows under
+        // the lanes, which is what the owner listed side by side with the hand
+        // card size: "like thegreen arrows red arrows the 5/7 the size of the
+        // cards innhand should all be the same."
+        // Neither needed adapting. renderHandMeter already reads the SEAT's
+        // hand in 2v2 rather than the side proxy (it was written for it and
+        // then never called there), and the strip loops Game.LANE_COUNT, so it
+        // builds eight cells without being told. Same call, same surface — the
+        // fix is that they run at all.
+        this._safe('handMeter2v2', () => this.renderHandMeter(s));
+        this._safe('laneForecast2v2', () => this.renderLaneForecastStrip(s));
         // THE REDESIGN RUNS IN 2v2 TOO. BoardV2.render hangs off the END of the
         // 1v1 renderer, and every 2v2 path returns ~300 lines before it — so
         // with the layout switched on, 2v2 got the CSS (which is scoped to
