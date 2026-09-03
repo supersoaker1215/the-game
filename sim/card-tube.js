@@ -249,6 +249,27 @@ check('--cf-hairline ships OFF (0)', tokenDefault && tokenDefault[1].trim() === 
       tokenDefault ? 'default is ' + tokenDefault[1].trim() + ', not 0'
                    : 'the token has no default');
 
+// ---- 8. nothing may FILL a lane with the card's own frame colour. A card's
+// halo is light thrown onto the dark around it, so a lane state that paints
+// that same hue across the space the card sits in does not add to the glow —
+// it deletes the contrast the glow is made of. The threat signal was doing
+// exactly that at 62% of the card's own bloom strength. It keeps its colour,
+// its intensity ladder and its pulse; it just has to be a RIM, which is what a
+// negative spread on an inset shadow makes. (Owner: "maybe its the black behind
+// it thta makes it pop.")
+['\\.lane\\.threat-lane::after',
+ '\\.lane\\.threat-lane\\.threat-2::after',
+ '\\.lane\\.threat-lane\\.threat-3::after'].forEach(function (sel) {
+  var re = new RegExp(sel + '\\s*\\{([\\s\\S]*?)\\n\\}', 'g'), m, body = null;
+  while ((m = re.exec(BARE))) { if (/box-shadow/.test(m[1])) body = m[1]; }
+  var name = sel.replace(/\\/g, '');
+  if (!body) { bad('threat glow is a rim: ' + name, 'no box-shadow rule found'); return; }
+  var insets = body.match(/inset[^,;]*/g) || [];
+  check('threat glow is a rim, not a fill: ' + name,
+        insets.length > 0 && insets.every(function (s) { return /-\d+px\s*rgba/.test(s); }),
+        'an inset layer has no negative spread — it fills the lane with the card\'s own frame colour');
+});
+
 print('card-tube: ' + pass + ' passed, ' + fails.length + ' failed');
 if (fails.length) {
   print('Failures:');

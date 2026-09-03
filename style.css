@@ -48941,3 +48941,59 @@ body.in-match:not(.board-v2) .board {
     inset 0 0 4px  rgba(var(--cf-rgb), 0.90),
     inset 0 0 10px rgba(var(--cf-rgb), 0.30);
 }
+
+/* ============================================================
+   THE THREAT GLOW IS A RIM, NOT A FILL (2026-09-03)
+   ============================================================
+   Owner, after four rounds of trying to make the card frames pop: "maybe its
+   the black behind it thta makes it pop."
+
+   It is, and in one place it is not a general wash but a direct collision.
+   MEASURED behind an enemy card in a threatened lane:
+
+     .lane.threat-lane.threat-2::after
+        inset 0 0 28px rgba(231, 76, 60, 0.28)
+        inset 0 0 56px rgba(231, 76, 60, 0.14)
+     the enemy card's own tube
+        drop-shadow(0 0 10px rgba(231, 76, 60, 0.45))
+
+   231,76,60 IS --cf-rgb for an enemy card. The lane was pre-filling the space
+   with 62% of the card's own halo, in the identical hue, spread five times
+   wider — so the halo had nothing to be a halo against. Composited background
+   behind that card measured rgb(33,13,13) before the threat glow even landed,
+   against a reference tile that is essentially black.
+
+   THE SIGNAL IS NOT THE PROBLEM, THE SHAPE IS. This is real decision support —
+   "this lane's creature will hit you", scaled 1-3 by incoming damage, pulsing,
+   gated to the player's turn — so it keeps its intensity ladder, its pulse and
+   its colour. A negative spread pulls each layer back to the lane's edges,
+   where the lane's own red border and separator already carry the same message
+   and get reinforced rather than duplicated. The middle of the lane — the part
+   a card actually sits in — returns to black.
+
+   ALPHAS GO UP, not down: the same signal painted over a smaller area has to be
+   denser to read at the same strength. 0.28 -> 0.44 at tier 2, and so on.
+
+   NOT TOUCHED, and worth stating because it was the other suspect: the board's
+   own floor gradient (0.043 -> 0.008 blue) and the slot wash (up to 0.075).
+   Those composite to about rgb(5,8,10) behind a card in an ordinary lane, which
+   is near enough to black that they are not what is eating the glow — and the
+   owner asked for that gradient on purpose ("the middle part thats black in
+   between just looks a little sstark contrast"). Removing it would be undoing a
+   request to fix a problem it is not causing. */
+
+.lane.threat-lane::after {
+  box-shadow:
+    inset 0 0 22px -10px rgba(231, 76, 60, 0.30),
+    inset 0 0 46px -26px rgba(231, 76, 60, 0.14);
+}
+.lane.threat-lane.threat-2::after {
+  box-shadow:
+    inset 0 0 26px -12px rgba(231, 76, 60, 0.44),
+    inset 0 0 52px -28px rgba(231, 76, 60, 0.22);
+}
+.lane.threat-lane.threat-3::after {
+  box-shadow:
+    inset 0 0 30px -13px rgba(231, 76, 60, 0.60),
+    inset 0 0 60px -30px rgba(231, 76, 60, 0.32);
+}
