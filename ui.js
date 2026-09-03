@@ -23200,7 +23200,24 @@ const UI = {
                   + trickFixed + trickGap * Math.max(0, m - 1)
                   + m * (88 - trickRatio * HAND_MIN);
       const perCard = cards + m * trickRatio;
-      const byWidth = (window.innerWidth - fixed - 8) / perCard;   // 8px slack
+      // MINUS WHAT SITS TO THE LEFT OF THE ROW. This budgeted against the whole
+      // viewport, and the hand row does not get the whole viewport: it starts at
+      // grid column 2, after a margin column sized max(--board-left,
+      // --hand-col-w). In 1v1 that column is ~78px and the height bound usually
+      // wins first, so the overshoot rarely showed. In 2v2 the board is centred
+      // inside a much wider window, so --board-left is ~500px — the solve
+      // believed it had 500px more room than the row had, sized the cards to it,
+      // and the hand ran off both ends. That is the cropping in the owner's 2v2
+      // screenshot, and raising the hand's height budget (the 2v2 board-floor
+      // fix) would have made it worse, which is exactly what they flagged:
+      // "make sure this isnt an issue croppoing out cards in hand".
+      // Read off the row's own left edge rather than recomputing the column:
+      // it is decided by --board-left and --hand-col-w, neither of which
+      // depends on the card size, so this cannot become circular. Mode- and
+      // breakpoint-agnostic for the same reason — below 521px the four-column
+      // rule does not apply and the row simply starts at 0.
+      const leftSpent = Math.max(0, row.getBoundingClientRect().left);
+      const byWidth = (window.innerWidth - leftSpent - fixed - 8) / perCard;   // 8px slack
       w = Math.max(HAND_MIN, Math.min(w, byWidth));
     }
     area.style.setProperty('--hand-card-w', Math.floor(w) + 'px');
