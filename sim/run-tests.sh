@@ -99,6 +99,10 @@ echo "=== log-secrecy.js (what you drew is yours) ==="
 run_suite sim/log-secrecy.js
 
 echo ""
+echo "=== card-tube.js (the frame's neon stack is reachable, not dead code) ==="
+run_suite sim/card-tube.js
+
+echo ""
 if [ "$FAIL" -ne 0 ]; then
   echo "❌ TESTS FAILED — see suites above."
   exit 1

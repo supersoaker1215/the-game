@@ -48643,3 +48643,175 @@ body.in-match:not(.board-v2) .board {
   .card-slot:has(> .card.target-highlight),
   .card-slot:has(> .trick-card.target-highlight) { animation: none; }
 }
+
+/* ============================================================
+   THE FRAME IS A TUBE: THE LINE IS THE FILAMENT (2026-09-03)
+   ============================================================
+   Design note, relayed by the owner: "Your chrome has the full tube stack; the
+   card frames are a bare 1px stroke ... The core is the whole trick. The 1px
+   line must be lighter than the glow color, not the same. That's why END CARDS
+   pops and the cards don't."
+
+   MEASURED FIRST, and it is right on both counts.
+
+   1. THE LINE. .cf-edge computed to rgb(46,204,113) on a hand card and
+      rgb(231,76,60) on a board card — the frame colour at full saturation, the
+      identical hue as its own halo. A tube reads as lit because its core is the
+      HOTTEST thing in the picture and the colour lives in the air around it. A
+      line the same colour as its glow is an outline with a smudge.
+
+   2. THE STACK. Three earlier attempts at this glow are all dead code, which is
+      why the frames never changed no matter what was tuned:
+        .cf-frame filter ....... zeroed by `.card .cf-frame { filter: none }`
+        .card filter: var(--card-tube) ... LOSES to `.card.card` (0,2,0) at
+              style.css:43944, so the five-layer stack wired to --neon-boost has
+              never once painted on a card. The owner's "make it 3, i dont see a
+              difference in neon" was literal: the knob reached nothing.
+        .cf-edge::after ........ the white core ring, `display: none` — and
+              before that it sat inside the hole its parent's clip-path punches.
+      What actually painted was `.card.card`: 3px @0.55 + 9px @0.30 and no core.
+      Stops 2 and 3 of the note's stack, at very nearly the note's own radii —
+      the missing piece really was only the core.
+
+   ONE LINE, NOT TWO. The owner has rejected an ADDED white line inside the
+   stroke twice ("there doesnt need to be white on the inside line next to the
+   energy number") and that ruling stands — nothing is added here. The one line
+   the card already wears is re-coloured: color-mix pulls it toward white so it
+   keeps the frame's hue only as a cast, and the two glow stops stay fully
+   saturated and carry the colour. That is the note's prescription exactly, and
+   it is also the only version of it that fits a 1.6px stroke, which is what
+   --cf-stroke floors to on every surface in the game.
+
+   AND THE STACK IS ONE VARIABLE AGAIN. --card-tube is redefined below as those
+   three stops and `.card.card` is pointed at it, so the base state and the vibe
+   keyframes that already say `var(--card-tube)` finally draw the SAME tube.
+   Every persistent state that declared its own `filter` was silently erasing
+   the whole glow — `filter` is ONE property, a second declaration replaces it
+   rather than merging — so an unplayable card, a hovered hand card, a selected
+   card, a dragged card and an asleep card had no frame lighting at all. On
+   screen at the time of writing: one card in seven was lit. They compose the
+   tube now and tint it afterwards, so a dimmed card keeps a dimmed tube instead
+   of going flat black against a black board.
+
+   NOT SWEPT, deliberately: the transient combat keyframes (lunge, destroy, hit
+   flash, the signature FX) still replace `filter` for the length of one
+   animation. That is a card mid-strike for a few hundred ms, not a state
+   anyone reads, and rewriting forty-odd keyframes is a separate job with a much
+   wider blast radius than this one.
+
+   TRICKS KEEP THEIR RULING TOO. `.trick-card.unplayable` emits nothing on
+   purpose — "it was inheriting the base trick-card bloom which made the one
+   card you CANNOT use among the brightest" — so it is left alone below. */
+
+:root {
+  /* HOW MUCH WHITE GOES INTO THE LINE, and the note's own two sentences
+     disagree about it: the prose says "mix ~35% white into the frame color",
+     the snippet beside it says color-mix(... var(--frame) 35%, #fff), which is
+     35% frame and 65% WHITE. Rendered both. At 65% white the ring computes to
+     rgb(193,234,252) and a Mr. Freeze tile is a white-framed card with a blue
+     haze — it pops, and it stops being blue. At 35% white it computes to
+     rgb(141,216,250): plainly lighter than the rgb(79,195,247) glow around it,
+     which is the whole requirement, and still plainly BLUE.
+     The prose wins, because frame colour is not decoration in this game — the
+     ring is how a player tells an ally card from an enemy one and one rarity
+     from another, so a treatment that washes every frame toward white deletes
+     information the board is read by. */
+  --cf-core-white: 35%;
+}
+
+/* ---- stop 1: the core. The line itself, lifted toward white. */
+.card .cf-edge, .trick-card .cf-edge {
+  background: color-mix(in srgb, #fff var(--cf-core-white), rgb(var(--cf-rgb))) !important;
+}
+
+/* ---- stops 2 and 3: the gas on the glass, then what it throws on the dark.
+   Radii stay small on purpose — 3px tube, 10px bloom. Past that a halo reads as
+   blur rather than neon, which is the trap --neon-boost x3 would have walked
+   into the moment it was wired to a rule that actually paints. */
+.card, .trick-card {
+  --tube-r1: 3px;
+  --tube-r2: 10px;
+  --tube-a1: 0.90;
+  --tube-a2: 0.45;
+  --card-tube:
+    drop-shadow(0 0 var(--tube-r1) rgba(var(--cf-rgb), var(--tube-a1)))
+    drop-shadow(0 0 var(--tube-r2) rgba(var(--cf-rgb), var(--tube-a2)))
+    drop-shadow(0 2px 6px rgba(0,0,0,0.65));
+}
+
+/* ---- the base state, and the hover that lifts the same tube rather than
+   describing a second one. Hover only moves the four numbers. */
+.card.card, .card.card:hover { filter: var(--card-tube); }
+.card.card:hover { --tube-r1: 4px; --tube-r2: 16px; --tube-a1: 1; --tube-a2: 0.58; }
+.trick-card { filter: var(--card-tube); }
+.trick-card:hover { --tube-r1: 4px; --tube-r2: 16px; --tube-a1: 1; --tube-a2: 0.58;
+                    filter: var(--card-tube); }
+
+/* ---- every persistent state composes the tube instead of replacing it. The
+   tint runs AFTER the drop-shadows, so a greyed card gets a greyed tube and a
+   brightened one gets a brighter tube, with no second stack to keep in sync. */
+.card.moder-stripped            { filter: var(--card-tube) grayscale(0.55) brightness(0.85); }
+.card.hand-card.rl-curse        { filter: var(--card-tube) saturate(0.6) brightness(0.85); }
+.card.card-being-dragged        { filter: var(--card-tube) grayscale(1); }
+.hand-card-wrapper .card.card-asleep,
+.card.card-asleep               { filter: var(--card-tube) saturate(0.55); }
+.hand-cards .card.ballyhoo-locked { filter: var(--card-tube) grayscale(0.55) brightness(0.62); }
+.card.hand-card.selected        { filter: var(--card-tube) brightness(1.08); }
+.hand-cards:has(.card.selected) .card.hand-card:not(.selected)
+                                { filter: var(--card-tube) brightness(0.85); }
+.card:not(.face-down):active    { filter: var(--card-tube) brightness(0.92); }
+.player-hand-section .card.card-shake-rejected { filter: var(--card-tube) brightness(0.85); }
+.player-hand-section .hand-cards .card.dimmed-by-selection
+                                { filter: var(--card-tube) brightness(0.55) saturate(0.7); }
+.player-hand-section .hand-cards .card.is-selected
+                                { filter: var(--card-tube) brightness(1.10); }
+.player-hand-section .hand-cards .card:hover {
+  filter: var(--card-tube) brightness(1.06)
+          drop-shadow(0 14px 14px rgba(127,208,255,0.30))
+          drop-shadow(0 6px 6px rgba(0,0,0,0.45));
+}
+.hand-card-wrapper:hover .card.hand-card { filter: var(--card-tube); }
+.rl-deck-grid-bare > .card.hand-card:hover {
+  filter: var(--card-tube)
+          drop-shadow(0 0 10px var(--theme-glow-outer, rgba(79,195,247,0.55)))
+          drop-shadow(0 0 22px var(--theme-glow-inner, rgba(79,195,247,0.22)));
+}
+
+/* The two dimmed rungs keep the tube but step it down first, so "you cannot
+   play this" stays the quietest card in the row rather than relying on
+   grayscale alone to hold it back. */
+.card.unplayable {
+  --tube-a1: 0.45; --tube-a2: 0.18;
+  filter: var(--card-tube) grayscale(0.95) brightness(0.6) !important;
+}
+.hand-card-wrapper .card.unafford {
+  --tube-a1: 0.45; --tube-a2: 0.18;
+  filter: var(--card-tube) grayscale(0.85) brightness(0.74) !important;
+}
+/* hovering an unaffordable card un-dims it — so it takes the full tube back */
+.hand-card-wrapper:hover .card.hand-card.unafford {
+  --tube-a1: 0.90; --tube-a2: 0.45;
+  filter: var(--card-tube) !important;
+}
+.card.unplayable.table-waiting {
+  --tube-a1: 0.55; --tube-a2: 0.24;
+  filter: var(--card-tube) brightness(0.78) saturate(0.9) !important;
+}
+
+/* ---- the three infinite keyframes that were replacing the whole filter. A
+   later @keyframes of the same name replaces the earlier one outright, so these
+   are the live definitions. */
+@keyframes cardCrazyGlitch {
+  0%   { filter: var(--card-tube) hue-rotate(0deg)   saturate(1);    }
+  33%  { filter: var(--card-tube) hue-rotate(-18deg) saturate(1.22); }
+  66%  { filter: var(--card-tube) hue-rotate(14deg)  saturate(1.14); }
+  100% { filter: var(--card-tube) hue-rotate(0deg)   saturate(1);    }
+}
+@keyframes vibeCosmicHue {
+  0%,100% { filter: var(--card-tube) hue-rotate(0deg)  saturate(1);    }
+  50%     { filter: var(--card-tube) hue-rotate(24deg) saturate(1.14); }
+}
+@keyframes table-waiting-breathe {
+  0%, 100% { filter: var(--card-tube) brightness(0.78) saturate(0.90); }
+  50%      { filter: var(--card-tube) brightness(0.90) saturate(1.00); }
+}
