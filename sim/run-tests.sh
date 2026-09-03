@@ -103,6 +103,10 @@ echo "=== card-tube.js (the frame's neon stack is reachable, not dead code) ==="
 run_suite sim/card-tube.js
 
 echo ""
+echo "=== css-parse.js (the stylesheet says what it looks like it says) ==="
+run_suite sim/css-parse.js
+
+echo ""
 if [ "$FAIL" -ne 0 ]; then
   echo "❌ TESTS FAILED — see suites above."
   exit 1

@@ -17528,8 +17528,7 @@ body::before {
    Both screens use the selected neon theme (--theme-accent) so
    the result screen always reads in the player's chosen colour,
    not the player/enemy gameplay palette. Overrides the earlier
-   hardcoded cyan/red AND the subsequent --player-*/--enemy-*
-   variants.
+   hardcoded cyan/red AND the subsequent player/enemy colour variants.
    ============================================================ */
 .game-over-overlay.victory .game-over-content,
 .game-over-overlay.defeat .game-over-content {
@@ -49045,4 +49044,64 @@ body.in-match:not(.board-v2) .board {
     rgba(255, 90, 74,  var(--seam-a))    46%,
     rgba(79, 195, 247, var(--seam-a))    54%,
     rgba(79, 195, 247, var(--seam-edge)) 100%);
+}
+
+/* ============================================================
+   NO WHITE RAIL — A HELD LANE IS CONTESTED, NOT COLOURLESS (2026-09-03)
+   ============================================================
+   Owner, on a lane with a card on each side: "the lane is white? that shouldbt
+   happen red at the top, blue at the bottom for the neo highlight and conested
+   color in the middle."
+
+   `.lane[data-forecast-cls="lf-stall"] { --rail: rgba(255,255,255,0.30) }` —
+   the last literal white left in the rail language, and this is the SECOND time
+   it has been reported. The neutral rail was white at 16% and moved to theme
+   hue for exactly this complaint ("i want the colors neon to pop more ... the
+   biggest surface on screen ignored it"); stall sat one rule below it and was
+   not swept with it.
+
+   WHAT STALL MEANS is what decides the colour. The four verdicts:
+     lf-win    you take the lane        -> your neon
+     lf-lose   the enemy takes it       -> enemy red
+     lf-trade  both die                 -> a hard red/blue break at the midline
+     lf-stall  NEITHER can kill         -> both sides still hold it
+   A held lane is the definition of contested, and the board already has a
+   colour for that: --contest-pop, the same token .lane.occ-both puts at 50% of
+   its top and bottom border, and the same one the seam pip wears. So the rail
+   now runs the IDENTICAL ramp as the border it meets at the corner — enemy at
+   the top, contest at the middle, player at the bottom — instead of disagreeing
+   with it in white.
+
+   TRADE AND STALL STAY TELLABLE APART, and in the right way: the difference is
+   shape, not hue. A trade BREAKS — two colours, hard edge, no blend, because
+   the lane resolves and both die. A stall BLENDS through the contest colour,
+   because nothing resolves and the lane keeps standing. You can read which is
+   which without reading the numbers.
+
+   0.55 AT THE ENDS, not the verdict rails' 0.75: nothing is being decided in a
+   stalled lane, so it should not shout as loudly as one that resolves. The
+   contest kiss at the midline keeps full alpha — it is the one mark that says
+   what this rail IS.
+
+   TOKENS, NOT LITERALS. The enemy triple, the player triple and --contest-pop
+   all swing with the player's theme (gold's contest is orange, green's is
+   yellow), and ui.js sets --contest-pop per side as well, so a hardcoded
+   magenta here would be wrong on five of the six themes.
+
+   (And the first version of this comment wrote those token families as
+   --enemy-<star>/--player-<star>, which contains the sequence that ENDS a CSS
+   comment. The block closed early, the prose after it was parsed as CSS, and
+   the rule below was swallowed with it — the rail stayed white and the file
+   looked correct. Never write that sequence inside a comment here.) */
+
+.lane[data-forecast-cls="lf-stall"] {
+  --rail-held: linear-gradient(180deg,
+    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.55) 0%,
+    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.55) 28%,
+    var(--contest-pop, rgb(255, 60, 200)) 50%,
+    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.55) 72%,
+    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.55) 100%);
+  background:
+    var(--rail-held) left  center / 1px 100% no-repeat,
+    var(--rail-held) right center / 1px 100% no-repeat;
 }
