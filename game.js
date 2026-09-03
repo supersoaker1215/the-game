@@ -16703,7 +16703,17 @@ const Game = {
              : (typeof window !== 'undefined' && window.EVENT_FRANCHISES) ? window.EVENT_FRANCHISES
              : [];
     FR.forEach(fr => (fr.events || []).forEach(ev => { if (ev && ev.name) out.push(ev.name); }));
-    return out;
+    // TEMPORARY — only the Shadow Man and MC Ballyhoo may roll right now. The
+    // seven habitat events (Jurassic Park's Wetlands/Enclosure, Sewers, Open
+    // Water, Boiler Room, Gargantua, Saw's Jigsaw) are being reworked into a new
+    // in-game random-event system and must not appear in play yet. They stay in
+    // EVENT_FRANCHISES so the codex still lists them; this filter is the one
+    // place that gates what can actually be ROLLED. Remove the filter (or widen
+    // the allow-list) to bring the habitats back. (Owner: "the only ones i want
+    // showing up in the game right now is MC and Shadow man, everything else is
+    // being worked on.")
+    const ALLOWED = ['Shadow Man', 'MC Ballyhoo'];
+    return out.filter(name => ALLOWED.indexOf(name) !== -1);
   },
 
   // ============================================================
