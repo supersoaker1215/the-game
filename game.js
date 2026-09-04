@@ -398,7 +398,29 @@ const Game = {
   // not about one renderer — every surface that prints stats reads it.
   cardHasBody(card) {
     if (!card) return false;
-    return !(card.isDiscardEffect || card.isEnvironment || card._neverPlayable);
+    if (card.isDiscardEffect || card.isEnvironment || card._neverPlayable) return false;
+    // …AND ANYTHING PRINTED 0/0, which is the fact the three flags above were
+    // only ever standing in for. Reading the printed numbers instead of a flag
+    // is what makes this survive a reclassification, and it just had to: Jigsaw
+    // stopped being isDiscardEffect (he is _spawnOnly and event-only now) and
+    // silently grew a body, so Apocalypse's empower started landing on a card
+    // that cannot fight and sim/hand-empower.js went red on three cases.
+    //
+    // PRINTED, not current: a live card debuffed to 0 ATK is still a body, and
+    // one at 0 HP is already dead. baseAttack/baseHealth are what
+    // createCardInstance stamps at draft time; a raw CARD_DEFS entry has only
+    // attack/health, so both shapes answer.
+    // An INSTANCE carries the answer as _printed00 (createCardInstance floors a
+    // 0 health to 1, so its own numbers can no longer tell you). A raw CARD_DEFS
+    // entry still has the printed pair.
+    if (card._printed00 != null) return !card._printed00;
+    // Only a def that actually PRINTS both numbers is making a claim. A record
+    // with no stats at all (a stub, a test double) is not asserting 0/0, and
+    // coercing its undefineds to 0 would call every such object bodyless.
+    if (typeof card.attack === 'number' && typeof card.health === 'number') {
+      return !(card.attack === 0 && card.health === 0);
+    }
+    return true;
   },
 
   // Public drain entry — safe to call anywhere; no-ops while a drain owns
@@ -15541,6 +15563,12 @@ const Game = {
       // time whether the card is currently buffed or debuffed (attack and
       // maxHealth can drift from these via Luke/Magneto/Man-Bat/etc.).
       baseAttack: safeAtk, baseHealth: safeHp,
+      // PRINTED 0/0 — the def's own numbers, before the floor below turns a 0
+      // into a 1. baseHealth cannot answer "does this card have a body" because
+      // safeHp is floored to 1, so the one fact that distinguishes Jigsaw and
+      // Brainiac from a real 0-ATK body is erased the moment an instance
+      // exists. Stamped here, where the definition is still in scope.
+      _printed00: ((def.attack | 0) === 0 && (def.health | 0) === 0),
       abilities: [...(def.abilities || [])], type: def.type || 'neutral',
       // Pristine ability list captured at instance creation. Used by
       // handleDeath's dead-pile reset so a revived card comes back with
