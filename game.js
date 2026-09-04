@@ -10843,8 +10843,45 @@ const Game = {
   // the current summon source and pops on exit. Summons inside the hook
   // will credit this card as _summonedBy. Mirrors the try/catch the
   // manual call sites used previously so ability bugs don't crash.
+  // A CARD THAT SHOULD HAVE A HOOK AND DOES NOT SAYS SO.
+  //
+  // This early-return is silent, and silence is the exact symptom of every
+  // "I played X and nothing happened" report the game has ever had: the play
+  // line prints, the hook is not a function, nothing runs, nothing is logged.
+  // From the board it is indistinguishable from a card that does nothing.
+  //
+  // The engine already learned this lesson one layer down — _runHookBody logs
+  // "[ERROR] ... failed to resolve" instead of swallowing a throw, after "i just
+  // played vader and his ability never fired ... and i lost". A MISSING hook was
+  // still silent, and it is the more common half: hooks get nulled by the
+  // face-down stash, the dead-pile archive, Moder's strip, Bloway Candy, and a
+  // serialize/rehydrate round trip, and three of those have shipped a bug where
+  // the restore list forgot one.
+  //
+  // So: if the card's DEFINITION wires this hook and the live instance does not,
+  // it lost it somewhere and that is a bug worth naming. The deliberate
+  // silencers are excluded by name — a Moder-stripped or Bloway-silenced or
+  // face-down card is SUPPOSED to have nothing, and each already logs its own
+  // reason. Once per card per hook, so a per-frame hook cannot spam the log.
+  _hookShouldExist(card, hookName) {
+    if (!card || card._moderStripped || card._blowaySilenced || card.isFaceDown) return false;
+    if (typeof CARD_ABILITIES === 'undefined') return false;
+    const def = CARD_ABILITIES[card._copiedFrom || card.name];
+    return !!(def && typeof def[hookName] === 'function');
+  },
   _runHook(card, hookName, ...args) {
-    if (!card || typeof card[hookName] !== 'function') return undefined;
+    if (!card || typeof card[hookName] !== 'function') {
+      if (card && this._hookShouldExist(card, hookName)) {
+        const seen = card._lostHooks || (card._lostHooks = {});
+        if (!seen[hookName]) {
+          seen[hookName] = 1;
+          const what = hookName === 'onPlay' ? 'When Played' : hookName;
+          console.warn('[hook lost] ' + card.name + '.' + hookName + ' is missing on the instance');
+          try { this.log(`  [BUG] ${card.name}'s ${what} could not fire — the card arrived without it. Please report this.`); } catch (e) {}
+        }
+      }
+      return undefined;
+    }
     // 2v2 online: route any prompt this hook raises to the card's owner. During
     // a play phase this is a no-op (the acting seat already owns the card); it
     // matters for onDeath firing in combat, where no seat is otherwise acting.

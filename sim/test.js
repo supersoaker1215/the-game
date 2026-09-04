@@ -9815,6 +9815,58 @@ test('face-down reveal: every hook that was nulled comes back', function () {
   assert(typeof v.onLaneCombat === 'function', 'onLaneCombat came back — it used to stay null');
 });
 
+// ============================================================
+// A CARD THAT LOST A HOOK SAYS SO
+// ============================================================
+// Owner: "groots ability didnt fire." His onPlay logs unconditionally and the
+// line was absent from the battle log, so the hook never ran — and _runHook
+// returns SILENTLY when the hook is not a function, which makes that
+// indistinguishable from a card that does nothing.
+//
+// Groot could not be reproduced (he fires in 1v1, 2v2, and through a face-down
+// reveal), but the silence is the reason it cannot be diagnosed from a log, and
+// that is fixable on its own. Hooks get nulled by the face-down stash, the
+// dead-pile archive, Moder's strip, Bloway Candy and a rehydrate round trip —
+// and THREE of those have shipped a bug where the restore list forgot one
+// (Dormammu's onBeforeTricks, Voldemort's onLaneCombat, and this class again).
+function __lostHookLog(G) {
+  return (G.state.log || []).filter(function (l) { return String(l).indexOf('[BUG]') >= 0; });
+}
+test('a hook the definition wires but the instance lacks is reported', function () {
+  var G = freshGame();
+  var c = G.createCardInstance(__findDef('Groot'), 'player');
+  G.applyAbilities(c);
+  assert(typeof c.onPlay === 'function', 'precondition: Groot wires onPlay');
+  c.onPlay = null;                       // exactly what a bad restore leaves behind
+  G.state.player.currency = 20;
+  G.playCard('player', c, 4);
+  assertEq(__lostHookLog(G).length, 1, 'the loss is named in the log');
+  assert(/Groot/.test(__lostHookLog(G)[0]), 'and it names the card');
+});
+
+test('a deliberately silenced card is NOT reported as a bug', function () {
+  ['_blowaySilenced', '_moderStripped', 'isFaceDown'].forEach(function (flag) {
+    var G = freshGame();
+    var c = G.createCardInstance(__findDef('Groot'), 'player');
+    G.applyAbilities(c);
+    c.onPlay = null;
+    c[flag] = true;
+    G.state.player.currency = 20;
+    G.state.lanes[4].player = c;
+    G._runHook(c, 'onPlay', G, c, 4);
+    assertEq(__lostHookLog(G).length, 0, flag + ' is intentional, not a bug');
+  });
+});
+
+test('a card with its hook intact reports nothing', function () {
+  var G = freshGame();
+  var c = G.createCardInstance(__findDef('Groot'), 'player');
+  G.applyAbilities(c);
+  G.state.player.currency = 20;
+  G.playCard('player', c, 4);
+  assertEq(__lostHookLog(G).length, 0, 'no false positive on a healthy card');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 
