@@ -9581,6 +9581,79 @@ test('Two seats each owed a weapon are asked one at a time', function () {
   assertEq(!!G.state.pendingCardChoice, false, 'and nothing is left armed');
 });
 
+// ============================================================
+// INVISIBLE WOMAN'S PASSIVE DIES WITH HER — INCLUDING WHEN SHE IS EATEN
+// ============================================================
+// Owner: "invisbale woman isn on board yet her passive persists."
+//
+// state[side].faceDownAvailable was a stamped boolean, set in playCard and
+// revoked in handleDeath. Devour DELIBERATELY skips handleDeath (void pile, not
+// dead pile, so the victim's onDeath cannot hand it a revive), so a devoured
+// Invisible Woman never reached the revoke and the flag stayed true for the
+// rest of the match. She is a 1/1 and Galactus devours "1 enemy with <= 4 ATK"
+// every turn, so this is the common case rather than a corner.
+//
+// The whole class is closed by asking the board instead of a flag —
+// Game.canPlayFaceDown(side) — which is what the 2v2 gate already did. These
+// pin the MECHANISM: not "the flag got cleared" but "the answer follows the
+// board", which is what makes every other non-death removal safe too.
+function __iwDef() {
+  for (var i = 0; i < CARD_DEFS.length; i++) if (CARD_DEFS[i].name === 'Invisible Woman') return CARD_DEFS[i];
+  throw new Error('no Invisible Woman def');
+}
+function __putIW(G, side, lane) {
+  var c = G.createCardInstance(__iwDef(), side);
+  G.applyAbilities(c);
+  G.state.lanes[lane][side] = c;
+  return c;
+}
+
+test('face-down: the option follows the board, not a flag', function () {
+  var G = freshGame();
+  assertEq(G.canPlayFaceDown('player'), false, 'no carrier, no option');
+  __putIW(G, 'player', 0);
+  assertEq(G.canPlayFaceDown('player'), true, 'she is standing, so the team may hide cards');
+  assertEq(G.canPlayFaceDown('ai'), false, 'and only HER team may');
+});
+
+test('face-down: DEVOURING her revokes it (the reported bug)', function () {
+  var G = freshGame();
+  var iw = __putIW(G, 'player', 1);
+  var glx = null;
+  for (var i = 0; i < CARD_DEFS.length; i++) if (CARD_DEFS[i].name === 'Galactus') glx = CARD_DEFS[i];
+  var g = G.createCardInstance(glx, 'ai'); G.applyAbilities(g);
+  G.state.lanes[1].ai = g;
+  // Stamp the field exactly as playCard does when she lands, so this reads the
+  // SAME state a real match is in — and so this assertion is meaningful against
+  // the old code, where canPlayFaceDown did not exist yet. Pre-fix this stays
+  // true forever after the devour; that is the whole bug.
+  G.state.player.faceDownAvailable = true;
+  G.devourCard(iw, g);
+  assertEq(G.state.lanes[1].player, null, 'devour really removed her from the lane');
+  assertEq(!!G.state.player.faceDownAvailable, false,
+    'devour skips handleDeath, so the revoke has to live somewhere devour reaches');
+  assertEq(G.canPlayFaceDown('player'), false, 'and the option goes with her');
+});
+
+test('face-down: killing her revokes it too', function () {
+  var G = freshGame();
+  var iw = __putIW(G, 'player', 2);
+  assertEq(G.canPlayFaceDown('player'), true, 'true while she stands');
+  G.killCard(iw, null);
+  G.cleanupDead();
+  assertEq(G.canPlayFaceDown('player'), false, 'a dead carrier grants nothing');
+});
+
+test('face-down: a HIDDEN Invisible Woman grants nothing until she reveals', function () {
+  var G = freshGame();
+  var iw = __putIW(G, 'player', 3);
+  iw.isFaceDown = true;
+  assertEq(G.canPlayFaceDown('player'), false,
+    'her own text: a face-down card\'s abilities fire when it reveals');
+  iw.isFaceDown = false;
+  assertEq(G.canPlayFaceDown('player'), true, 'and switch on when it does');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

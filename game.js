@@ -2433,7 +2433,7 @@ const Game = {
             // Honour the guest's Invisible Woman choice. Gated on the actor
             // actually having the passive so a tampered/stale message can't
             // hide a card without Invisible Woman on the board.
-            if (msg.faceDown && this.state[actor] && this.state[actor].faceDownAvailable) {
+            if (msg.faceDown && this.canPlayFaceDown(actor)) {
               card._playFaceDown = true;
             }
             const placed = this.playCard(actor, card, msg.lane);
@@ -14849,8 +14849,20 @@ const Game = {
   removeFromLane(card, l) {
     if (l < 0 || l >= this.LANE_COUNT) return;
     const lane = this.state.lanes[l];
-    if (lane[card.owner] === card) { lane[card.owner] = null; return; }
-    if (lane._env && lane._env[card.owner] === card) lane._env[card.owner] = null;
+    if (lane[card.owner] === card) { lane[card.owner] = null; this._syncFaceDownMirror(card); return; }
+    if (lane._env && lane._env[card.owner] === card) { lane._env[card.owner] = null; this._syncFaceDownMirror(card); }
+  },
+
+  // state[side].faceDownAvailable is a MIRROR now, not the authority — every
+  // decision reads canPlayFaceDown(side) instead. It is kept truthful anyway,
+  // and kept from the one funnel every removal passes through rather than from
+  // handleDeath, because handleDeath is exactly what devour skips. Anything
+  // that still reads the field (a snapshot, a save, a reader added later) gets
+  // the right answer instead of a stale true.
+  _syncFaceDownMirror(card) {
+    if (!card || card.passive !== 'faceDownOption') return;
+    const st = this.state && this.state[card.owner];
+    if (st) st.faceDownAvailable = this.canPlayFaceDown(card.owner);
   },
 
   // Reverse Bear Trap (placed by Jigsaw): when an enemy of the trap-placer enters
@@ -16093,6 +16105,35 @@ const Game = {
       if (e) out.push(e);
     }
     return out;
+  },
+
+  // CAN THIS SIDE PLAY FACE-DOWN? Asked of the BOARD, every time, never of a
+  // stored flag. (Owner: "invisbale woman isn on board yet her passive
+  // persists.")
+  //
+  // state[side].faceDownAvailable was a stamped boolean: set in playCard when a
+  // faceDownOption carrier lands, revoked in handleDeath when one dies. Devour
+  // DELIBERATELY SKIPS handleDeath — void pile, not dead pile, so the victim's
+  // onDeath can't hand it a revive — so a devoured Invisible Woman never
+  // reached the revoke and the flag stayed true for the rest of the match.
+  // Measured: kill her and the flag clears; let Galactus eat her and it does
+  // not. She is a 1/1, which is exactly what Galactus's "devour 1 enemy with
+  // <= 4 ATK" hunts every turn, so this is the common case and not a corner.
+  //
+  // Every non-death removal has the same hole — void, bounce, transform, any
+  // future one — which is why this is a QUERY and not one more unwind branch.
+  // Same doctrine as recomputeAuras: reconcile from live sources, never stamp
+  // and unstamp. _2v2TeamCanFaceDown was already written this way and was
+  // already correct; this is that logic, promoted so 1v1, the AI and the online
+  // host all share it.
+  //
+  // FACE-DOWN CARRIERS DO NOT COUNT. Her own text is explicit — a face-down
+  // card's "abilities fire when it reveals before Tricks" — so an Invisible
+  // Woman who is herself hidden is not yet granting anything.
+  canPlayFaceDown(side) {
+    if (!side || !this.state || !this.state.lanes) return false;
+    return this.getAllCardsOf(side)
+      .some(c => c.passive === 'faceDownOption' && c.currentHealth > 0 && !c.isFaceDown);
   },
 
   getAllCardsOnBoard() {
@@ -21555,8 +21596,7 @@ const Game = {
   _2v2TeamCanFaceDown(pk) {
     const tt = this.state && this.state.twoVTwo;
     if (!tt || !tt.players[pk]) return false;
-    const side = this._2v2TeamSide[tt.players[pk].team];
-    return this.getAllCardsOf(side).some(c => c.passive === 'faceDownOption' && c.currentHealth > 0);
+    return this.canPlayFaceDown(this._2v2TeamSide[tt.players[pk].team]);
   },
 
   _2v2OnlinePlayCard(playerKey, cardIdx, laneIdx, faceDown) {

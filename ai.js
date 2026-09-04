@@ -983,7 +983,7 @@ const AI = {
         // AI gets one face-down play. Reserve it for a high-value finisher
         // (cost ≥ 6 with onPlay) so the protected card carries real swing —
         // hiding a 1-cost token from removal isn't worth burning the slot.
-        if (s[owner].faceDownAvailable && (card.cost || 0) >= 6 && card.onPlay && !card.isFaceDown) {
+        if (Game.canPlayFaceDown(owner) && (card.cost || 0) >= 6 && card.onPlay && !card.isFaceDown) {
           card._playFaceDown = true;
         }
         this._note({

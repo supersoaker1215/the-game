@@ -31561,7 +31561,7 @@ const UI = {
     // nothing for the joining player. The prompt is local to whoever is
     // placing the card (state is seat-flipped on the guest, so `s.player` is
     // always the local human), and the resulting flag rides the wire.
-    if (s.player.faceDownAvailable && !card.isDiscardEffect) {
+    if (Game.canPlayFaceDown('player') && !card.isDiscardEffect) {
       const faceUp = { name: 'Play Face Up', desc: 'Play normally — all abilities activate', id: 'faceup_opt' };
       const faceDown = { name: 'Play Face Down', desc: 'Hidden until combat — abilities activate on reveal', id: 'facedown_opt' };
       Game.promptCardChoice('player', [faceUp, faceDown],
