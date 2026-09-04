@@ -17236,11 +17236,24 @@ const Game = {
     // "Welcome to Jurassic Park" line, fired the moment the reveal panel shows.
     // Owner supplied the clip and asked for it on this event specifically.
     const isJurassic = (title === 'Jurassic Park');
+    // Saw event — JIGSAW HIMSELF pops up (not the room he opens) with his "do
+    // you want to play a game" line. name/def here are the room The Bathroom /
+    // Game Over that were placed; the owner wants the reveal to show the Jigsaw
+    // card, so override the displayed card to Jigsaw for this franchise. (Owner
+    // supplied the clip and asked for Jigsaw's card on this event.)
+    const isSaw = (title === 'Saw');
+    let showName = name, showDef = def;
+    if (isSaw && typeof CARD_DEFS !== 'undefined') {
+      const jig = CARD_DEFS.find(d => d.name === 'Jigsaw');
+      if (jig) { showName = 'Jigsaw'; showDef = jig; }
+    }
     const opts = isJurassic ? { onShow: () => {
       try { if (UI.sfx && UI.sfx.playEffect) UI.sfx.playEffect('jurassicWelcome'); } catch (e) {}
+    } } : isSaw ? { onShow: () => {
+      try { if (UI.sfx && UI.sfx.playEffect) UI.sfx.playEffect('sawGame'); } catch (e) {}
     } } : undefined;
     try {
-      UI.showCardReveal(name, def.desc || '', def.cost, true, title.toUpperCase(), opts);
+      UI.showCardReveal(showName, showDef.desc || '', showDef.cost, true, title.toUpperCase(), opts);
     } catch (e) { /* an announcement must never be able to stop the event */ }
   },
 

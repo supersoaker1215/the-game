@@ -2319,6 +2319,10 @@ const UI = {
       // is a marquee announcement, not a one-shot tick. (Owner supplied the clip
       // and asked for it on the Jurassic Park event.)
       jurassicWelcome: { src: 'audio/jurassic-welcome.mp3', maxDur: 12 },
+      // Saw event — Jigsaw's "do you want to play a game" line, fired once from
+      // _announceHabitatEvent when the Saw event appears, as his card pops up.
+      // (Owner supplied the clip and asked for it on the Jigsaw event.)
+      sawGame: { src: 'audio/saw-play-a-game.mp3', maxDur: 8 },
       buff:        null,
       debuff:      null,
       summon:      null,
