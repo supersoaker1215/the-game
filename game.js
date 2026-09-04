@@ -17384,10 +17384,28 @@ const Game = {
   },
   // Kept under the old name because every gate in the engine already calls it.
   ballyhooLocked() { return this.eventHoldActive(); },
+  // ABSOLUTE CEILING on any event hold. The longest legitimate hold is the
+  // Shadow Man settle ceremony (~11.5s + 2.6s/prize ≈ 22s) and Ballyhoo's 21.5s.
+  // Nothing may ever grey the whole table longer than this — a re-arm loop, a
+  // stuck deadline, or an _eventHoldId that keeps changing in incoming state
+  // used to leave every seat's cards greyed out for rounds on end with no way
+  // back but a refresh. (User: "its stuck grey even a round later.") This is a
+  // hard wall-clock cap measured from the first moment a hold engaged locally;
+  // it can only ever unlock the table SOONER, never hold it longer.
+  _EVENT_HOLD_HARD_MAX_MS: 30000,
   eventHoldActive() {
     const s = this.state;
     const id = s && (s._eventHoldId || s._ballyhooLockId);
-    if (!id) return false;
+    if (!id) { this._eventHoldCeiling = 0; return false; }
+    const nowH = Date.now();
+    // Hard ceiling — set once when a hold first becomes active, kept across
+    // re-arms (a new id while one is already live must NOT push the wall back),
+    // cleared only when the hold fully lifts below.
+    if (!this._eventHoldCeiling) this._eventHoldCeiling = nowH + this._EVENT_HOLD_HARD_MAX_MS;
+    if (nowH >= this._eventHoldCeiling) {
+      this._ballyhooLocalUntil = 0; this._eventHoldCeiling = 0;
+      return false;
+    }
     if (this._ballyhooLocalId !== id) {
       // First sight of this lock on this machine — start the clock here.
       this._ballyhooLocalId = id;
@@ -17421,6 +17439,7 @@ const Game = {
     }
     if (!this._ballyhooLocalUntil || Date.now() >= this._ballyhooLocalUntil) {
       this._ballyhooLocalUntil = 0;
+      this._eventHoldCeiling = 0;   // hold lifted — re-arm the ceiling for next time
       return false;
     }
     return true;
