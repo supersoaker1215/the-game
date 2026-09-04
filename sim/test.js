@@ -9739,6 +9739,82 @@ test('dead pile: the record still carries what a revive rebuilds from', function
   assertEq(e.type, __findDef('Man-Bat').type, 'and its type');
 });
 
+// ============================================================
+// EVERY BEFORE-TRICKS HOOK GETS ITS TURN, AND A REVEALED CARD GETS EVERY HOOK
+// ============================================================
+// Owner: "man bat was offered to move at the beginning of round 8, he never
+// moved in round 7, only omni man was offered — both should be offered based on
+// lane priority."
+//
+// runBeforeTricks returns as soon as it arms the FIRST prompt; the rest of the
+// queue rides a chain of whenPromptCleared continuations. The 2v2 trick-phase
+// boundary used to run its "now start the trick turn" step immediately after
+// that return, which parked it on the SAME _combatContStack the pass was using
+// — on top. That stack pops LIFO and fires exactly one, so answering the first
+// card's prompt started the trick turn and stranded the rest of the queue until
+// some later prompt popped it: the next round's boundary.
+//
+// The ORDER was never wrong (the pass sorts lane 1-8, higher cost first within a
+// lane), so these pin the two things that were: the pass reports when it is
+// ACTUALLY done, and it runs every queued card.
+test('before-tricks: the pass reports completion only after every hook has run', function () {
+  var G = freshGame();
+  var order = [], done = 0;
+  var mk = function (name, lane) {
+    var c = G.createCardInstance(__findDef('Gremlin'), 'player');
+    G.applyAbilities(c);
+    c.name = name;
+    c.onBeforeTricks = function () { order.push(name); };
+    c.beforeTricksFired = false;
+    G.state.lanes[lane].player = c;
+    return c;
+  };
+  mk('first', 0);
+  mk('second', 1);
+  G.runBeforeTricks(function () { done++; });
+  assertEq(order.join(','), 'first,second', 'both hooks ran, in lane order');
+  assertEq(done, 1, 'and the completion callback fired exactly once');
+});
+
+test('before-tricks: completion runs AFTER the hooks, never before', function () {
+  var G = freshGame();
+  var seq = [];
+  var c = G.createCardInstance(__findDef('Gremlin'), 'player');
+  G.applyAbilities(c);
+  c.onBeforeTricks = function () { seq.push('hook'); };
+  c.beforeTricksFired = false;
+  G.state.lanes[0].player = c;
+  G.runBeforeTricks(function () { seq.push('done'); });
+  assertEq(seq.join(','), 'hook,done', 'the callback is a completion, not a return');
+});
+
+// And the same class of silent loss on the other side of the board: a hook
+// nulled on the way face-DOWN and not restored on the way up is total, silent
+// ability loss — the shape that used to kill Dormammu's drain in the dead-pile
+// archive. onLaneCombat was stashed and nulled but missing from the restore
+// list, so Voldemort — the one card whose ability lives there — came back inert
+// from any stealth deploy.
+test('face-down reveal: every hook that was nulled comes back', function () {
+  var G = freshGame();
+  var v = G.createCardInstance(__findDef('Voldemort'), 'player');
+  G.applyAbilities(v);
+  assert(typeof v.onLaneCombat === 'function', 'precondition: Voldemort wires onLaneCombat');
+  G.state.lanes[0].player = v;
+  // exactly what playCard's face-down branch does
+  v.isFaceDown = true;
+  v._faceDownOriginals = { onPlay: v.onPlay, onDeath: v.onDeath, onDamaged: v.onDamaged,
+    onKill: v.onKill, onBeforeTricks: v.onBeforeTricks, onBeforeAttack: v.onBeforeAttack,
+    onEndOfTurn: v.onEndOfTurn, onAnyCardPlayed: v.onAnyCardPlayed, onAllyKilled: v.onAllyKilled,
+    onEnemyKilled: v.onEnemyKilled, onEvade: v.onEvade, onDamagePlayer: v.onDamagePlayer,
+    onTurnStart: v.onTurnStart, onLaneResolved: v.onLaneResolved, onLaneCombat: v.onLaneCombat,
+    onAnyCardDamaged: v.onAnyCardDamaged, onBlockMeterFired: v.onBlockMeterFired,
+    onRevive: v.onRevive, passive: v.passive };
+  v.onLaneCombat = null; v.onPlay = null; v.onLaneResolved = null;
+  G.revealFaceDownCards();
+  assertEq(v.isFaceDown, false, 'it revealed');
+  assert(typeof v.onLaneCombat === 'function', 'onLaneCombat came back — it used to stay null');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

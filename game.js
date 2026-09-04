@@ -5441,7 +5441,13 @@ const Game = {
     });
   },
 
-  runBeforeTricks() {
+  // `onDone` fires once EVERY queued hook (and every prompt it raised) has
+  // resolved — not when this function returns, which is almost immediately: the
+  // pass is a chain of whenPromptCleared continuations. A caller that needs the
+  // board settled before it hands control on must use this, because parking its
+  // own continuation instead puts it on the SAME LIFO stack, above the one this
+  // pass is using, and LIFO means it runs first. See the 2v2 boundary.
+  runBeforeTricks(onDone) {
     // SEQUENTIAL pass — hooks that raise prompts (Man-Bat's move, Anakin's
     // pick) fire ONE AT A TIME: each next hook waits for the previous
     // prompt to resolve via whenPromptCleared. The old forEach fired every
@@ -5471,6 +5477,7 @@ const Game = {
       // deaths. Runs once after ALL hooks + their prompts resolved.
       this.getAllCardsOnBoard().forEach(c => this.drainBonusAttacks(c));
       this.cleanupDead();
+      if (onDone) { try { onDone(); } catch (e) { console.error('[runBeforeTricks] onDone threw:', e); } }
     };
     const step = () => {
       const c = queue.shift();
@@ -7062,6 +7069,13 @@ const Game = {
           card.onAnyCardDamaged = orig.onAnyCardDamaged; card.onBlockMeterFired = orig.onBlockMeterFired;
           card.onRevive = orig.onRevive;
           card.onLaneResolved = orig.onLaneResolved;
+          // …and onLaneCombat, which the stash saved and the null-out cleared
+          // but this list forgot — so any card whose ability lives in that hook
+          // came back permanently inert from a stealth deploy, exactly the way
+          // Dormammu's onBeforeTricks used to die in the dead-pile archive. The
+          // two lists are now the same 18 keys; a hook nulled on the way down
+          // and not restored on the way up is silent, total ability loss.
+          card.onLaneCombat = orig.onLaneCombat;
           card.passive = orig.passive;
           delete card._faceDownOriginals;
           card.isFaceDown = false;
@@ -19907,13 +19921,30 @@ const Game = {
         // The rest of the boundary: before-tricks hooks (Galactus, Man-Bat…),
         // then the Art-the-Clown trick-boundary jump check. Deferred behind any
         // reveal prompt, then re-enters to start the trick turn.
+        // WAIT FOR THE PASS, DO NOT RACE IT. runBeforeTricks returns as soon as
+        // it arms the FIRST prompt — the rest of its queue rides a chain of
+        // whenPromptCleared continuations. Everything below used to run right
+        // then, so `() => this._2v2StartSubPhase()` was parked on the very same
+        // _combatContStack, ON TOP of the continuation holding the next card in
+        // the pass. That stack pops LIFO and fires exactly one, so answering the
+        // first card's prompt started the trick turn and left the rest of the
+        // queue stranded — it only ran when some LATER prompt happened to pop
+        // it, which is the next round's boundary.
+        //
+        // (Owner: "man bat was offered to move at the beginning of round 8, he
+        // never moved in round 7, only omni man was offered — both should be
+        // offered based on lane priority." The ORDER was already right: the pass
+        // sorts lane 1-8 and higher-cost-first within a lane, and Omni-Man in
+        // lane 6 correctly preceded Man-Bat in lane 7. Only the second offer was
+        // being dropped.)
         const afterReveal = () => {
-          this.runBeforeTricks();
-          this.cleanupDead();
-          this.checkJumpConditions('beforeTricks', {});
-          this.cleanupDead();
-          if (this.hasPendingPrompt && this.hasPendingPrompt()) this.whenPromptCleared(() => this._2v2StartSubPhase());
-          else this._2v2StartSubPhase();
+          this.runBeforeTricks(() => {
+            this.cleanupDead();
+            this.checkJumpConditions('beforeTricks', {});
+            this.cleanupDead();
+            if (this.hasPendingPrompt && this.hasPendingPrompt()) this.whenPromptCleared(() => this._2v2StartSubPhase());
+            else this._2v2StartSubPhase();
+          });
         };
         if (this.hasPendingPrompt && this.hasPendingPrompt()) this.whenPromptCleared(afterReveal);
         else afterReveal();
