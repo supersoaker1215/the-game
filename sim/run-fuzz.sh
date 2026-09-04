@@ -26,6 +26,16 @@ fi
 G2V2="${3:-60}"
 OUT2="$("$JSC" sim/fuzz2v2.js -- --games "$G2V2" 2>&1)"
 echo "$OUT2" | grep -E "=== 2v2 FUZZ|distinct cards|WITHOUT an owning seat|invariant violations" | tail -6
+# NOTHING SILENTLY LOSES ITS ABILITY. _runHook returns silently when a hook is
+# not a function, which is the shape of every "I played X and nothing happened"
+# report. A card whose DEFINITION wires a hook and whose instance does not is a
+# bug, and it must never reach a real match. (Owner: "it gets overlooked when the
+# game runs for too long ... how to fix, that nothing gets missed".)
+if echo "$OUT2" | grep -q "hook lost"; then
+  echo "❌ 2v2 FUZZ FAILED — a card lost an ability hook and its effect never fired:"
+  echo "$OUT2" | grep "hook lost" | sed 's/.*hook lost/  hook lost/' | sort | uniq -c | sort -rn | head -6
+  exit 1
+fi
 if echo "$OUT2" | grep -qE "games with invariant violations: [1-9]|FATAL|STALLED|TURN CAP"; then
   echo "❌ 2v2 FUZZ FAILED — see above."
   exit 1

@@ -2493,7 +2493,34 @@ const CARD_ABILITIES = {
           G.log(`  [SSM] No draw pile for ${ownerKey} — ${card.name} stays put.`);
           return;
         }
-        pendingBack.push({ ownerKey, def: { name: card.name, cost: card.baseCost || card.cost, attack: card.attack, health: card.maxHealth, abilities: card.abilities, type: card.type, desc: card.desc } });
+        // BUILT ON THE REAL DEFINITION, not from scratch. This used to be a
+        // hand-written seven-key literal — name/cost/attack/health/abilities/
+        // type/desc — pushed straight into the draw pile. A CARD_DEFS entry is
+        // that plus its ability hooks (merged at the end of this file), so every
+        // card Symbiote Spider-Man cycled came back as a STATS-ONLY record: draw
+        // it later and createCardInstance stamps 24 null hooks off it, playCard
+        // logs the play, and the When Played silently never fires. Forever, and
+        // for every copy of that card drawn afterwards.
+        //
+        // It is the "abilities get missed in 2v2" bug, and it gets worse the
+        // longer a match runs because more cards have been cycled. Owner:
+        // "groots ability didnt fire" — Groot reproduces in the fuzzer exactly
+        // this way, drawn from a pile Symbiote Spider-Man had written to.
+        //
+        // The live stats are still captured on top (a buffed card goes back
+        // buffed, which is the existing behaviour); the base underneath is what
+        // carries the hooks. Run metadata rides along so a roguelite card keeps
+        // its etches and XP attribution through the cycle.
+        const _base = (typeof CARD_DEFS !== 'undefined')
+          ? CARD_DEFS.find(d => d.name === card.name) : null;
+        const _backDef = Object.assign({}, _base, {
+          name: card.name, cost: card.baseCost || card.cost,
+          attack: card.attack, health: card.maxHealth,
+          abilities: card.abilities, type: card.type, desc: card.desc,
+        });
+        if (card._runDeckCardRef) _backDef._runDeckCardRef = card._runDeckCardRef;
+        if (card._runRarity) _backDef._runRarity = card._runRarity;
+        pendingBack.push({ ownerKey, def: _backDef });
       };
       // Draw the replacements from the deck as it stands — WITHOUT the cards
       // just chosen — then put those back and shuffle. If the deck could not

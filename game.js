@@ -14718,6 +14718,15 @@ const Game = {
         // the badge row being repeated in prose; a token with a real ability
         // has something to say that no badge covers.
         if (tokenAb.tokenDesc) def.desc = tokenAb.tokenDesc;
+      } else {
+        // SAY THAT THE EMPTINESS IS ON PURPOSE. Case (2) above expresses
+        // "copies don't trigger this effect" by handing createCardInstance a
+        // def with no hooks — which is indistinguishable from a def that LOST
+        // its hooks by accident, and that accident is a real bug (a stats-only
+        // record written into the draw pile, whose card then silently does
+        // nothing for the rest of the match). The repair in createCardInstance
+        // cannot tell them apart from absence alone, so intent gets a name.
+        def._dumbCopy = true;
       }
     }
 
@@ -15593,6 +15602,43 @@ const Game = {
     let safeHp  = (typeof def.health === 'number' && Number.isFinite(def.health) && def.health > 0) ? def.health : 1;
     // Glass Jaw — every card enters with half its printed HP (floored, min 1).
     if (this.mod('glassJaw')) safeHp = Math.max(1, Math.floor(safeHp / 2));
+    // A DEFINITION THAT LOST ITS HOOKS STILL BUILDS A WORKING CARD.
+    //
+    // Every hook on the instance below is read off `def`, and CARD_DEFS entries
+    // get theirs merged from CARD_ABILITIES once at load. So a def that is NOT
+    // one of those shared objects — a hand-built literal, a JSON round trip, a
+    // record reassembled from stats — produces a card with 24 null hooks that
+    // looks completely normal and silently does nothing for the rest of the
+    // match. That has now happened for real (Symbiote Spider-Man's shuffle-back
+    // wrote stats-only records into the draw pile) and it is invisible from the
+    // board, which is what makes it expensive.
+    //
+    // This is the one place every card in the game is built, so the repair
+    // belongs here rather than at each source: if the ability table says this
+    // NAME has a hook and the def handed to us does not, take it from the table.
+    // Only ever ADDS what the card's own definition promises — nothing here can
+    // give a card an ability it should not have, and deliberate silencing
+    // (Moder's strip, Bloway Candy) happens to the INSTANCE afterwards and is
+    // untouched — and the one case that IS expressed as a hookless DEF, a
+    // summoned copy of a real card, says so with _dumbCopy. Ultron's replicas
+    // must not replicate; that rule is the absence of onDeath, so it has to be
+    // told apart from an accidental absence by name rather than by shape.
+    if (typeof CARD_ABILITIES !== 'undefined' && def && def.name && !def._dumbCopy) {
+      const _ab = CARD_ABILITIES[def.name];
+      if (_ab) {
+        let _missing = 0;
+        for (const _k in _ab) {
+          if (typeof _ab[_k] === 'function' && typeof def[_k] !== 'function') { _missing++; break; }
+        }
+        if (_missing) {
+          def = Object.assign({}, _ab, def);
+          for (const _k in _ab) if (typeof _ab[_k] === 'function' && typeof def[_k] !== 'function') def[_k] = _ab[_k];
+          if (typeof console !== 'undefined' && console.warn) {
+            console.warn('[def repair] ' + def.name + ' was built from a definition with no ability hooks — restored from CARD_ABILITIES');
+          }
+        }
+      }
+    }
     const card = {
       id: nextCardId++,
       // Marker so drawCards can detect a pre-built card instance vs a

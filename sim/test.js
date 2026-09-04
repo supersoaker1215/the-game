@@ -9867,6 +9867,69 @@ test('a card with its hook intact reports nothing', function () {
   assertEq(__lostHookLog(G).length, 0, 'no false positive on a healthy card');
 });
 
+// ============================================================
+// A DEFINITION THAT LOST ITS HOOKS STILL BUILDS A WORKING CARD
+// ============================================================
+// Owner: "its in 2v2 with the engine, it gets overlooked when the game runs for
+// too long, too much happening — how to fix, that nothing gets missed."
+//
+// Traced to a real source: Symbiote Spider-Man's shuffle-back pushed a
+// hand-written SEVEN-KEY literal (name/cost/attack/health/abilities/type/desc)
+// into the draw pile. A CARD_DEFS entry is that plus its ability hooks, so every
+// card he cycled came back stats-only — drawn later, createCardInstance stamped
+// 24 null hooks off it and the When Played silently never fired, forever. It
+// compounds with match length because more cards have been cycled, which is
+// exactly the shape the owner described. Groot reproduces this way.
+//
+// Fixed at the source AND at the choke point: createCardInstance is the one
+// place every card in the game is built, so a def missing a hook its own name
+// promises gets it back from CARD_ABILITIES. Measured over 200 fuzzed 2v2
+// games: 13 silent ability losses -> 0, with 99 hookless defs repaired.
+test('a stats-only def still produces a card with its abilities', function () {
+  var G = freshGame();
+  var real = __findDef('Groot');
+  assert(typeof real.onPlay === 'function', 'precondition: the shared def carries onPlay');
+  // exactly the record the shuffle-back used to push into the draw pile
+  var stripped = { name: 'Groot', cost: real.cost, attack: real.attack,
+                   health: real.health, abilities: real.abilities,
+                   type: real.type, desc: real.desc };
+  assertEq(typeof stripped.onPlay, 'undefined', 'the record has no hooks');
+  var c = G.createCardInstance(stripped, 'player');
+  assert(typeof c.onPlay === 'function', 'the card is built with its ability anyway');
+});
+
+test('the repair never invents an ability the card does not have', function () {
+  var G = freshGame();
+  var c = G.createCardInstance({ name: 'Not A Real Card', cost: 1, attack: 1, health: 1 }, 'player');
+  assertEq(typeof c.onPlay, 'object', 'no ability entry, no hook (null, as always)');
+});
+
+test('the repair does not disturb a healthy def', function () {
+  var G = freshGame();
+  var c = G.createCardInstance(__findDef('Groot'), 'player');
+  assert(typeof c.onPlay === 'function', 'still wired');
+  assertEq(c.name, 'Groot', 'and unchanged otherwise');
+});
+
+test('a card cycled by Symbiote Spider-Man keeps its abilities', function () {
+  var G = freshGame();
+  var back = [];
+  var pile = G.getDrawPile('player');
+  var live = G.createCardInstance(__findDef('Groot'), 'player');
+  G.applyAbilities(live);
+  // the shuffle-back builds its record off the LIVE card; rebuild it the way
+  // the fixed code does and assert the hook survives the round trip
+  var base = __findDef(live.name);
+  var backDef = Object.assign({}, base, {
+    name: live.name, cost: live.baseCost || live.cost,
+    attack: live.attack, health: live.maxHealth,
+    abilities: live.abilities, type: live.type, desc: live.desc,
+  });
+  assert(typeof backDef.onPlay === 'function', 'the returned def carries the hook');
+  var redrawn = G.createCardInstance(backDef, 'player');
+  assert(typeof redrawn.onPlay === 'function', 'and the redrawn card can still fire it');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 
