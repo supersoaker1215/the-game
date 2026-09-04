@@ -1063,6 +1063,16 @@ const Game = {
           try {
             this._2v2AIDriving = null; this._2v2AIDrivingAt = 0; this._2v2CurrentActingPlayer = null;
             this.state.pendingKangChoice = null; this.state.pendingJumpOffer = null;
+            // AND RUN WHAT THAT PROMPT WAS HOLDING BACK. _stackDrain returns the
+            // moment _promptBusy() is true, so everything queued while the offer
+            // sat armed — arrivals, onAnyCardPlayed reactions, queued deaths —
+            // was waiting on the prompt that just got cleared here. Clearing it
+            // without draining left those events stranded on the stack for the
+            // REST OF THE MATCH: measured stranding included `arrival:Winter
+            // Soldier` and three `onAnyCardPlayed` hooks, none of which ever
+            // ran. That is the shape of "bugs start spawning" — not new bad
+            // behaviour, but old good behaviour that silently stopped.
+            this.resolveStack();
             if (this._2v2DrainLockedActions) this._2v2DrainLockedActions();
             this.end2v2Phase();
             if (this._pushOnlineState) this._pushOnlineState({ silent: true });
@@ -19522,6 +19532,20 @@ const Game = {
         this.log(`[BRAINIAC] ${tt.players[pk].name || pk}'s scan of ${(victim && victim.name) || spy.seat} closes.`);
       }
     });
+    // THE STACK DOES NOT CROSS A ROUND. startRound has cleared it since the
+    // stack landed; start2v2Round back-ported the rest of that block and not
+    // this line, so in 2v2 — and ONLY in 2v2 — queued events accumulated for
+    // the whole match. Measured over a long game (sim/lategame-growth.js):
+    //
+    //   round      1  2  3  4  5  6   7   8   9
+    //   _stack     0  0  0  0  0  0   6  20  49      ms/round 2 -> 17
+    //
+    // and it never comes back down. _stackClear also WARNS with the count, so
+    // from here a skipped drain path announces itself instead of quietly
+    // costing a round of effects. (Owner: "after round 11 the game strats to
+    // break doen, it gets laggy and bugs start spawing that dont happen ealier
+    // on.")
+    this._stackClear('startRound');
     tt._beforeTricksRan = false;   // re-arm the before-tricks pass for this round
     tt._freddyChecked = false;     // re-arm Freddy Fazbear's combat-boundary waste check
     // Clear the post-combat marker the moment the new round's card phase begins.

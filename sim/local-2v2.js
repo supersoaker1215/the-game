@@ -402,6 +402,60 @@ t('L2-11 a 2v2 round drains the upkeep queue', function () {
 });
 
 // ---- run ----------------------------------------------------
+// ============================================================
+// L2-9 — THE STACK DOES NOT CROSS A 2v2 ROUND.
+// ============================================================
+// Owner: "after round 11 the game strats to break doen, it gets laggy and bugs
+// start spawing that dont happen ealier on."
+//
+// _stackDrain returns the instant _promptBusy() is true — correct, a prompt
+// owns the turn — so anything queued while a prompt sits armed waits for a
+// resume. startRound has cleared the stack since it landed, which bounds that
+// wait to one round. start2v2Round back-ported the rest of that block and NOT
+// that line, so in 2v2 the queue only ever grew. Measured over a long game
+// (sim/lategame-growth.js) it went 0 -> 6 -> 20 -> 49 by round 9 and never came
+// back down, with ms/round rising 4.5x alongside it — and the stranded entries
+// were real effects (arrival hooks, onAnyCardPlayed reactions) that simply
+// stopped firing. That is the shape of the report: not new bad behaviour, but
+// old good behaviour quietly switching off partway through a match.
+t('L2-9 start2v2Round clears queued stack events, exactly as startRound does', function () {
+  table(false);
+  var ran = 0;
+  Game._stack.push({ type: 'call', label: 'stranded:test', fn: function () { ran++; } });
+  Game._stack.push({ type: 'call', label: 'stranded:test2', fn: function () { ran++; } });
+  eq('two events are queued', Game._stack.length, 2);
+  Game.start2v2Round();
+  eq('a new 2v2 round starts with an empty stack', Game._stack.length, 0);
+  // and 1v1 has always done this — the two round starts agree now.
+  Game.init();
+  Game._stack.push({ type: 'call', label: 'stranded:1v1', fn: function () {} });
+  Game.startRound();
+  eq('1v1 agrees', Game._stack.length, 0);
+});
+
+// ============================================================
+// L2-10 — a prompt freezes the drain, and clearing it must UNfreeze it.
+// ============================================================
+// The 2v2 stall watchdog force-clears pendingKangChoice/pendingJumpOffer so a
+// wedged table can continue. It did not drain afterwards, so everything the
+// prompt had been holding back stayed queued — the table unstuck and the
+// effects stayed lost. This pins the underlying contract the watchdog now
+// relies on: busy => nothing drains, cleared => it all runs.
+t('L2-10 a pending prompt freezes the stack drain; clearing it releases the queue', function () {
+  table(false);
+  Game._stackClear('test');
+  var ran = 0;
+  Game.state.pendingJumpOffer = { cardId: 'x', owner: 'player' };
+  Game._stack.push({ type: 'call', label: 'held', fn: function () { ran++; } });
+  Game.resolveStack();
+  eq('nothing runs while a prompt owns the turn', ran, 0);
+  eq('and the event is still queued, not dropped', Game._stack.length, 1);
+  Game.state.pendingJumpOffer = null;
+  Game.resolveStack();
+  eq('clearing the prompt releases it', ran, 1);
+  eq('and the queue empties', Game._stack.length, 0);
+});
+
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];
   try { c.fn(); } catch (e) {
