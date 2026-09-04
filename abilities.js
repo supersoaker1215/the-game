@@ -79,9 +79,9 @@ const _aiKillPicker = (cards, damage) => {
 // the same change that introduces the helper. They are the obvious next
 // migration, one card at a time, each against the golden suite.
 //
-//   1. optionally hand the lane back (Boiler Room / Sewers / Open Water /
-//      Enclosure are REPLACED by what they birth; Wetlands stays underneath its
-//      Spinosaurus and drains when he dies)
+//   1. hand the lane back — every habitat is REPLACED by what it births
+//      (Wetlands was the one exception until the shared environment clock made
+//      "how long does it last" a board-wide rule)
 //   2. get the ally in the lane out of the way, or absorb it
 //   3. clear a corpse the death machinery has not swept yet
 //   4. summon, and verify something actually landed before touching its stats
@@ -92,9 +92,16 @@ function releaseHabitatMonster(G, o) {
   // For four of the five it is the same thing — Jaws, Pennywise, Freddy and
   // Spinosaurus all surface for whoever put the habitat down. The Enclosure is
   // the exception on purpose: it is a toll, not a nursery, so the thing that
-  // gets out is the OPPONENT's problem. `into` carries that; everything else in
-  // here still belongs to `owner`, including the env slot being handed back.
-  const side = o.into || owner;
+  // gets out is the OPPONENT's problem.
+  // READ FROM THE CARD, not passed in. The lane backdrop paints an
+  // environment's picture on the half its monster lands on, so the direction
+  // has to be one declaration both of them read — actsOnOpponentSide on the
+  // def — rather than an `into` argument here that the renderer would have to
+  // duplicate by name. `into` is still honoured for a caller that genuinely
+  // needs to override it; everything else in here still belongs to `owner`,
+  // including the env slot being handed back.
+  const side = o.into
+    || ((o.habitat && o.habitat.actsOnOpponentSide) ? G.opponent(owner) : owner);
   const laneIdx = o.laneIdx;
   const lane = G.state && G.state.lanes && G.state.lanes[laneIdx];
   if (!lane) return;
@@ -126,7 +133,6 @@ function releaseHabitatMonster(G, o) {
       G.log(`  [${tag}] ${o.name} can't take lane ${laneIdx + 1} — it is still occupied.`);
       return;
     }
-    born._habitatLane = laneIdx;
     // summonCard ignores atk/hp when a sourceDef is passed; set them directly.
     born.attack = atk;
     born.currentHealth = hp;
@@ -141,7 +147,8 @@ function releaseHabitatMonster(G, o) {
       G.promptLaneChoice(side, openLanes,
         `${o.name} — Move ${allyInLane.name}`,
         `${o.name} takes this lane. Move ${allyInLane.name} to another lane.`,
-        (targetLane) => {
+        (targetLaneArg) => {
+          let targetLane = targetLaneArg;
           // RE-CHECK ON RESOLVE. The ally was alive when this armed; a prompt is
           // answered later and a kill can still be cascading, so putting it back
           // on the board unchecked resurrects a corpse.
@@ -152,6 +159,25 @@ function releaseHabitatMonster(G, o) {
             G.log(`  [DISPLACE SKIPPED] ${allyInLane ? allyInLane.name : 'the ally'} did not survive to be moved.`);
             finishSpawn(o.atk, o.hp);
             return;
+          }
+          // THE DESTINATION IS RE-CHECKED, NOT TRUSTED. openLanes was computed
+          // when the prompt ARMED; this callback runs later, and in between a
+          // summon, a jump or another habitat's release can have taken that
+          // lane. Writing into it regardless is how a card ends up referenced
+          // in two places at once — and events now fire on round 3, 6, 9 …
+          // instead of once a match, so every habitat release, and every
+          // displacement it triggers, happens several times more often than
+          // when this code was written. Measured: 0 duplicate-id states in
+          // 1500 games before that change, 4 in 2700 after.
+          const dest = G.state.lanes[targetLane];
+          if (!dest || dest.destroyed || dest[side]) {
+            const retry = G.getOpenLanes(side).filter(l => l !== laneIdx);
+            if (!retry.length) {
+              G.log(`  [DISPLACE SKIPPED] no lane left for ${allyInLane.name} — ${o.name} takes the lane anyway.`);
+              finishSpawn(o.atk, o.hp);
+              return;
+            }
+            targetLane = retry[0];
           }
           lane[side] = null;
           G.state.lanes[targetLane][side] = allyInLane;
@@ -5945,12 +5971,59 @@ const CARD_ABILITIES = {
           G.state.pendingLaneChoice.heroStrikeLane = lane;
         }
       } else {
-        redirectLanes.sort((a, b) => {
-          const ea = G.state.lanes[a][opp], eb = G.state.lanes[b][opp];
-          return (eb.attack * eb.currentHealth) - (ea.attack * ea.currentHealth);
-        });
-        self._hanRedirectLane = redirectLanes[0];
-        G.log(`[HAN SOLO] Lining up a shot into lane ${redirectLanes[0] + 1}!`);
+        // THE BOT SCORES THE SHOT, AND IT SCORES STAYING TOO.
+        //
+        // This used to sort the REDIRECT lanes by raw `attack * currentHealth`
+        // and take the top one — two mistakes at once. (Owner, after a match
+        // that hinged on it: "the right play to survive is shooting apocalypse
+        // with han. he shot gorr and they lost, terrible play, fix this.")
+        //
+        //   1. His own lane was never a candidate. A redirect sets
+        //      _skipNormalAttack, so choosing another lane means the enemy
+        //      opposite him is not hit BY ANYONE this combat — the shot is moved,
+        //      not added. Never comparing the two meant Han redirected away from
+        //      a better target roughly whenever anything at all stood elsewhere.
+        //   2. atk * hp is not what a first strike is for. Striking BEFORE the
+        //      exchange only earns anything when it KILLS: a corpse does not
+        //      swing back. Chip damage on the biggest stat block pre-empts
+        //      nothing, and atk*hp happily prefers a 3/7 wall it cannot kill
+        //      over a 4/5 threat it can — which is the shape of the reported
+        //      board.
+        //
+        // So: every lane he could shoot, his own included, scored kill-first and
+        // then by AI.threatScore — the same canonical "which enemy is worth
+        // removing" the rest of the bot's targeting already uses (it reads
+        // armor / evade / invincibility / strategic value, none of which atk*hp
+        // can see). Ties keep the lowest lane so the choice stays deterministic.
+        const score = (i) => {
+          const e = G.state.lanes[i][opp];
+          if (!e || e.currentHealth <= 0) {
+            // An uncontested own lane is a free hit on the enemy HERO. Worth
+            // taking when nothing on the board is worth killing, and worth less
+            // than any kill — a dead attacker is damage prevented every round,
+            // the hero hit is damage dealt once.
+            return (i === lane) ? 1 : -1;
+          }
+          const threat = (typeof AI !== 'undefined' && AI.threatScore)
+            ? AI.threatScore(e) : (e.attack || 0) * (e.currentHealth || 0);
+          const kills = (typeof AI !== 'undefined' && AI.wouldKill)
+            ? AI.wouldKill(self, e)
+            : Math.max(0, (self.attack || 0) - (e.armorValue || 0)) >= e.currentHealth;
+          // A kill is worth more than any amount of chip, whatever the numbers
+          // underneath say — hence the offset rather than a multiplier.
+          return (kills ? 1000 : 0) + threat;
+        };
+        let best = lane, bestScore = score(lane);
+        for (const i of redirectLanes) {
+          const sc = score(i);
+          if (sc > bestScore) { best = i; bestScore = sc; }
+        }
+        if (best !== lane) {
+          self._hanRedirectLane = best;
+          G.log(`[HAN SOLO] Lining up a shot into lane ${best + 1}!`);
+        } else {
+          G.log(`[HAN SOLO] Han Solo stays and fights his own lane.`);
+        }
       }
     },
     onBeforeAttack(G, self) {
@@ -7911,10 +7984,11 @@ const CARD_ABILITIES = {
   },
 
   // ===================== WETLANDS / SPINOSAURUS =====================
-  // The third habitat environment, and the one that does NOT consume itself.
-  // Boiler Room and Sewers are replaced by what they birth; Wetlands stays on
-  // the board underneath Spinosaurus and drains away only when he dies — so
-  // the lane keeps reading "this is his water" for as long as he is standing.
+  // The third habitat environment. It used to be the one that did NOT consume
+  // itself — it stayed underneath Spinosaurus and drained when he died, so the
+  // lane kept reading "this is his water" while he stood. That exception is
+  // gone: every environment now runs on the shared four-round clock and every
+  // habitat is replaced by what it births.
   //
   // Its clock is the BLOCK METER, not a card entering or dying: every time
   // either side's meter fills and eats a hit, the swamp loses 1 Power. Starting
@@ -7943,10 +8017,20 @@ const CARD_ABILITIES = {
   // by _resolveUpkeepPrompts before phase 1), which is what makes "pay 1 Energy
   // or skip" a real prompt in every mode instead of a second private one.
   "Enclosure": {
+    // ONE CLOCK, NOT TWO. The paddock used to have no life at all — the toll
+    // came round every turn forever, the bot pays while it can afford to, and
+    // energy refills before upkeep runs, so on the AI's side the gate never
+    // opened and never left. It now runs down on the SHARED environment clock
+    // (Game.ENV_TURNS, ticked in postCombat), rather than counting its own
+    // tolls: a second counter here would drift from the pip the lane prints the
+    // moment anything seated it mid-round.
+    // Refusing still lets the T-Rex out at any point in those rounds.
     onTurnStart(G, self) {
       if (self._encReleased) return;
       if (G.findCardLane(self) < 0) return;
-      const AB = CARD_ABILITIES['Enclosure'];
+      // Last round on the clock — the tick at the end of THIS round takes the
+      // paddock away, so this is the final toll it will ever ask for.
+      const lastToll = (self._envTurns | 0) <= 1;
       if (!G.state._pendingUpkeep) G.state._pendingUpkeep = [];
       G.state._pendingUpkeep.push({
         card: self, owner: self.owner, label: 'Enclosure',
@@ -7954,10 +8038,14 @@ const CARD_ABILITIES = {
         // them had this gate asking "Pay 1 Energy to pull all enemies 1 lane
         // closer, or skip."
         payLabel: 'Pay the Park',
-        payDesc: 'The gate holds for another round — nothing gets out.',
+        payDesc: lastToll
+          ? 'The last toll — the park closes at the end of this round.'
+          : 'The gate holds for another round — nothing gets out.',
         skipLabel: 'Refuse',
         skipDesc: 'The gate opens and the T-Rex is released AGAINST you.',
-        promptDesc: 'Pay 1 Energy to keep the gate shut, or refuse and let the T-Rex out against you.',
+        promptDesc: lastToll
+          ? 'The final toll. Pay 1 Energy and the park closes for good, or refuse and let the T-Rex out against you.'
+          : 'Pay 1 Energy to keep the gate shut, or refuse and let the T-Rex out against you.',
         // NO aiPrefer. The resolver's default — pay while you can afford it — is
         // the right play now that the T-Rex is a punishment rather than a prize,
         // and it is what a bot should do with a toll. It does mean the gate only
@@ -7966,8 +8054,13 @@ const CARD_ABILITIES = {
         // BEFORE upkeep runs, so a bot can always find the 1. That is the card
         // working as written, not a branch going unreached — the decision was
         // always the player's.
-        onPay() { G.log('  [ENCLOSURE] The park is paid. The gate holds.'); },
+        onPay() {
+          G.log(lastToll
+            ? '  [ENCLOSURE] The last toll is paid. The park closes for good.'
+            : '  [ENCLOSURE] The park is paid. The gate holds.');
+        },
         onDecline() {
+          const AB = CARD_ABILITIES['Enclosure'];
           // SKIP ONCE AND IT IS OUT. The latch is set before the release because
           // the release can prompt (ally displacement) and a second decline
           // resolving against a still-standing gate would let out a second
@@ -7984,12 +8077,12 @@ const CARD_ABILITIES = {
     _release(G, owner, laneIdx, habitat) {
       releaseHabitatMonster(G, {
         owner, laneIdx, habitat,
-        // AGAINST the side that stopped paying — the one thing that separates
-        // this habitat from the other four.
-        into: G.opponent(owner),
+        // No `into` — the direction lives on the card (actsOnOpponentSide),
+        // so the release and the lane backdrop read the same declaration.
         // REPLACED, NOT KEPT. Its own text says the T-Rex is released HERE and
         // says nothing about the paddock outliving him — unlike Wetlands, which
-        // spells out that the habitat remains until Spinosaurus dies.
+        // keeps its habitat underneath the monster for whatever is left of the
+        // shared environment clock.
         clearEnv: true,
         tag: 'ENCLOSURE',
         name: 'T-Rex', cost: 5, atk: 3, hp: 7,
@@ -8062,25 +8155,31 @@ const CARD_ABILITIES = {
         AB._release(G, self.owner, laneIdx, self);
       }
     },
-    // Self-heal: the habitat is supposed to outlive the release and die WITH
-    // Spinosaurus, which his onDeath handles. But a Spinosaurus can leave the
-    // board without dying — Phantom Zone bounces him to a hand, Devour voids
-    // him past handleDeath entirely — and either way onDeath never fires, so
-    // the drained habitat would sit in the lane forever with nothing in it.
-    // Reconcile from the live board each round instead of trusting the exit.
-    onTurnStart(G, self) {
-      if (!self._wetReleased) return;
-      const laneIdx = G.findCardLane(self);
-      if (laneIdx < 0) return;
-      const spino = G.getAllCardsOf(self.owner)
-        .some(c => c.name === 'Spinosaurus' && c.currentHealth > 0);
-      if (spino) return;
-      const lane = G.state.lanes[laneIdx];
-      if (lane._env && lane._env[self.owner] === self) lane._env[self.owner] = null;
-      G.log(`  [WETLANDS] No Spinosaurus remains — the wetlands drain away.`);
-    },
+    // (No onTurnStart. It used to be a self-heal for a habitat that outlived its
+    // own release: Spinosaurus could leave the board without DYING — Phantom
+    // Zone bounces him to a hand, Devour voids him past handleDeath — and the
+    // drained swamp would then sit in the lane with nothing in it forever. The
+    // habitat is consumed at release now, so there is no such state to
+    // reconcile.)
     _release(G, owner, laneIdx, habitat) {
       const lane = G.state.lanes[laneIdx];
+      // THE HABITAT IS CONSUMED, like all four of its siblings. It used to be
+      // the one exception — it stayed underneath Spinosaurus and drained when
+      // he died — and that exception cost it three pieces of private
+      // machinery: this clear, a self-heal on onTurnStart for the ways he can
+      // leave without dying, and an onDeath on Spinosaurus himself. All of it
+      // existed to answer "how long does the swamp last", which the shared
+      // environment clock now answers for every environment on the board.
+      // (Owner: "just change wetlands to fit the global rule and the wording.")
+      // Cleared up front rather than on a successful spawn, matching
+      // releaseHabitatMonster: the other four hand the lane back before they
+      // summon, so a blocked spawn leaves the same board either way.
+      if (lane._env && lane._env[owner] === habitat) {
+        lane._env[owner] = null;
+        if (typeof UI !== 'undefined' && UI._fxWetlandsDrain) {
+          try { UI._fxWetlandsDrain(laneIdx, owner); } catch (e) {}
+        }
+      }
       const opp = G.opponent(owner);
       const def = (typeof CARD_DEFS !== 'undefined')
         ? CARD_DEFS.find(d => d.name === 'Spinosaurus') : null;
@@ -8117,13 +8216,10 @@ const CARD_ABILITIES = {
           G.log(`  [WETLANDS] Spinosaurus can't surface in lane ${laneIdx + 1} — the lane is still occupied.`);
           return;
         }
-        spino._habitatLane = laneIdx;
         // summonCard ignores atk/hp when sourceDef is provided; set directly.
         spino.attack = atk;
         spino.currentHealth = hp;
         spino.maxHealth = hp;
-        // The habitat STAYS. Unlike Boiler Room / Sewers / Open Water, the env
-        // slot is NOT cleared here — Spinosaurus's onDeath is what drains it.
         G.log(`Spinosaurus is released into lane ${laneIdx + 1}!`);
         if (typeof UI !== 'undefined' && UI._spinosaurusRelease) {
           setTimeout(() => { try { UI._spinosaurusRelease(laneIdx, owner); } catch (e) {} }, 60);
@@ -8224,19 +8320,9 @@ const CARD_ABILITIES = {
     // than left guarded: a hook that can never fire is a trap for the next
     // person reading the card, and _skipNormalAttack with it — he no longer
     // spends his swing on anything.
-    onDeath(G, self, laneIdx) {
-      // The habitat goes with him, in the same beat.
-      const l = (self._habitatLane !== undefined) ? self._habitatLane : laneIdx;
-      const lane = G.state.lanes[l];
-      const env = lane && lane._env && lane._env[self.owner];
-      if (env && env.name === 'Wetlands') {
-        lane._env[self.owner] = null;
-        G.log(`  [WETLANDS] Spinosaurus falls — the wetlands drain away with him.`);
-        if (typeof UI !== 'undefined' && UI._fxWetlandsDrain) {
-          try { UI._fxWetlandsDrain(l, self.owner); } catch (e) {}
-        }
-      }
-    },
+    // (No onDeath. Its only job was draining the Wetlands he was standing in,
+    // and the swamp is consumed the moment he surfaces now — there is nothing
+    // left under him to take with him.)
   },
 
   "Gargantua": {
@@ -8303,7 +8389,16 @@ const CARD_ABILITIES = {
 
           if (occupant.currentHealth <= 0 && card.currentHealth > 0) {
             // Occupant was destroyed; pulled card takes the lane.
-            G.state.lanes[curLane][opp]    = null;
+            // CLEAR BY IDENTITY, FROM A FRESH READ. curLane was taken at the
+            // top of this iteration, BEFORE the two dealDamage calls above —
+            // and those kill cards, which runs onDeath hooks, which can move
+            // this very card (a habitat release displacing it, a Hunt chase, a
+            // bounce). Nulling the stale index then leaves the card where it
+            // actually is AND writes it into laneIdx: one object, two lanes.
+            // Caught in the fuzz as "duplicate id 8 on lane: Trigon + Trigon",
+            // after Open Water's Jaws had displaced Trigon mid-pull.
+            const nowA = G.findCardLane(card);
+            if (nowA >= 0 && G.state.lanes[nowA][opp] === card) G.state.lanes[nowA][opp] = null;
             G.state.lanes[laneIdx][opp]    = card;
             G.log(`[GARGANTUA] ${card.name} takes lane ${laneIdx + 1}!`);
             G.checkLaneTrap(card, laneIdx);
@@ -8313,7 +8408,11 @@ const CARD_ABILITIES = {
           }
         } else if (!occupant || occupant.currentHealth <= 0) {
           // Target lane is clear — pull the card one step toward Gargantua.
-          G.state.lanes[curLane][opp]     = null;
+          // Same fresh-read-and-match rule as the collision branch above: this
+          // loop moves several cards and fires hooks between them, so the index
+          // read at the top of the iteration cannot be trusted at the write.
+          const nowB = G.findCardLane(card);
+          if (nowB >= 0 && G.state.lanes[nowB][opp] === card) G.state.lanes[nowB][opp] = null;
           G.state.lanes[targetLane][opp]  = card;
           G.log(`[GARGANTUA] ${card.name} pulled from lane ${curLane + 1} → lane ${targetLane + 1}.`);
           G.checkLaneTrap(card, targetLane);

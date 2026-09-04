@@ -111,6 +111,12 @@ const CARD_DEFS = [
     isEnvironment: true,
     _spawnOnly: true,
     abilities: [],
+    // It never spawns anything — what it does happens entirely to the cards
+    // standing OPPOSITE it, so that is the half its picture belongs on. Owner,
+    // watching a room on their own half chain the card above it: "if thr
+    // bathroom is on my side my cards are gtting chained becasue im in the
+    // bathroom." The rule is unchanged; the picture moved to where it applies.
+    actsOnOpponentSide: true,
     desc: "While Active: The next 2 enemy cards to enter this lane take (−2/−2) and are Chained — if moved they lose (−2/−2). The room drains away when the second one dies." },
   { name: "Game Over", cost: 2, attack: 0, health: 1, type: "environment",
     isEnvironment: true,
@@ -119,6 +125,16 @@ const CARD_DEFS = [
     desc: "While Active: The first enemy card to die in this lane rises on your side as a (2/2), as if newly played. An ally in that lane moves to an empty lane to make room. Game Over is then spent." },
   { name: "Enclosure", cost: 2, attack: 0, health: 1, type: "environment",
     _spawnOnly: true,
+    // WHICH HALF THIS ROOM ACTS ON. Every other habitat's monster surfaces for
+    // the side that owns it; the T-Rex breaks OUT of the paddock and joins the
+    // opponent, against whoever stopped paying. One declaration, read twice:
+    // releaseHabitatMonster puts the T-Rex on that side, and the lane backdrop
+    // paints the picture on that same half, because the picture should be where
+    // the room's business happens. (Owner: "the t rex breaks out of the
+    // enclousre so he spawns on the enviroment so the enviroment would be
+    // opposite the player … same with wetlands, the enemy spino spawns in the
+    // envirmonet so if your facing him the enviroment is on the enemy side.")
+    actsOnOpponentSide: true,
     // isEnvironment, NOT just type:"environment". They are not the same flag:
     // `type` is what the codex sorts on, `isEnvironment` is what the ENGINE
     // reads — playCard's env-slot branch, canPlaceEnvironment, cleanupDead's
@@ -129,12 +145,12 @@ const CARD_DEFS = [
     // `type` and nothing had ever placed it, so nothing had ever noticed.
     isEnvironment: true,
     abilities: [],
-    desc: "Each Turn: Pay 1 Energy to keep the gate shut, or refuse — refuse once and the T-Rex is released AGAINST you, into this lane on the enemy side. An enemy already standing there moves to an empty lane — with no empty lane it is destroyed and the T-Rex adds its stats." },
+    desc: "Each Turn: Pay 1 Energy to keep the gate shut, or refuse — refuse once and the T-Rex is released AGAINST you, into this lane on the enemy side. An enemy already standing there moves to an empty lane — with no empty lane it is destroyed and the T-Rex adds its stats. Pay the fourth toll and the park closes for good." },
   { name: "Wetlands", cost: 2, attack: 0, health: 1, type: "environment",
     _spawnOnly: true,
     isEnvironment: true,
     abilities: [],
-    desc: "While Active: Each time either player's Block Meter fires, this lane loses 1 Power. At 0, Spinosaurus is released here, destroying the enemy in this lane. An ally there moves to an empty lane — with no empty lane it is destroyed and Spinosaurus adds its stats. The habitat remains until Spinosaurus dies." },
+    desc: "While Active: Each time either player's Block Meter fires, this lane loses 1 Power. At 0, Spinosaurus is released here, destroying the enemy in this lane. An ally there moves to an empty lane — with no empty lane it is destroyed and Spinosaurus adds its stats." },
   { name: "Bane", cost: 2, attack: 2, health: 3, type: "villain",
     abilities: ["Overdrive"],
     desc: "When Played: An enemy takes (−1/−1) and loses all Evade. While Active: Add (+1/+1) when damaged." },
@@ -233,7 +249,7 @@ const CARD_DEFS = [
     // the Saw event. (Owner: these environments "should not be able to be drawn
     // ... make sure the environments are not draftable or drawable.")
     _spawnOnly: true,
-    desc: "Appears only through the Saw event." },
+    desc: "Saw event only: opens The Bathroom and Game Over in empty enemy lanes, then moves an enemy to an empty lane." },
   { name: "Brainiac", cost: 2, attack: 0, health: 0, type: "villain",
     // "Draw 1" is carried for the BADGE, the same arrangement Iron Giant uses
     // and for the same reason: his discard really does draw, and that should be

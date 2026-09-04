@@ -2,6 +2,10 @@
 // TRICK DEFINITIONS — descs follow the glossary in card-text-audit.md
 // All player targeting uses promptCardChoice for manual selection.
 // ============================================================
+// Vampire Candy's drain. One number so the card text, the clamp and the log
+// cannot drift apart. (Owner: "vampite candy should be steal 2".)
+const CANDY_VAMPIRE_STEAL = 2;
+
 const TRICK_DEFS = [
   // Cost 0
   { name: "Space Stone", cost: 0,
@@ -1047,15 +1051,18 @@ const CANDY_DEFS = [
     }
   },
   {
-    name: "Vampire Candy", cost: 0, _isCandy: true,
-    desc: "Steal 5 health from the enemy team. It cannot reduce them below 1.",
+    // Steal 2, not 5 (owner). The number lives here rather than inline because
+    // the desc, the clamp and the log all have to agree about it, and a candy
+    // whose text and effect disagree is the worst kind of card to debug.
+    name: "Vampire Candy", cost: 0, _isCandy: true, _steal: CANDY_VAMPIRE_STEAL,
+    desc: "Steal 2 health from the enemy team. It cannot reduce them below 1.",
     play(G, owner) {
       const opp = G.opponent(owner);
       // FLOORED, NOT SKIPPED. "Can't kill the enemy team" has to clamp the
       // amount — refusing the whole effect when they are under 5 would make
       // the candy do nothing precisely when it matters most.
       const theirHp = G.state[opp].health | 0;
-      const drain = Math.max(0, Math.min(5, theirHp - 1));
+      const drain = Math.max(0, Math.min(CANDY_VAMPIRE_STEAL, theirHp - 1));
       if (drain <= 0) {
         G.log('Vampire Candy: the enemy team is already down to 1 — nothing left to drain.');
         return;

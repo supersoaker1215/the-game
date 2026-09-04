@@ -286,7 +286,176 @@ t('L2-9 both teammates are paid even when the trick pile runs out', function () 
   eq('the teammate is queued', (Game.state._2v2BlockQueue || []).length, 1);
 });
 
+// ============================================================
+// L2-10 — a card acts for ITS OWN seat in a local 2v2, not the last one
+//         that happened to move.
+// ============================================================
+// Owner: "jack sparrow in 2v2 parlay is nt working."
+//
+// _2v2ActFor is what resolveCombat calls before each card's onBeforeCombat so
+// the hook acts for the seat that owns the card, and isHuman(side) in 2v2
+// answers by asking that acting seat. It was gated on tt.online — the same
+// substitution as L2-1 and L2-2 — so in local play it did nothing and the stale
+// seat stood. Jack's Parlay fires from the one moment in a 2v2 round when no
+// seat is taking a turn, so the stale seat was routinely the BOT teammate:
+// isHuman came back false, Jack took his AI branch, and the human never saw the
+// prompt.
+//
+// The assertion is the MECHANISM, not the outcome. Both branches parlay
+// somebody, so "an enemy got parlayed" passes either way; what was wrong is
+// WHICH branch ran, and that is what isHuman decides.
+function parlayTable(online) {
+  var tt = table(online);
+  tt.players.p1.isAI = false;   // the human
+  tt.players.p3.isAI = true;    // bot teammate, same side
+  Game.state.round = 3;
+  return tt;
+}
+function seat(name, side, lane, playedBy) {
+  var def = CARD_DEFS.find(function (d) { return d.name === name; });
+  var c = Game.createCardInstance(def, side);
+  if (playedBy) c._2v2PlayedBy = playedBy;
+  Game.state.lanes[lane][side] = c;
+  return c;
+}
+
+t('L2-10 _2v2ActFor corrects a stale acting seat in a LOCAL 2v2', function () {
+  parlayTable(false);
+  var jack = seat('Jack Sparrow', 'player', 0, 'p1');   // the HUMAN played him
+  // What a real combat leaves behind: the last seat to have acted was the bot.
+  Game._2v2CurrentActingPlayer = 'p3';
+  eq('a stale bot seat reads the side as non-human', Game.isHuman('player'), false);
+  Game._2v2ActFor(jack);
+  eq('the acting seat is corrected to the card owner', Game._2v2CurrentActingPlayer, 'p1');
+  eq('so the side reads human again', Game.isHuman('player'), true);
+});
+
+t('L2-10b local and online agree about who owns a combat-time hook', function () {
+  var seen = {};
+  [false, true].forEach(function (online) {
+    parlayTable(online);
+    var jack = seat('Jack Sparrow', 'player', 0, 'p1');
+    Game._2v2CurrentActingPlayer = 'p3';
+    Game._2v2ActFor(jack);
+    seen[online ? 'online' : 'local'] = Game.isHuman('player');
+  });
+  eq('local answers human', seen.local, true);
+  eq('online answers human', seen.online, true);
+  eq('and they agree', seen.local, seen.online);
+});
+
+t('L2-10c Jack asks the human instead of auto-picking, in a local 2v2', function () {
+  parlayTable(false);
+  var jack = seat('Jack Sparrow', 'player', 0, 'p1');
+  seat('Hulk', 'ai', 2, 'p2');
+  seat('Bane', 'ai', 4, 'p4');
+  Game._2v2CurrentActingPlayer = 'p3';       // stale bot seat, as combat leaves it
+
+  var asked = null;
+  var origPL = Game.promptLaneChoice;
+  Game.promptLaneChoice = function (owner, lanes, title) {
+    asked = { owner: owner, lanes: lanes.slice(), title: title };
+    // Do NOT resolve — the point is whether the question was asked at all.
+  };
+  // Exactly what resolveCombat's pre-combat pass does.
+  Game._2v2ActFor(jack);
+  jack.onBeforeCombat(Game, jack, Game.findCardLane(jack));
+  Game.promptLaneChoice = origPL;
+
+  eq('the human is asked', !!asked, true);
+  eq('and asked about the right lanes', asked && JSON.stringify(asked.lanes), JSON.stringify([2, 4]));
+  // Nothing was decided for them.
+  eq('no enemy was parlayed behind their back',
+     [2, 4].filter(function (i) { return !!Game.state.lanes[i].ai._parlayedThisRound; }).length, 0);
+});
+
+// ============================================================
+// L2-11 — the upkeep queue is drained in a 2v2 too.
+// ============================================================
+// 1v1's startRound has always ended with
+//   this._resolveUpkeepPrompts(() => this.startPhase1())
+// and start2v2Round back-ported the rest of that block but not that line —
+// while being the only other round-start in the file. So in 2v2 the queue was
+// filled every round by onTurnStart and drained by nothing, and the two cards
+// that live entirely in it had never worked in a 2v2 at all: Gargantua never
+// pulled, and the Enclosure never asked for its toll, so its gate could not
+// open and the T-Rex could not be released. (Owner, watching an Enclosure event
+// place two paddocks and then do nothing for the rest of the match: "for the t
+// rex enclosure event 2 enviromens should spwan like open water and jaws".)
+t('L2-11 a 2v2 round drains the upkeep queue', function () {
+  table(false);
+  Game.state.round = 3;
+  var gate = Game._placeEventEnvironment('player', 2, 'Enclosure');
+  var garg = Game._placeEventEnvironment('ai', 5, 'Gargantua');
+  eq('the gate is standing', !!gate, true);
+  eq('Gargantua is standing', !!garg, true);
+
+  var drains = 0;
+  var orig = Game._resolveUpkeepPrompts;
+  Game._resolveUpkeepPrompts = function (cb) { drains++; return orig.call(Game, cb); };
+  Game.state.round = 4;
+  Game.start2v2Round();
+  Game._resolveUpkeepPrompts = orig;
+
+  eq('the round asked the upkeeps', drains > 0, true);
+  eq('and left nothing queued', (Game.state._pendingUpkeep || []).length, 0);
+});
+
 // ---- run ----------------------------------------------------
+// ============================================================
+// L2-9 — THE STACK DOES NOT CROSS A 2v2 ROUND.
+// ============================================================
+// Owner: "after round 11 the game strats to break doen, it gets laggy and bugs
+// start spawing that dont happen ealier on."
+//
+// _stackDrain returns the instant _promptBusy() is true — correct, a prompt
+// owns the turn — so anything queued while a prompt sits armed waits for a
+// resume. startRound has cleared the stack since it landed, which bounds that
+// wait to one round. start2v2Round back-ported the rest of that block and NOT
+// that line, so in 2v2 the queue only ever grew. Measured over a long game
+// (sim/lategame-growth.js) it went 0 -> 6 -> 20 -> 49 by round 9 and never came
+// back down, with ms/round rising 4.5x alongside it — and the stranded entries
+// were real effects (arrival hooks, onAnyCardPlayed reactions) that simply
+// stopped firing. That is the shape of the report: not new bad behaviour, but
+// old good behaviour quietly switching off partway through a match.
+t('L2-9 start2v2Round clears queued stack events, exactly as startRound does', function () {
+  table(false);
+  var ran = 0;
+  Game._stack.push({ type: 'call', label: 'stranded:test', fn: function () { ran++; } });
+  Game._stack.push({ type: 'call', label: 'stranded:test2', fn: function () { ran++; } });
+  eq('two events are queued', Game._stack.length, 2);
+  Game.start2v2Round();
+  eq('a new 2v2 round starts with an empty stack', Game._stack.length, 0);
+  // and 1v1 has always done this — the two round starts agree now.
+  Game.init();
+  Game._stack.push({ type: 'call', label: 'stranded:1v1', fn: function () {} });
+  Game.startRound();
+  eq('1v1 agrees', Game._stack.length, 0);
+});
+
+// ============================================================
+// L2-10 — a prompt freezes the drain, and clearing it must UNfreeze it.
+// ============================================================
+// The 2v2 stall watchdog force-clears pendingKangChoice/pendingJumpOffer so a
+// wedged table can continue. It did not drain afterwards, so everything the
+// prompt had been holding back stayed queued — the table unstuck and the
+// effects stayed lost. This pins the underlying contract the watchdog now
+// relies on: busy => nothing drains, cleared => it all runs.
+t('L2-10 a pending prompt freezes the stack drain; clearing it releases the queue', function () {
+  table(false);
+  Game._stackClear('test');
+  var ran = 0;
+  Game.state.pendingJumpOffer = { cardId: 'x', owner: 'player' };
+  Game._stack.push({ type: 'call', label: 'held', fn: function () { ran++; } });
+  Game.resolveStack();
+  eq('nothing runs while a prompt owns the turn', ran, 0);
+  eq('and the event is still queued, not dropped', Game._stack.length, 1);
+  Game.state.pendingJumpOffer = null;
+  Game.resolveStack();
+  eq('clearing the prompt releases it', ran, 1);
+  eq('and the queue empties', Game._stack.length, 0);
+});
+
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];
   try { c.fn(); } catch (e) {

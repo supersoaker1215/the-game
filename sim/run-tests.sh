@@ -80,6 +80,10 @@ echo "=== local-2v2.js (a local 2v2 is still a 2v2) ==="
 run_suite sim/local-2v2.js
 
 echo ""
+echo "=== lategame-growth.js (a round-16 match is the same game as a round-5 one) ==="
+run_suite sim/lategame-growth.js
+
+echo ""
 echo "=== moder-lane-lock.js (one answer to which lanes are placeable) ==="
 run_suite sim/moder-lane-lock.js
 
@@ -97,6 +101,14 @@ run_suite sim/seat-scope.js
 echo ""
 echo "=== log-secrecy.js (what you drew is yours) ==="
 run_suite sim/log-secrecy.js
+
+echo ""
+echo "=== card-tube.js (the frame's neon stack is reachable, not dead code) ==="
+run_suite sim/card-tube.js
+
+echo ""
+echo "=== css-parse.js (the stylesheet says what it looks like it says) ==="
+run_suite sim/css-parse.js
 
 echo ""
 if [ "$FAIL" -ne 0 ]; then

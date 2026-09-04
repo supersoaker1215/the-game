@@ -76,13 +76,13 @@
      surviving theme sweeps. Ten live consumers — the game log, the scrollbar
      thumb, section eyebrows — went on painting cyan in every theme. */
   --tron:       var(--theme-accent);   /* primary accent (edges, labels) */
-  --tron-dim:   rgba(var(--theme-rgb, 79,195,247),0.28);  /* standard 1px border */
+  --tron-dim:   rgba(var(--theme-rgb, 79,195,247),0.28);  /* standard 1px border — stays quiet, see the ladder note */
   --tron-edge:  rgba(var(--theme-rgb, 79,195,247),0.55);  /* hover / active border */
   /* GLOW ONLY — box-shadow / drop-shadow. Never `color`: at 0.22 alpha it paints
      a mark you can barely see on black, AND kills any currentColor glow that
      mark throws. Foreground ink is --theme-accent. Two controls (the hand's
      music note and redraw) had made exactly this mistake. */
-  --tron-glow:  rgba(var(--theme-rgb, 79,195,247),0.22);  /* ambient outer glow */
+  --tron-glow:  rgba(var(--theme-rgb, 79,195,247),calc(0.22 + (1 - 0.22) * var(--neon-lift, 0)));  /* ambient outer glow */
   --tron-ink:   rgba(var(--theme-rgb, 79,195,247),0.08);  /* fill wash for subtle bg */
 
   /* Keyword palette — single source of truth for trait / debuff / mechanic
@@ -1045,10 +1045,29 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
 }
 
 /* ---- INFO BARS (Enemy above lanes, Player below lanes) ---- */
-/* Identical grid for both banners — guarantees column alignment + equal height */
+/* Same grid on both banners. Equal height and a shared right edge still hold —
+   the HP block, the block circle and the dead pile land on the same x on both.
+   The centre cell is content-sized now, and the two bars' centre content differs
+   (152px of buttons against 140px of hand pips), so the energy diamond sits 4px
+   apart between them. That is the price of exactly-equal gaps within each bar,
+   which is what was asked for; pinning the centre track to a shared width would
+   re-align the diamonds and put the unevenness back into the gaps instead. */
 .info-bar {
   display: grid;
-  grid-template-columns: 220px 64px 1fr 64px 96px;
+  /* EIGHT TRACKS, FOUR OF THEM EMPTY SPACERS. The five cells used to sit in five
+     tracks with a single 1fr in the middle, which parks the energy diamond and
+     the dead pile hard against the right edge: measured ink-to-ink on a 1311px
+     bar, the gaps ran 26 / 332 / 332 / 71 — a void either side of the centre and
+     the last two controls crushed together in the corner. (Owner, arrowing them
+     leftward: "move these over uniformly.")
+     A fraction can only equalise TRACKS, and these groups are different widths
+     (152px of buttons, a 44px diamond, a 51px pill), so equal tracks would still
+     give unequal gaps. Equal GAPS need the gap itself to be the fr: every cell
+     sizes to its own content and three identical 1fr spacers sit between them.
+     The block column is auto now too — at a fixed 64px its centred 44px circle
+     left 10px of slack that showed up as one gap being 10px wider than the
+     other two. */
+  grid-template-columns: 220px auto 1fr auto 1fr auto 1fr auto;
   align-items: center;
   padding: 10px 20px;
   gap: 16px;
@@ -1073,33 +1092,60 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
    (see block below); without explicit columns, grid auto-flow would place the
    subsequent cells (bar-energy, bar-dead) into the vacated tracks, collapsing
    the layout and causing the energy orb to render over the Done button. */
+/* 3, 5 and 7 are the empty spacer tracks — see the template above. Every
+   breakpoint's template must keep all eight, or a cell pinned to 6 or 8 would
+   create implicit tracks and overflow the bar. */
 .bar-hp     { grid-column: 1; justify-content: flex-start; }
 .bar-block  { grid-column: 2; justify-content: center; }
-.bar-center { grid-column: 3; justify-content: center; min-width: 0; }
-.bar-energy { grid-column: 4; justify-content: center; }
-.bar-dead   { grid-column: 5; justify-content: flex-end; }
+.bar-center { grid-column: 4; justify-content: center; min-width: 0; }
+.bar-energy { grid-column: 6; justify-content: center; }
+.bar-dead   { grid-column: 8; justify-content: flex-end; }
 
 /* Banners glow at the same perceived brightness as the white chrome. Red and
    blue need higher alpha than white to appear equally luminous. */
+/* THE BARS READ THE TOKENS NOW. Both spelled their edges out as literals —
+   `rgba(var(--enemy-r) …, 0.95)` and a 0.30 inset — so they used the right HUE
+   but never the alpha ladder, and the neon knob could not reach them however
+   far it was turned. (Owner, after three attempts: "looks the same still." The
+   measurement said why: the player bar painted a flat 0.95 border while the AI
+   bar next to it had drifted to 0.984, because only one of the two happened to
+   go through --enemy-accent-bright somewhere else.)
+   Edges take *-accent-bright, the insets take *-glow-inner lifted to the same
+   0.30 they were authored at. The 0.08 background washes stay literal on
+   purpose — those are fills, and the knob deliberately leaves fills alone. */
 .info-bar.ai-bar {
   background:
     linear-gradient(180deg, rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.08), transparent 50%),
     linear-gradient(180deg, #000000, #000000);
-  border-top: 1px solid rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95);
-  border-bottom: 1px solid rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95);
+  border-top: 1px solid var(--enemy-accent-bright);
+  border-bottom: 1px solid var(--enemy-accent-bright);
   box-shadow:
-    inset 0 1px 0 rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.30),
-    inset 0 -1px 0 rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.30);
+    inset 0 1px 0 rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), calc(0.30 + (1 - 0.30) * var(--neon-lift, 0))),
+    inset 0 -1px 0 rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), calc(0.30 + (1 - 0.30) * var(--neon-lift, 0)));
+  /* NO `filter` here — and none on .info-bar.player-bar either.
+     The turn-focus system above (body.turn-player / body.turn-ai, ~line 907)
+     already writes `filter` on both bars, and `filter` is ONE property: a halo
+     declared here is REPLACED wholesale by that rule, never merged. So this
+     drop-shadow could only ever paint in the phases that carry NO turn class —
+     `combat`, `tricks`, `draft-*` — which made it read as a glow that switches
+     ON for the attack phase and off again the moment cards resolve.
+     Measured 2026-09-02, body.turn-combat: both bars fell through to
+     drop-shadow(rgba(...,0.816) 0 0 9px) while turn-player/turn-ai gave
+     brightness(1.04) saturate(1.1). Owner: "this glow shouldnt appear during
+     the attack phase."
+     If an outer halo is ever wanted on these bars, it must be composed INTO
+     every arm of the turn-focus system (var(--bar-halo) brightness(...)), not
+     declared standalone here. */
 }
 .info-bar.player-bar {
   background:
     linear-gradient(0deg, rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.08), transparent 50%),
     linear-gradient(180deg, #000000, #000000);
-  border-top: 1px solid rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95);
-  border-bottom: 1px solid rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95);
+  border-top: 1px solid var(--player-accent-bright);
+  border-bottom: 1px solid var(--player-accent-bright);
   box-shadow:
-    inset 0 1px 0 rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.30),
-    inset 0 -1px 0 rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.30);
+    inset 0 1px 0 rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), calc(0.30 + (1 - 0.30) * var(--neon-lift, 0))),
+    inset 0 -1px 0 rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), calc(0.30 + (1 - 0.30) * var(--neon-lift, 0)));
 }
 
 /* Mini enemy hand centered in the enemy banner */
@@ -1133,7 +1179,34 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
    fallback; every instance is scoped under .player-bar or .ai-bar in practice. */
 .block-circle {
   --fill: 0%;
-  width: 44px; height: 44px; border-radius: 50%;
+  /* IT IS A SHIELD NOW, and the ring still fills round it. Owner: "can you make
+     the block circle into a shield? just the hape of a shile and the ring still
+     fills around it."
+     One polygon, inherited by ::after, so the plate and the hole punched out of
+     it are the SAME silhouette at two sizes — which is what makes the lit conic
+     read as a shield-shaped ring rather than a circle wearing a mask. Flat
+     shoulders, straight flanks to the waist, then a taper to the point.
+     Percentages, so it scales with the 44px box and with the 28px one the
+     narrow breakpoint uses without a second shape to keep in sync. */
+  /* Fourteen points, not five. The five-point version was a crest — flat top,
+     straight flanks, hard corners — and the owner sent a reference where the
+     shoulders round over and the flanks CURVE in to a soft point. polygon()
+     cannot curve, so the curve is sampled: enough points that it reads round at
+     44px, still percentages so it scales to the 28px narrow breakpoint for
+     free. (clip-path: path() would give real beziers but takes absolute px, so
+     it would need a second path per breakpoint to stay in sync.) */
+  --shield: polygon(
+    10% 8%, 18% 4%, 50% 2%, 82% 4%, 90% 8%,
+    90% 44%, 86% 58%, 76% 72%, 62% 85%, 50% 96%,
+    38% 85%, 24% 72%, 14% 58%, 10% 44%);
+  clip-path: var(--shield);
+  width: 44px; height: 44px;
+  /* No radius and no border: a clip-path is applied AFTER both, so a rounded
+     corner is invisible under the polygon and a 1px border gets sliced off at
+     the silhouette — the same trap the card frame's outline hit. The conic's
+     own low-alpha track is the outline. */
+  border-radius: 0;
+  border: 0;
   position: relative;
   /* THE RING IS THE METER. --fill was already being written on every render as
      a percentage and only the .full state ever drew a conic-gradient, so at 6/8
@@ -1145,20 +1218,51 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
       rgba(var(--gold-rgb),0.95) 0 var(--fill),
       rgba(var(--gold-rgb),0.10) var(--fill) 100%);
   border: 1px solid rgba(var(--gold-rgb),0.55);
-  /* No halo. Two stacked outer glows on a 44px circle bloomed into the bar and
-     read as cheap shine rather than instrumentation — the ring itself is the
-     signal now, so it does not need selling. The .full state below keeps its
-     glow, because there the bloom IS the event. */
+  /* THE LINE GLOWS AS IT FILLS. Owner: "thing line that glows when filling
+     around." The old note here refused a halo because two stacked outer glows
+     on a filled 44px disc bloomed into the bar — but this is a 2px line now,
+     and a 2px line with no glow reads as a hairline scratch rather than as lit.
+     drop-shadow, not box-shadow: a clip-path cuts box-shadow off at the
+     silhouette, and a filter runs after the clip and traces the shape.
+     It also glows PROPORTIONALLY for free — drop-shadow follows the alpha of
+     what is actually painted, so the lit arc throws light and the 0.10 track
+     behind it barely does. The meter brightens as it fills without anything
+     having to drive it. */
   box-shadow: none;
+  filter: drop-shadow(0 0 3px rgba(var(--bc, var(--gold-rgb)), 0.55))
+          drop-shadow(0 0 7px rgba(var(--bc, var(--gold-rgb)), 0.22));
   transition: border-color 240ms var(--ease-snap), box-shadow 240ms var(--ease-snap), background 240ms var(--ease-snap);
   display: flex; align-items: center; justify-content: center;
 }
-/* Punches the middle out so the conic paints a RING, not a pie. */
-.block-circle::after {
-  content: "";
-  position: absolute; inset: 4px;
-  border-radius: 50%;
+/* Punches the middle out so the conic paints a RING, not a pie — in the SHIELD's
+   shape, inherited from --shield above. The inset is uniform while the polygon
+   is proportional, so the band is a little wider toward the point, which is how
+   a shield's edge reads anyway.
+   ::before, NOT ::after, and that is not a style choice. .block-circle carries
+   .tron-perimeter, and `.block-circle.tron-perimeter::after { content: none
+   !important }` near the end of this sheet turns its ::after off outright — so
+   the hole this rule has always claimed to punch was never drawn and the meter
+   has been a solid PIE, not a ring, since the gauge was written. (Measured:
+   getComputedStyle(el,'::after').content === 'none'.) ::before is free once the
+   `display: none` further up is answered, which the !important below does.
+   The hole cannot go on .block-circle itself as a second clip-path, tempting as
+   that is — a clip-path clips DESCENDANTS, and the "0/8" lives in the middle of
+   exactly the part that would be cut away. */
+/* .block-circle.block-circle — the doubled class is load-bearing. The
+   `display: none !important` at ~17730 is also `.block-circle::before` and sits
+   LATER in this sheet, so at equal specificity it wins on order however many
+   !importants this rule carries. Doubling takes it to (0,2,1) and settles it. */
+.block-circle.block-circle::before {
+  content: "" !important;
+  display: block !important;
+  /* 2px, not 4 — "thin line". The inset is uniform while the polygon is
+     proportional, so the band is a touch wider toward the point, which is how a
+     drawn shield's edge behaves anyway. */
+  position: absolute; inset: 2px;
+  border-radius: 0;
+  clip-path: var(--shield);
   background: #000;
+  z-index: 1;
 }
 /* Label stays OFF. I switched it on when the ring became a gauge, reasoning
    the circle never said what it measured — but a 6.5px word hanging under a
@@ -1167,6 +1271,9 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
 .block-circle-label { display: none; }
 .block-circle-value {
   position: relative; z-index: 2;
+  /* A shield's mass is in its upper half, so the box's centre reads low inside
+     it. Two pixels up puts the fraction in the waist. */
+  margin-top: -2px;
   font-family: var(--font-mono);
   font-size: 12px; font-weight: 700; letter-spacing: 0.3px;
   color: var(--text-hi, #f5fbff);
@@ -1180,7 +1287,13 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
    "ready" without continuous motion. */
 .block-circle.full {
   background: conic-gradient(from -90deg, rgba(var(--gold-rgb),0.95) 0 100%, rgba(var(--gold-rgb),0.95) 100%);
-  box-shadow: 0 0 14px rgba(var(--gold-rgb),0.80), 0 0 28px rgba(var(--gold-rgb),0.40);
+  /* drop-shadow, NOT box-shadow. clip-path is applied after box-shadow and cuts
+     it off at the silhouette, so the 8/8 glow — where the bloom IS the event —
+     would have vanished the moment this became a shield. A filter runs after the
+     clip and traces the shape instead of a box. */
+  box-shadow: none;
+  filter: drop-shadow(0 0 6px rgba(var(--gold-rgb),0.80))
+          drop-shadow(0 0 14px rgba(var(--gold-rgb),0.40));
   animation: none;
 }
 .block-circle.full .block-circle-value { color: #ffd77a; text-shadow: 0 0 8px rgba(var(--gold-rgb),0.85); }
@@ -1209,8 +1322,10 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
 }
 .player-bar .block-circle.full {
   background: conic-gradient(from -90deg, rgba(var(--theme-rgb, 79,195,247), 0.92) 0 100%, rgba(var(--theme-rgb, 79,195,247), 0.92) 100%);
-  border-color: rgba(var(--theme-rgb, 79,195,247), 0.95);
-  box-shadow: 0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.95), 0 0 28px rgba(var(--theme-rgb, 79,195,247), 0.45);
+  /* Same clip-path rule as the gold state above — a filter, not a box-shadow. */
+  box-shadow: none;
+  filter: drop-shadow(0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.95))
+          drop-shadow(0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.45));
 }
 .player-bar .block-circle-value {
   color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 65%, white);
@@ -1230,8 +1345,9 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
 }
 .ai-bar .block-circle.full {
   background: conic-gradient(from -90deg, rgba(231,76,60,0.92) 0 100%, rgba(231,76,60,0.92) 100%);
-  border-color: rgba(231,76,60,0.95);
-  box-shadow: 0 0 14px rgba(231,76,60,0.95), 0 0 28px rgba(231,76,60,0.45);
+  box-shadow: none;
+  filter: drop-shadow(0 0 6px rgba(231,76,60,0.95))
+          drop-shadow(0 0 14px rgba(231,76,60,0.45));
 }
 .ai-bar .block-circle-value {
   color: #ff8a7a;
@@ -1335,31 +1451,54 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
 /* Health Bars — Hearthstone style */
 .health-container { display: flex; align-items: center; gap: 8px; position: relative; }
 
-/* Frozen HP shield (Mr. Freeze) */
+/* Frozen HP (Mr. Freeze) — THE BAR FREEZES, NOT A BOX AROUND IT.
+   This used to wrap the whole .health-container in a rounded panel: padding,
+   a frosted gradient, a border and a double glow. Owner: "can you make the
+   helabar change to light ice blue with the FROZEN, not the box around the HP
+   ar."
+   Dropping it is also a layout fix. The box added `padding: 4px 10px` to a
+   container that has none the rest of the time, so the HP bar and everything
+   beside it jumped sideways the moment a freeze landed and jumped back when it
+   thawed — a 20px shift as a side effect of a decoration.
+   What stays is the freeze READING: the snowflake, the FROZEN label, the bar's
+   own ice-blue rim, and (below) the fill itself turning ice blue instead of
+   faction red or theme blue. */
 .health-container.hp-frozen {
-  padding: 4px 10px;
-  border-radius: 12px;
-  background:
-    linear-gradient(135deg, rgba(133,193,233,0.12), rgba(174,214,241,0.05)),
-    repeating-linear-gradient(45deg, rgba(174,214,241,0.08) 0 4px, transparent 4px 8px);
-  box-shadow:
-    0 0 14px rgba(133,193,233,0.55),
-    0 0 26px rgba(174,214,241,0.3),
-    inset 0 0 10px rgba(174,214,241,0.25),
-    inset 0 1px 0 rgba(255,255,255,0.3);
-  border: 1px solid rgba(174,214,241,0.5);
+  /* no box — see above. position: relative comes from .health-container so the
+     snowflake and the FROZEN label still anchor to it. */
 }
+/* THE FILL IS THE SIGNAL. Overriding both sides in one rule on purpose: frozen
+   is frozen, and a bar that stayed red-for-them / blue-for-you would be saying
+   whose it is at the moment the interesting fact is that it cannot move. The
+   leading-edge cursor comes with it — it is the brightest thing on the bar and
+   would otherwise sit there in the old faction colour. */
+.health-container.hp-frozen .health-fill.player-hp,
+.health-container.hp-frozen .health-fill.ai-hp {
+  background: linear-gradient(90deg, rgba(174,214,241,0.20), rgba(133,193,233,0.55)) !important;
+  box-shadow:
+    inset -2px 0 0 0 rgba(230,245,255,1),
+    2px 0 6px rgba(133,193,233,0.90),
+    4px 0 12px rgba(174,214,241,0.55),
+    6px 0 20px rgba(174,214,241,0.25) !important;
+}
+/* THE SNOWFLAKE SITS IN THE BAR. Owner: "te snowflake should be in the HP bar."
+   It was at left:-20px, i.e. outside the container entirely, sitting on the
+   hero avatar — which is also why it needed a dark disc behind it (see the
+   red-bleed override further down, now retired): out there it was lying over
+   whatever chrome the info bar happened to have. Inside the bar it is over the
+   ice fill, which is the surface it belongs to, so it needs no backdrop at all.
+   13px against a 16px bar; 6px in from the left so it reads as the bar's own
+   marker rather than something parked on top of it. */
 .health-container.hp-frozen::before {
   content: '❄';
-  position: absolute; left: -20px; top: 50%;
+  position: absolute; left: 6px; top: 50%;
   transform: translateY(-50%);
-  font-size: 18px; color: #aed6f1;
-  text-shadow: 0 0 8px rgba(133,193,233,0.9), 0 0 14px rgba(174,214,241,0.5);
+  font-size: 13px; line-height: 1; color: #eaf6ff;
+  text-shadow: 0 0 6px rgba(133,193,233,0.95), 0 0 12px rgba(174,214,241,0.6);
   pointer-events: none;
-  /* Sit ABOVE any red HP-bar box-shadow that leaks leftward from the
-     adjacent .health-bar — keeps the snowflake reading on a clean
-     dark backdrop instead of a red wash. */
-  z-index: 2;
+  /* Above the fill and its leading-edge cursor, both of which draw inside the
+     bar under it. */
+  z-index: 3;
 }
 /* When the HP bar is frozen, the underlying .health-bar should glow
    in the freeze hue instead of the side color (red for AI, cyan for
@@ -5910,7 +6049,14 @@ body.hit-pause .ai-hand * {
     inset 0 -12px 18px -12px rgba(var(--theme-rgb, 79,195,247),0.40);
 }
 .board {
-  display: flex; gap: 4px; justify-content: center; min-height: 230px;
+  /* 12px between lanes, was 4. Owner: "there can be a little more space between
+     lanes." Safe to change here and nowhere else: _fitBoardToViewport reads
+     this very value back — `getComputedStyle(board).gap * (lanes - 1)` — into
+     its width budget, so the lanes give the pixels up on their own if the board
+     cannot afford them. The narrow-screen overrides further down (2px, and 1px
+     under 700) are deliberately left alone; there the gap is competing with the
+     cards for a width that is already short. */
+  display: flex; gap: 12px; justify-content: center; min-height: 230px;
   /* No vertical padding — lanes sit flush against the banners above and below
      so the Tron circuit reads as one continuous light path with no dark gap. */
   padding: 0;
@@ -7264,8 +7410,8 @@ body.hit-pause .ai-hand * {
    scale delta tiny (1.000 ↔ 1.018) so the card doesn't fight its
    bounding box. */
 @keyframes vibeTitanBreathe {
-  0%,100% { transform: scale(1); filter: brightness(1); }
-  50%     { transform: scale(1.018); filter: brightness(1.06); }
+  0%,100% { transform: scale(1); filter: var(--card-tube) brightness(1); }
+  50%     { transform: scale(1.018); filter: var(--card-tube) brightness(1.06); }
 }
 .card.vibe-titan:not(.card-enter):not(.card-exit) {
   animation: vibeTitanBreathe 3.6s ease-in-out infinite;
@@ -7274,8 +7420,8 @@ body.hit-pause .ai-hand * {
 
 /* PHASE — opacity pulse. For intangibles (Invisible Woman, J'onn). */
 @keyframes vibePhaseShimmer {
-  0%,100% { opacity: 1;    filter: brightness(1); }
-  50%     { opacity: 0.82; filter: brightness(1.15); }
+  0%,100% { opacity: 1;    filter: var(--card-tube) brightness(1); }
+  50%     { opacity: 0.82; filter: var(--card-tube) brightness(1.15); }
 }
 .card.vibe-phase:not(.card-enter):not(.card-exit) {
   animation: vibePhaseShimmer 2.8s ease-in-out infinite;
@@ -7296,8 +7442,8 @@ body.hit-pause .ai-hand * {
 
 /* MAGNETIC — hue cycle + pulsing metallic halo. For tech/metal cards. */
 @keyframes vibeMagneticShift {
-  0%,100% { filter: hue-rotate(0deg) saturate(1);    }
-  50%     { filter: hue-rotate(-16deg) saturate(1.12); }
+  0%,100% { filter: var(--card-tube) hue-rotate(0deg) saturate(1);    }
+  50%     { filter: var(--card-tube) hue-rotate(-16deg) saturate(1.12); }
 }
 @keyframes vibeMagneticPulse {
   0%,100% { box-shadow: 0 0 12px rgba(155,89,182,0.42), 0 0 24px rgba(155,89,182,0.20); }
@@ -9673,7 +9819,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   .turn-hud { padding-right: 130px; }
 }
 @media (max-width: 800px) {
-  .info-bar { padding: 8px var(--match-gutter); gap: 10px; grid-template-columns: 180px 52px 1fr 52px 88px; }
+  .info-bar { padding: 8px var(--match-gutter); gap: 10px; grid-template-columns: 180px auto 1fr auto 1fr auto 1fr auto; }
   .health-bar { width: 130px; height: 16px; }
   .block-circle { width: 40px; height: 40px; }
   .energy-text { width: 40px; height: 40px; font-size: 16px; }
@@ -9936,7 +10082,7 @@ body.turn-combat .board .lane.lane-active {
   /* HP number is OVERLAID inside the bar (absolute) so it can never
      overlap the 0/8 block circle. User feedback: "the number of the
      health bar in the block circle are overlapping... change this." */
-  .info-bar { padding: 4px 6px; gap: 4px; grid-template-columns: 96px 34px 1fr 34px 54px; height: 52px; }
+  .info-bar { padding: 4px 6px; gap: 4px; grid-template-columns: 96px auto 1fr auto 1fr auto 1fr auto; height: 52px; }
   .info-bar.ai-bar,
   .info-bar.player-bar {
     background: transparent !important;
@@ -12661,6 +12807,10 @@ body.turn-combat .board .lane.lane-active {
   cursor: help;
 }
 .lane-glyph.glyph-destroyed { color: #e74c3c; }
+/* Environment countdown — same pip, coloured by whose environment is running
+   out rather than by what it does, so the row reads as one family of timers. */
+.lane-glyph.glyph-env-player { color: rgb(var(--theme-rgb, 79,195,247)); }
+.lane-glyph.glyph-env-ai     { color: rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 1); }
 .lane-glyph.glyph-hill { color: #ffcf5c; font-weight: 700; letter-spacing: 0.06em; background: rgba(40,30,6,0.85); }
 /* King of the Hill — a gold glow so the contested lane is unmistakable. */
 .lane.lane-hill {
@@ -12785,17 +12935,17 @@ body.turn-combat .board .lane.lane-active {
   gap: 4px;
   padding: 4px 0;
   background: linear-gradient(180deg, rgba(8,14,22,0.55) 0%, rgba(8,14,22,0.85) 100%);
-  /* Theme-driven neon highlight. Reads --theme-rgb (the same triplet
-     the rest of the project's theming uses — see body::before, lane
-     borders, glow halos). White theme → white neon; blue → blue;
-     green → green. Falls back to the project's default sky-blue
-     (79,195,247) if --theme-rgb hasn't been set. User spec: "I want
-     it to match whatever neon highlight you have." */
-  border-top:    1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);
-  border-bottom: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.40);
-  box-shadow:
-    inset 0  1px 0 rgba(var(--theme-rgb, 79,195,247), 0.18),
-    inset 0 -1px 0 rgba(var(--theme-rgb, 79,195,247), 0.10);
+  /* NO EDGES OF ITS OWN (2026-09-02). This carried a theme-tinted 1px hairline
+     top and bottom, plus matching inset glows. The top one drew a faint blue
+     line straight across the whole screen at the board's bottom edge — full
+     width, so the part of it crossing the empty decision column had nothing to
+     belong to and read as a stray rule rather than as chrome. Owner drew a line
+     along it: "there is currently a faint neon highlight blue line across the
+     screen, can you remove that."
+     The bottom one was invisible anyway: the player bar directly beneath opens
+     with its own 1px at 0.95 alpha, on the same pixel row. So the band is still
+     closed on both sides — by the board above and that bar below — and the strip
+     keeps its own dark gradient to sit on. */
   font-family: 'Rajdhani', 'Inter', sans-serif;
 }
 .lane-forecast-strip .lf-cell {
@@ -14216,13 +14366,66 @@ body.theme-gold,   :root.theme-gold   { --theme-r: 255; --theme-g: 215; --theme-
 body.theme-green,  :root.theme-green  { --theme-r: 46;  --theme-g: 204; --theme-b: 113; }
 body.theme-silver, :root.theme-silver { --theme-r: 220; --theme-g: 226; --theme-b: 234; }
 body, :root {
+  /* ===== NEON INTENSITY, ON ONE KNOB (2026-09-02) =====================
+     Owner: "i want the colors neon to pop more."
+
+     Every edge and glow in the game already resolves through the ladder below
+     (and its player/enemy twins) — 102 consumers of --theme-accent-edge, 134 of
+     --theme-glow-inner, 264 of --theme-glow-outer. So the brightness is one
+     number, not a sweep: each alpha is its AUTHORED value times --neon-boost.
+     Set it to 1 and the game is byte-identical to before this line existed;
+     raise it and every neon line and halo in the product comes up together,
+     in step, in every theme.
+
+     WASHES AND INKS ARE DELIBERATELY LEFT OUT. --theme-wash-*, --tron-ink and
+     --*-wash-08 are BACKGROUND fills, and the house rule is that panel
+     interiors stay pure black — boosting them would put a coloured film over
+     the interiors rather than making the light lines brighter, which is the
+     opposite of "pop". Only the strokes and the halos move.
+
+     Alphas clamp at 1 on their own, so a bright token like --*-accent-bright
+     (0.95) simply saturates instead of overflowing. */
+  --neon-boost: 3;
+  /* ALPHA IS BOUNDED, SO IT MUST NOT BE MULTIPLIED. Owner: "is alpha messing
+     it up?" — it was. A flat `alpha x boost` saturates, and the ladder these
+     tokens are authored as (dim 0.28 -> edge 0.55 -> ring 0.70 -> bright 0.95)
+     collapsed at the top. Measured at boost 3: dim 0.84, and edge / ring /
+     bright ALL painting 1.00 — three tiers of the design rendering as one
+     colour, with a "standard 1px border" nearly as loud as the brightest
+     faction edge. Everything meant to recede had come forward.
+
+     So the alphas LIFT toward full instead: a' = a + (1 - a) * lift. Monotonic,
+     never clamps, and the gaps between the rungs shrink but never invert — the
+     hierarchy survives at any setting. lift = (boost - 1) / boost, so boost 1
+     is still a no-op, 2 closes half the gap to full, 3 closes two thirds.
+     At 3: dim 0.76, edge 0.85, ring 0.90, bright 0.98 — brighter than authored
+     everywhere, and still four distinguishable tiers.
+
+     The RADIUS keeps multiplying (see .cf-frame). It is unbounded, so it is the
+     right place for the part of "pop" that alpha physically cannot deliver. */
+  --neon-lift: calc((var(--neon-boost) - 1) / var(--neon-boost));
   --theme-accent:       rgb(var(--theme-r), var(--theme-g), var(--theme-b));
+  /* STROKES KEEP THEIR AUTHORED ALPHAS. Owner: "the neon looks the same
+     everywhere, it shouldnt." Exactly right, and it was the boost's fault:
+     lifting every token equally raises the FLOOR along with the ceiling, and
+     neon only reads because most of the frame is dark and a little of it is
+     lit. Boosted uniformly, the dim 1px borders came up to meet the bright
+     faction edges and the whole board went evenly milky — brighter, flatter,
+     and no more "neon" than before.
+     So the ladder is left alone: dim recedes at 0.28, edge sits at 0.55, ring
+     0.70, bright 0.95, exactly as authored. Structure keeps its contrast. */
   --theme-accent-dim:   rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.28);
   --theme-accent-edge:  rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.55);
   --theme-accent-ring:  rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.70);
   --theme-accent-bright:rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.95);
-  --theme-glow-inner:   rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.22);
-  --theme-glow-outer:   rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.45);
+  /* GLOWS ARE THE POP, and they are the only thing the knob still touches.
+     A halo is light thrown ONTO the dark; making it stronger raises contrast
+     instead of erasing it, which is the opposite of what a stroke boost does.
+     Note --theme-glow-inner (0.22) lifts while --theme-accent-dim (0.28) does
+     not: same sort of number, opposite ROLE. One is a halo, one is a border
+     that is meant to stay quiet. Role decides, not the value. */
+  --theme-glow-inner:   rgba(var(--theme-r), var(--theme-g), var(--theme-b), calc(0.22 + (1 - 0.22) * var(--neon-lift)));
+  --theme-glow-outer:   rgba(var(--theme-r), var(--theme-g), var(--theme-b), calc(0.45 + (1 - 0.45) * var(--neon-lift)));
   --theme-wash-08:      rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.08);
   --theme-wash-05:      rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.05);
   /* Referenced at the viewport toggle but never declared, so that rule always
@@ -14673,13 +14876,13 @@ body {
   --player-accent:       rgb(var(--player-r), var(--player-g), var(--player-b));
   --player-accent-edge:  rgba(var(--player-r), var(--player-g), var(--player-b), 0.55);
   --player-accent-bright:rgba(var(--player-r), var(--player-g), var(--player-b), 0.95);
-  --player-glow-inner:   rgba(var(--player-r), var(--player-g), var(--player-b), 0.22);
-  --player-glow-outer:   rgba(var(--player-r), var(--player-g), var(--player-b), 0.45);
+  --player-glow-inner:   rgba(var(--player-r), var(--player-g), var(--player-b), calc(0.22 + (1 - 0.22) * var(--neon-lift)));
+  --player-glow-outer:   rgba(var(--player-r), var(--player-g), var(--player-b), calc(0.45 + (1 - 0.45) * var(--neon-lift)));
   --player-wash-08:      rgba(var(--player-r), var(--player-g), var(--player-b), 0.08);
   --enemy-accent-edge:   rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.55);
   --enemy-accent-bright: rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.95);
-  --enemy-glow-inner:    rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.22);
-  --enemy-glow-outer:    rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.45);
+  --enemy-glow-inner:    rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), calc(0.22 + (1 - 0.22) * var(--neon-lift)));
+  --enemy-glow-outer:    rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), calc(0.45 + (1 - 0.45) * var(--neon-lift)));
   --enemy-wash-08:       rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.08);
 }
 
@@ -14700,9 +14903,10 @@ body {
     linear-gradient(180deg, #000000, #000000) !important;
   border-top-color: var(--enemy-accent-bright) !important;
   border-bottom-color: var(--enemy-accent-bright) !important;
+  /* Its edge already read the ladder; the insets did not. Now both do. */
   box-shadow:
-    inset 0 1px 0 rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.22),
-    inset 0 -1px 0 rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.22) !important;
+    inset 0 1px 0 rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), calc(0.22 + (1 - 0.22) * var(--neon-lift, 0))),
+    inset 0 -1px 0 rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), calc(0.22 + (1 - 0.22) * var(--neon-lift, 0))) !important;
 }
 /* Player health bar + fill */
 .player-bar .health-bar {
@@ -17331,8 +17535,7 @@ body::before {
    Both screens use the selected neon theme (--theme-accent) so
    the result screen always reads in the player's chosen colour,
    not the player/enemy gameplay palette. Overrides the earlier
-   hardcoded cyan/red AND the subsequent --player-*/--enemy-*
-   variants.
+   hardcoded cyan/red AND the subsequent player/enemy colour variants.
    ============================================================ */
 .game-over-overlay.victory .game-over-content,
 .game-over-overlay.defeat .game-over-content {
@@ -17910,7 +18113,9 @@ body.theme-purple .board-section {
   transform: translateZ(12px);
 }
 .hand-card-wrapper:hover .card.hand-card .stat-circle {
-  transform: translateZ(18px);
+  /* No lift — corner-anchored, see the note beside the !important rule further
+     down. Kept in the ladder so the depth list still reads as a whole. */
+  transform: none;
 }
 .hand-card-wrapper:hover .card.hand-card .card-cost {
   /* THE CORNER STAYS WELDED. Every other content layer pops forward on
@@ -20308,12 +20513,50 @@ body::before {
       rgba(0, 0, 0, 0.25) 100%),
     #000;
 }
+/* ===========================================================================
+   THE ARENA FLOOR (2026-09-02)
+   This started as `radial-gradient(ellipse at 50% 50%, theme 0.035, …)`, which
+   was wrong for one specific reason: the board's centre is not a lane, it is
+   the GAP between lanes 3 and 4. The lanes painted over the glow everywhere
+   else, so the only place it was ever visible was in the seams, brightest in
+   the middle one — a soft floor-to-ceiling band showing through. ("behind the
+   board the is somthing remove that underneath.")
+
+   Deleting it left the arena flat #000, which reads as a hole rather than a
+   floor: "the middle part thats black in between just looks a little stark
+   contrast like theblakc is all balck."
+
+   The floor is back as a VERTICAL gradient, and vertical is the whole trick. A
+   horizontal or radial falloff necessarily peaks at some x, and any x is either
+   inside a lane or inside a seam — that is what singled out the middle gap. A
+   vertical one gives every seam the identical profile, so no seam can stand out
+   from its neighbours however strong it gets.
+
+   It is brightest at the two ends and nearly nothing across the middle, which
+   also means the light gathers where the two players' edges are and the
+   contested centreline stays the darkest part of the board.
+
+   Paired with the transparent lane below: with the lanes opaque this floor
+   would only have shown in the seams again, which is the original bug wearing a
+   different gradient. */
 #game-area #board,
 .board {
-  background:
-    radial-gradient(ellipse at 50% 50%,
-      rgba(var(--theme-rgb, 79,195,247), 0.035) 0%,
-      rgba(0, 0, 0, 0) 62%);
+  background: linear-gradient(180deg,
+    rgba(var(--theme-rgb, 79,195,247), 0.045)   0%,
+    rgba(var(--theme-rgb, 79,195,247), 0.012)  34%,
+    rgba(var(--theme-rgb, 79,195,247), 0.008)  50%,
+    rgba(var(--theme-rgb, 79,195,247), 0.012)  66%,
+    rgba(var(--theme-rgb, 79,195,247), 0.045) 100%);
+}
+/* THE LANE IS A FRAME, NOT A PANEL. It was painting an opaque #000 over the
+   board, which is what made every seam a visible edge: lane black against
+   whatever the gap happened to be showing. Transparent, the lane and the 12px
+   beside it are literally the same surface, so there is no seam left to
+   contrast — the lanes are described by their brackets and their faction
+   washes, which is how the design reads them anyway.
+   (The panel-interiors-are-pure-black rule still holds; a lane is not a panel.) */
+.board-section .lane {
+  background-color: transparent;
 }
 
 /* ---- 5. Energy orb playable-pulse ----
@@ -20596,12 +20839,17 @@ body {
   font-size: clamp(140px, 22vw, 280px);
   letter-spacing: 8px;
   color: rgb(var(--theme-rgb, 79,195,247));
-  opacity: 0.06;
+  /* 0.06 WITH A 50px GLOW WAS NEVER SEEN. The lanes painted opaque black over
+     it, so the number authored here as "pure ornament" was in practice not
+     rendered at all. The lanes are transparent now (see THE ARENA FLOOR) and it
+     came back as a legible printed digit across the middle of the board, which
+     is not what the comment above describes. Set to what it was always meant to
+     be: an embossed ghost you notice only if you look for it. The glow goes
+     with it — a text-shadow is what turned it from an emboss into a sign. */
+  opacity: 0.022;
   pointer-events: none;
   z-index: 0;
   user-select: none;
-  text-shadow:
-    0 0 50px rgba(var(--theme-rgb, 79,195,247), 0.25);
   transition: opacity 0.4s var(--ease-snap);
 }
 .board { position: relative; }
@@ -28995,17 +29243,10 @@ input[type="number"]::-webkit-outer-spin-button {
    WAVE A.5 — extra fixes from screenshot 2
    ============================================================ */
 
-/* FROZEN ICON RED BLEED FIX. The snowflake at .health-container.hp-frozen::before
-   sits at left:-20px which puts it OUTSIDE the health-container, on top
-   of whatever chrome the parent .ai-bar / .player-bar has. The red glow
-   from the AI side bleeds through the snowflake area as a subtle red
-   square. Solution: give the snowflake its own dark circular backdrop
-   that masks anything behind it. */
-.health-container.hp-frozen::before {
-  background: radial-gradient(circle, rgba(0,0,0,0.85) 50%, rgba(0,0,0,0) 80%) !important;
-  padding: 2px 4px !important;
-  border-radius: 50% !important;
-}
+/* (The FROZEN ICON RED BLEED FIX lived here — a dark disc behind the snowflake,
+   because at left:-20px it sat outside the container on top of the info bar's
+   red glow. The snowflake is inside the HP bar now, over the ice fill, so there
+   is nothing to mask and the disc would read as a hole punched in the bar.) */
 
 /* MODE-SELECT HOVER THEME ADOPTION. .mode-option:hover was hardcoded
    blue gradient + accent bar — on non-blue themes the fill stayed
@@ -29384,15 +29625,25 @@ input[type="number"]::-webkit-outer-spin-button {
 /* Player bar gradient + borders + glow — was hardcoded blue
    wash + blue border + blue inset highlights via --player-*
    vars. Now follows theme. */
+/* THIS is the player bar that actually paints — it is declared four times in
+   this sheet and this one, latest and !important, wins. Which is why routing
+   the FIRST declaration through the tokens did nothing, and why the AI bar
+   drifted to 0.984 under the neon knob while the player bar beside it stayed
+   flat at 0.95: their winning rules are different rules, and only the AI's
+   went through a token. (Owner, three attempts in: "looks the same still.")
+   Both edges and both insets now read the ladder, so the pair moves together. */
 .info-bar.player-bar {
   background:
     linear-gradient(0deg, rgba(var(--theme-rgb, 79,195,247), 0.08), transparent 50%),
     linear-gradient(180deg, #000000, #000000) !important;
-  border-top-color: rgba(var(--theme-rgb, 79,195,247), 0.95) !important;
-  border-bottom-color: rgba(var(--theme-rgb, 79,195,247), 0.95) !important;
+  border-top-color: var(--theme-accent-bright) !important;
+  border-bottom-color: var(--theme-accent-bright) !important;
   box-shadow:
-    inset 0 1px 0 rgba(var(--theme-rgb, 79,195,247), 0.22),
-    inset 0 -1px 0 rgba(var(--theme-rgb, 79,195,247), 0.22) !important;
+    inset 0 1px 0 rgba(var(--theme-rgb, 79,195,247), calc(0.22 + (1 - 0.22) * var(--neon-lift, 0))),
+    inset 0 -1px 0 rgba(var(--theme-rgb, 79,195,247), calc(0.22 + (1 - 0.22) * var(--neon-lift, 0))) !important;
+  /* No `filter` — see the note on .info-bar.ai-bar (~line 1103). The
+     turn-focus rules own this property; a standalone halo here only paints in
+     the no-turn-class phases and reads as a combat-only glow. */
 }
 
 /* Player HP bar — was using --player-accent-bright. Theme it. */
@@ -30082,7 +30333,16 @@ body > .grid-bg {
      "the white I use is the same as the seven cost and eight
      cost cards white." Single source of truth for the whole
      game's "neutral" color. */
-  --lane-mid-color: rgba(240, 245, 250, 0.85);
+  /* WHITE, NOT OFF-WHITE-AT-85%. Owner: "the grey should be white for the
+     lanes." It was rgba(240,245,250,0.85) — a slightly blue-grey base at 85%
+     alpha, which over pure black paints about #CCD0D4. Two things making it
+     grey at once, so both go: full white, full alpha.
+     This deliberately breaks step with the 7/8-cost "special tier" white the
+     old comment pointed at. That ramp is for CARD chrome sitting on artwork,
+     where 0.85 reads as bright; this line sits on black, where the same value
+     reads as grey. Only the NEUTRAL band changes — occ-player, occ-ai and the
+     contested blend keep their faction colours below. */
+  --lane-mid-color: #ffffff;
   border-image: linear-gradient(180deg,
       rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95)   0%,
       rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95)   3%,
@@ -30093,6 +30353,9 @@ body > .grid-bg {
     ) 1 !important;
   border-width: 1px !important;
   border-style: solid !important;
+  /* No border-image-width here — see the TOP AND BOTTOM ONLY block at the end
+     of this sheet. It must sit after every `border-image` shorthand a lane can
+     take, because the shorthand resets the width longhand with it. */
   box-shadow: none !important;
 }
 
@@ -30305,8 +30568,20 @@ body > .grid-bg {
 /* (The cost corner used to take translateZ(40px) here — the deepest layer of
    all. It is welded to the card's edges now and takes no lift; see the
    `transform: none` rule above for why zero and not merely less.) */
+/* THE STAT PLATES ARE CORNERS TOO, and they went the same way as the cost one.
+   translateZ scales a child about the card's CENTRE under `perspective: 800px`,
+   so a corner-anchored element does not come toward you — it slides diagonally
+   OUTWARD. At 28px the plates drifted 1.38% of the card's width left/right and
+   1.52% of its height down, and the card's own chamfer clip-path does not move
+   with them: measured on a hovered card, the health plate's bottom-right corner
+   landed at local (98.18, 203.66) against a chamfer edge of x + y = 299.2, so
+   it summed to 301.85 — 1.87px OUTSIDE the clip, and a clip-path cuts its
+   descendants. That is the corner the owner watched disappear ("the damage and
+   health squares are cliping a bit on zoom").
+   Zero, not smaller, for the same reason the cost corner got zero: any lift at
+   all moves a corner outward, and the clip is only ~1.4px away at rest. */
 .hand-card-wrapper:hover .card.hand-card .stat-circle {
-  transform: translateZ(28px) !important;
+  transform: none !important;
 }
 .hand-card-wrapper:hover .card.hand-card .status-badges {
   transform: translateZ(20px) !important;
@@ -30432,12 +30707,22 @@ body > .grid-bg {
    4-of-6 player lanes will have its 2 empties subtly green-
    tinted, a board you're losing has empties red-tinted. */
 .board-section .lane.occ-none {
+  /* FULL ALPHA ON ALL THREE TERMS. Owner: "the grey should be white for the
+     lanes." Every lane on an opening board is occ-none, so THIS rule is what
+     paints the long vertical line the eye actually follows — and its neutral
+     term was white at 0.30, which over black is about #4D4D4D. Grey, and the
+     grey the note was about; the neutral declared on .board-section .lane is
+     only a fallback, since every lane carries an occ-* class.
+     The two tint terms go to full alpha as well, so the dominance bias stays a
+     HUE shift instead of also being a brightness drop — mixing a 1.0 white
+     against a 0.30 tint would have dimmed the line on exactly the boards that
+     are meant to read as claimed. */
   --lane-mid-color: color-mix(in srgb,
-    rgba(255, 255, 255, 0.30) calc(100% - (var(--player-dominance, 0) + var(--enemy-dominance, 0)) * 12%),
+    rgba(255, 255, 255, 1) calc(100% - (var(--player-dominance, 0) + var(--enemy-dominance, 0)) * 12%),
     color-mix(in srgb,
-      rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.30)
+      rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 1)
         calc(50% + (var(--player-dominance, 0) - var(--enemy-dominance, 0)) * 50%),
-      rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.30)
+      rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 1)
         calc(50% - (var(--player-dominance, 0) - var(--enemy-dominance, 0)) * 50%))
     calc((var(--player-dominance, 0) + var(--enemy-dominance, 0)) * 12%));
   transition: border-image 800ms var(--ease-snap);
@@ -37307,6 +37592,37 @@ body.low-fx .card-portrait {
     rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 100%
   ) 1 !important;
 }
+
+/* ===========================================================================
+   TOP AND BOTTOM ONLY (2026-09-02)
+   The lane's border-image gradient runs VERTICALLY, so the left and right
+   slices painted that whole gradient down the full height of every lane —
+   twelve floor-to-ceiling rails, two in every gap, red over the enemy half and
+   blue over yours. That is the faint vertical lines the owner circled in each
+   gap: "see the fiant lines behind and in the middle the blue get rid of that."
+
+   border-image-WIDTH, not border-width: the border box stays 1px on all four
+   sides so nothing reflows (lane rects measure 146px before and after) and only
+   the paint on the two vertical sides is dropped. Zeroing border-left/right-
+   width would have handed those 2px back to the content box and nudged the
+   slots inside it.
+
+   LAST, AND OVER-SPECIFIED ON PURPOSE. Several rules in this sheet set the
+   `border-image` SHORTHAND on a lane, and a shorthand resets the width longhand
+   along with it — so one declaration up in .board-section .lane worked on an
+   empty lane and was silently undone on every occupied one (measured: an
+   occ-both lane read `border-image-width: 1` while its empty neighbours read
+   `1 0`). The repeated class takes this to (0,5,0), above the most specific of
+   them (.board-section .lane.occ-both.lane-active), and it is placed after all
+   of them.
+
+   The lane still reads as a column: top and bottom edges keep the faction
+   gradient, the corner brackets are untouched, and the occ-* wash carries whose
+   lane it is — including the contested red-to-blue blend, which is painted by
+   .lane.occ-both::before and never by these rails.
+   =========================================================================== */
+.board-section .lane.lane.lane.lane { border-image-width: 1 0 !important; }
+
 .lane.lane-active::after {
   background: linear-gradient(180deg,
     transparent 0%,
@@ -39438,7 +39754,16 @@ body.low-fx .mm-mw3 .mm-hero-img { animation: none; }
    Painted as background slices on .lane, whose background is unset — both
    .lane pseudo-elements are already taken. */
 .lane[data-forecast-cls] {
-  --rail: rgba(255,255,255,0.16);
+  /* THE NEUTRAL RAIL IS NEON, NOT GREY. These two 1px slices are the board's
+     dominant line — six lanes' worth of them, floor to ceiling — and they were
+     white at 16%, which is why the board read grey and dim however bright the
+     tokens around it got. (Owner: "i want the colors neon to pop more." The
+     --neon-boost knob lifts every TOKEN consumer, and this rule was holding a
+     literal, so the biggest surface on screen ignored it.)
+     Theme hue, and it rides the boost like everything else. The verdict rails
+     below are untouched — win/lose/trade are a SIGNAL and keep their own
+     colours; only the no-forecast default moves. */
+  --rail: rgba(var(--theme-rgb, 79,195,247), 0.16);
   background:
     linear-gradient(var(--rail), var(--rail)) left  center / 1px 100% no-repeat,
     linear-gradient(var(--rail), var(--rail)) right center / 1px 100% no-repeat;
@@ -40784,22 +41109,16 @@ body.in-match .lane {
   .choice-card.curse-opt .curse-bolt { animation: none; }
 }
 
-/* HAND TOOLS relocated into the bottom bar (♪ + redraw), next to the energy.
-   .hand-tools was absolutely positioned for its old home over the tricks; in a
-   bar cell it must flow inline instead. */
-/* ENERGY CELL holds the ♪ + redraw tools ALONGSIDE the energy number, so the
-   player's energy sits on the same bar as the music symbol (owner), matching
-   the AI. .hand-tools was absolutely positioned for its old home over the
-   tricks; in the bar it must flow inline. Only the PLAYER bar has tools, so the
-   player energy column is widened to fit both — the AI bar keeps the shared
-   64px energy column. */
+/* ENERGY CELL. It held the ♪ + redraw tools alongside the energy number; the
+   owner has since moved both into the hand's left margin (see .hand-meter-col),
+   so the cell carries the energy alone again and its column goes back to the
+   AI bar's shared 64px — left at 150px it would have parked the diamond in the
+   middle of 86px of nothing. */
 .bar-cell.bar-energy { display: flex; align-items: center; justify-content: center; gap: 8px; }
-.bar-cell.bar-energy .hand-tools {
-  position: static;
-  left: auto; top: auto; transform: none;
-  z-index: auto;
-}
-.info-bar.player-bar { grid-template-columns: 220px 64px 1fr 150px 96px; }
+/* No per-bar template. This existed only to widen the player's energy column
+   for the ♪ + redraw tools that used to share it; those live in the hand's left
+   margin now, and both bars take the shared eight-track grid so their columns
+   stay aligned with each other across the board. */
 
 /* HAND + TRICKS AS ONE CENTERED GROUP (desktop). The bottom grid row used to be
    `1fr auto`, so the hand cards sat in a wide 1fr column and the tricks were
@@ -40810,9 +41129,168 @@ body.in-match .lane {
    1 / -1 so they stay full width. Scoped above the phone breakpoint; the mobile
    fit-to-width layout is untouched. */
 @media (min-width: 521px) {
-  body.in-match #game-area { grid-template-columns: 1fr auto auto 1fr; }
+  /* ...AND THE GROUP STARTS WHERE LANE 1 DOES (2026-09-02).
+     The two 1fr spacers centred the pair on the VIEWPORT, which was right until
+     the board moved left to clear the decision column — after that the cards sat
+     off the board's axis and the tricks ran past its right edge into the
+     reserved gutter. Owner: "can you have the cards start left too?"
+     The left spacer becomes the board's own left offset (--board-left, solved in
+     _fitBoardToViewport beside the shift), so the first card lines up with lane
+     1 and the tricks follow the last one. minmax(0, …) rather than a flat length
+     so the track can still give way on a narrow window instead of pushing the
+     row into a scroll. The right spacer keeps the leftovers, gutter included. */
+  body.in-match #game-area {
+    /* max(), so the hand meter in column 1 always has its own width even when
+       the board's margin is thinner than the ring. On a wide screen --board-left
+       wins and nothing moves; at the tight end the cards give up a few pixels
+       rather than the meter being squeezed out of existence. */
+    grid-template-columns:
+      minmax(0, max(var(--board-left, 0px), var(--hand-col-w, 54px)))
+      auto auto minmax(0, 1fr);
+  }
+  /* Column 1 holds the stack (readout + ♪ + redraw), not the bare readout. Its
+     floor is the TOOLS' width now, not the number's — a 44px button squeezed
+     into a 50px track was the failure mode the max() exists to prevent. */
+  body.in-match #game-area > .hand-meter-col { grid-column: 1; }
   body.in-match #game-area > .player-hand-section { grid-column: 2; }
   body.in-match #game-area > .tricks-section { grid-column: 3; }
+}
+
+/* ===========================================================================
+   HAND SIZE RING (2026-09-02)
+   Owner, circling the empty margin left of the first card: "put n/7 for hand
+   size here, neon highlight, in the circle."
+
+   Built as the block meter's sibling on purpose — same 44px ring, same
+   conic-gradient fill, same punched-out middle — because it is the same KIND of
+   readout (a capacity you are filling) and the bar already taught that shape.
+   The only difference is the hue: theme neon rather than the block meter's gold,
+   so the two are never mistaken for each other at a glance.
+   =========================================================================== */
+/* NO RING. Just the number. It was built as the block meter's twin — 44px
+   circle, conic fill, punched-out middle — and that was wrong: the owner asked
+   for "n/7 ... in the circle" meaning at the spot they had circled on the
+   screenshot, not inside a drawn one. Twice re-read as a styling defect and
+   twice made MORE circular before the plain reading landed. */
+:root { --hand-meter-w: 40px; --hand-col-w: 54px; }
+/* One knob for the card frame's minimum stroke — see the note on .card. */
+:root { --cf-stroke-min: 1.6px; }
+/* THE LEFT MARGIN IS A COLUMN OF THREE. Readout on top, then the ♪ hand-audio
+   toggle, then redraw — the order the owner drew them in, arrows running from
+   the bottom bar down into this margin. Right-aligned as one edge so the three
+   share a rule with the first card rather than each finding its own left.
+   align-self: start keeps the whole stack level with the card tops; the 6px is
+   the hand section's own top padding, so the readout lands on the same line as
+   the first card instead of floating in the middle of a 229px column. */
+.hand-meter-col {
+  align-self: start;
+  margin-top: 6px;
+  justify-self: end;
+  display: flex;
+  flex-direction: column;
+  /* ONE AXIS, EVEN SPACING. Right-aligning the three boxes did not right-align
+     what is IN them: the readout's text sits hard right in its track while the
+     ♪ and the redraw pair are centred inside 44px touch targets, so the three
+     ink blocks landed on three different axes and the column read ragged.
+     Centred boxes put all three on the same line. (Owner: "make these uniform
+     vertically.")
+     The 12px is measured, not chosen. Ink centres are: readout 770.5 (19px tall
+     at y761), ♪ 802+gap, redraw 846+gap — so the first spacing is 31.5+gap and
+     the second is a flat 44 (two 44px targets, no gap between them). They are
+     equal at gap 12.5; 12 lands them 43.5 and 44 apart, which is the same
+     spacing to the eye. If the readout's font-size moves, this moves with it. */
+  align-items: center;
+  gap: 12px;
+}
+/* Inside a column flex, .hand-meter's own align-self: start means the CROSS
+   axis — it would pin the number to the LEFT of the track. The stack owns
+   alignment now. */
+/* Same 44px box as the two controls below it, contents centred, so the number
+   sits on the shared axis instead of hanging off the right edge of the track. */
+.hand-meter-col > .hand-meter {
+  align-self: center;
+  margin-top: 0;
+  width: 44px;
+  justify-content: center;
+}
+/* .hand-tools was absolutely positioned for its old home over the tricks, then
+   flowed inline in the bottom bar. Here it is a vertical pair. */
+.hand-meter-col .hand-tools {
+  position: static;
+  left: auto; top: auto; transform: none;
+  z-index: auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+/* Trick-hand readout — same number, same type, same neon as the cards' one, at
+   the same height, sitting over the first trick. Absolute so adding it does not
+   push #player-tricks out of its vertical centring: 6px matches the hand
+   section's top padding (so it lines up with n/7 to the pixel) and 16px is the
+   tricks section's own left padding (so it lines up with the first trick). */
+.tricks-section { position: relative; }
+/* .tricks-section > — NOT a bare .trick-meter. This block is authored ABOVE
+   .hand-meter, and the element carries both classes, so at equal specificity
+   (one class each) .hand-meter simply wins on order and its margin-top: 6px
+   stacked on `top: 6px`. Measured 768 against n/7's 761 before this. */
+.tricks-section > .trick-meter {
+  position: absolute;
+  left: 16px;
+  top: 6px;
+  width: auto;
+  justify-content: flex-start;
+  /* .hand-meter's own margin-top: 6px stacks ON TOP of `top`, which put this
+     7px below n/7 instead of level with it. Measured: 768 vs 761. */
+  margin-top: 0;
+}
+.hand-meter {
+  /* Level with the card tops — 6px is the hand section's own top padding, so it
+     sits on the same line as the first card rather than floating halfway down a
+     220px column of them. */
+  align-self: start;
+  margin-top: 6px;
+  justify-self: end;
+  width: var(--hand-meter-w);
+  display: flex; align-items: center; justify-content: flex-end;
+}
+.hand-meter-text {
+  /* var(--font-mono): Rajdhani has no tnum, so `tabular-nums` on it is inert and
+     the count would jitter as it walks 1/7 -> 7/7. */
+  font-family: var(--font-mono, 'Rajdhani', monospace);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.95);
+  text-shadow:
+    0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.55),
+    0 0 18px rgba(var(--theme-rgb, 79,195,247), 0.25);
+}
+/* A RAISED CAP IS EARNED, so it is marked rather than left to look like a typo.
+   7 is the number every match starts on; Mobius Chair, the Eye of Agamotto and
+   each Wonder Weapon push it up permanently. Gold because that is this UI's
+   colour for "you gained something", and the title says how many and from what. */
+.hand-meter.cap-raised .hand-meter-text {
+  color: rgba(var(--gold-rgb), 0.95);
+  text-shadow:
+    0 0 8px rgba(var(--gold-rgb), 0.55),
+    0 0 18px rgba(var(--gold-rgb), 0.25);
+}
+/* FULL is an event — a full hand means the next draw is thrown away. */
+.hand-meter.full .hand-meter-text {
+  color: #ffffff;
+  text-shadow:
+    0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.9),
+    0 0 24px rgba(var(--theme-rgb, 79,195,247), 0.45);
+}
+/* Below the desktop breakpoint the four-column rule does not apply and there is
+   no margin to sit in, so both readouts go. The TOOLS stay — redraw and the
+   hand-audio toggle are controls, not decoration, and hiding the column would
+   take the only redraw button on the screen with it. The stack lies down into a
+   row so it costs one thin strip instead of 90px of height. */
+@media (max-width: 520px) {
+  .hand-meter { display: none; }
+  .hand-meter-col { flex-direction: row; align-items: center; justify-self: start; margin-top: 0; }
+  .hand-meter-col .hand-tools { flex-direction: row; gap: 2px; }
 }
 
 /* HUD CONTROLS STAY ABOVE THE BOARD ON SCROLL. The battle-log, help (?) and
@@ -42028,14 +42506,27 @@ body.low-fx .badge-asleep { animation: none; }
    tricks."
    Still draggable — this is only where it starts. */
 .twov2-tracker {
-  position: fixed; right: 6px; bottom: 6px; top: auto; transform: none;
+  /* LEVEL WITH THE CARDS, not down in the corner. Owner: "can you move the turn
+     order in 2v2 up llevel with the cards." --hand-top is the measured top of
+     .player-hand-section, published by _fitBoardToViewport beside the rest of
+     the board geometry, so the panel's top edge lands on the same line the
+     first card does at every breakpoint.
+     BOTH edges anchored on purpose: with top AND bottom set the height is
+     determined, so the chip list scrolls inside a fixed footprint instead of
+     growing. That keeps the promise the old bottom-only anchor was written for
+     ("when i open it up it expands up, that shouldnt happen") — it simply holds
+     a taller box now, in a place where growing was the problem. */
+  position: fixed; right: 6px; bottom: 6px; top: var(--hand-top, auto); transform: none;
   /* PINNED BOTTOM-RIGHT, AND IT STAYS THERE. Anchored on `bottom`, every extra
      row grows the panel UPWARD — so an 86vh ceiling meant opening it could
      climb 780px over the board. Owner: "when i open it up it expands up, that
      shouldnt happen it needs to fix bottom right." The ceiling is now a real
      bound and the chip list scrolls inside it, so the footprint is the same
      corner whatever the round holds. */
-  z-index: 60; width: 176px; max-height: min(46vh, 300px); overflow-y: auto;
+  z-index: 60; width: 176px; overflow-y: auto;
+  /* Only bounds the fallback case (no --hand-top yet, top:auto), where the panel
+     is bottom-anchored and would otherwise climb over the board. */
+  max-height: min(46vh, 300px);
   background: #000;
   border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);
   border-radius: 12px;
@@ -42054,7 +42545,7 @@ body.low-fx .badge-asleep { animation: none; }
 .twov2-tracker.is-dragging .twov2-tk-head { cursor: grabbing; }
 /* Placed by the player: absolute geometry replaces the right-edge anchor, and
    the chip list scrolls inside whatever height they gave it. */
-.twov2-tracker.is-placed { overflow-y: auto; }
+.twov2-tracker.is-placed { overflow-y: auto; top: auto; }
 .twov2-tracker.is-dragging, .twov2-tracker.is-sizing {
   box-shadow: 0 0 26px rgba(var(--theme-rgb, 79,195,247), 0.5),
               0 10px 30px rgba(0,0,0,0.7),
@@ -43701,7 +44192,21 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    sets --chamfer / --band-outer / --cf-stroke. */
 .card {
   --cf-inset:  calc(var(--card-w) * 0.0343);
-  --cf-stroke: calc(var(--card-w) * 0.00571);
+  /* FLOORED, because the ratio was authored against a card two to three times
+     the size the game actually renders. The ladder's reading width is 250-350px,
+     where these ratios give a 1.5-1.9px stroke; the board tile is 126px wide and
+     a hand card 110px, so the same ratios resolved to 0.836px and 0.625px — under
+     one CSS pixel, which antialiases across two device rows at partial alpha and
+     reads as a grey hairline rather than a lit edge. (Owner: "for the cards the
+     border is too thin.") max() keeps the proportional rule wherever the card is
+     big enough to earn it and holds the designed weight everywhere else.
+     NOT the .cf-edge::after core ring, which would have been the other half of
+     this: that pseudo sits one stroke further in, i.e. exactly inside the hole
+     its PARENT's clip-path punches, and a parent clip-path clips its
+     descendants. Forced to 4px on a live board card it changed nothing on
+     screen. It is inert on every in-match surface and reviving it is a separate
+     job, not a side effect of making the stroke visible. */
+  --cf-stroke: max(var(--cf-stroke-min, 1.6px), calc(var(--card-w) * 0.00571));
   --chamfer:   calc(var(--card-w) * 0.080);
   --band-box:  calc(var(--card-w) * 0.297);
   --band-out:  calc(var(--card-w) * 0.263);
@@ -43713,10 +44218,23 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card .cf-frame {
   position: absolute; inset: var(--cf-inset);
   pointer-events: none; z-index: 5;
-  filter:
-    drop-shadow(0 0 1px  rgba(var(--frame-core-rgb), 0.85))
-    drop-shadow(0 0 5px  rgba(var(--cf-rgb), 0.50))
-    drop-shadow(0 0 12px rgba(var(--cf-rgb), 0.22));
+  /* THE HALO IS WHAT MAKES IT READ AS NEON. The ring itself is already near
+     full alpha (--cf-rgb resolves to a solid rgb), so there is no headroom
+     left in the STROKE — a neon tube looks lit because of what it throws onto
+     the dark around it, not because the glass is brighter. So --neon-boost
+     multiplies the bloom: same three layers, more light off each.
+     (Owner: "i want the colors neon to pop more.") Every card on screen carries
+     this, so it is the single biggest surface the knob reaches. */
+  /* THE RADIUS MOVES TOO, and past a boost of ~2 it is the ONLY thing that can.
+     Alpha saturates: 0.50 x 2 and 0.95 x 2 both clamp at 1, so turning the knob
+     further stopped changing anything and the owner rightly said so ("make it 3,
+     i dont see a difference in neon"). A wider bloom is what reads as a brighter
+     tube once the glass is already at full — so the boost scales the blur as
+     well as the opacity, and the halo genuinely grows. */
+  /* NO FILTER HERE. `.card .cf-frame { filter: none }` further down zeroes it
+     unconditionally — the glow was deliberately moved onto .card itself, where
+     `filter` runs AFTER the clip-path and therefore survives it. Anything
+     declared here is dead; the live tube stack is on .card. */
 }
 .card .cf-edge {
   position: absolute; inset: 0;
@@ -43783,7 +44301,8 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 /* board tile takes the 250-wide column of the ladder */
 .board .card, .card.ally-card, .card.enemy-card {
   --cf-inset:  calc(var(--card-w) * 0.032);
-  --cf-stroke: calc(var(--card-w) * 0.006);
+  /* Same floor as .card — see the note there. */
+  --cf-stroke: max(var(--cf-stroke-min, 1.6px), calc(var(--card-w) * 0.006));
   --chamfer:   calc(var(--card-w) * 0.072);
   --band-box:  calc(var(--card-w) * 0.272);
   --band-out:  calc(var(--card-w) * 0.248);
@@ -43843,10 +44362,48 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
     calc(100% - var(--cf-inset) - var(--chamfer)) calc(100% - var(--cf-inset)),
     var(--cf-inset) calc(100% - var(--cf-inset)),
     var(--cf-inset) calc(var(--cf-inset) + var(--chamfer)));
-  filter:
-    drop-shadow(0 0 1px  rgba(var(--frame-core-rgb), 0.75))
-    drop-shadow(0 0 5px  rgba(var(--cf-rgb), 0.45))
-    drop-shadow(0 0 14px rgba(var(--cf-rgb), 0.20));
+  /* THE TUBE. Owner: "i want the border of the cards to be a tube glow."
+     The ring already had the right anatomy — a coloured stroke with a
+     near-white filament inside it — but three drop-shadows cannot describe
+     glass. You get a line with a halo, which is a line.
+
+     A neon tube is three distances at once, and this stack is that in order.
+     Tight WHITE on the stroke is the filament seen through the glass.
+     Mid-radius COLOUR is the gas immediately around it — the part that makes
+     the tube look full rather than outlined. Two wide colour layers are the
+     light thrown into the room, and the falloff between them is what reads as
+     depth rather than a sticker.
+
+     The white layers do NOT take the alpha lift: a filament is already as
+     bright as it gets, and what --neon-boost has to say about it is how far
+     the light carries, which is the radius.
+
+     AND IT IS WIRED TO THE KNOB, which it never was. This is the stack that
+     actually paints — the one on .cf-frame is zeroed below — so every earlier
+     attempt at boosting the card glow was editing a dead rule.
+
+     IT LIVES IN A VARIABLE because `filter` is ONE property, and the vibe
+     animations (titan's breathe, phase's shimmer, magnetic's hue drift) each
+     declare a filter of their own. A running keyframe replaces the whole
+     stack, so on every card carrying a vibe class the glow was being erased
+     for the entire life of the animation — which is `infinite`. Those
+     keyframes now say `var(--card-tube) brightness(...)` and compose. */
+  --card-tube:
+    /* filament */
+    drop-shadow(0 0 calc(1px  * var(--neon-boost, 1)) rgba(var(--frame-core-rgb), 0.95))
+    drop-shadow(0 0 calc(2px  * var(--neon-boost, 1)) rgba(var(--frame-core-rgb), 0.55))
+    /* the gas, hugging the glass */
+    drop-shadow(0 0 calc(4px  * var(--neon-boost, 1)) rgba(var(--cf-rgb), 0.55))
+    /* what it throws on the dark. THE ALPHAS ARE FIXED and only the radii take
+       the boost — a tube is a FALLOFF, and running these through the lift as
+       well destroyed it: at boost 3 the 24px layer computed to 0.71 against a
+       core of 0.95, so a 72px bloom was nearly as solid as the filament and the
+       card sat in a flat red slab. Fixed alphas keep 0.55 -> 0.30 -> 0.14 as a
+       falloff at every setting; the boost pushes the light further out, which
+       is the part alpha cannot express anyway. */
+    drop-shadow(0 0 calc(10px * var(--neon-boost, 1)) rgba(var(--cf-rgb), 0.30))
+    drop-shadow(0 0 calc(24px * var(--neon-boost, 1)) rgba(var(--cf-rgb), 0.14));
+  filter: var(--card-tube);
 }
 /* the frame layer's own glow comes off now — it would double the card's */
 .card .cf-frame { filter: none; }
@@ -44022,7 +44579,9 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .trick-card {
   --card-w:    132px;
   --cf-inset:  4px;
-  --cf-stroke: calc(var(--card-w) * 0.00571);
+  /* Floored with the cards. A trick sits in the same row as the hand, so a
+     0.75px ring beside a 1.6px one reads as a rendering fault, not a category. */
+  --cf-stroke: max(var(--cf-stroke-min, 1.6px), calc(var(--card-w) * 0.00571));
   --chamfer:   calc(var(--card-w) * 0.080);
   --band-box:  calc(var(--card-w) * 0.297);
   --band-out:  calc(var(--card-w) * 0.263);
@@ -44140,7 +44699,10 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card-inspect-modal .card.card, .fp-trick-preview .card.card {
   --card-w:    var(--read-card-w);
   --cf-inset:  calc(var(--card-w) * 0.0291);
-  --cf-stroke: calc(var(--card-w) * 0.00545);
+  /* Above the floor at the reading width (350 x 0.00545 = 1.9px), so this max()
+     changes nothing today — it is here so a smaller read size cannot fall
+     through the same hole the board tiles did. */
+  --cf-stroke: max(var(--cf-stroke-min, 1.6px), calc(var(--card-w) * 0.00545));
   --cf-core:   calc(var(--card-w) * 0.00182);
   --chamfer:   calc(var(--card-w) * 0.0618);
   --band-box:  calc(var(--card-w) * 0.2109);
@@ -45780,7 +46342,10 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   position: absolute;
   inset: var(--cf-stroke);
   --cf-k2: calc(var(--cf-k) - 0.4142 * var(--cf-core));
-  background: rgba(var(--frame-core-rgb), 0.9);
+  /* Full white. At 0.9 the filament was tinted by whatever showed through it,
+     so the hottest part of the tube was not actually the hottest colour on the
+     card — which is the one thing a filament has to be. */
+  background: rgb(var(--frame-core-rgb));
   clip-path: polygon(
     var(--cf-k) 0,
     100% 0,
@@ -46660,81 +47225,9 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .draft-mulligan.is-spent .dm-ic,
 .draft-mulligan.is-spent .dm-count { color: color-mix(in srgb, #ffb347 62%, #0d0a05); }
 
-/* ============================================================
-   BOARD ASIDE (2026-08-27)
-   ============================================================
-   From the board reference: what this board does if the round ended on it, and
-   the last few things that happened. Left gutter, body level (see index.html —
-   #game-area carries a perspective transform, which would capture position:fixed).
-
-   ONLY WHERE THERE IS A GUTTER TO PUT IT IN. Below 1400 the lanes already own
-   the width, and a panel over them is worse than no panel — it hides at that
-   point rather than fighting the board, and the full log drawer is still one
-   tap away on every size. */
-.board-aside { display: none; }
-@media (min-width: 1400px) {
-  .board-aside {
-    display: block;
-    position: fixed; left: 14px; top: 168px; width: 208px;
-    z-index: 40; pointer-events: auto;
-    font-family: 'Rajdhani', system-ui, sans-serif;
-  }
-}
-.board-aside[hidden] { display: none !important; }
-
-.ba-rule { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; }
-.ba-rule-label {
-  font: 700 9px/1 'Rajdhani', sans-serif; letter-spacing: 0.18em; text-transform: uppercase;
-  color: rgb(var(--theme-rgb, 79,195,247));
-  text-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.5);
-  flex: 0 0 auto;
-}
-.ba-rule-line {
-  flex: 1 1 auto; height: 1px; min-width: 0;
-  background: linear-gradient(to right,
-    rgba(var(--theme-rgb, 79,195,247), 0.5), rgba(var(--theme-rgb, 79,195,247), 0.08));
-  clip-path: polygon(6px 0, 100% 0, 100% 100%, 0 100%);
-}
-
-/* The forecast. Three numbers, and the one that matters — net — is the one
-   that changes colour, because that is the whole question the panel answers. */
-.ba-fc { display: flex; gap: 14px; margin-bottom: 22px; }
-.ba-fc-cell { display: flex; flex-direction: column; gap: 3px; }
-.ba-num {
-  font: 700 22px/1 'Chakra Petch', 'Rajdhani', sans-serif; letter-spacing: 0.02em;
-  font-variant-numeric: tabular-nums;
-}
-.ba-deal { color: var(--atk-green, #2ecc71); text-shadow: 0 0 10px rgba(46,204,113,0.45); }
-.ba-take { color: var(--hp-red, #ff6b6b);   text-shadow: 0 0 10px rgba(255,107,107,0.45); }
-.ba-good { color: var(--atk-green, #2ecc71); text-shadow: 0 0 10px rgba(46,204,113,0.45); }
-.ba-bad  { color: var(--hp-red, #ff6b6b);   text-shadow: 0 0 10px rgba(255,107,107,0.45); }
-.ba-cap {
-  font: 700 8px/1 'Rajdhani', sans-serif; letter-spacing: 0.14em; text-transform: uppercase;
-  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 62%, #ffffff);
-}
-
-/* Newest first, and the newest one is the bright one — the older lines are
-   context, not the headline. Tinted, never grey. */
-.ba-log { display: flex; flex-direction: column; gap: 6px; }
-.ba-log-line {
-  font: 500 10px/1.35 'Rajdhani', sans-serif; letter-spacing: 0.02em;
-  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 66%, #ffffff);
-  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-}
-.ba-log-line.is-latest {
-  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 30%, #ffffff);
-  text-shadow: 0 0 7px rgba(var(--theme-rgb, 79,195,247), 0.35);
-}
-.ba-log-more {
-  margin-top: 10px; background: none; border: 0; padding: 0; cursor: pointer;
-  font: 700 8px/1 'Rajdhani', sans-serif; letter-spacing: 0.16em; text-transform: uppercase;
-  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 58%, #ffffff);
-  transition: color .15s var(--ease-snap), text-shadow .15s var(--ease-snap);
-}
-.ba-log-more:hover, .ba-log-more:focus-visible {
-  color: #ffffff; text-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.9);
-}
-
+/* (The BOARD ASIDE lived here — a fixed left-gutter panel printing "if combat
+   resolves now" and the last few log lines. Removed on request; the forecast it
+   duplicated is on the lane strip and the log is one tap away in the drawer.) */
 /* ============================================================
    ROGUELITE — A NEW RUN (2026-08-27)
    ============================================================
@@ -47515,30 +48008,62 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    ("the owner wants these rooms to fill their lane"). This is a wash over it,
    not a re-crop.
    =========================================================================== */
-.lane-env-bg::before,
-.lane-env-bg::after {
-  content: '';
+/* (.lane-env-bg::before / ::after were the scaffolding for the two ownership
+   washes — retired with them, see the note further down.) */
+/* ===========================================================================
+   THE PICTURE ONLY COVERS ITS OWNER'S HALF (2026-09-02)
+   An environment belongs to ONE side — lane._env is keyed by it — but the
+   backdrop painted a single art across the whole lane, so an enemy Open Water
+   washed over the player's half too, and a lane holding one environment per
+   side could only ever show one of the two. Owner: "since environments are for
+   1 side now should they only be half way up … i just want them faded out to
+   black not cut off and look bad."
+
+   AND IT SITS ON THE HALF ITS MONSTER LANDS ON. Owner: "the t rex breaks out of
+   the enclousre so he spawns on the enviroment so the enviroment would be
+   opposite the player … same with wetlands, the enemy spino spawns in the
+   envirmonet so if your facing him the enviroment is on the enemy side." That
+   is the owner's own half for five of the six habitats and the OPPONENT's for
+   the Enclosure, whose T-Rex breaks out. Which is why these two are named by
+   POSITION and not by side: owner and position come apart on the Enclosure, and
+   a class called .env-half-ai would be wrong there. There is no separate
+   ownership wash any more: which half carries the picture is itself the answer
+   to whose environment it is.
+
+   FADED, NOT CUT. The mask runs to transparent at the midline, so the art
+   dissolves into the lane's own black rather than ending on a hard edge. It
+   holds full strength across the outer 62% of its half and gives up the last
+   38% to the fade — enough distance that the falloff reads as depth instead of
+   as a gradient band, and it lands exactly on the centre line.
+
+   Each half is `cover` on its OWN box, so the picture is framed for the space
+   it actually occupies instead of being a cropped slice of a full-lane image.
+   =========================================================================== */
+.env-half {
   position: absolute;
   left: 0; right: 0;
+  z-index: 0;
   pointer-events: none;
-  z-index: 1;
+  background-repeat: no-repeat;
 }
-/* Theirs — the top half, down to the centre line. */
-.lane-env-bg.env-own-ai::before {
+.env-half-top {
   top: 0; bottom: 50%;
-  background: linear-gradient(to bottom,
-    rgba(231, 76, 60, 0.30) 0%,
-    rgba(231, 76, 60, 0.16) 55%,
-    rgba(231, 76, 60, 0) 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 62%, transparent 100%);
+          mask-image: linear-gradient(to bottom, #000 0%, #000 62%, transparent 100%);
 }
-/* Yours — the bottom half, up to the centre line. */
-.lane-env-bg.env-own-player::after {
+.env-half-bottom {
   top: 50%; bottom: 0;
-  background: linear-gradient(to top,
-    rgba(var(--theme-rgb, 79, 195, 247), 0.30) 0%,
-    rgba(var(--theme-rgb, 79, 195, 247), 0.16) 55%,
-    rgba(var(--theme-rgb, 79, 195, 247), 0) 100%);
+  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 62%, transparent 100%);
+          mask-image: linear-gradient(to top, #000 0%, #000 62%, transparent 100%);
 }
+/* NO OWNERSHIP WASH. .env-own-ai::before painted the top half red and
+   .env-own-player::after painted the bottom half theme-blue, answering "whose
+   environment is this" back when the ART filled the whole lane and could not
+   say. It only occupies one half now, and which half it occupies IS the answer,
+   so the wash was restating what the picture already showed — two signals for
+   one fact, on top of each other. (Owner, circling one: "i dont think we need
+   this anymore for the enviroments.") The classes are no longer stamped either;
+   see the note in renderBoard. */
 
 /* ===========================================================================
    CLASSIC'S FORECAST LOSES THE BOXES (2026-09-01)
@@ -47662,7 +48187,28 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
      estimated plus air; --decision-top IS that chrome, read off the section, so
      the panel can use every pixel between where it starts and the bottom of the
      screen and no more. */
-  max-height: calc(100vh - var(--decision-top, 111px) - 18px);
+  /* TWO CEILINGS, AND THE BOARD IS THE LOWER ONE. The viewport cap alone let the
+     panel run down over the player bar and the hand — the owner circled exactly
+     that, a decision panel whose bottom half sat below the board: "this is
+     bleeding over tahta shouldnt happen."
+     The notice in this same column has always been anchored to --decision-bottom
+     rather than to the screen, with the reason written on it: "everything below
+     the board runs the full width, so a toast anchored to the viewport floor
+     clears the lanes and lands on the trick cards instead." The panel is in the
+     same gutter and answers to the same edge; it simply never got told, because
+     --decision-bottom did not exist when this cap was written.
+     Both terms are kept. min() means the panel is off-screen at neither end: the
+     viewport term still fixes the 1180x620 case in the note above, where the
+     section itself runs past the bottom of the screen, and the board term fixes
+     this one. The 12px is the panel's own 6px top inset plus 6px of air, so it
+     lands just above the board's edge rather than on it.
+     max(160px, ...) so a stale or crossed pair of variables can never resolve to
+     a negative height and collapse the panel to nothing — it scrolls instead,
+     which overflow-y below already handles. */
+  max-height: max(160px, min(
+    calc(100vh - var(--decision-top, 111px) - 18px),
+    calc(var(--decision-bottom, 665px) - var(--decision-top, 111px) - 12px)
+  ));
   display: none;
   /* Above the three rows below the board (210 / 220 / 230), below the notice
      toast (600) and the full-screen modals (750). */
@@ -48107,4 +48653,467 @@ body.in-match:not(.board-v2) .board {
   .trick-card.trick-card.target-highlight .cf-frame,
   .card-slot:has(> .card.target-highlight),
   .card-slot:has(> .trick-card.target-highlight) { animation: none; }
+}
+
+/* ============================================================
+   THE FRAME IS A TUBE: THE LINE IS THE FILAMENT (2026-09-03)
+   ============================================================
+   Design note, relayed by the owner: "Your chrome has the full tube stack; the
+   card frames are a bare 1px stroke ... The core is the whole trick. The 1px
+   line must be lighter than the glow color, not the same. That's why END CARDS
+   pops and the cards don't."
+
+   MEASURED FIRST, and it is right on both counts.
+
+   1. THE LINE. .cf-edge computed to rgb(46,204,113) on a hand card and
+      rgb(231,76,60) on a board card — the frame colour at full saturation, the
+      identical hue as its own halo. A tube reads as lit because its core is the
+      HOTTEST thing in the picture and the colour lives in the air around it. A
+      line the same colour as its glow is an outline with a smudge.
+
+   2. THE STACK. Three earlier attempts at this glow are all dead code, which is
+      why the frames never changed no matter what was tuned:
+        .cf-frame filter ....... zeroed by `.card .cf-frame { filter: none }`
+        .card filter: var(--card-tube) ... LOSES to `.card.card` (0,2,0) at
+              style.css:43944, so the five-layer stack wired to --neon-boost has
+              never once painted on a card. The owner's "make it 3, i dont see a
+              difference in neon" was literal: the knob reached nothing.
+        .cf-edge::after ........ the white core ring, `display: none` — and
+              before that it sat inside the hole its parent's clip-path punches.
+      What actually painted was `.card.card`: 3px @0.55 + 9px @0.30 and no core.
+      Stops 2 and 3 of the note's stack, at very nearly the note's own radii —
+      the missing piece really was only the core.
+
+   ONE LINE, NOT TWO. The owner has rejected an ADDED white line inside the
+   stroke twice ("there doesnt need to be white on the inside line next to the
+   energy number") and that ruling stands — nothing is added here. The one line
+   the card already wears is re-coloured: color-mix pulls it toward white so it
+   keeps the frame's hue only as a cast, and the two glow stops stay fully
+   saturated and carry the colour. That is the note's prescription exactly, and
+   it is also the only version of it that fits a 1.6px stroke, which is what
+   --cf-stroke floors to on every surface in the game.
+
+   AND THE STACK IS ONE VARIABLE AGAIN. --card-tube is redefined below as those
+   three stops and `.card.card` is pointed at it, so the base state and the vibe
+   keyframes that already say `var(--card-tube)` finally draw the SAME tube.
+   Every persistent state that declared its own `filter` was silently erasing
+   the whole glow — `filter` is ONE property, a second declaration replaces it
+   rather than merging — so an unplayable card, a hovered hand card, a selected
+   card, a dragged card and an asleep card had no frame lighting at all. On
+   screen at the time of writing: one card in seven was lit. They compose the
+   tube now and tint it afterwards, so a dimmed card keeps a dimmed tube instead
+   of going flat black against a black board.
+
+   NOT SWEPT, deliberately: the transient combat keyframes (lunge, destroy, hit
+   flash, the signature FX) still replace `filter` for the length of one
+   animation. That is a card mid-strike for a few hundred ms, not a state
+   anyone reads, and rewriting forty-odd keyframes is a separate job with a much
+   wider blast radius than this one.
+
+   TRICKS KEEP THEIR RULING TOO. `.trick-card.unplayable` emits nothing on
+   purpose — "it was inheriting the base trick-card bloom which made the one
+   card you CANNOT use among the brightest" — so it is left alone below. */
+
+/* ---- stop 1: the core. The line itself, LIT rather than whitened.
+   Owner: "too white more saturation."
+
+   Right, and the reason is the colour space, not the amount. Mixing toward #fff
+   in sRGB is a straight line to white in a space where that line runs straight
+   through the desaturated middle, so every step toward "lighter" was also a
+   step toward "greyer" — there was no ratio that gave one without the other.
+   Measured across the five frame colours at the shipped 35%:
+
+     green   46,204,113  S63 L49  ->  119,222,163  S61 L67   a pastel mint
+     red    231, 76, 60  S78 L57  ->  239,139,128  S78 L72   a washed pink
+     purple 155, 89,182  S39 L53  ->  190,147,208  S39 L70
+
+   Raising LIGHTNESS in oklch and leaving chroma exactly where it was gets the
+   same lift with the colour still in it — same numbers, same measurement:
+
+     green   ->  98,244,150  S87 L67    (+26 saturation at identical lightness)
+     red     -> 255,117,97   S100 L69   a hot coral instead of a pink
+     purple  -> 193,126,222  S59 L68
+
+   The requirement never was "whiter". It was "lighter than the glow around it",
+   which is what makes a tube read as lit, and lightness is the only part of
+   that sentence that had to move.
+
+   NOT boosting chroma on top of the lift, though it was measured: at c * 1.25
+   green lands on 0,251,132 and gold on 255,227,0 — both are out of sRGB and
+   clip a channel to the wall, which drags LIGHTNESS back down (green L49, back
+   to where it started) and pins the hue to whatever the clip leaves. A core
+   that goes darker as you turn it up is not a knob anyone can use.
+
+   The outward stops are untouched: they are the design note's, copied exactly,
+   and this was never a complaint about them. */
+
+/* ---- AND THEN THE REFERENCE SETTLED IT (2026-09-03, same day)
+   Owner, with the board reference beside a live card: "still too white ... the
+   rules i had in place before about glow need to be overriden to match this."
+
+   The note's rules lose to the art they were written about. MEASURED off the
+   reference tile: its frame line is #4FC3F7 — 79,195,247, L64 — which is this
+   game's own --cf-rgb for a blue card, unmodified. There is no lift in it at
+   all. Ours was shipping L74. That ten points IS the complaint, and no ratio of
+   a lift was ever going to close it, because the target is zero.
+
+     reference   79,195,247   L64
+     lift 0.12  122,235,255   L74   <- what he was looking at
+     lift 0.03   90,205,255   L68   <- still above it
+
+   AND THE GLOW IS NOT THE SHORTFALL, which is worth writing down because it is
+   the obvious next guess and it is wrong. Against card width the reference's
+   bloom is SMALLER than ours: ~14px on a 274px tile is 5.1%, our 10px on a
+   126px board tile is 7.9%, and its stroke is ~1.1% of card width against our
+   1.6px floor's 1.3%. Ours is already the fatter, wider treatment. The mockup
+   reads better because it is rendered at twice the size, not because it is lit
+   harder — so thickening the stroke or widening the halo to chase it would
+   overshoot a target we are already past.
+
+   The lift stays as a dial rather than being deleted, because everything it is
+   wired to — the chroma-preserving path, the @supports fallback, the audit —
+   is the part that took the work. It just ships at zero, which is what the
+   reference says the line is. */
+
+:root {
+  /* oklch lightness added to the frame colour for the core line. SHIPS AT 0:
+     the reference's line is the frame colour itself. Turn it up and the core
+     lightens while holding its chroma — 0.12 was the measured equivalent of a
+     35% white mix, and past ~0.16 the bright frames clip a channel. */
+  --cf-core-lift: 0;
+  /* the fallback path's ratio, for engines without relative colour syntax.
+     Held at 0 alongside the lift so the two paths agree. */
+  --cf-core-white: 0%;
+}
+
+.card .cf-edge, .trick-card .cf-edge {
+  background: color-mix(in srgb, #fff var(--cf-core-white), rgb(var(--cf-rgb))) !important;
+}
+@supports (color: oklch(from red l c h)) {
+  .card .cf-edge, .trick-card .cf-edge {
+    background: oklch(from rgb(var(--cf-rgb)) calc(l + var(--cf-core-lift)) c h) !important;
+  }
+}
+
+/* ---- stops 2 and 3: the gas on the glass, then what it throws on the dark.
+   Radii stay small on purpose — 3px tube, 10px bloom. Past that a halo reads as
+   blur rather than neon, which is the trap --neon-boost x3 would have walked
+   into the moment it was wired to a rule that actually paints. */
+.card, .trick-card {
+  --tube-r1: 3px;
+  --tube-r2: 10px;
+  --tube-a1: 0.90;
+  --tube-a2: 0.45;
+  --card-tube:
+    drop-shadow(0 0 var(--tube-r1) rgba(var(--cf-rgb), var(--tube-a1)))
+    drop-shadow(0 0 var(--tube-r2) rgba(var(--cf-rgb), var(--tube-a2)))
+    drop-shadow(0 2px 6px rgba(0,0,0,0.65));
+}
+
+/* ---- the base state, and the hover that lifts the same tube rather than
+   describing a second one. Hover only moves the four numbers. */
+.card.card, .card.card:hover { filter: var(--card-tube); }
+.card.card:hover { --tube-r1: 4px; --tube-r2: 16px; --tube-a1: 1; --tube-a2: 0.58; }
+.trick-card { filter: var(--card-tube); }
+.trick-card:hover { --tube-r1: 4px; --tube-r2: 16px; --tube-a1: 1; --tube-a2: 0.58;
+                    filter: var(--card-tube); }
+
+/* ---- every persistent state composes the tube instead of replacing it. The
+   tint runs AFTER the drop-shadows, so a greyed card gets a greyed tube and a
+   brightened one gets a brighter tube, with no second stack to keep in sync. */
+.card.moder-stripped            { filter: var(--card-tube) grayscale(0.55) brightness(0.85); }
+.card.hand-card.rl-curse        { filter: var(--card-tube) saturate(0.6) brightness(0.85); }
+.card.card-being-dragged        { filter: var(--card-tube) grayscale(1); }
+.hand-card-wrapper .card.card-asleep,
+.card.card-asleep               { filter: var(--card-tube) saturate(0.55); }
+.hand-cards .card.ballyhoo-locked { filter: var(--card-tube) grayscale(0.55) brightness(0.62); }
+.card.hand-card.selected        { filter: var(--card-tube) brightness(1.08); }
+.hand-cards:has(.card.selected) .card.hand-card:not(.selected)
+                                { filter: var(--card-tube) brightness(0.85); }
+.card:not(.face-down):active    { filter: var(--card-tube) brightness(0.92); }
+.player-hand-section .card.card-shake-rejected { filter: var(--card-tube) brightness(0.85); }
+.player-hand-section .hand-cards .card.dimmed-by-selection
+                                { filter: var(--card-tube) brightness(0.55) saturate(0.7); }
+.player-hand-section .hand-cards .card.is-selected
+                                { filter: var(--card-tube) brightness(1.10); }
+.player-hand-section .hand-cards .card:hover {
+  filter: var(--card-tube) brightness(1.06)
+          drop-shadow(0 14px 14px rgba(127,208,255,0.30))
+          drop-shadow(0 6px 6px rgba(0,0,0,0.45));
+}
+.hand-card-wrapper:hover .card.hand-card { filter: var(--card-tube); }
+.rl-deck-grid-bare > .card.hand-card:hover {
+  filter: var(--card-tube)
+          drop-shadow(0 0 10px var(--theme-glow-outer, rgba(79,195,247,0.55)))
+          drop-shadow(0 0 22px var(--theme-glow-inner, rgba(79,195,247,0.22)));
+}
+
+/* The two dimmed rungs keep the tube but step it down first, so "you cannot
+   play this" stays the quietest card in the row rather than relying on
+   grayscale alone to hold it back. */
+.card.unplayable {
+  --tube-a1: 0.45; --tube-a2: 0.18;
+  filter: var(--card-tube) grayscale(0.95) brightness(0.6) !important;
+}
+.hand-card-wrapper .card.unafford {
+  --tube-a1: 0.45; --tube-a2: 0.18;
+  filter: var(--card-tube) grayscale(0.85) brightness(0.74) !important;
+}
+/* hovering an unaffordable card un-dims it — so it takes the full tube back */
+.hand-card-wrapper:hover .card.hand-card.unafford {
+  --tube-a1: 0.90; --tube-a2: 0.45;
+  filter: var(--card-tube) !important;
+}
+.card.unplayable.table-waiting {
+  --tube-a1: 0.55; --tube-a2: 0.24;
+  filter: var(--card-tube) brightness(0.78) saturate(0.9) !important;
+}
+
+/* ---- the three infinite keyframes that were replacing the whole filter. A
+   later @keyframes of the same name replaces the earlier one outright, so these
+   are the live definitions. */
+@keyframes cardCrazyGlitch {
+  0%   { filter: var(--card-tube) hue-rotate(0deg)   saturate(1);    }
+  33%  { filter: var(--card-tube) hue-rotate(-18deg) saturate(1.22); }
+  66%  { filter: var(--card-tube) hue-rotate(14deg)  saturate(1.14); }
+  100% { filter: var(--card-tube) hue-rotate(0deg)   saturate(1);    }
+}
+@keyframes vibeCosmicHue {
+  0%,100% { filter: var(--card-tube) hue-rotate(0deg)  saturate(1);    }
+  50%     { filter: var(--card-tube) hue-rotate(24deg) saturate(1.14); }
+}
+@keyframes table-waiting-breathe {
+  0%, 100% { filter: var(--card-tube) brightness(0.78) saturate(0.90); }
+  50%      { filter: var(--card-tube) brightness(0.90) saturate(1.00); }
+}
+
+/* ============================================================
+   THE INNER HAIRLINE, AS AN OPT-IN (2026-09-03)
+   ============================================================
+   Owner: "add the inner hairline back as an opt-in token and copy exactly."
+
+   This is the half of the design note that had no expression in the shipped
+   frame. Its stack is four stops, and only two of them point outward:
+
+     0 0 3px  frame 90%           <- shipped, exactly
+     0 0 4px  frame 90%  inset    <- HERE
+     0 0 10px frame 45%           <- shipped, exactly
+     0 0 10px frame 30%  inset    <- HERE
+
+   WHY IT COULD NOT JUST BE ADDED TO THE FILTER. The two inset stops are the
+   light on the INSIDE surface of the glass, and `drop-shadow()` cannot make
+   one — it traces an alpha silhouette outward and that is the whole of what it
+   does. `box-shadow: inset` can, but the ring it would have to sit on is
+   `.cf-edge`, which carries a clip-path, and a clip-path removes box-shadow
+   outright. So the inward light needs its own object, unclipped, sitting at the
+   ring's inner edge — which is exactly the "second element inside the ring"
+   this was always going to take, and exactly why it is arriving as a token
+   rather than switched on for everyone.
+
+   OFF BY DEFAULT, because a light line inside the stroke has been reported
+   three times and refused twice ("there doesnt need to be white on the inside
+   line next to the energy number"). --cf-hairline is that switch and also the
+   dial: 0 is off, 1 is the note's numbers verbatim, anything between is a
+   fraction of them.
+
+   NOTE WHAT IT IS AND IS NOT. These are the note's own two inset stops and
+   nothing else — an inward BLOOM off the frame's inner face. No white line is
+   added, because the note does not have one either: its light core is the
+   stroke itself, which is already how the ring is coloured.
+
+   GEOMETRY is the ring's inner hole, reproduced rather than guessed.
+   --cf-k is the inner chamfer's shortening, the same constant .cf-edge derives
+   its hole from: offsetting a 45 degree cut inward by one stroke moves its
+   endpoints along the edges by (sqrt2 - 1) of that stroke. Declared locally
+   because .cf-frame::before is a sibling of .cf-edge, not a child of it, so it
+   inherits nothing from where that constant currently lives. */
+
+:root {
+  /* 0 = off (the shipped default), 1 = the design note's inset stops verbatim */
+  --cf-hairline: 0;
+}
+
+.card .cf-frame::before, .trick-card .cf-frame::before {
+  content: '';
+  position: absolute;
+  inset: var(--cf-stroke);
+  --cf-k: calc(var(--chamfer) - 0.4142 * var(--cf-stroke));
+  pointer-events: none;
+  z-index: 1;
+  opacity: var(--cf-hairline, 0);
+  clip-path: polygon(
+    var(--cf-k) 0,
+    100% 0,
+    100% calc(100% - var(--cf-k)),
+    calc(100% - var(--cf-k)) 100%,
+    0 100%,
+    0 var(--cf-k));
+  box-shadow:
+    inset 0 0 4px  rgba(var(--cf-rgb), 0.90),
+    inset 0 0 10px rgba(var(--cf-rgb), 0.30);
+}
+
+/* ============================================================
+   THE THREAT GLOW IS A RIM, NOT A FILL (2026-09-03)
+   ============================================================
+   Owner, after four rounds of trying to make the card frames pop: "maybe its
+   the black behind it thta makes it pop."
+
+   It is, and in one place it is not a general wash but a direct collision.
+   MEASURED behind an enemy card in a threatened lane:
+
+     .lane.threat-lane.threat-2::after
+        inset 0 0 28px rgba(231, 76, 60, 0.28)
+        inset 0 0 56px rgba(231, 76, 60, 0.14)
+     the enemy card's own tube
+        drop-shadow(0 0 10px rgba(231, 76, 60, 0.45))
+
+   231,76,60 IS --cf-rgb for an enemy card. The lane was pre-filling the space
+   with 62% of the card's own halo, in the identical hue, spread five times
+   wider — so the halo had nothing to be a halo against. Composited background
+   behind that card measured rgb(33,13,13) before the threat glow even landed,
+   against a reference tile that is essentially black.
+
+   THE SIGNAL IS NOT THE PROBLEM, THE SHAPE IS. This is real decision support —
+   "this lane's creature will hit you", scaled 1-3 by incoming damage, pulsing,
+   gated to the player's turn — so it keeps its intensity ladder, its pulse and
+   its colour. A negative spread pulls each layer back to the lane's edges,
+   where the lane's own red border and separator already carry the same message
+   and get reinforced rather than duplicated. The middle of the lane — the part
+   a card actually sits in — returns to black.
+
+   ALPHAS GO UP, not down: the same signal painted over a smaller area has to be
+   denser to read at the same strength. 0.28 -> 0.44 at tier 2, and so on.
+
+   NOT TOUCHED, and worth stating because it was the other suspect: the board's
+   own floor gradient (0.043 -> 0.008 blue) and the slot wash (up to 0.075).
+   Those composite to about rgb(5,8,10) behind a card in an ordinary lane, which
+   is near enough to black that they are not what is eating the glow — and the
+   owner asked for that gradient on purpose ("the middle part thats black in
+   between just looks a little sstark contrast"). Removing it would be undoing a
+   request to fix a problem it is not causing. */
+
+.lane.threat-lane::after {
+  box-shadow:
+    inset 0 0 22px -10px rgba(231, 76, 60, 0.30),
+    inset 0 0 46px -26px rgba(231, 76, 60, 0.14);
+}
+.lane.threat-lane.threat-2::after {
+  box-shadow:
+    inset 0 0 26px -12px rgba(231, 76, 60, 0.44),
+    inset 0 0 52px -28px rgba(231, 76, 60, 0.22);
+}
+.lane.threat-lane.threat-3::after {
+  box-shadow:
+    inset 0 0 30px -13px rgba(231, 76, 60, 0.60),
+    inset 0 0 60px -30px rgba(231, 76, 60, 0.32);
+}
+
+/* ============================================================
+   THE MIDLINE IS A SEAM, NOT A GAP (2026-09-03)
+   ============================================================
+   Owner, circling the band between the two rows: "i know that the bue and red
+   are fro where the cards can be played but the black in the middle is not the
+   best what do you recommend."
+
+   MEASURED, and the black is not a design choice anyone made — it is a hole
+   between two gradients that were already reaching for each other:
+
+     .card-slot.ai-slot      transparent 52% -> 0.02 @76% -> 0.075 @100% (red,
+                             brightening DOWNWARD, toward the middle)
+     .card-slot.player-slot  the same in blue, brightening UPWARD
+     between them            28px where nothing paints at all
+
+   So both territories crescendo toward the line and then fall off a cliff, and
+   the lane pips end up floating in the void it leaves. The recommendation is
+   the obvious one once it is measured: carry each side the last 28px so they
+   MEET at the separator instead of stopping short of it. The band stops being
+   an absence and becomes the front line — which is what it actually is, the
+   place combat resolves — and it says so in the colour language the board
+   already uses rather than introducing a third one.
+
+   WHY NOT A TEXTURE. A hatch or a scanline in that band was the other option
+   and it is the wrong one here: the house rule is that interiors stay pure
+   black with no wash or scanline, and the band is 28px of a busy board. A
+   gradient adds no new marks to read.
+
+   THE NUMBERS CONTINUE THE SLOPE rather than starting a new one. 0.07 at each
+   edge is where the neighbouring slot's own gradient has just arrived, so there
+   is no step; 0.12 at the line is one more increment of the same rise. A first
+   pass at 0.15 with a transparent centre read as a red STRIPE laid over the
+   gap — a brighter thing in the middle rather than two fields touching — so the
+   peak came down and the centre closed up.
+
+   The separator's own cyan hairline still sits on top of all of it and stays
+   the brightest thing there, which is what keeps the seam reading as a line
+   rather than a smear. */
+
+.lane .lane-sep {
+  --seam-a: 0.12;   /* the two territories' alpha where they meet */
+  --seam-edge: 0.07; /* where each neighbouring slot's gradient hands off */
+  background-image: linear-gradient(to bottom,
+    rgba(255, 90, 74,  var(--seam-edge)) 0%,
+    rgba(255, 90, 74,  var(--seam-a))    46%,
+    rgba(79, 195, 247, var(--seam-a))    54%,
+    rgba(79, 195, 247, var(--seam-edge)) 100%);
+}
+
+/* ============================================================
+   NO WHITE RAIL — A HELD LANE IS CONTESTED, NOT COLOURLESS (2026-09-03)
+   ============================================================
+   Owner, on a lane with a card on each side: "the lane is white? that shouldbt
+   happen red at the top, blue at the bottom for the neo highlight and conested
+   color in the middle."
+
+   `.lane[data-forecast-cls="lf-stall"] { --rail: rgba(255,255,255,0.30) }` —
+   the last literal white left in the rail language, and this is the SECOND time
+   it has been reported. The neutral rail was white at 16% and moved to theme
+   hue for exactly this complaint ("i want the colors neon to pop more ... the
+   biggest surface on screen ignored it"); stall sat one rule below it and was
+   not swept with it.
+
+   WHAT STALL MEANS is what decides the colour. The four verdicts:
+     lf-win    you take the lane        -> your neon
+     lf-lose   the enemy takes it       -> enemy red
+     lf-trade  both die                 -> a hard red/blue break at the midline
+     lf-stall  NEITHER can kill         -> both sides still hold it
+   A held lane is the definition of contested, and the board already has a
+   colour for that: --contest-pop, the same token .lane.occ-both puts at 50% of
+   its top and bottom border, and the same one the seam pip wears. So the rail
+   now runs the IDENTICAL ramp as the border it meets at the corner — enemy at
+   the top, contest at the middle, player at the bottom — instead of disagreeing
+   with it in white.
+
+   TRADE AND STALL STAY TELLABLE APART, and in the right way: the difference is
+   shape, not hue. A trade BREAKS — two colours, hard edge, no blend, because
+   the lane resolves and both die. A stall BLENDS through the contest colour,
+   because nothing resolves and the lane keeps standing. You can read which is
+   which without reading the numbers.
+
+   0.55 AT THE ENDS, not the verdict rails' 0.75: nothing is being decided in a
+   stalled lane, so it should not shout as loudly as one that resolves. The
+   contest kiss at the midline keeps full alpha — it is the one mark that says
+   what this rail IS.
+
+   TOKENS, NOT LITERALS. The enemy triple, the player triple and --contest-pop
+   all swing with the player's theme (gold's contest is orange, green's is
+   yellow), and ui.js sets --contest-pop per side as well, so a hardcoded
+   magenta here would be wrong on five of the six themes.
+
+   (And the first version of this comment wrote those token families as
+   --enemy-<star>/--player-<star>, which contains the sequence that ENDS a CSS
+   comment. The block closed early, the prose after it was parsed as CSS, and
+   the rule below was swallowed with it — the rail stayed white and the file
+   looked correct. Never write that sequence inside a comment here.) */
+
+.lane[data-forecast-cls="lf-stall"] {
+  --rail-held: linear-gradient(180deg,
+    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.55) 0%,
+    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.55) 28%,
+    var(--contest-pop, rgb(255, 60, 200)) 50%,
+    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.55) 72%,
+    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.55) 100%);
+  background:
+    var(--rail-held) left  center / 1px 100% no-repeat,
+    var(--rail-held) right center / 1px 100% no-repeat;
 }

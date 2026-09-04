@@ -7813,6 +7813,26 @@ const UI = {
         this._safe('redrawBtn', () => this._renderRedrawButton(false));
         this._safe('heartbeat', () => this._updateDangerHeartbeat(s));
         this._safe('voice', () => { if (typeof Voice !== 'undefined') Voice.mount(); });
+        // TWO MORE FROM THE SHARED TAIL THAT 2v2 WAS MISSING. Both hang off the
+        // 1v1 renderer — the meter from its very end, the forecast strip from
+        // renderHud — and every 2v2 path returns before either. So a 2v2 board
+        // had no n/7 hand readout in the margin and no green/red arrows under
+        // the lanes, which is what the owner listed side by side with the hand
+        // card size: "like thegreen arrows red arrows the 5/7 the size of the
+        // cards innhand should all be the same."
+        // Neither needed adapting. renderHandMeter already reads the SEAT's
+        // hand in 2v2 rather than the side proxy (it was written for it and
+        // then never called there), and the strip loops Game.LANE_COUNT, so it
+        // builds eight cells without being told. Same call, same surface — the
+        // fix is that they run at all.
+        this._safe('handMeter2v2', () => this.renderHandMeter(s));
+        this._safe('laneForecast2v2', () => this.renderLaneForecastStrip(s));
+        // A COLUMN NOBODY DOCKS INTO IS JUST A MARGIN. The board slides left in
+        // 2v2 now (see _fitBoardToViewport) to open a gutter on the right, and
+        // this is what puts the decisions and notices in it — the same adopter
+        // 1v1 uses, moving the live prompt/tray nodes rather than copying them,
+        // so their listeners and countdowns come with them.
+        this._safe('decision2v2', () => this.renderClassicDecision(s));
         // THE REDESIGN RUNS IN 2v2 TOO. BoardV2.render hangs off the END of the
         // 1v1 renderer, and every 2v2 path returns ~300 lines before it — so
         // with the layout switched on, 2v2 got the CSS (which is scoped to
@@ -8073,6 +8093,7 @@ const UI = {
     // rendering — so moving the call can't change which changes are detected.)
     this._safe('animateStatChanges',      () => this.animateStatChanges());
     this._safe('renderPlayerHand',        () => this.renderPlayerHand(s));
+    this._safe('renderHandMeter',         () => this.renderHandMeter(s));
     this._safe('renderAIHand',            () => this.renderAIHand(s));
     this._safe('renderPlayerTricks',      () => this.renderPlayerTricks(s));
     this._safe('renderInlineChoiceFallback', () => this.renderInlineChoiceFallback(s));
@@ -8086,7 +8107,6 @@ const UI = {
     // screen that is neither.
     this._safe('voice',                   () => { if (typeof Voice !== 'undefined') Voice.mount(); });
     this._safe('renderLog',               () => this.renderLog(s));
-    this._safe('renderBoardAside',        () => this.renderBoardAside(s));
     // BOARD V2 (separate redesign, off by default). Returns immediately unless
     // the flag is set, so the shipping board pays nothing for this call. Wrapped
     // like every other sub-renderer: a fault in the redesign must not be able to
@@ -8889,7 +8909,8 @@ const UI = {
     setTimeout(() => stage.remove(), 900);
   },
 
-  // The habitat drains when Spinosaurus dies.
+  // The swamp drains as Spinosaurus surfaces — the habitat is consumed by the
+  // release now, so this plays on the way in rather than on his death.
   _fxWetlandsDrain(laneIdx) {
     const stage = this._fxLaneStage(laneIdx, 'wetlands-drain-stage');
     if (!stage) return;
@@ -13087,6 +13108,13 @@ const UI = {
     }
     if (s.player && s.player.hand) {
       s.player.hand.forEach(c => { if (c && c.id !== undefined) visibleIds.add(c.id); });
+    }
+    // The player's TRICK tray is on screen beside the hand and renderPlayerTricks
+    // now paints .target-highlight on its options, so a trick option is already
+    // pickable in place — listing it here keeps the redundant floating tray from
+    // opening over the board the moment a prompt includes one.
+    if (s.player && s.player.trickHand) {
+      s.player.trickHand.forEach(t => { if (t && t.id !== undefined) visibleIds.add(t.id); });
     }
     // AI hand cards are NOT visible to the human player, so don't include
     // them — otherwise revealed/stolen AI cards (Lasso of Truth, Deadpool)
@@ -22841,7 +22869,21 @@ const UI = {
     const decInset = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--decision-inset')) || 10;
     const decGap   = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--decision-gap')) || 12;
     const decW = Math.round(Math.max(232, Math.min(330, window.innerWidth * 0.21)));
-    let reserve = document.body.classList.contains('board-v2') ? 0 : (decW + decInset + decGap);
+    // 2v2 PAYS NOTHING FOR A PANEL IT NEVER MOUNTS. #classic-decision is
+    // rendered by renderClassicDecision, which hangs off renderHud — and every
+    // 2v2 path returns long before that, using renderInlineChoiceFallback
+    // instead. So the reserve was 317px of width held for an element that does
+    // not exist on that screen, and eight lanes were squeezed into what was
+    // left.
+    // Measured on a live 2v2 at 1399x987 before this: board card 103px, board
+    // 1068px wide ending at x=1083 with 317px of empty screen to its right, and
+    // 92px of dead space under the hand. That is the whole of "the board in 2v2
+    // should be basically the same as 1v1" and "the board is too small" — it was
+    // never a height problem, it was width being spent on nothing.
+    // Same exemption board-v2 already had, and for the same reason.
+    const _noDecisionCol = document.body.classList.contains('board-v2')
+      || !!(typeof Game !== 'undefined' && Game.is2v2 && Game.is2v2());
+    let reserve = _noDecisionCol ? 0 : (decW + decInset + decGap);
     // ...UNLESS THE SCREEN CANNOT AFFORD IT. On a 390px phone the reserve is
     // 254px of 390, which would leave 11px lanes — the panel is an overlay
     // there, not a column, and this rule must not quietly destroy the board to
@@ -22937,7 +22979,39 @@ const UI = {
     // on landing over the middle of the board. Everything that has to line up
     // with the gutter reads the same two numbers from one place.
     const root = document.documentElement;
-    root.style.setProperty('--decision-w', decW + 'px');
+    // 2v2 PAYS NO RESERVE BUT IT STILL HAS SLACK, and the owner wants that slack
+    // as a COLUMN on the right rather than split evenly either side: "now the
+    // board needs to be left in order for descicions and notices to be on the
+    // right like 1v1."
+    // Measured before this at 1564px: an eight-lane board 1252 wide, centred, so
+    // 156px of nothing on each side. Sliding it fully left turns two useless
+    // 156px margins into one 312px gutter — which is a real column, without
+    // taking a single pixel back off the lanes (they stay at the 126 the
+    // no-reserve solve just won them).
+    // The column is sized to the slack rather than to decW, because decW is
+    // what the board would have PAID for and this is what is actually left over;
+    // asking for 328 in 312 would hang the panel over lane 8. Declined below the
+    // same 232 readability floor the reserve uses.
+    // FLUSH LEFT, LIKE A PAGE. The board used to be centred in whatever the
+    // reserve left over and then nudged left just far enough to clear it, which
+    // put 202px of nothing down the left at 1430px wide while the right held
+    // exactly the column. Owner, arrowing left at both the board and the hand
+    // row: "these all need to be left aligned like a paper."
+    // The margin is the HAND TOOLS COLUMN's width, not zero. Grid column 1 is
+    // max(--board-left, --hand-col-w), so a board at 0 would leave the hand row
+    // starting at 54 while the lanes started at 0 — the two things the owner
+    // drew arrows at, misaligned by exactly the thing meant to align them.
+    const _handColW = parseFloat(getComputedStyle(document.documentElement)
+      .getPropertyValue('--hand-col-w')) || 54;
+    const _leftMargin = Math.max(num(section, 'paddingLeft'), _handColW);
+    // Everything the board does not need now lands on the right, where the
+    // column already lives — so 2v2's slack column is measured from there
+    // rather than from an even split.
+    const _slackCol = (reserve === 0 && typeof Game !== 'undefined' && Game.is2v2 && Game.is2v2())
+      ? Math.round(Math.max(0, window.innerWidth - _leftMargin - laidBoardW - decInset - decGap))
+      : 0;
+    const _use2v2Col = _slackCol >= 232;
+    root.style.setProperty('--decision-w', (_use2v2Col ? _slackCol : decW) + 'px');
     // WHERE THE COLUMN STARTS. The panel is fixed-positioned on <body> (see
     // _classicDecisionSlot), so it has no containing block that already knows
     // where the board begins — this is that number, measured off the section
@@ -22951,14 +23025,43 @@ const UI = {
     // instead (measured: its top edge at y=854 against a tricks row starting at
     // 757). The gutter is exactly as tall as the board.
     root.style.setProperty('--decision-bottom', Math.round(section.getBoundingClientRect().bottom) + 'px');
-    root.style.setProperty('--decision-shift',
-      (reserve ? Math.max(0, Math.round(reserve - gutter - sectionPadR)) : 0) + 'px');
+    // WHERE THE HAND ROW STARTS. The 2v2 turn-order tracker hangs off this so it
+    // can sit level with the cards instead of down in the corner (owner: "can
+    // you move the turn order in 2v2 up llevel with the cards"). Measured off
+    // the hand section itself rather than derived from the board's bottom plus
+    // an assumed bar height, because the bar's height is a breakpoint value —
+    // 64px on desktop, 52px on a phone — and a hard-coded 64 would drop the
+    // panel through the cards on the small layout. Falls back to the board's
+    // bottom while the hand has not rendered yet (first frame of a match).
+    const _handSec = document.querySelector('.player-hand-section');
+    const _handTop = _handSec
+      ? Math.round(_handSec.getBoundingClientRect().top)
+      : Math.round(section.getBoundingClientRect().bottom);
+    if (_handTop > 0) root.style.setProperty('--hand-top', _handTop + 'px');
+    // WHERE LANE 1 STARTS. Published for the hand + tricks row, which used to be
+    // centred on the VIEWPORT — so once the board moved left to clear the
+    // decision column, the cards sat off its axis and the tricks ran past the
+    // board's right edge into the reserved gutter. Owner: "can you have the
+    // cards start left too?" Derived from the same three numbers as the shift
+    // rather than measured off the board's rect, because this runs BEFORE the
+    // new --board-card-w has been laid out and a rect read here is a frame
+    // stale.
+    // One rule for both modes now: if there is a column at all, the board goes to
+    // the left margin and the leftover is the column's. reserve-vs-gutter
+    // arithmetic only ever moved it far enough to stop overlapping, which is a
+    // different goal from lining it up.
+    const laneShift = (reserve || _use2v2Col)
+      ? Math.max(0, Math.round(num(section, 'paddingLeft') + gutter - _leftMargin))
+      : 0;
+    root.style.setProperty('--decision-shift', laneShift + 'px');
+    root.style.setProperty('--board-left',
+      Math.max(0, Math.round(num(section, 'paddingLeft') + gutter - laneShift)) + 'px');
     // ...and whether the column EXISTS at all. On a phone the reserve is
     // declined (see above), so there is no gutter to dock anything in and the
     // notice and the reveal have to stay where they were. A class rather than a
     // `--decision-shift > 0` test, because the shift is legitimately 0 on a wide
     // screen where the column is real and simply already had the room.
-    document.body.classList.toggle('decision-column', reserve > 0);
+    document.body.classList.toggle('decision-column', reserve > 0 || _use2v2Col);
     // The lanes just moved, so anything pinned to them is now stale. The
     // forecast strip measured its cells during the render pass, which runs
     // BEFORE this solve — that is why its cells were sized to the pre-fit lane
@@ -23077,6 +23180,18 @@ const UI = {
     if (bSlot && bLane && bSec) {
       const n = (el, ...p) => { const c = getComputedStyle(el);
         return p.reduce((t, k) => t + (parseFloat(c[k]) || 0), 0); };
+      // 140 FLAT, AND IT STAYS FLAT. This was briefly min(140, --board-card-w),
+      // to stop 2v2 reserving a six-lane board's minimum height it was never
+      // going to use — the reasoning was right about the waste and wrong about
+      // who should get it. Freeing that height let the HAND take it, and in 2v2
+      // the hand cards grew past the board cards: measured off the owner's 2v2
+      // screenshot, ~172px in hand against ~154px on the board, inverting the
+      // hierarchy 1v1 has (110 in hand, 126 on board). Owner: "the cards are too
+      // big in hand, the board is too small."
+      // The slack belongs to the BOARD, which is a change to the board's own
+      // width solve, not to what the hand reserves for it. Reverted here so the
+      // hand is exactly the size it was before that attempt, and the 2v2 board
+      // sizing is left to be fixed where it actually lives.
       const floorH = 2 * (140 * 182 / 92 + n(bSlot, 'paddingTop', 'paddingBottom'))
                    + n(bLane, 'paddingTop', 'paddingBottom');
       others = others - bSec.getBoundingClientRect().height + floorH;
@@ -23139,7 +23254,24 @@ const UI = {
                   + trickFixed + trickGap * Math.max(0, m - 1)
                   + m * (88 - trickRatio * HAND_MIN);
       const perCard = cards + m * trickRatio;
-      const byWidth = (window.innerWidth - fixed - 8) / perCard;   // 8px slack
+      // MINUS WHAT SITS TO THE LEFT OF THE ROW. This budgeted against the whole
+      // viewport, and the hand row does not get the whole viewport: it starts at
+      // grid column 2, after a margin column sized max(--board-left,
+      // --hand-col-w). In 1v1 that column is ~78px and the height bound usually
+      // wins first, so the overshoot rarely showed. In 2v2 the board is centred
+      // inside a much wider window, so --board-left is ~500px — the solve
+      // believed it had 500px more room than the row had, sized the cards to it,
+      // and the hand ran off both ends. That is the cropping in the owner's 2v2
+      // screenshot, and raising the hand's height budget (the 2v2 board-floor
+      // fix) would have made it worse, which is exactly what they flagged:
+      // "make sure this isnt an issue croppoing out cards in hand".
+      // Read off the row's own left edge rather than recomputing the column:
+      // it is decided by --board-left and --hand-col-w, neither of which
+      // depends on the card size, so this cannot become circular. Mode- and
+      // breakpoint-agnostic for the same reason — below 521px the four-column
+      // rule does not apply and the row simply starts at 0.
+      const leftSpent = Math.max(0, row.getBoundingClientRect().left);
+      const byWidth = (window.innerWidth - leftSpent - fixed - 8) / perCard;   // 8px slack
       w = Math.max(HAND_MIN, Math.min(w, byWidth));
     }
     area.style.setProperty('--hand-card-w', Math.floor(w) + 'px');
@@ -23484,6 +23616,19 @@ const UI = {
         const title = turns != null ? `Lane collapsed — reforms in ${turns} round${turns === 1 ? '' : 's'}` : 'Lane destroyed';
         statusRow.push(`<span class="lane-glyph glyph-destroyed" title="${title}">${label}</span>`);
       }
+      // ENVIRONMENT COUNTDOWN — the same pip the destroyed lane prints, in the
+      // same row, for the same reason: an effect that leaves on a clock has to
+      // say how long is left. Owner: "all environments stay on the field for 4
+      // turns, have the counter like the destroyed lanes at the bottom."
+      // One per side, because both may hold an environment in the same lane;
+      // coloured by side so it is obvious whose is running out.
+      ['ai', 'player'].forEach(side => {
+        const env = lane._env && lane._env[side];
+        const left = env && (env._envTurns | 0);
+        if (!env || !(left > 0)) return;
+        const title = `${env.name} — ${left} round${left === 1 ? '' : 's'} left`;
+        statusRow.push(`<span class="lane-glyph glyph-env glyph-env-${side}" title="${this._esc ? this._esc(title) : title}">${left}</span>`);
+      });
       if (lane.protected) statusRow.push(`<span class="lane-glyph glyph-protected glyph-${lane.protected}" title="Protected from ${lane.protected}">&#x1F6E1;</span>`);
       if (lane.trap) statusRow.push(`<span class="lane-glyph glyph-trap glyph-${lane.trap.placedBy}" title="Bear Trap by ${lane.trap.placedBy}">&#x26A0;</span>`);
       if (forcedAi === i) statusRow.push(`<span class="lane-glyph glyph-forced glyph-forced-ai" title="AI's next card forced here">&#x21E3; AI</span>`);
@@ -23543,66 +23688,77 @@ const UI = {
           // lane — the rift is the transient of the two.
           const primary = envAi || envPl || riftEnv;
           const safeClass = 'env-' + primary.name.toLowerCase().replace(/\s+/g, '-');
-          // WHOSE ENVIRONMENT IS THIS. Owner: "when environments are on the
-          // board i want them to have a slight shade of the color of who
-          // played it so its easy to know its my environment vs the
-          // opponents." Nothing in this element carried ownership at all — the
-          // class was the art and nothing else — so a Sewers you placed and an
-          // Open Water they placed rendered identically.
+          // NO OWNERSHIP FLAGS. env-own-ai / env-own-player used to be stamped
+          // here to drive a coloured half-lane wash, added back when the ART
+          // filled the whole lane and so could not say whose environment it was
+          // ("i want them to have a slight shade of the color of who played
+          // it"). The picture only covers one half now, and which half is
+          // itself the answer, so the wash was restating it. (Owner, circling
+          // one: "i dont think we need this anymore for the enviroments.")
+          envBg.className = 'lane-env-bg ' + safeClass;
+          // THE PICTURE SITS ON THE HALF THE ENVIRONMENT ACTS AGAINST, not the
+          // half that owns it. lane._env is keyed by side, but the backdrop
+          // painted a single art across the whole lane, so an enemy Open Water
+          // washed over the player's half as well and a lane holding one
+          // environment per side could only ever show one of them. (Owner:
+          // "since environments are for 1 side now should they only be half way
+          // up … i just want them faded out to black not cut off and look bad",
+          // then: "yes swap it, the picture should be on the side its against.")
           //
-          // BOTH FLAGS, NOT THE PRIMARY'S. The backdrop above deliberately
-          // shows ONE art per lane, but `_env` is per side and both can be
-          // occupied at once — which is the normal case the moment an event
-          // mirrors one environment onto each player. So ownership is recorded
-          // as two independent flags and the wash paints each side's half of
-          // the lane, letting a contested lane read as both without needing a
-          // second backdrop element.
+          // So the halves are named by POSITION, not by owner — env-half-top /
+          // env-half-bottom — because owner and position are deliberately
+          // crossed here and a name that said "ai" would be a lie half the
+          // time. The colour wash below stays keyed to the OWNER: the picture
+          // answers "where does this act", the wash answers "whose is it", and
+          // they are different questions.
           //
-          // The rift gets neither flag on purpose: it belongs to nobody.
-          envBg.className = 'lane-env-bg ' + safeClass
-            + (envAi ? ' env-own-ai' : '')
-            + (envPl ? ' env-own-player' : '');
-          const artPath = this.getCardArtPath(primary.name);
+          // Two children rather than two .lane-env-bg elements: the container
+          // keeps the click-to-inspect target, the render sweep's KEEP_ENV
+          // entry, the rift frame and the two ownership washes, all of which
+          // are already tuned. Only what is INSIDE it changed.
+          //
+          // Faded, not cut: each half carries a mask that runs to transparent
+          // at the midline, so the art dissolves into the lane's black instead
+          // of ending on a hard edge.
+          const paintHalf = (where, env) => {
+            const cls = 'env-half env-half-' + where;
+            let half = envBg.querySelector(':scope > .env-half-' + where);
+            if (!env) { if (half) half.remove(); return; }
+            if (!half) {
+              half = document.createElement('div');
+              envBg.appendChild(half);
+            }
+            if (half.className !== cls) half.className = cls;
+            const p = this._envArtBackground(env);
+            if (half.style.background !== p) half.style.background = p;
+          };
+          // WHICH HALF an environment paints on is where its business HAPPENS —
+          // "the t rex breaks out of the enclousre so he spawns on the
+          // enviroment", and the mirror for Wetlands, "the enemy spino spawns
+          // in the envirmonet so if your facing him the enviroment is on the
+          // enemy side". For five of the six that is the owner's own half;
+          // the Enclosure's T-Rex breaks out onto the opponent's, so its
+          // paddock paints there.
+          // Same flag releaseHabitatMonster uses to decide where to put the
+          // monster, so the picture cannot end up on a different half from the
+          // thing that comes out of it.
+          const _halves = { top: null, bottom: null };
+          [envAi, envPl].forEach(env => {
+            if (!env) return;
+            const lands = env.actsOnOpponentSide ? Game.opponent(env.owner) : env.owner;
+            _halves[lands === 'ai' ? 'top' : 'bottom'] = env;
+          });
+          paintHalf('top', _halves.top);
+          paintHalf('bottom', _halves.bottom);
+
+          // The container itself only paints for the RIFT, which belongs to
+          // nobody and so has no half to sit in — it keeps the full lane.
+          const artPath = riftEnv && !envAi && !envPl ? this.getCardArtPath(primary.name) : null;
           if (artPath) {
-            // MATCH THE CARD, DO NOT RE-CROP. This was `center/cover`, and a
-            // lane is roughly 1:4.4 while the card's portrait is far squarer —
-            // so `cover` scaled a card-shaped image up until it covered the
-            // lane's HEIGHT and threw the sides away, leaving the narrow
-            // vertical slice the owner reported ("the card looks so good but
-            // it's cropped way too thin").
-            //   * It still COVERS, because the owner wants these rooms to fill
-            //     their lane like every other environment does — a fitted
-            //     picture left dark bands above and below and read as a
-            //     different kind of object on the board. Filling a 1:3.83 lane
-            //     with a 1:1.43 picture necessarily crops the sides; what can
-            //     be chosen is WHICH slice, which is what the focal point below
-            //     is for.
-            //   * the focal point and zoom are read from the SAME source the
-            //     card face uses (_artFocalFor / _artSizeFor with the 'card'
-            //     context — the Gallery Audit overrides), so re-framing a card
-            //     in the gallery now moves its room on the board too, rather
-            //     than the two drifting apart.
-            const artFile = this.getCardArtVariant(primary.name);
-            // BOARD-ONLY FOCAL. A lane crops FAR harder than a card face does —
-            // at these sizes the card shows ~72% of the picture's width but the
-            // lane shows ~37% — so a subject that sits comfortably inside the
-            // card can land right on the lane's cut edge. Game Over's figure
-            // is at x≈33% and was being sliced in half, which is why that lane
-            // read as an anonymous green wash.
-            // Deliberately NOT the shared focalCard map: that also drives the
-            // CARD face, and the owner's point was that the cards already look
-            // right. This map moves the LANE crop only, and still defers to a
-            // Gallery Audit card focal when one has been set.
-            const ENV_FOCAL = {
-              'The Bathroom': '40% 50%',  // frames the tub and the blood pool
-              'Game Over':   '33% 50%',  // centres the figure in the doorway
-            };
-            const pos = this._artFocalFor(primary.name, artFile, 'card')
-              || ENV_FOCAL[primary.name] || 'center';
-            const zoom = this._artSizeFor(primary.name, artFile, 'card');
-            const size = (zoom && zoom !== 'cover') ? zoom : 'cover';
-            envBg.style.background =
-              `linear-gradient(rgba(0,0,0,0.35), rgba(0,0,0,0.35)), url("${artPath}") ${pos}/${size} no-repeat`;
+            // Rift only — the shared builder does the framing (see
+            // _envArtBackground), so the halves and the rift crop identically.
+            const _rb = this._envArtBackground(primary);
+            if (envBg.style.background !== _rb) envBg.style.background = _rb;
           } else {
             envBg.style.background = '';
           }
@@ -23624,7 +23780,14 @@ const UI = {
             }
             if (warn.textContent !== want) warn.textContent = want;
             warn.classList.toggle('rift-warn-lethal', firstStill);
-          } else if (envBg.innerHTML !== '') envBg.innerHTML = '';
+          } else {
+            // Targeted removal, NOT innerHTML = ''. The halves are children of
+            // this element now, and wiping the container erased them on every
+            // render of every non-rift lane — the art vanished and rebuilt each
+            // frame, which is the flicker the element reuse exists to avoid.
+            const _oldWarn = envBg.querySelector(':scope > .rift-warn');
+            if (_oldWarn) _oldWarn.remove();
+          }
           // Class on the LANE, not the backdrop, so the rim glow can sit on the
           // lane frame. Cleared in the else-branch and whenever the rift ends,
           // which matters because lane elements are reused between renders —
@@ -25777,6 +25940,45 @@ const UI = {
   // false/omitted for the opponent's plays. User direction: the reveal
   // fires for BOTH sides ("I played Eye of Agamotto and the new trick
   // screen didn't pop up").
+  // How long a trick's announcement holds. One number for both surfaces — the
+  // corner toast and the full reveal panel — so they cannot drift apart.
+  // (Owner: "all notices form tricks needs to sty on the screen for 3.5
+  // seconds.")
+  TRICK_NOTICE_MS: 3500,
+
+  // "…and the ai plays tricks too fst and its all one blur i want some sequnce
+  // and time."
+  //
+  // The AI's trick loop paced itself on aiStepMs (350ms at normal) and nothing
+  // else, while each trick raises an announcement that now holds 3500ms. Four
+  // tricks therefore resolved inside the first one's notice and the rest of the
+  // notices stacked up behind the board already having changed — the blur.
+  //
+  // So the loop waits on the ANNOUNCEMENTS rather than on a guessed number:
+  // one trick, its notice, then the next. Tying it to the real queues means the
+  // rhythm follows TRICK_NOTICE_MS automatically instead of needing a second
+  // constant kept in sync with it.
+  //
+  // Bounded, and deliberately: a stage item whose fn throws before reporting is
+  // caught by _stage's own safety net, but nothing guarantees the reveal queue
+  // drains on a pathological frame — and an AI turn that never ends is a worse
+  // bug than one that reads fast. maxMs is the ceiling; the callback fires once,
+  // whichever way it gets there.
+  _whenAnnouncementsIdle(cb, maxMs) {
+    if (typeof cb !== 'function') return;
+    let done = false;
+    const finish = () => { if (done) return; done = true; try { cb(); } catch (e) {} };
+    const cap = setTimeout(finish, Math.max(0, maxMs == null ? 6000 : maxMs));
+    const poll = () => {
+      if (done) return;
+      const staged = this._stageBusy || (this._stageQ && this._stageQ.length);
+      const revealing = this._trickRevealActive || (this._trickRevealQueue && this._trickRevealQueue.length);
+      if (!staged && !revealing) { clearTimeout(cap); finish(); return; }
+      setTimeout(poll, 120);
+    };
+    poll();
+  },
+
   showTrickReveal(name, desc, cost, mine) {
     if (this._reducedMotion && this._reducedMotion()) {
       // Reduced-motion fallback: opponent plays keep the corner toast
@@ -25784,7 +25986,11 @@ const UI = {
       if (!mine) this.showAITrickToast(name, desc || '');
       return;
     }
-    this._trickRevealQueue.push({ name, desc: desc || '', cost, mine: !!mine });
+    // holdMs on the ITEM, not on the shared 2100 default. That default is also
+    // showCardReveal's, which is every non-trick reveal in the game (Iron
+    // Giant's sacrifice, an event's card) — raising it would slow all of them to
+    // fix tricks. Per-item keeps the change where the owner pointed it.
+    this._trickRevealQueue.push({ name, desc: desc || '', cost, mine: !!mine, holdMs: this.TRICK_NOTICE_MS });
     if (!this._trickRevealActive) this._nextTrickReveal();
   },
   // Reveal a CARD the same way tricks are revealed — full art + a custom label —
@@ -26554,8 +26760,13 @@ const UI = {
     // other but not against the round banner — the collision the owner saw.
     // Now every announcement shares UI._stage.
     const KIND = {
-      discard: { label: () => UI.oppName() + ' played a Discard', cls: 'toast-kind-discard', ms: 4000 },
-      trick:   { label: () => UI.oppName() + ' played a Trick',   cls: 'toast-kind-trick',   ms: 4000 },
+      // 3500, the number the owner asked for: "all notices form tricks needs to
+      // sty on the screen for 3.5 seconds". Down from 4000 for these two, and
+      // the trick REVEAL panel comes up to meet it from 2100 — the point is
+      // that every announcement a trick raises holds for the same readable
+      // beat, whichever surface it lands on.
+      discard: { label: () => UI.oppName() + ' played a Discard', cls: 'toast-kind-discard', ms: 3500 },
+      trick:   { label: () => UI.oppName() + ' played a Trick',   cls: 'toast-kind-trick',   ms: 3500 },
       error:   { label: () => 'Cannot Play',                      cls: 'toast-kind-error',   ms: 2400 },
       info:    { label: () => 'Notice',                           cls: 'toast-kind-info',    ms: 3000 },
       system:  { label: () => 'System',                           cls: 'toast-kind-system',  ms: 2400 },
@@ -28221,8 +28432,58 @@ const UI = {
     return arr.findIndex(t => t && String(t.id) === String(id));
   },
 
+  // ONE FRAMING RULE for every environment picture on the board — the two
+  // per-side halves and the full-lane rift all come through here, so a change
+  // to the crop cannot land on one and miss the others.
+  //
+  // MATCH THE CARD, DO NOT RE-CROP. This was `center/cover`, and a lane is
+  // roughly 1:4.4 while the card's portrait is far squarer — so `cover` scaled
+  // a card-shaped image up until it covered the lane's HEIGHT and threw the
+  // sides away, leaving the narrow vertical slice the owner reported ("the card
+  // looks so good but it's cropped way too thin").
+  //   * It still COVERS: a fitted picture left dark bands and read as a
+  //     different kind of object on the board. Filling the lane with a 1:1.43
+  //     picture necessarily crops the sides; what can be chosen is WHICH slice,
+  //     which is what the focal point is for.
+  //   * focal and zoom come from the SAME source the card face uses
+  //     (_artFocalFor / _artSizeFor, 'card' context — the Gallery Audit
+  //     overrides), so re-framing a card in the gallery moves its room on the
+  //     board too rather than the two drifting apart.
+  _envArtBackground(env) {
+    if (!env || !env.name) return '';
+    const artPath = this.getCardArtPath(env.name);
+    if (!artPath) return '';
+    const artFile = this.getCardArtVariant(env.name);
+    // BOARD-ONLY FOCAL. A lane crops FAR harder than a card face does — at
+    // these sizes the card shows ~72% of the picture's width but the lane shows
+    // ~37% — so a subject that sits comfortably inside the card can land right
+    // on the lane's cut edge. Game Over's figure is at x≈33% and was being
+    // sliced in half, which is why that lane read as an anonymous green wash.
+    // Deliberately NOT the shared focalCard map: that also drives the CARD
+    // face, and the owner's point was that the cards already look right.
+    const ENV_FOCAL = {
+      'The Bathroom': '40% 50%',  // frames the tub and the blood pool
+      'Game Over':   '33% 50%',  // centres the figure in the doorway
+    };
+    const pos  = this._artFocalFor(env.name, artFile, 'card')
+      || ENV_FOCAL[env.name] || 'center';
+    const zoom = this._artSizeFor(env.name, artFile, 'card');
+    const size = (zoom && zoom !== 'cover') ? zoom : 'cover';
+    return `linear-gradient(rgba(0,0,0,0.35), rgba(0,0,0,0.35)), url("${artPath}") ${pos}/${size} no-repeat`;
+  },
+
   renderPlayerTricks(s) {
     this.playerTricks.innerHTML = '';
+    // A pending card choice can name TRICKS as options (the redraw does). Those
+    // wear the same gold .target-highlight the hand and board already use, and
+    // take the pick handler INSTEAD of the play/inspect wiring — otherwise the
+    // affordability branch below dims them exactly when they are the thing
+    // being asked for. inlineTray prompts are excluded for the same reason the
+    // hand excludes them: the tray is the interactive copy there.
+    const _cc = s.pendingCardChoice;
+    const _ccMine = !!(_cc && Game.promptIsMine(_cc, 'card') && !_cc.inlineTray);
+    const _ccIds = new Set();
+    if (_ccMine) (_cc.cards || []).forEach(c => { if (c && c.id !== undefined) _ccIds.add(String(c.id)); });
     const canTrick = this.canPlayerPlayTricks(s);
     const playerActive = s.phase && s.phase.startsWith('player-') && !s.gameOver;
     // Clear stale selection if the trick is no longer in hand
@@ -28279,6 +28540,16 @@ const UI = {
       <div class="cf-band-diag" aria-hidden="true"></div>
       <div class="cf-cut-tl" aria-hidden="true"></div>
       `;
+
+      if (_ccMine && trick.id != null && _ccIds.has(String(trick.id))) {
+        el.classList.add('target-highlight');
+        const _pickIdx = _cc.cards.findIndex(c => c && String(c.id) === String(trick.id));
+        // Property assignment, not addEventListener — same reason the hand gives:
+        // a reused element would otherwise stack a fresh handler every render.
+        el.onclick = () => cardChoicePick(_pickIdx);
+        this.playerTricks.appendChild(el);
+        return;
+      }
 
       const isAnytime = !!trick.anytime;
       // A trick countered by Time Stone this round is frozen — visibly
@@ -28632,6 +28903,76 @@ const UI = {
     });
   },
 
+  // HOW FULL YOUR HAND IS, as a ring in the margin left of the first card.
+  // Owner: "put n/7 for hand size here, neon highlight, in the circle."
+  //
+  // The CAP is read from the seat, not hard-coded: Mobius Chair raises
+  // maxHandSize permanently, so a fixed 7 would have gone on saying /7 while the
+  // real ceiling was 8 and the ring stopped filling before it looked full.
+  renderHandMeter(s) {
+    const el = document.getElementById('hand-meter');
+    if (!el) return;
+    // The hand this player is actually holding — a SEAT in 2v2, the side in 1v1.
+    // Reading state.player straight would have shown the empty side proxy at a
+    // 2v2 table (see the seat-vs-side note in Game.seatStatesOnSide).
+    const tt = s.twoVTwo;
+    const you = tt && tt.you;
+    const seat = (you && tt.players && tt.players[you]) ? tt.players[you] : s.player;
+    if (!seat) { el.style.display = 'none'; return; }
+    el.style.display = '';
+    const n = (seat.hand || []).length;
+    const cap = Math.max(1, (seat.maxHandSize != null ? seat.maxHandSize : 7) | 0);
+    const pct = Math.max(0, Math.min(100, Math.round((n / cap) * 100)));
+    el.style.setProperty('--fill', pct + '%');
+    el.classList.toggle('full', n >= cap);
+    const label = n + '/' + cap;
+    // Write only when it changed — this runs every render, and replacing the
+    // node each time would restart the ring's transition mid-fill.
+    if (el.dataset.label !== label) {
+      el.dataset.label = label;
+      el.innerHTML = '<span class="hand-meter-text">' + label + '</span>';
+    }
+    // SAY WHY THE CAP IS NOT 7. maxHandSize is 7 at the start of every match and
+    // is raised permanently by Mobius Chair, the Eye of Agamotto, and +1 per
+    // Wonder Weapon won from the Shadow Man — so a seat that has won two reads
+    // 6/9, with nothing on screen explaining where the 9 came from. (Owner, on a
+    // 2v2 board: "how is it 6/9 makes no snese.") The number was right; it was
+    // just unaccounted for.
+    const _base = 7;
+    el.classList.toggle('cap-raised', cap > _base);
+    el.title = cap > _base
+      ? 'Cards in hand — ' + label + ' (' + _base + ' base, +' + (cap - _base) + ' from cards you have earned)'
+      : 'Cards in hand — ' + label;
+
+    // TRICKS GET THE SAME READOUT. Owner: "can you add the same hand size for
+    // tricks n/3". Same seat, same shape, same class — the only differences are
+    // which hand is counted and which cap it is measured against, so the two
+    // numbers can never drift apart in type, colour or the full-hand rule.
+    this._paintMeter(document.getElementById('trick-meter'),
+      (seat.trickHand || []).length,
+      (seat.maxTrickHandSize != null ? seat.maxTrickHandSize : 3),
+      'Tricks in hand');
+  },
+
+  // The write half of renderHandMeter, shared with the trick readout. Writes
+  // only when the label changed: this runs every render, and replacing the node
+  // each time restarts the fill transition mid-sweep.
+  _paintMeter(el, n, rawCap, title) {
+    if (!el) return;
+    const cap = Math.max(1, rawCap | 0);
+    const pct = Math.max(0, Math.min(100, Math.round((n / cap) * 100)));
+    el.style.display = '';
+    el.style.setProperty('--fill', pct + '%');
+    el.classList.toggle('full', n >= cap);
+    const label = n + '/' + cap;
+    if (el.dataset.label !== label) {
+      el.dataset.label = label;
+      el.innerHTML = '<span class="hand-meter-text">' + label + '</span>';
+    }
+    el.title = title + ' — ' + label;
+    el.classList.toggle('cap-raised', false);
+  },
+
   // ===================== LANE FORECAST =====================
   // Predict the player-side outcome for a single lane and return a
   // verdict tag + class for both the strip cell and the data-attr on
@@ -28938,60 +29279,11 @@ const UI = {
   // Owner, from the board reference: bring "if combat resolves now" and a
   // running log onto the board itself.
   //
-  // THE FORECAST IS SIMULATED, NOT ESTIMATED. Game.previewCombatNow clones the
-  // state and runs the REAL resolver on it, so blocks, Evade, Armor, Overdrive,
-  // Taunt and every on-death cascade are counted by the only thing that knows
-  // the rules. Verified against a hand-built board: Thanos 6 unopposed reported
-  // "you deal 6", Godzilla 5 unopposed "you take 5", and lane 0 read ENEMY DIES
-  // because Wolverine's When-Damaged kills Bane back — which no sum of attack
-  // values could ever have predicted.
-  //
-  // THE LOG IS THE LAST FEW LINES, not the drawer. renderLog is deliberately
-  // skipped while that drawer is closed because rebuilding 300 entries was
-  // measured at ~28% of the frame; three lines is not that, and the drawer is
-  // still there for the full history.
-  //
-  // Recomputed only when the BOARD changes, not every frame: the sim clones the
-  // whole state and re-runs combat, which is far too expensive to do on a
-  // render that fired because a hand card got a hover class.
-  _asideSig(s) {
-    const lanes = (s.lanes || []).map(l =>
-      (l.player ? l.player.name + ':' + l.player.currentHealth + ':' + l.player.attack : '-') + '|' +
-      (l.ai ? l.ai.name + ':' + l.ai.currentHealth + ':' + l.ai.attack : '-')).join(',');
-    return [s.phase, lanes, s.player && s.player.health, s.ai && s.ai.health,
-            (s.log || []).length].join('~');
-  },
-  renderBoardAside(s) {
-    const el = document.getElementById('board-aside');
-    if (!el) return;
-    // Only while a board exists and only on the surfaces that have room. Hidden
-    // rather than emptied so nothing reflows when it comes back.
-    const live = s && s.lanes && !s.gameOver && /player-|ai-|2v2-p/.test(s.phase || '');
-    if (!live) { el.hidden = true; this._asideLast = null; return; }
-    const sig = this._asideSig(s);
-    if (sig === this._asideLast && !el.hidden) return;   // nothing moved
-    this._asideLast = sig;
-    el.hidden = false;
-    let f = null;
-    try { f = Game.previewCombatNow ? Game.previewCombatNow() : null; } catch (e) { f = null; }
-    const sign = (n) => n > 0 ? '+' + n : String(n);
-    // Null means the engine declined to guess (mid-combat, or the resolver
-    // threw). Say nothing rather than print a zero that looks like a fact.
-    const fc = f ? `
-      <div class="ba-rule"><span class="ba-rule-label">If combat resolves now</span><span class="ba-rule-line"></span></div>
-      <div class="ba-fc">
-        <div class="ba-fc-cell"><b class="ba-num ba-deal">${f.youDeal}</b><span class="ba-cap">You deal</span></div>
-        <div class="ba-fc-cell"><b class="ba-num ba-take">${f.youTake}</b><span class="ba-cap">You take</span></div>
-        <div class="ba-fc-cell"><b class="ba-num ${f.net >= 0 ? 'ba-good' : 'ba-bad'}">${sign(f.net)}</b><span class="ba-cap">Net</span></div>
-      </div>` : '';
-    const lines = this.readableLog(s.log).slice(-3).reverse()
-      .map((t, i) => `<div class="ba-log-line${i === 0 ? ' is-latest' : ''}">${t}</div>`).join('');
-    const lg = lines ? `
-      <div class="ba-rule"><span class="ba-rule-label">Log</span><span class="ba-rule-line"></span></div>
-      <div class="ba-log">${lines}</div>
-      <button type="button" class="ba-log-more" onclick="UI.toggleLogDrawer()">Full log &rarr;</button>` : '';
-    el.innerHTML = fc + lg;
-  },
+  // (renderBoardAside + _asideSig lived here — the fixed left-gutter panel with
+  // the "if combat resolves now" forecast and the last log lines. Removed on
+  // request. Game.previewCombatNow is kept: it is engine API and the only thing
+  // that simulates a dry-run combat, so it stays available even with nothing
+  // currently calling it.)
 
   renderLog(s) {
     // SKIP ENTIRELY WHILE CLOSED. The drawer ships collapsed (index.html:571,
@@ -30659,7 +30951,15 @@ const UI = {
     const _seat = (_tt && Game.is2v2 && Game.is2v2() && _tt.players) ? _tt.players[_tt.you] : null;
     const _side = _seat ? (this._2v2LocalSide() || 'player') : 'player';
     const hand = ((_seat ? _seat.hand : s.player.hand) || []).slice();
-    if (!hand.length) return;
+    // TRICKS ARE REDRAWABLE TOO. A dead trick is as dead as a dead card, and
+    // the engine now bins either and draws a replacement from that item's own
+    // pile. They go on the END of the list so a hand card's index is unchanged
+    // — the tray, the hand render and cardChoicePick all index into this exact
+    // array. (Owner: "for tricks as well it should do the yellow, the peacmaker
+    // highlight is perfect.")
+    const tricks = ((_seat ? _seat.trickHand : s.player.trickHand) || []).slice();
+    const options = hand.concat(tricks);
+    if (!options.length) return;
     const cost = Game.getRedrawCost('player');
     // ONE CARD IS NOT A CHOICE. Asking "which card do you want to bin?" about a
     // single card routed a non-question through the whole prompt system —
@@ -30668,16 +30968,16 @@ const UI = {
     // player. (User: "trying to redraw my only card in hand and it gives me the
     // notice but never lets me do it.") Nothing here is a decision, so nothing
     // here needs a prompt: bin it and draw.
-    if (hand.length === 1) {
-      const only = hand[0];
+    if (options.length === 1) {
+      const only = options[0];
       if (_seat) Game.redrawCard(_side, only, _tt.you);
       else Game.submitCommand({ type: 'redraw', payload: { card: only } });
       this.render();
       return;
     }
     if (_seat) {
-      Game.promptCardChoice(_side, hand, 'Redraw',
-        `Choose a card to bin and replace — ${cost} Energy`,
+      Game.promptCardChoice(_side, options, 'Redraw',
+        `Choose a card or trick to replace for ${cost} Energy`,
         (card) => {
           if (!card) return;
           Game.redrawCard(_side, card, _tt.you);
@@ -30691,8 +30991,8 @@ const UI = {
         { localOnly: true, inlineTray: true, seat: _tt.you });
       return;
     }
-    Game.promptCardChoice('player', hand, 'Redraw',
-      `Choose a card to bin and replace — ${cost} Energy`,
+    Game.promptCardChoice('player', options, 'Redraw',
+      `Choose a card or trick to replace for ${cost} Energy`,
       (card) => {
         if (!card) return;
         Game.submitCommand({ type: 'redraw', payload: { card } });
@@ -31267,7 +31567,7 @@ const UI = {
     // nothing for the joining player. The prompt is local to whoever is
     // placing the card (state is seat-flipped on the guest, so `s.player` is
     // always the local human), and the resulting flag rides the wire.
-    if (s.player.faceDownAvailable && !card.isDiscardEffect) {
+    if (Game.canPlayFaceDown('player') && !card.isDiscardEffect) {
       const faceUp = { name: 'Play Face Up', desc: 'Play normally — all abilities activate', id: 'faceup_opt' };
       const faceDown = { name: 'Play Face Down', desc: 'Hidden until combat — abilities activate on reveal', id: 'facedown_opt' };
       Game.promptCardChoice('player', [faceUp, faceDown],

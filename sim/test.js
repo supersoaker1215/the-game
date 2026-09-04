@@ -93,6 +93,15 @@ function place(G, name, owner, lane) {
   return card;
 }
 
+// The hand equivalent of place() — for anything whose behaviour depends on the
+// card being IN HAND rather than on the board (Pinhead's chain, discards).
+function createInHand(G, name, owner) {
+  var card = G.createCardInstance(cardByName(name), owner);
+  G.state[owner].hand = G.state[owner].hand || [];
+  G.state[owner].hand.push(card);
+  return card;
+}
+
 // ============================================================
 // ---- TESTS -------------------------------------------------
 // ============================================================
@@ -5552,11 +5561,32 @@ test('Wetlands at 0 Power releases Spinosaurus and takes the enemy in the lane',
   assert(!!spino && spino.name === 'Spinosaurus', 'Spinosaurus surfaced in the lane');
   assertEq(spino.attack, 4, 'at printed 4 ATK');
   assertEq(spino.currentHealth, 6, 'and 6 HP');
-  // THE HABITAT STAYS. This is the one thing that separates Wetlands from
-  // Boiler Room / Sewers / Open Water, all of which clear their own env slot
-  // on spawn — so it is the assertion most likely to regress if someone
-  // "fixes" Wetlands to match its siblings.
-  assertEq(G.state.lanes[2]._env.player, wet, 'the habitat is still in the lane');
+  // THE HABITAT IS CONSUMED, like Boiler Room / Sewers / Open Water / Enclosure.
+  // This assertion used to say the opposite, and was written as a guard against
+  // someone "fixing" Wetlands to match its siblings — which is exactly what the
+  // owner then asked for once every environment went on the shared four-round
+  // clock: "just change wetlands to fit the global rule and the wording."
+  assertEq(G.state.lanes[2]._env.player, null, 'the habitat is consumed by the release');
+});
+
+test('Spinosaurus leaving does not have to drain anything behind him', function () {
+  // The swamp used to outlive its own release, which needed three pieces of
+  // private machinery to clean up after: an onDeath on Spinosaurus, a
+  // self-heal on Wetlands.onTurnStart for the ways he can leave WITHOUT dying
+  // (Phantom Zone bounces him to a hand, Devour voids him past handleDeath),
+  // and the _habitatLane breadcrumb both read. All three are gone; this pins
+  // that killing him leaves a clean lane rather than a zombie habitat.
+  var G = freshGame();
+  var wet = placeEnv(G, 'Wetlands', 'player', 2);
+  CARD_ABILITIES['Wetlands'].onPlay(G, wet, 2);
+  G._notifyBlockMeterFired('ai');
+  var spino = G.state.lanes[2].player;
+  assert(!!spino && spino.name === 'Spinosaurus', 'he surfaced');
+  assertEq(G.state.lanes[2]._env.player, null, 'and the swamp went with the release');
+  G.killCard(spino, null);
+  G.cleanupDead();
+  assertEq(G.state.lanes[2]._env.player, null, 'still nothing in the env slot');
+  assertEq(CARD_ABILITIES['Spinosaurus'].onDeath, undefined, 'and he no longer carries a When Destroyed for it');
 });
 
 test('A further Block Meter never releases a SECOND Spinosaurus', function () {
@@ -5652,34 +5682,14 @@ test('At 3 the Hunt Meter is spent for permanent Overdrive', function () {
     'the whole-board rampage hook is removed');
 });
 
-test('The habitat drains the moment Spinosaurus dies', function () {
-  var G = freshGame();
-  var wet = placeEnv(G, 'Wetlands', 'player', 2);
-  CARD_ABILITIES['Wetlands'].onPlay(G, wet, 2);
-  G._notifyBlockMeterFired('ai');
-  G._notifyBlockMeterFired('ai');
-  G._notifyBlockMeterFired('ai');
-  var spino = G.state.lanes[2].player;
-  assert(!!spino && spino.name === 'Spinosaurus', 'released');
-  assertEq(G.state.lanes[2]._env.player, wet, 'habitat present while he lives');
-  spino.currentHealth = 0;
-  CARD_ABILITIES['Spinosaurus'].onDeath(G, spino, 2);
-  assertEq(G.state.lanes[2]._env.player, null, 'habitat goes with him');
-});
-
-test('A drained habitat cleans itself up when Spinosaurus leaves without dying', function () {
-  // Phantom Zone bounces him to a hand and Devour voids him past handleDeath —
-  // neither fires onDeath, so the habitat would otherwise sit there forever.
-  var G = freshGame();
-  var wet = placeEnv(G, 'Wetlands', 'player', 2);
-  CARD_ABILITIES['Wetlands'].onPlay(G, wet, 2);
-  G._notifyBlockMeterFired('ai');
-  G._notifyBlockMeterFired('ai');
-  G._notifyBlockMeterFired('ai');
-  G.state.lanes[2].player = null;              // bounced away, no death
-  CARD_ABILITIES['Wetlands'].onTurnStart(G, wet);
-  assertEq(G.state.lanes[2]._env.player, null, 'the water drains on its own');
-});
+// (Two tests stood here — "The habitat drains the moment Spinosaurus dies" and
+// "A drained habitat cleans itself up when Spinosaurus leaves without dying".
+// Both pinned machinery that only existed because the swamp outlived its own
+// release: Spinosaurus's onDeath and Wetlands' onTurnStart self-heal. The
+// habitat is consumed at release now, on the shared environment clock, so both
+// hooks are gone and there is nothing left for either test to assert. Their
+// replacement is "Spinosaurus leaving does not have to drain anything behind
+// him", above.)
 
 test('Spinosaurus is spawn-only and never enters a draftable pool', function () {
   var def = cardByName('Spinosaurus');
@@ -5775,38 +5785,41 @@ test('Every environment is claimed by exactly one event franchise', function () 
   });
 });
 
-test('Every event in the registry can actually be rolled, at even odds', function () {
-  // Owner: "on round 3 for events is it random which event spawns? it should
-  // be, ive only seen shadow man, it should be all events have an equal
-  // chance." Before this, the roll was a coin flip between two events and the
-  // other seven were unreachable — so the assertion is not "the draw is random"
-  // (it always was) but "the draw can produce every event there is".
+test('Only Shadow Man and MC Ballyhoo can roll right now (habitats held back)', function () {
+  // TEMPORARY GATE (owner): "the only ones i want showing up in the game right
+  // now is MC and Shadow man, everything else is being worked on." The seven
+  // habitat events stay in EVENT_FRANCHISES so the codex still lists them, but
+  // matchEventPool() filters the rollable set down to these two. When the
+  // habitats come back, widen the allow-list in matchEventPool and restore the
+  // full-registry assertion below.
+  var ALLOWED = ['Shadow Man', 'MC Ballyhoo'];
   var pool = Game.matchEventPool();
   var listed = [];
   EVENT_FRANCHISES.forEach(function (fr) {
     (fr.events || []).forEach(function (ev) { listed.push(ev.name); });
   });
-  assertEq(pool.length, listed.length, 'the pool is exactly the registry, one entry per event');
-  listed.forEach(function (n) { assert(pool.indexOf(n) >= 0, n + ' is in the draw'); });
+  // The registry still holds every event…
+  assert(listed.length > ALLOWED.length, 'the registry still lists the held-back habitats');
+  // …but only the two allowed ones are rollable.
+  assertEq(pool.slice().sort().join(','), ALLOWED.slice().sort().join(','),
+    'the rollable pool is exactly Shadow Man + MC Ballyhoo');
 
-  // Drive the real roll over many seeds and check nothing is unreachable. The
-  // bug being pinned was a pool of two, so a seen-set is the shape of the test;
-  // the counts are checked loosely because a fair 9-way draw over 900 trials
-  // sits near 100 each and this must not become a flaky statistics assertion.
+  // Drive the real roll over many seeds: only the two allowed events ever come
+  // up, and no habitat is ever reachable.
   var seen = {};
   for (var i = 0; i < 900; i++) {
     var G = freshGame();
     G.seedMatch(i + 1);
-    G.state._matchEvent = null;
-    G.state._matchEventName = null;
-    G._rollMatchEvent();
-    if (G.state._matchEvent === 'none') continue;   // events switched off for this mode
-    seen[G.state._matchEventName] = (seen[G.state._matchEventName] || 0) + 1;
+    G.state._eventsUsed = [];
+    var pick = G._drawEventFor();
+    if (!pick) continue;                            // events switched off for this mode
+    seen[pick] = (seen[pick] || 0) + 1;
   }
-  var missing = listed.filter(function (n) { return !seen[n]; });
-  assertEq(missing.join(','), '', 'no event is unreachable');
-  listed.forEach(function (n) {
-    assert(seen[n] > 20, n + ' comes up at a plausible rate (' + seen[n] + '/900)');
+  Object.keys(seen).forEach(function (n) {
+    assert(ALLOWED.indexOf(n) >= 0, n + ' should not be rollable right now');
+  });
+  ALLOWED.forEach(function (n) {
+    assert(seen[n] > 20, n + ' comes up at a plausible rate (' + (seen[n] || 0) + '/900)');
   });
 });
 
@@ -5815,13 +5828,12 @@ test('A habitat event opens the same environment on both sides, in different lan
   G.state._matchEvent = 'habitat';
   G.state._matchEventName = 'Open Water';
   G._rollHabitatEvent();
-  G.state._habitat.appearAt = 3;
 
   G._maybeHabitatEvent(2);
-  assertEq(!!G.state._habitat.fired, false, 'round 2 — nothing opens');
+  assertEq(!!G.state._habitats[0].fired, false, 'round 2 — nothing opens');
 
   G._maybeHabitatEvent(3);
-  assertEq(G.state._habitat.fired, true, 'round 3 — it opens');
+  assertEq(G.state._habitats[0].fired, true, 'round 3 — it opens');
 
   var mine = -1, theirs = -1;
   for (var i = 0; i < G.LANE_COUNT; i++) {
@@ -5841,17 +5853,16 @@ test('A habitat event waits for space instead of being spent on it', function ()
   G.state._matchEvent = 'habitat';
   G.state._matchEventName = 'Sewers';
   G._rollHabitatEvent();
-  G.state._habitat.appearAt = 3;
 
   // Fill every lane but one with environments, so only one is free.
   for (var i = 0; i < G.LANE_COUNT - 1; i++) G._placeEventEnvironment('player', i, 'Gargantua');
   G._maybeHabitatEvent(3);
-  assertEq(!!G.state._habitat.fired, false, 'one free lane is not enough — it holds');
+  assertEq(!!G.state._habitats[0].fired, false, 'one free lane is not enough — it holds');
 
   // Give it room back and it turns up on a later round.
   G.state.lanes[0]._env = {};
   G._maybeHabitatEvent(4);
-  assertEq(G.state._habitat.fired, true, 'with two lanes clear it opens');
+  assertEq(G.state._habitats[0].fired, true, 'with two lanes clear it opens');
 });
 
 test('The Enclosure releases the T-Rex AGAINST whoever stopped paying', function () {
@@ -5933,6 +5944,218 @@ test('The T-Rex clears the lane it lands in, and eats what cannot move', functio
   assert(rex && rex.name === 'T-Rex', 'the T-Rex still takes the lane');
   assertEq(rex.attack, 3 + atk, 'it absorbs the attack');
   assertEq(rex.currentHealth, 7 + hp, 'and the health');
+});
+
+test("Gargantua's pull re-reads a card's lane before moving it", function () {
+  // The fuzz found "duplicate id 8 on lane: Trigon + Trigon" — ONE object in
+  // two lanes at once. _doPull reads curLane at the top of each iteration and
+  // wrote `lanes[curLane] = null` several statements later, AFTER the two
+  // dealDamage calls of a collision. Those kill cards, which runs onDeath and
+  // onDamaged hooks, which can move the very card being pulled (a habitat
+  // release displacing it, a Hunt chase, a bounce). Nulling the stale index
+  // then leaves the card where it actually is AND writes it into the
+  // destination.
+  //
+  // The window is BETWEEN the damage and the write, so the hook here fires
+  // from onDamaged — exactly where Open Water's displacement was firing when
+  // the fuzz caught it.
+  var G = freshGame();
+  G.state.player.isHuman = false;
+  var garg = G._placeEventEnvironment('player', 0, 'Gargantua');
+  assert(garg, 'Gargantua is standing');
+
+  // An enemy standing in Gargantua's own lane — this is what makes the pulled
+  // card COLLIDE rather than simply step across.
+  // PLAIN BODIES, deliberately. The first draft used Nightwing and Trigon and
+  // neither branch ran: Nightwing has Evade so it dodged the killing blow, and
+  // Trigon has Immunity so it took no damage and its onDamaged never fired.
+  // Hulk and Apocalypse carry no keywords.
+  var occupant = place(G, 'Hulk', 'ai', 0);
+  // It needs a BITE as well as a low HP total: the collision deals damage both
+  // ways, and the victim's onDamaged is what fires inside the window. At 0
+  // attack the victim takes nothing and the hook never runs.
+  occupant.attack = 2; occupant.currentHealth = 1; occupant.maxHealth = 1;
+
+  // The card that gets pulled into that collision, from the adjacent lane.
+  var victim = place(G, 'Apocalypse', 'ai', 1);
+  victim.attack = 9; victim.currentHealth = 9; victim.maxHealth = 9;
+
+  // Mid-collision, something relocates the victim — the displacement that a
+  // habitat release performs when the collision's deaths cascade into it.
+  victim.onDamaged = function (g, self) {
+    if (self._moved) return;
+    self._moved = true;
+    var from = g.findCardLane(self);
+    if (from < 0) return;
+    g.state.lanes[from].ai = null;
+    g.state.lanes[4].ai = self;
+  };
+
+  CARD_ABILITIES['Gargantua']._doPull(G, garg);
+
+  var seats = [];
+  for (var i = 0; i < G.LANE_COUNT; i++) {
+    if (G.state.lanes[i].ai === victim) seats.push(i);
+  }
+  assertEq(seats.length, 1, 'the pulled card occupies exactly one lane, not ' + seats.length + ' (lanes ' + seats.join(',') + ')');
+});
+
+test('Events land on the 3/6/9 rounds, one per round, never repeating', function () {
+  // Owner: "on turn 6 another event should fire, and on turn 9 — right now its
+  // just turn 3." A match used to draw exactly one event at match start.
+  // TEMPORARY: only Shadow Man + MC Ballyhoo are rollable right now (the other
+  // seven habitats are held back — see matchEventPool). With a no-repeat rule
+  // and a two-event pool, rounds 3 and 6 each fire a distinct event and round 9
+  // finds the pool exhausted, so it fires nothing. When the habitats return,
+  // all three rounds fill again and this reverts to expecting 3 distinct draws.
+  var G = freshGame();
+  G.seedMatch(99);
+  assertEq(G._eventRoundDue(2), false, 'round 2 is not an event round');
+  assertEq(G._eventRoundDue(3), true,  'round 3 is');
+  assertEq(G._eventRoundDue(4), false, 'round 4 is not');
+  assertEq(G._eventRoundDue(6), true,  'round 6 is');
+  assertEq(G._eventRoundDue(9), true,  'round 9 is');
+
+  var rollable = Game.matchEventPool().length;   // 2 while the habitats are held back
+  var drawn = [];
+  [1,2,3,4,5,6,7,8,9].forEach(function (r) {
+    G.state.round = r;
+    G._maybeMatchEvent(r);
+    var got = (G.state._eventRounds || {})[r];
+    if (got && got !== 'none') drawn.push(r + ':' + got);
+  });
+  var expected = Math.min(3, rollable);
+  assertEq(drawn.length, expected, expected + ' events across the 3/6/9 rounds — got ' + drawn.join(', '));
+  assert(drawn[0].indexOf('3:') === 0, 'the first is round 3');
+  if (expected >= 2) assert(drawn[1].indexOf('6:') === 0, 'the second is round 6');
+  if (expected >= 3) assert(drawn[2].indexOf('9:') === 0, 'the third is round 9');
+  var names = drawn.map(function (d) { return d.split(':')[1]; });
+  assertEq(new Set(names).size, names.length, 'and no event repeats within a match');
+
+  // Asking twice for the same round does not draw twice.
+  G.state.round = 9;
+  G._maybeMatchEvent(9);
+  assertEq((G.state._eventsUsed || []).length, expected, 'a round draws exactly once');
+});
+
+test('A hidden deploy still counts as a card you played', function () {
+  // Owner: "why is deadpool not buffed from BP, he was deployed upside down /
+  // hidden." The face-down branch returns early — rightly, since it has just
+  // silenced the card's own hooks — but the early return also skipped what
+  // OTHER cards do when a card enters. Black Panther reads "While Active: Add
+  // (+1/+1) to each card you play".
+  var G = freshGame();
+  var bp = place(G, 'Black Panther', 'player', 0);
+  assertEq(bp.passive, 'cardPlayedBuff', 'Black Panther carries the aura');
+
+  var hidden = createInHand(G, 'Deadpool', 'player');
+  var atk = hidden.attack, hp = hidden.currentHealth;
+  G.state.player.currency = 20;
+  G.state.player.faceDownAvailable = true;
+  hidden._playFaceDown = true;
+  G.playCard('player', hidden, 3);
+
+  var seated = G.state.lanes[3].player;
+  assert(seated === hidden, 'the hidden card is seated');
+  assertEq(!!seated.isFaceDown, true, 'and it is face down');
+  assertEq(seated.attack, atk + 1, 'the aura still adds +1 attack');
+  assertEq(seated.currentHealth, hp + 1, 'and +1 health');
+  // Its OWN abilities stay silenced — that is what hiding it is for.
+  assertEq(seated.onPlay, null, "the hidden card's own hooks are still off");
+});
+
+test('A 2v2 upkeep rotates between the two teammates, and costs that seat', function () {
+  // Owner, on the Enclosure: "in 2v2 the player on each team rotates."
+  var G = freshGame();
+  G.start2v2Match({ names: { p1: 'Henry', p2: 'Vega', p3: 'Ryan', p4: 'Bot2' },
+                    teamAssignment: { A: ['p1', 'p3'], B: ['p2', 'p4'] } });
+  var tt = G.state.twoVTwo;
+  tt.online = false; tt.you = 'p1';
+  ['p1', 'p2', 'p3', 'p4'].forEach(function (k) {
+    tt.players[k].isAI = true; tt.players[k].energy = 9; tt.players[k].usedEnergy = 0;
+  });
+
+  G.state.round = 3; var a = G._upkeepSeatFor('player');
+  G.state.round = 4; var b = G._upkeepSeatFor('player');
+  G.state.round = 5; var c = G._upkeepSeatFor('player');
+  assert(a && b, 'a seat is named each round');
+  assert(a !== b, 'the two teammates alternate');
+  assertEq(c, a, 'and it comes back round');
+  assert(['p1', 'p3'].indexOf(a) >= 0 && ['p1', 'p3'].indexOf(b) >= 0, 'both are on that team');
+
+  // The spend lands on the payer's own energy, not on the discarded side proxy.
+  G.state.round = 4;
+  var payer = G._upkeepSeatFor('player');
+  var gate = G._placeEventEnvironment('player', 2, 'Enclosure');
+  G.state._pendingUpkeep = [];
+  gate.onTurnStart(G, gate);
+  G._resolveUpkeepPrompts(function () {});
+  assertEq(tt.players[payer].usedEnergy, 1, 'the payer spent 1');
+  var mate = ['p1', 'p3'].filter(function (k) { return k !== payer; })[0];
+  assertEq(tt.players[mate].usedEnergy, 0, 'the teammate paid nothing');
+});
+
+test('A chained pair cannot be split by a FREE play', function () {
+  // Owner: "mr freeze and optums prime are bounded yet optimus was played
+  // wiythout mr freeze." playCard has intercepted Pinhead's chain since the
+  // chain existed; playCardFree — the door every jump, Mother Box, Kang and
+  // Ghost Rider play walks through, all of which take the card out of a HAND —
+  // never did.
+  var G = freshGame();
+  var a = createInHand(G, 'Optimus Prime', 'player');
+  var b = createInHand(G, 'Mr. Freeze', 'player');
+  G.state.player.currency = 20;
+  a._chained = true; a._chainPartnerId = b.id; a._chainPartnerName = b.name;
+  b._chained = true; b._chainPartnerId = a.id; b._chainPartnerName = a.name;
+
+  G.playCardFree('player', a, 0);
+
+  var seated = [];
+  for (var i = 0; i < G.LANE_COUNT; i++) {
+    if (G.state.lanes[i].player) seated.push(G.state.lanes[i].player.name);
+  }
+  assertEq(seated.length, 2, 'both halves of the chain enter');
+  assert(seated.indexOf('Optimus Prime') >= 0, 'the played one is there');
+  assert(seated.indexOf('Mr. Freeze') >= 0, 'and so is its partner');
+  assertEq(G.state.player.hand.length, 0, 'neither is left behind in hand');
+  // And the chain's own price still lands on both.
+  var opt = G.state.lanes[0].player;
+  assertEq(!!opt._chained, false, 'the chain is spent, not left dangling');
+});
+
+test('Han Solo shoots what he can KILL, and weighs staying against redirecting', function () {
+  // Owner: "the right play to survive is shooting apocalypse with han. he shot
+  // gorr and they lost, terrible play, fix this." The bot sorted redirect lanes
+  // by raw attack * currentHealth and never considered its own lane at all —
+  // and a redirect MOVES the shot (it sets _skipNormalAttack), so the enemy
+  // opposite Han goes unhit.
+  var G = freshGame();
+  // The AI branch is the one under test — freshGame leaves both seats human.
+  G.state.player.isHuman = false;
+  var han = place(G, 'Han Solo', 'player', 0);
+  han.attack = 4;
+  // Lane 3: a wall he cannot kill but which wins on atk*hp (3 * 7 = 21).
+  var wall = place(G, 'Hulk', 'ai', 3);
+  wall.attack = 3; wall.currentHealth = 7; wall.maxHealth = 7;
+  // Lane 5: a real threat he CAN kill (4 * 4 = 16, so the old sort lost).
+  var killable = place(G, 'Bane', 'ai', 5);
+  killable.attack = 4; killable.currentHealth = 4; killable.maxHealth = 4;
+
+  han.onBeforeCombat(G, han, 0);
+  assertEq(han._hanRedirectLane, 5, 'he takes the shot he can actually kill');
+
+  // ...and when his OWN lane holds the best target he stays instead of moving
+  // the shot off it.
+  var H = freshGame();
+  H.state.player.isHuman = false;
+  var han2 = place(H, 'Han Solo', 'player', 2);
+  han2.attack = 6;
+  var here = place(H, 'Bane', 'ai', 2);
+  here.attack = 5; here.currentHealth = 5; here.maxHealth = 5;   // killable, big threat
+  var away = place(H, 'Nightwing', 'ai', 4);
+  away.attack = 1; away.currentHealth = 1; away.maxHealth = 1;   // killable, trivial
+  han2.onBeforeCombat(H, han2, 2);
+  assertEq(han2._hanRedirectLane, undefined, 'no redirect — his own lane was the better shot');
 });
 
 test('The T-Rex freezes an enemy on every move, not just its own hunt', function () {
@@ -6616,6 +6839,13 @@ test("Jigsaw places two rooms instead of Bear Traps", function () {
   assertEq(/Bear Trap/.test(jig.desc), false, 'the card no longer mentions Bear Traps');
   assert(/The Bathroom/.test(jig.desc) && /Game Over/.test(jig.desc),
     'and it names both rooms');
+  // EVENT-ONLY now (owner): "jigsaw is not a discard anymore ... make sure that
+  // jigsaw is not draftable in any modes ... because we are making him a random
+  // event." So he is _spawnOnly (never drafted/drawn/summoned) and no longer an
+  // isDiscardEffect card.
+  assertEq(!!jig._spawnOnly, true, 'Jigsaw is spawn-only — never draftable or drawable');
+  assertEq(!!(CARD_ABILITIES['Jigsaw'] && CARD_ABILITIES['Jigsaw'].isDiscardEffect), false,
+    'Jigsaw is no longer a discard effect');
 
   // Both rooms exist as environments, and neither can be drafted — they are
   // Jigsaw's alone, like Pennywise belongs to the Sewers.
@@ -9014,6 +9244,432 @@ test("Ant-Man still summons when there is nothing to destroy", function () {
     if (G.state.lanes[i].player && G.state.lanes[i].player.name === 'Ant') ants++;
   }
   assertEq(ants, 1, 'and it actually reaches the board');
+});
+
+// ============================================================
+// REDRAW COVERS TRICKS
+// ------------------------------------------------------------
+// The pick used to be resolved against p.hand alone, so a trick handed to
+// redrawCard fell through the guard and returned false — silently. The owner
+// asked for tricks to be offered by the redraw prompt with the same gold
+// highlight the hand cards get, which only works if the engine can actually
+// bin one. Cards and tricks go back to, and draw from, their OWN piles.
+// ============================================================
+test('Redraw swaps a TRICK for a new one from the trick pile', function () {
+  var G = freshGame();
+  G.state.phase = 'player-tricks';
+  G.state.player.currency = 8;
+  var keepCard = G.createCardInstance(cardByName('Catwoman'), 'player');
+  G.state.player.hand = [keepCard];
+  G.getDrawPile('player').push(cardByName('Hawkeye'));
+
+  var doomed = Object.assign({}, TRICK_DEFS[0], { id: 90001 });
+  var other  = Object.assign({}, TRICK_DEFS[1], { id: 90002 });
+  G.state.player.trickHand = [doomed, other];
+  var replacement = TRICK_DEFS[2];
+  G.getTrickPile('player').push(replacement);
+  var beforeTricks = G.state.player.trickHand.length;
+  var beforePile   = G.getTrickPile('player').length;
+
+  var ok = G.redrawCard('player', doomed);
+  assertEq(ok, true, 'redrawing a trick succeeds');
+  assertEq(G.state.player.currency, 6, 'spends the same 2 energy the card redraw does');
+  assertEq(G.state.player.trickHand.length, beforeTricks, 'trick hand size unchanged: one out, one in');
+  assertEq(G.state.player.trickHand.indexOf(doomed), -1, 'the redrawn trick leaves the trick hand');
+  assertEq(G.state.player.trickHand.some(function (t) { return t.name === replacement.name; }), true,
+    'and the replacement came off the TRICK pile');
+  assertEq(G.getTrickPile('player').length, beforePile - 1, 'trick pile drops by exactly one');
+  assertEq(G.state.player.hand.length, 1, 'the card hand is untouched');
+  assertEq(G.state.player.redrawsUsed, 1, 'counter increments, so the next one costs 4');
+
+  // A binned trick was never PLAYED — it must not show up in the round recap's
+  // "tricks played" readout.
+  assertEq((G.state.player.playedTrickPile || []).some(function (t) { return t.name === doomed.name; }), false,
+    'a binned trick is not recorded as played');
+});
+
+test('Redraw stays available when only TRICKS are left to replace', function () {
+  var G = freshGame();
+  G.state.phase = 'player-tricks';
+  G.state.player.currency = 8;
+  G.state.player.hand = [];                       // no cards at all
+  G.state.player.trickHand = [Object.assign({}, TRICK_DEFS[0], { id: 90003 })];
+  G.getTrickPile('player').push(TRICK_DEFS[1]);
+  assertEq(G.redrawBlockedReason('player'), null,
+    'an empty card hand no longer refuses a redraw when a trick can still be swapped');
+
+  // ...and the mirror: nothing on either side is still a refusal.
+  var G2 = freshGame();
+  G2.state.phase = 'player-tricks';
+  G2.state.player.currency = 8;
+  G2.state.player.hand = [];
+  G2.state.player.trickHand = [];
+  assertEq(G2.redrawBlockedReason('player'), 'Nothing to redraw', 'empty hand AND empty tricks refuses');
+});
+
+test('Redraw refuses a trick whose own pile is empty, without spending anything', function () {
+  var G = freshGame();
+  G.state.phase = 'player-tricks';
+  G.state.player.currency = 8;
+  // A full CARD pile must not let a trick redraw run on an empty trick pile —
+  // the gate only knows one of the two has stock; redrawCard decides which.
+  G.state.player.hand = [G.createCardInstance(cardByName('Catwoman'), 'player')];
+  G.getDrawPile('player').push(cardByName('Hawkeye'));
+  var stuck = Object.assign({}, TRICK_DEFS[0], { id: 90004 });
+  G.state.player.trickHand = [stuck];
+  G.getTrickPile('player').length = 0;
+
+  assertEq(G.redrawBlockedReason('player'), null, 'the button is live — the card side still has stock');
+  assertEq(G.redrawCard('player', stuck), false, 'but the trick pick itself is refused');
+  assertEq(G.state.player.currency, 8, 'no energy spent');
+  assertEq(G.state.player.trickHand.length, 1, 'and the trick is still in hand');
+  assertEq(G.state.player.redrawsUsed | 0, 0, 'the counter did not move, so the price did not go up');
+});
+
+// ============================================================
+// EVERY ENVIRONMENT IS ON A CLOCK
+// ------------------------------------------------------------
+// None of them had one. An environment held its lane until something replaced
+// or killed it, and the Enclosure was the worst case: its toll came round every
+// turn forever, the bot pays while it can afford to, and energy refills BEFORE
+// upkeep runs, so on the AI's side the gate never opened and never left.
+// Owner: "all environments stay on the field for 4 turns."
+// ============================================================
+test('Every environment fades after Game.ENV_TURNS rounds', function () {
+  var G = freshGame();
+  assertEq(G.ENV_TURNS, 4, 'four rounds is the rule');
+  var env = G._placeEventEnvironment('player', 2, 'Boiler Room');
+  assert(env, 'the environment is seated');
+  assertEq(env._envTurns, G.ENV_TURNS, 'and it arrives with a full clock');
+
+  for (var r = 1; r < G.ENV_TURNS; r++) {
+    G._tickEnvironments();
+    assertEq(G.state.lanes[2]._env.player, env, 'still there after ' + r + ' round(s)');
+    assertEq(env._envTurns, G.ENV_TURNS - r, 'with ' + (G.ENV_TURNS - r) + ' left on the clock');
+  }
+  G._tickEnvironments();
+  assertEq(G.state.lanes[2]._env.player, null, 'the fourth tick clears the lane');
+});
+
+test('A timed environment expiry is not a death', function () {
+  // Routing it through handleDeath would fire When Destroyed for a card nothing
+  // killed — Xenomorph would Splash the lane on its way out.
+  var G = freshGame();
+  var env = G._placeEventEnvironment('player', 0, 'Boiler Room');
+  var died = false;
+  env.onDeath = function () { died = true; };
+  for (var i = 0; i < G.ENV_TURNS; i++) G._tickEnvironments();
+  assertEq(G.state.lanes[0]._env.player, null, 'it is gone');
+  assertEq(died, false, 'and its When Destroyed never fired');
+});
+
+test('Each environment runs its own clock', function () {
+  var G = freshGame();
+  var mine  = G._placeEventEnvironment('player', 0, 'Boiler Room');
+  G._tickEnvironments();
+  G._tickEnvironments();
+  var yours = G._placeEventEnvironment('ai', 4, 'Boiler Room');
+  assertEq(mine._envTurns, 2, 'the older one is halfway through');
+  assertEq(yours._envTurns, G.ENV_TURNS, 'the new one starts fresh');
+  G._tickEnvironments();
+  G._tickEnvironments();
+  assertEq(G.state.lanes[0]._env.player, null, 'the older one runs out first');
+  assertEq(G.state.lanes[4]._env.ai, yours, 'the newer one is still standing');
+});
+
+test("The Enclosure's last toll lands on its final round", function () {
+  var G = freshGame();
+  var gate = G._placeEventEnvironment('player', 3, 'Enclosure');
+
+  // Rounds 1-3: an ordinary toll, and paying keeps the gate shut.
+  for (var turn = 1; turn < G.ENV_TURNS; turn++) {
+    G.state._pendingUpkeep = [];
+    gate.onTurnStart(G, gate);
+    assertEq(G.state._pendingUpkeep.length, 1, 'turn ' + turn + ' asks for its toll');
+    assert(!/final toll/i.test(G.state._pendingUpkeep[0].promptDesc || ''),
+      'turn ' + turn + ' is not billed as the last one');
+    G.state._pendingUpkeep[0].onPay();
+    assertEq(G.state.lanes[3]._env.player, gate, 'turn ' + turn + ' paid — still standing');
+    G._tickEnvironments();
+  }
+
+  // Round 4 is the last one the clock allows, and the prompt says so.
+  G.state._pendingUpkeep = [];
+  gate.onTurnStart(G, gate);
+  assertEq(G.state._pendingUpkeep.length, 1, 'the final round still asks');
+  assert(/final toll/i.test(G.state._pendingUpkeep[0].promptDesc || ''), 'and it says it is the last one');
+  G.state._pendingUpkeep[0].onPay();
+  G._tickEnvironments();
+  assertEq(G.state.lanes[3]._env.player, null, 'paid it out — the park closes');
+  assertEq(G.state.lanes[3].ai, null, 'and nothing was released for paying');
+  assertEq(G.state.lanes[3].player, null, 'on either side');
+});
+
+test('Refusing on the final round still lets the T-Rex out', function () {
+  // The clock and the release both land on the last round; the wrong order
+  // would take the paddock away and quietly cancel the punishment.
+  var G = freshGame();
+  var gate = G._placeEventEnvironment('player', 1, 'Enclosure');
+  for (var turn = 1; turn < G.ENV_TURNS; turn++) {
+    G.state._pendingUpkeep = [];
+    gate.onTurnStart(G, gate);
+    G.state._pendingUpkeep[0].onPay();
+    G._tickEnvironments();
+  }
+  G.state._pendingUpkeep = [];
+  gate.onTurnStart(G, gate);
+  G.state._pendingUpkeep[0].onDecline();
+  var rex = G.state.lanes[1].ai;
+  assert(rex && rex.name === 'T-Rex', 'refusing the final toll still releases it');
+  assertEq(rex.owner, 'ai', 'against the side that refused');
+  assertEq(G.state.lanes[1]._env.player, null, 'and the paddock is spent');
+});
+
+test('An environment declares which half it acts on, and the flag survives instancing', function () {
+  // The lane backdrop paints an environment's picture on the half its business
+  // happens on. For the five habitats with a monster that is where the monster
+  // surfaces — owner: "the t rex breaks out of the enclousre so he spawns on
+  // the enviroment", and the mirror for Wetlands — and releaseHabitatMonster
+  // reads the SAME flag to place it, so the two cannot disagree. The Bathroom
+  // has no monster at all: everything it does happens to the cards standing
+  // opposite it, so it is flagged too. The renderer reads it off the INSTANCE,
+  // and createCardInstance builds from an explicit literal, so a def-only flag
+  // would arrive undefined there.
+  assertEq(cardByName('Enclosure').actsOnOpponentSide, true, "the T-Rex breaks out onto the opponent's side");
+  assertEq(cardByName('The Bathroom').actsOnOpponentSide, true, 'the room chains the cards opposite it');
+  ['Boiler Room', 'Sewers', 'Open Water', 'Game Over', 'Wetlands'].forEach(function (n) {
+    assertEq(!!cardByName(n).actsOnOpponentSide, false, n + ' surfaces its monster for its owner');
+  });
+
+  var G = freshGame();
+  var gate = G.createCardInstance(cardByName('Enclosure'), 'player');
+  var room = G.createCardInstance(cardByName('Boiler Room'), 'player');
+  assertEq(gate.actsOnOpponentSide, true, 'the flag reaches the instance');
+  assertEq(room.actsOnOpponentSide, false, 'and is false, not undefined, on the rest');
+});
+
+test('The Bathroom chains the cards OPPOSITE it, never its owner\'s', function () {
+  // Reported as "if thr bathroom is on my side my cards are gtting chained".
+  // The engine was already right — this pins it, because the fix was to move
+  // the PICTURE onto the half the room acts on, and a later change to that
+  // picture must not be mistaken for permission to change the rule.
+  var G = freshGame();
+  var room = G._placeEventEnvironment('player', 2, 'The Bathroom');
+  assertEq(room.owner, 'player', 'the room is mine');
+
+  var mine = G.createCardInstance(cardByName('Sabertooth'), 'player');
+  G.state.lanes[2].player = mine;
+  room.onAnyCardPlayed(G, room);
+  assertEq(!!mine._chained, false, 'my own card walks in untouched');
+  assertEq(mine.attack, cardByName('Sabertooth').attack, 'and keeps its ATK');
+
+  var theirs = G.createCardInstance(cardByName('Sabertooth'), 'ai');
+  G.state.lanes[2].ai = theirs;
+  room.onAnyCardPlayed(G, room);
+  assertEq(theirs._chained, true, 'theirs is the one it takes');
+});
+
+test('The release reads the spawn side off the card, with no `into` argument', function () {
+  // The Enclosure used to pass into: opponent(owner) by hand. The direction
+  // lives on the card now so the backdrop can read the same declaration — this
+  // pins that removing the argument did not change where the T-Rex lands.
+  var G = freshGame();
+  var gate = G._placeEventEnvironment('player', 2, 'Enclosure');
+  G.state._pendingUpkeep = [];
+  gate.onTurnStart(G, gate);
+  G.state._pendingUpkeep[0].onDecline();
+  var rex = G.state.lanes[2].ai;
+  assert(rex && rex.name === 'T-Rex', "the T-Rex lands on the opponent's side");
+  assertEq(rex.owner, 'ai', 'and fights for them');
+  assertEq(G.state.lanes[2].player, null, 'never on the side that owned the paddock');
+
+  // …and the mirror: a habitat with the flag off still surfaces for its owner.
+  var G2 = freshGame();
+  var wet = G2._placeEventEnvironment('player', 1, 'Wetlands');
+  CARD_ABILITIES['Wetlands'].onPlay(G2, wet, 1);
+  G2._notifyBlockMeterFired('ai');
+  var spino = G2.state.lanes[1].player;
+  assert(spino && spino.name === 'Spinosaurus', 'Spinosaurus surfaces for the owner');
+  assertEq(G2.state.lanes[1].ai, null, 'not against them');
+});
+
+test('Vampire Candy steals 2, and still cannot take the last point', function () {
+  // Owner: "vampite candy should be steal 2" (was 5). The card text, the clamp
+  // and the log all read one constant, so this pins the number in one place and
+  // catches any of the three drifting from the other two.
+  var G = freshGame();
+  // CANDY_DEFS, not TRICK_DEFS — the Ballyhoo candies are their own table.
+  var candy = CANDY_DEFS.find(function (t) { return t.name === 'Vampire Candy'; });
+  assert(!!candy, 'the candy exists');
+  assert(/Steal 2 health/.test(candy.desc), 'and its text says 2: ' + candy.desc);
+
+  G.state.ai.health = 30; G.state.player.health = 20;
+  candy.play(G, 'player');
+  assertEq(G.state.ai.health, 28, 'two off the enemy');
+  assertEq(G.state.player.health, 22, 'and the same two onto you');
+
+  // FLOORED, NOT SKIPPED — the clamp still holds at the bottom.
+  var G2 = freshGame();
+  G2.state.ai.health = 2; G2.state.player.health = 10;
+  candy.play(G2, 'player');
+  assertEq(G2.state.ai.health, 1, 'it drains down to 1 and stops');
+  assertEq(G2.state.player.health, 11, 'and you gain exactly what they lost');
+
+  var G3 = freshGame();
+  G3.state.ai.health = 1; G3.state.player.health = 10;
+  candy.play(G3, 'player');
+  assertEq(G3.state.ai.health, 1, 'at 1 there is nothing left to take');
+  assertEq(G3.state.player.health, 10, 'and nothing is gained');
+});
+
+// ============================================================
+// ONE WONDER WEAPON PER PLAYER
+// ------------------------------------------------------------
+// Owner: "for zombies a player can pnly recive 1 Wonder weapon so if you win 3
+// you can oly choose 1." A seat that swept the Shadow Man's categories used to
+// take a card AND a permanent +1 hand cap for each one — which is where a 6/9
+// hand meter comes from.
+// ============================================================
+test('A seat that leads several Shadow Man challenges keeps only one weapon', function () {
+  var G = freshGame();
+  var pool = (typeof WONDER_DEFS !== 'undefined') ? WONDER_DEFS : [];
+  assert(pool.length >= 3, 'there are weapons to win');
+
+  G.state._shadow = { shows: true, prizes: {
+    kills: pool[0].name, played: pool[1].name, heroDmg: pool[2].name } };
+  G.state.player.hand = [];
+  var capBefore = G.state.player.maxHandSize;
+
+  // Three categories, all led by the same side.
+  G._shadowAwardOnePerSeat([
+    { seat: 'player', key: 'kills' },
+    { seat: 'player', key: 'played' },
+    { seat: 'player', key: 'heroDmg' },
+  ]);
+  // A one-option prompt auto-resolves; three options raise a real pick.
+  if (G.state.pendingCardChoice) {
+    var cc = G.state.pendingCardChoice;
+    assertEq(cc.cards.length, 3, 'all three weapons are offered');
+    cc.onChoose ? cc.onChoose(cc.cards[1]) : (cc.callback && cc.callback(cc.cards[1]));
+  }
+  assertEq(G.state.player.hand.length, 1, 'exactly one weapon lands in hand');
+  assertEq(G.state.player.maxHandSize, capBefore + 1, 'and the cap rises by exactly one');
+});
+
+test('Leading a single challenge still pays out with no prompt', function () {
+  var G = freshGame();
+  var pool = (typeof WONDER_DEFS !== 'undefined') ? WONDER_DEFS : [];
+  G.state._shadow = { shows: true, prizes: { kills: pool[0].name } };
+  G.state.player.hand = [];
+  var capBefore = G.state.player.maxHandSize;
+  G._shadowAwardOnePerSeat([{ seat: 'player', key: 'kills' }]);
+  assertEq(!!G.state.pendingCardChoice, false, 'one win is not a choice');
+  assertEq(G.state.player.hand.length, 1, 'the weapon is handed over');
+  assertEq(G.state.player.hand[0].name, pool[0].name, 'and it is the one that challenge carried');
+  assertEq(G.state.player.maxHandSize, capBefore + 1, 'cap +1, once');
+});
+
+test('Two seats each owed a weapon are asked one at a time', function () {
+  // Two prompts armed into the single pendingCardChoice slot would clobber each
+  // other — the collision the prompt queue exists for, and four categories
+  // across two seats is exactly how the Shadow Man produces it.
+  var G = freshGame();
+  var pool = (typeof WONDER_DEFS !== 'undefined') ? WONDER_DEFS : [];
+  if (pool.length < 4) return;
+  G.state._shadow = { shows: true, prizes: {
+    kills: pool[0].name, played: pool[1].name, heroDmg: pool[2].name, blocked: pool[3].name } };
+  G.state.player.hand = []; G.state.ai.hand = [];
+  G._shadowAwardOnePerSeat([
+    { seat: 'player', key: 'kills' },  { seat: 'player', key: 'played' },
+    { seat: 'ai',     key: 'heroDmg' },{ seat: 'ai',     key: 'blocked' },
+  ]);
+  // The shim resolves prompts synchronously, so both picks may already be made
+  // by the time we look — drain whatever is still armed, then assert the RULE.
+  // (What this pins is that neither seat was skipped and neither got two; the
+  // one-at-a-time sequencing is a live-UI property the shim cannot show, and
+  // asserting a prompt object here would pass or fail on the shim's timing
+  // rather than on the code.)
+  for (var guard = 0; guard < 4 && G.state.pendingCardChoice; guard++) {
+    var cc = G.state.pendingCardChoice;
+    assert(cc.cards.length === 2, 'each seat is offered only what it won');
+    cc.onChoose ? cc.onChoose(cc.cards[0]) : (cc.callback && cc.callback(cc.cards[0]));
+  }
+  assertEq(G.state.player.hand.length, 1, 'one weapon each, not two');
+  assertEq(G.state.ai.hand.length, 1, 'for both seats');
+  assertEq(!!G.state.pendingCardChoice, false, 'and nothing is left armed');
+});
+
+// ============================================================
+// INVISIBLE WOMAN'S PASSIVE DIES WITH HER — INCLUDING WHEN SHE IS EATEN
+// ============================================================
+// Owner: "invisbale woman isn on board yet her passive persists."
+//
+// state[side].faceDownAvailable was a stamped boolean, set in playCard and
+// revoked in handleDeath. Devour DELIBERATELY skips handleDeath (void pile, not
+// dead pile, so the victim's onDeath cannot hand it a revive), so a devoured
+// Invisible Woman never reached the revoke and the flag stayed true for the
+// rest of the match. She is a 1/1 and Galactus devours "1 enemy with <= 4 ATK"
+// every turn, so this is the common case rather than a corner.
+//
+// The whole class is closed by asking the board instead of a flag —
+// Game.canPlayFaceDown(side) — which is what the 2v2 gate already did. These
+// pin the MECHANISM: not "the flag got cleared" but "the answer follows the
+// board", which is what makes every other non-death removal safe too.
+function __iwDef() {
+  for (var i = 0; i < CARD_DEFS.length; i++) if (CARD_DEFS[i].name === 'Invisible Woman') return CARD_DEFS[i];
+  throw new Error('no Invisible Woman def');
+}
+function __putIW(G, side, lane) {
+  var c = G.createCardInstance(__iwDef(), side);
+  G.applyAbilities(c);
+  G.state.lanes[lane][side] = c;
+  return c;
+}
+
+test('face-down: the option follows the board, not a flag', function () {
+  var G = freshGame();
+  assertEq(G.canPlayFaceDown('player'), false, 'no carrier, no option');
+  __putIW(G, 'player', 0);
+  assertEq(G.canPlayFaceDown('player'), true, 'she is standing, so the team may hide cards');
+  assertEq(G.canPlayFaceDown('ai'), false, 'and only HER team may');
+});
+
+test('face-down: DEVOURING her revokes it (the reported bug)', function () {
+  var G = freshGame();
+  var iw = __putIW(G, 'player', 1);
+  var glx = null;
+  for (var i = 0; i < CARD_DEFS.length; i++) if (CARD_DEFS[i].name === 'Galactus') glx = CARD_DEFS[i];
+  var g = G.createCardInstance(glx, 'ai'); G.applyAbilities(g);
+  G.state.lanes[1].ai = g;
+  // Stamp the field exactly as playCard does when she lands, so this reads the
+  // SAME state a real match is in — and so this assertion is meaningful against
+  // the old code, where canPlayFaceDown did not exist yet. Pre-fix this stays
+  // true forever after the devour; that is the whole bug.
+  G.state.player.faceDownAvailable = true;
+  G.devourCard(iw, g);
+  assertEq(G.state.lanes[1].player, null, 'devour really removed her from the lane');
+  assertEq(!!G.state.player.faceDownAvailable, false,
+    'devour skips handleDeath, so the revoke has to live somewhere devour reaches');
+  assertEq(G.canPlayFaceDown('player'), false, 'and the option goes with her');
+});
+
+test('face-down: killing her revokes it too', function () {
+  var G = freshGame();
+  var iw = __putIW(G, 'player', 2);
+  assertEq(G.canPlayFaceDown('player'), true, 'true while she stands');
+  G.killCard(iw, null);
+  G.cleanupDead();
+  assertEq(G.canPlayFaceDown('player'), false, 'a dead carrier grants nothing');
+});
+
+test('face-down: a HIDDEN Invisible Woman grants nothing until she reveals', function () {
+  var G = freshGame();
+  var iw = __putIW(G, 'player', 3);
+  iw.isFaceDown = true;
+  assertEq(G.canPlayFaceDown('player'), false,
+    'her own text: a face-down card\'s abilities fire when it reveals');
+  iw.isFaceDown = false;
+  assertEq(G.canPlayFaceDown('player'), true, 'and switch on when it does');
 });
 
 // ---- RUNNER ------------------------------------------------
