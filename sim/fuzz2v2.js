@@ -183,7 +183,13 @@ function playGame(seed) {
       drainPrompts();
       bad = bad.concat(invariants('afterTrick', played));
     }
-    try { Game.end2v2Phase(); } catch (e) { errors.push('[end2v2Phase] ' + (e.message || e)); }
+    // NAME THE ACTOR. end2v2Phase refuses to end a live human's turn for them
+    // ("A HUMAN PLAYER CAN NEVER GET SKIPPED MAKE THAT A RULE NOW") and every
+    // seat here is a human, so the bare call was refused on the very first
+    // sub-phase of every game: this fuzzer has been reporting `avg 1.0 rounds`
+    // and covering NOTHING. The harness is the seat pressing Done, so it says
+    // so — the same thing a real client passes.
+    try { Game.end2v2Phase(null, { actor: activeKey }); } catch (e) { errors.push('[end2v2Phase] ' + (e.message || e)); }
     drainPrompts();
     bad = bad.concat(invariants('afterPhase', played));
 

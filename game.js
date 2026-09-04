@@ -16408,10 +16408,34 @@ const Game = {
     if (humanOffer && !this.state.pendingJumpOffer && isAuthority) {
       // `seat` drives the card lookup; `_2v2ActingPlayer` is what promptIsMine
       // reads to gate the buttons to the owning seat only.
-      this.state.pendingJumpOffer = {
+      const _armedJump = {
         cardId: humanOffer.card.id, owner: humanOffer.side,
         seat: humanOffer.seat, _2v2ActingPlayer: humanOffer.seat,
       };
+      this.state.pendingJumpOffer = _armedJump;
+      // AND A CLOCK ON IT, which this path never had. Every other 2v2 human
+      // prompt arms one — lane, card, block trick, Time Stone, and the 2v2
+      // FREDDY jump twenty screens up — but the scan that handles every OTHER
+      // jump card (Ghostface, Jason, Art the Clown) armed the offer and walked
+      // away. That combination wedges the table for good rather than briefly:
+      // the 15s last-resort watchdog deliberately stands down for any prompt a
+      // live human owns (`anyHumanPrompt`), which is right — "if a real human
+      // takes too long it auto skips them and that should never happen" — but
+      // it means the ONLY thing that can ever clear a human's jump offer is the
+      // human, and until this there was nothing telling them a clock existed.
+      // A jump offer also counts as a pending prompt, so end2v2Phase and the
+      // combat timeline both wait behind it: one unanswered free-play modal
+      // stopped the whole table indefinitely.
+      //
+      // Timing out SKIPS the jump, the same thing the Skip button does — never
+      // plays the card for them. Identical resolve to the Freddy path so the
+      // two jump clocks cannot drift apart.
+      this._2v2ArmPromptTimeout('jump', _armedJump, () => {
+        const tt2 = this.state.twoVTwo;
+        const sp = tt2 && tt2.players[humanOffer.seat];
+        const c = sp && (sp.hand || []).find(h => h.id === _armedJump.cardId);
+        if (c) { c.jumpReady = false; c.jumpLane = undefined; }
+      });
       if (typeof UI !== 'undefined' && UI.render) UI.render();
       this._2v2OnlineBroadcast();
     }
@@ -16431,7 +16455,16 @@ const Game = {
   },
 
   checkJumpConditions(trigger, data) {
-    if (this.is2v2 && this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online) {
+    // A LOCAL 2v2 IS STILL A 2v2 — the same mistake sim/local-2v2.js was written
+    // about, one more time. `tt.online` was standing in for "this table has
+    // seats"; online says whether somebody is on the far end of a wire and
+    // nothing about where the hands are. In EVERY 2v2 they live on the four seat
+    // objects, so the 1v1 scan below — which reads state.player/ai.hand, the
+    // side PROXIES — found an empty hand every time and armed nothing. Jumps
+    // were entirely dead in a local 2v2: Ghostface never rose off an enemy
+    // trick, Jason never avenged, Freddy never sensed the waste. Not a subtle
+    // mis-fire, a silence.
+    if (this.is2v2 && this.is2v2() && this.state.twoVTwo) {
       return this._checkJumpConditions2v2(trigger, data);
     }
     ['player', 'ai'].forEach(owner => {

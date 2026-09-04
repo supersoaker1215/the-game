@@ -456,6 +456,94 @@ t('L2-10 a pending prompt freezes the stack drain; clearing it releases the queu
   eq('and the queue empties', Game._stack.length, 0);
 });
 
+// ============================================================
+// L2-11 / L2-12 — JUMPS IN 2v2.
+// ============================================================
+// Owner: "fix the jump offer next."
+//
+// Two defects, one in each mode.
+//
+// LOCAL 2v2 armed nothing at all. checkJumpConditions routed to the 2v2 scan
+// only when `tt.online`, and online says whether somebody is on the far end of
+// a wire — it says nothing about where the hands are. In EVERY 2v2 they live on
+// the four seat objects, so the 1v1 scan read state.player/ai.hand, the side
+// PROXIES, found them empty and armed nothing. Ghostface never rose off an
+// enemy trick, Jason never avenged. This is the same `tt.online`-as-a-stand-in
+// mistake this whole file was written about.
+//
+// ONLINE 2v2 armed the offer with NO CLOCK. Every other 2v2 human prompt gets
+// _2v2ArmPromptTimeout — lane, card, block trick, Time Stone, and the 2v2
+// Freddy jump — but the scan handling every OTHER jump card did not. The 15s
+// last-resort watchdog deliberately stands down for any prompt a live human
+// owns, so the only thing that could ever clear a jump offer was the human, and
+// a jump offer blocks end2v2Phase and the combat timeline. One unanswered
+// free-play modal stopped the table indefinitely.
+// Art arms only when the ENEMY outnumbers you on the board — put one body over
+// there so the count is real rather than the accident of an empty table.
+function enemyBodyFor(pk, lane) {
+  var def = null;
+  for (var i = 0; i < CARD_DEFS.length; i++) if (CARD_DEFS[i].name === 'Gremlin') def = CARD_DEFS[i];
+  var tt = Game.state.twoVTwo;
+  var opp = Game.opponent(Game._2v2TeamSide[tt.players[pk].team]);
+  var c = Game.createCardInstance(def, opp);
+  Game.applyAbilities(c);
+  Game.state.lanes[lane || 0][opp] = c;
+  return c;
+}
+function jumperInto(pk, name) {
+  var def = null;
+  for (var i = 0; i < CARD_DEFS.length; i++) if (CARD_DEFS[i].name === name) def = CARD_DEFS[i];
+  if (!def) throw new Error('no ' + name + ' def');
+  var tt = Game.state.twoVTwo;
+  var side = Game._2v2TeamSide[tt.players[pk].team];
+  var c = Game.createCardInstance(def, side);
+  Game.applyAbilities(c);
+  tt.players[pk].hand.push(c);
+  return c;
+}
+
+t('L2-11 a LOCAL 2v2 arms jumps from the seat hands, not the empty side proxy', function () {
+  // The 30s clock is stubbed out for the length of this case. The sim shim
+  // resolves timers SYNCHRONOUSLY, so a freshly armed 30s prompt timeout fires
+  // on the same tick and immediately skips the jump — headlessly indeed proving
+  // the clock is wired, while destroying the thing this case is about. L2-12
+  // measures the clock; this one measures the scan.
+  var realArm = Game._2v2ArmPromptTimeout;
+  Game._2v2ArmPromptTimeout = function () {};
+  try {
+    [false, true].forEach(function (online) {
+      var tt = table(online);
+      tt.players.p1.isAI = false;
+      Game.state.pendingJumpOffer = null;
+      enemyBodyFor('p1', 0);
+      var art = jumperInto('p1', 'Art the Clown');
+      // Art arms at the trick-phase boundary — no data needed, so the case
+      // turns on the SCAN finding the hand, which is what was broken.
+      Game.checkJumpConditions('beforeTricks', {});
+      eq('online=' + online + ': the seat hand was scanned', !!art.jumpReady, true);
+    });
+  } finally { Game._2v2ArmPromptTimeout = realArm; }
+});
+
+t('L2-12 an online 2v2 jump offer is armed WITH a timeout, like every other prompt', function () {
+  var tt = table(true);
+  tt.players.p1.isAI = false;
+  Game.state.pendingJumpOffer = null;
+  // Spy on the shared clock helper — headless returns early inside it, so the
+  // observable fact is that the arming path ASKS for a clock at all.
+  var armedKinds = [], realArm = Game._2v2ArmPromptTimeout;
+  Game._2v2ArmPromptTimeout = function (kind) { armedKinds.push(kind); };
+  try {
+    enemyBodyFor('p1', 0);
+    jumperInto('p1', 'Art the Clown');
+    Game.checkJumpConditions('beforeTricks', {});
+    eq('the offer was raised', !!Game.state.pendingJumpOffer, true);
+    eq('and it is stamped with the SEAT, not just the side',
+       Game._2v2PromptSeat(Game.state.pendingJumpOffer), 'p1');
+    eq('and a jump clock was armed for it', armedKinds.indexOf('jump') >= 0, true);
+  } finally { Game._2v2ArmPromptTimeout = realArm; }
+});
+
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];
   try { c.fn(); } catch (e) {
