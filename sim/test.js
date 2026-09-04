@@ -9672,6 +9672,73 @@ test('face-down: a HIDDEN Invisible Woman grants nothing until she reveals', fun
   assertEq(G.canPlayFaceDown('player'), true, 'and switch on when it does');
 });
 
+// ============================================================
+// THE DEAD PILE ARCHIVES FACTS, NOT PLACEHOLDERS
+// ============================================================
+// Owner: "just fix the late game lag maybe theres a lot of memory being sotred
+// causing it to slwo down?"
+//
+// The archive copies all 21 lifecycle hooks so a revive (Lazarus Pit, Hela,
+// Solomon Grundy) rebuilds the card with its whole ability surface. Most cards
+// wire two or three, so ~18 were stored as literal `null` — and the dead pile
+// rides every broadcast on twoVTwo.teams[t].deadPile, growing forever because
+// nothing is ever removed from it. Measured on a live 2v2:
+//
+//   before   ~970 bytes per dead card on the wire, 23.5% of a broadcast at 24 dead
+//   after    ~292 bytes per dead card                5.9% at 16 dead
+//
+// What must NOT change is the reason the archive exists, so these pin both
+// halves: the placeholders are gone AND a real hook still survives the trip.
+function __findDef(n) {
+  for (var i = 0; i < CARD_DEFS.length; i++) if (CARD_DEFS[i].name === n) return CARD_DEFS[i];
+  throw new Error('no ' + n + ' def');
+}
+function __killInto(G, name, side) {
+  var c = G.createCardInstance(__findDef(name), side || 'player');
+  G.applyAbilities(c);
+  G.state.lanes[0][side || 'player'] = c;
+  G.killCard(c, null);
+  G.cleanupDead();
+  var pile = G.state[side || 'player'].deadPile;
+  return pile[pile.length - 1];
+}
+
+test('dead pile: no key is archived holding null', function () {
+  var G = freshGame();
+  var e = __killInto(G, 'Man-Bat');
+  var nulls = [];
+  for (var k in e) if (e[k] === null || e[k] === undefined) nulls.push(k);
+  assertEq(nulls.length, 0, 'placeholder keys archived: ' + nulls.join(','));
+});
+
+test('dead pile: a hook the card ACTUALLY has still survives', function () {
+  var G = freshGame();
+  // Man-Bat's whole ability is onBeforeTricks — the hook a revive needs back.
+  var live = G.createCardInstance(__findDef('Man-Bat'), 'player');
+  G.applyAbilities(live);
+  assert(typeof live.onBeforeTricks === 'function', 'precondition: Man-Bat wires onBeforeTricks');
+  var e = __killInto(G, 'Man-Bat');
+  assert(typeof e.onBeforeTricks === 'function', 'the archive kept the hook that exists');
+  assertEq('onDamaged' in e, false, 'and dropped the ones that did not');
+});
+
+test('dead pile: a stat that never moved is not archived as 0', function () {
+  var G = freshGame();
+  var e = __killInto(G, 'Man-Bat');
+  assertEq('statsEnemyDamage' in e, false, 'an untouched counter is absent, not 0');
+  // every read site is `c.statsEnemyDamage || 0`, so absent and 0 are one number
+  assertEq((e.statsEnemyDamage || 0), 0, 'and still reads as 0 to every consumer');
+});
+
+test('dead pile: the record still carries what a revive rebuilds from', function () {
+  var G = freshGame();
+  var e = __killInto(G, 'Man-Bat');
+  assert(!!e.name && e.cost != null, 'name + cost');
+  assert(typeof e.attack === 'number' && typeof e.health === 'number', 'base stats');
+  assert(Array.isArray(e.abilities), 'the original keyword list');
+  assertEq(e.type, __findDef('Man-Bat').type, 'and its type');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

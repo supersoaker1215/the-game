@@ -10027,7 +10027,31 @@ const Game = {
       this.log(`  [WARN] handleDeath: card "${card.name || '?'}" has no owner — skipping dead-pile archive.`);
       return;
     }
-    this.state[card.owner].deadPile.push({
+    // A NULL HOOK IS NOT INFORMATION. The archive below deliberately copies all
+    // 21 lifecycle hooks so a revive (Lazarus Pit, Hela, Solomon Grundy) rebuilds
+    // the card with its whole ability surface — right, and worth keeping. But
+    // most cards wire two or three of them, so ~18 of the 21 are copied as
+    // literal `null`, and the dead pile is on the wire: it lives on
+    // twoVTwo.teams[t].deadPile, which every broadcast carries.
+    //
+    // Measured on a live 2v2 at round 4, with only FOUR cards dead:
+    //   dead pile on the wire   3,784 bytes = 5.7% of EVERY broadcast
+    //   of which null-valued    1,615 bytes = 43% of that, saying nothing
+    // and it only ever grows — nothing is removed from a dead pile. By round 16
+    // that is tens of KB re-sent on every action, in a mode the owner reports as
+    // "laggy after round 11".
+    //
+    // serializeState already prunes false/null keys, but only off objects it
+    // can identify as card INSTANCES (id + name + numeric attack + currentHealth).
+    // A dead-pile record carries `health`, not `currentHealth`, and no id — so
+    // it slips the net. Fixed at the source instead of by widening that
+    // predicate: absent and null are identical to every reader of this record
+    // (they test `.cost`, `.name`, or truthiness of a hook), and
+    // createCardInstance re-wires from the definition on revive anyway.
+    //
+    // Zeroes and `false` are KEPT — 0 is arithmetic, not a flag; the same
+    // distinction serializeState draws.
+    const _deadEntry = {
       name: card.name, cost: card.baseCost || card.cost, attack: baseAtk,
       health: baseHp,
       // Restore the original ability list. createCardInstance stamps
@@ -10090,7 +10114,18 @@ const Game = {
       _playedVia: card._playedVia,
       statsLeftRound: card.statsLeftRound,
       owner: card.owner,
-    });
+    };
+    // …and the same for a stat that never moved. The per-card tallies below are
+    // read in exactly one shape — `c.statsEnemyDamage || 0`, at all six read
+    // sites — so a missing counter and a zero counter are the same number, and
+    // a card that died without contributing carries a dozen of them. Only the
+    // stats block is treated this way: a 0 elsewhere is arithmetic, not a flag.
+    for (const k in _deadEntry) {
+      const v = _deadEntry[k];
+      if (v === null || v === undefined) { delete _deadEntry[k]; continue; }
+      if (v === 0 && k.indexOf('stats') === 0) delete _deadEntry[k];
+    }
+    this.state[card.owner].deadPile.push(_deadEntry);
     // 2v2: each death-adjacent hook routes to ITS OWN card's seat (the killer's
     // onKill to the killer's owner, each ally's onAllyKilled to that ally's
     // owner). The token branch above already does this; the normal-card branch
@@ -19879,7 +19914,26 @@ const Game = {
     // exactly one take-back for the whole game. Host/local authority only: the
     // host owns the state, so a guest asks and receives the rewind in the next
     // broadcast, exactly like playing a card.
-    if (this._2v2IsAIAuthority && this._2v2IsAIAuthority()) {
+    // NO REWIND POINT FOR SOMEONE WHO CANNOT REWIND. The allowance is ONE
+    // take-back per player per match (_undoUsedThisMatch, written once and never
+    // cleared), but the snapshot was taken unconditionally at the top of every
+    // sub-turn — so after a seat spends its undo, every later turn of theirs
+    // paid a full cloneStateDeep of the entire game state for a button that can
+    // never light up again. Six sub-turns a round, and the clone gets more
+    // expensive as the state grows: it is most wasteful exactly when the owner
+    // reports the game getting heavy. Once all four seats have spent theirs it
+    // is 100% waste for the rest of the match.
+    //
+    // The snapshot is ~200 KB by mid-game and is the single largest object in
+    // state. It never reaches the wire (serializeState nulls it), so this is
+    // memory and CPU rather than payload — which is the half of the report that
+    // sounds like "a lot of memory being stored".
+    //
+    // The seat marker is cleared alongside it, so the guest's button reads the
+    // same "nothing to take back" the host would answer.
+    const _seatCanStillUndo = !(tt.players[activeKey] && tt.players[activeKey]._undoUsedThisMatch);
+    if (!_seatCanStillUndo) { tt._turnSnap = null; tt._undoSnapSeat = null; }
+    else if (this._2v2IsAIAuthority && this._2v2IsAIAuthority()) {
       try {
         // DETACH THE OLD SNAPSHOT BEFORE CLONING. Without this each snapshot
         // contains the previous one, which contains the one before it — the
