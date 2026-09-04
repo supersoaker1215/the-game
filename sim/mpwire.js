@@ -107,6 +107,35 @@ Promise.resolve().then(function () {
   delete Game.state._silentSim;
   check('_silentSim preview never sends', sends === 0, sends + ' sends');
 
+  // ---- THE 2v2 DRAW PILES ARE HIDDEN TOO --------------------
+  // serializeState stubs state.drawPile and state[side].drawPile — the 1v1
+  // homes. A 2v2 table keeps ONE shared pile per kind on twoVTwo, and those were
+  // never in that list, so all four seats received the whole undrawn deck, in
+  // order, with names, on every broadcast: 8.5 KB of a 65 KB round-5 payload,
+  // and the same fairness hole the 1v1 stub exists to close.
+  (function () {
+    Game.init();
+    try { Game.start2v2Match({ names: { p1: 'A1', p2: 'A2', p3: 'B1', p4: 'B2' } }); } catch (e) {}
+    var tt = Game.state.twoVTwo;
+    if (!tt) { check('2v2 draw pile is stubbed on the wire', false, 'no 2v2 table built'); return; }
+    tt.online = true;
+    var before = (tt.drawPile || []).length;
+    if (!before) { check('2v2 draw pile is stubbed on the wire', false, 'the pile was empty'); return; }
+    var wire = Multiplayer.serializeState(Game.state);
+    var wp = (wire.twoVTwo && wire.twoVTwo.drawPile) || [];
+    var named = wp.filter(function (c) { return c && c.name; }).length;
+    check('2v2 draw order is not on the wire', named === 0, named + ' of ' + wp.length + ' still carry a name');
+    check('2v2 deck COUNT still travels', wp.length === before, wp.length + ' vs ' + before);
+    var twNamed = ((wire.twoVTwo && wire.twoVTwo.trickDrawPile) || [])
+      .filter(function (c) { return c && c.name; }).length;
+    check('2v2 trick pile is hidden the same way', twNamed === 0, twNamed + ' named');
+    // and it is meaningfully smaller
+    var full = JSON.stringify(tt.drawPile).length;
+    var stub = JSON.stringify(wp).length;
+    check('and the pile shrank on the wire', stub < full / 4,
+          full + ' -> ' + stub + ' bytes (' + Math.round(stub * 100 / full) + '%)');
+  })();
+
   print('');
   print('=== ' + pass + ' passed, ' + fail + ' failed ===');
   if (fail > 0) { print('MP WIRE SUITE FAILED'); throw new Error('mpwire failures: ' + fail); }

@@ -455,6 +455,22 @@ const Multiplayer = {
       if (clone[side].drawPile) clone[side].drawPile = stubPile(clone[side].drawPile);
       if (clone[side].trickDrawPile) clone[side].trickDrawPile = stubPile(clone[side].trickDrawPile);
     });
+    //  • …AND THE 2v2 PILES, which is where the cards actually are in that mode.
+    //    Every stub above reads state.drawPile / state[side].drawPile — the 1v1
+    //    homes. A 2v2 table keeps ONE shared pile per kind on twoVTwo, and those
+    //    were never in this list, so all four seats received the whole undrawn
+    //    deck, in order, with names, on every single broadcast.
+    //
+    //    Both halves of the reason above apply here and neither was getting the
+    //    benefit: it measured 8.5 KB of a 65 KB round-5 payload (13%) plus 1.8 KB
+    //    of trickDrawPile, re-sent on every action — and it is the same fairness
+    //    hole, still open in the mode with four players in it. The deck counter
+    //    reads .length, which the stub preserves, and rehydrateCard bails on a
+    //    nameless card, so nothing downstream can tell the difference.
+    if (clone.twoVTwo) {
+      if (clone.twoVTwo.drawPile) clone.twoVTwo.drawPile = stubPile(clone.twoVTwo.drawPile);
+      if (clone.twoVTwo.trickDrawPile) clone.twoVTwo.trickDrawPile = stubPile(clone.twoVTwo.trickDrawPile);
+    }
     //  • summonDeck is the SHARED ~95-card summon lottery pool (Mother Box,
     //    Bat Signal, Knull...). Measured at 41% of a mid-match payload — the
     //    single largest object on the wire — and the guest never draws from it:
