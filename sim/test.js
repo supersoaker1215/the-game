@@ -9672,6 +9672,149 @@ test('face-down: a HIDDEN Invisible Woman grants nothing until she reveals', fun
   assertEq(G.canPlayFaceDown('player'), true, 'and switch on when it does');
 });
 
+// ============================================================
+// THE DEAD PILE ARCHIVES FACTS, NOT PLACEHOLDERS
+// ============================================================
+// Owner: "just fix the late game lag maybe theres a lot of memory being sotred
+// causing it to slwo down?"
+//
+// The archive copies all 21 lifecycle hooks so a revive (Lazarus Pit, Hela,
+// Solomon Grundy) rebuilds the card with its whole ability surface. Most cards
+// wire two or three, so ~18 were stored as literal `null` — and the dead pile
+// rides every broadcast on twoVTwo.teams[t].deadPile, growing forever because
+// nothing is ever removed from it. Measured on a live 2v2:
+//
+//   before   ~970 bytes per dead card on the wire, 23.5% of a broadcast at 24 dead
+//   after    ~292 bytes per dead card                5.9% at 16 dead
+//
+// What must NOT change is the reason the archive exists, so these pin both
+// halves: the placeholders are gone AND a real hook still survives the trip.
+function __findDef(n) {
+  for (var i = 0; i < CARD_DEFS.length; i++) if (CARD_DEFS[i].name === n) return CARD_DEFS[i];
+  throw new Error('no ' + n + ' def');
+}
+function __killInto(G, name, side) {
+  var c = G.createCardInstance(__findDef(name), side || 'player');
+  G.applyAbilities(c);
+  G.state.lanes[0][side || 'player'] = c;
+  G.killCard(c, null);
+  G.cleanupDead();
+  var pile = G.state[side || 'player'].deadPile;
+  return pile[pile.length - 1];
+}
+
+test('dead pile: no key is archived holding null', function () {
+  var G = freshGame();
+  var e = __killInto(G, 'Man-Bat');
+  var nulls = [];
+  for (var k in e) if (e[k] === null || e[k] === undefined) nulls.push(k);
+  assertEq(nulls.length, 0, 'placeholder keys archived: ' + nulls.join(','));
+});
+
+test('dead pile: a hook the card ACTUALLY has still survives', function () {
+  var G = freshGame();
+  // Man-Bat's whole ability is onBeforeTricks — the hook a revive needs back.
+  var live = G.createCardInstance(__findDef('Man-Bat'), 'player');
+  G.applyAbilities(live);
+  assert(typeof live.onBeforeTricks === 'function', 'precondition: Man-Bat wires onBeforeTricks');
+  var e = __killInto(G, 'Man-Bat');
+  assert(typeof e.onBeforeTricks === 'function', 'the archive kept the hook that exists');
+  assertEq('onDamaged' in e, false, 'and dropped the ones that did not');
+});
+
+test('dead pile: a stat that never moved is not archived as 0', function () {
+  var G = freshGame();
+  var e = __killInto(G, 'Man-Bat');
+  assertEq('statsEnemyDamage' in e, false, 'an untouched counter is absent, not 0');
+  // every read site is `c.statsEnemyDamage || 0`, so absent and 0 are one number
+  assertEq((e.statsEnemyDamage || 0), 0, 'and still reads as 0 to every consumer');
+});
+
+test('dead pile: the record still carries what a revive rebuilds from', function () {
+  var G = freshGame();
+  var e = __killInto(G, 'Man-Bat');
+  assert(!!e.name && e.cost != null, 'name + cost');
+  assert(typeof e.attack === 'number' && typeof e.health === 'number', 'base stats');
+  assert(Array.isArray(e.abilities), 'the original keyword list');
+  assertEq(e.type, __findDef('Man-Bat').type, 'and its type');
+});
+
+// ============================================================
+// EVERY BEFORE-TRICKS HOOK GETS ITS TURN, AND A REVEALED CARD GETS EVERY HOOK
+// ============================================================
+// Owner: "man bat was offered to move at the beginning of round 8, he never
+// moved in round 7, only omni man was offered — both should be offered based on
+// lane priority."
+//
+// runBeforeTricks returns as soon as it arms the FIRST prompt; the rest of the
+// queue rides a chain of whenPromptCleared continuations. The 2v2 trick-phase
+// boundary used to run its "now start the trick turn" step immediately after
+// that return, which parked it on the SAME _combatContStack the pass was using
+// — on top. That stack pops LIFO and fires exactly one, so answering the first
+// card's prompt started the trick turn and stranded the rest of the queue until
+// some later prompt popped it: the next round's boundary.
+//
+// The ORDER was never wrong (the pass sorts lane 1-8, higher cost first within a
+// lane), so these pin the two things that were: the pass reports when it is
+// ACTUALLY done, and it runs every queued card.
+test('before-tricks: the pass reports completion only after every hook has run', function () {
+  var G = freshGame();
+  var order = [], done = 0;
+  var mk = function (name, lane) {
+    var c = G.createCardInstance(__findDef('Gremlin'), 'player');
+    G.applyAbilities(c);
+    c.name = name;
+    c.onBeforeTricks = function () { order.push(name); };
+    c.beforeTricksFired = false;
+    G.state.lanes[lane].player = c;
+    return c;
+  };
+  mk('first', 0);
+  mk('second', 1);
+  G.runBeforeTricks(function () { done++; });
+  assertEq(order.join(','), 'first,second', 'both hooks ran, in lane order');
+  assertEq(done, 1, 'and the completion callback fired exactly once');
+});
+
+test('before-tricks: completion runs AFTER the hooks, never before', function () {
+  var G = freshGame();
+  var seq = [];
+  var c = G.createCardInstance(__findDef('Gremlin'), 'player');
+  G.applyAbilities(c);
+  c.onBeforeTricks = function () { seq.push('hook'); };
+  c.beforeTricksFired = false;
+  G.state.lanes[0].player = c;
+  G.runBeforeTricks(function () { seq.push('done'); });
+  assertEq(seq.join(','), 'hook,done', 'the callback is a completion, not a return');
+});
+
+// And the same class of silent loss on the other side of the board: a hook
+// nulled on the way face-DOWN and not restored on the way up is total, silent
+// ability loss — the shape that used to kill Dormammu's drain in the dead-pile
+// archive. onLaneCombat was stashed and nulled but missing from the restore
+// list, so Voldemort — the one card whose ability lives there — came back inert
+// from any stealth deploy.
+test('face-down reveal: every hook that was nulled comes back', function () {
+  var G = freshGame();
+  var v = G.createCardInstance(__findDef('Voldemort'), 'player');
+  G.applyAbilities(v);
+  assert(typeof v.onLaneCombat === 'function', 'precondition: Voldemort wires onLaneCombat');
+  G.state.lanes[0].player = v;
+  // exactly what playCard's face-down branch does
+  v.isFaceDown = true;
+  v._faceDownOriginals = { onPlay: v.onPlay, onDeath: v.onDeath, onDamaged: v.onDamaged,
+    onKill: v.onKill, onBeforeTricks: v.onBeforeTricks, onBeforeAttack: v.onBeforeAttack,
+    onEndOfTurn: v.onEndOfTurn, onAnyCardPlayed: v.onAnyCardPlayed, onAllyKilled: v.onAllyKilled,
+    onEnemyKilled: v.onEnemyKilled, onEvade: v.onEvade, onDamagePlayer: v.onDamagePlayer,
+    onTurnStart: v.onTurnStart, onLaneResolved: v.onLaneResolved, onLaneCombat: v.onLaneCombat,
+    onAnyCardDamaged: v.onAnyCardDamaged, onBlockMeterFired: v.onBlockMeterFired,
+    onRevive: v.onRevive, passive: v.passive };
+  v.onLaneCombat = null; v.onPlay = null; v.onLaneResolved = null;
+  G.revealFaceDownCards();
+  assertEq(v.isFaceDown, false, 'it revealed');
+  assert(typeof v.onLaneCombat === 'function', 'onLaneCombat came back — it used to stay null');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

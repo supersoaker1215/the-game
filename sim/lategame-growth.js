@@ -79,6 +79,22 @@ function measure() {
   // _promptBusy() is true, so a prompt slot nobody ever answers freezes the
   // stack for the rest of the match — everything queued behind it strands.
   m.busy = Game._promptBusy() ? 1 : 0;
+  // WHERE the bytes are. The wire payload is what an online 2v2 pays on every
+  // single action, so the question is not "is the state big" but "which key
+  // grows". Measured per top-level key, plus the 2v2 seat objects broken out
+  // since that is where the hands actually live.
+  m._bytes = {};
+  Object.keys(s).forEach(function (k) { m._bytes[k] = jlen(s[k]); });
+  if (tt) {
+    KEYS.forEach(function (k) {
+      var pl = tt.players[k]; if (!pl) return;
+      m._bytes['tt.' + k] = jlen(pl);
+      ['hand','trickHand','deck','drawPile','deadPile','graveyard','_seen','log'].forEach(function (f) {
+        if (pl[f] != null) m._bytes['tt.' + k + '.' + f] = jlen(pl[f]);
+      });
+    });
+    Object.keys(tt).forEach(function (k) { if (k !== 'players') m._bytes['tt:' + k] = jlen(tt[k]); });
+  }
   m._stuck = ['pendingCardChoice','pendingLaneChoice','pendingBlockTrick',
               'pendingKangChoice','pendingJumpOffer','pendingTimeStoneIntercept']
               .filter(function (k) { return !!s[k]; }).join(',');
@@ -159,6 +175,23 @@ rows.forEach(function (m) {
         '   busy=' + m.busy + (m._stuck ? ' [' + m._stuck + ']' : '') +
         (m._labels ? '  head: ' + m._labels : ''));
 });
+// ---- byte breakdown: which keys actually grow -------------------------------
+if (rows.length >= 4) {
+  var f0 = rows[0]._bytes || {}, fN = rows[rows.length - 1]._bytes || {};
+  var keys = {}; Object.keys(f0).forEach(function (k) { keys[k] = 1; }); Object.keys(fN).forEach(function (k) { keys[k] = 1; });
+  var list = Object.keys(keys).map(function (k) {
+    var a = f0[k] || 0, b = fN[k] || 0;
+    return { k: k, a: a, b: b, d: b - a };
+  }).filter(function (r) { return r.b > 400 || r.d > 200; })
+    .sort(function (x, y) { return y.d - x.d; });
+  print('');
+  print('=== state bytes by key: round ' + rows[0].round + ' -> ' + rows[rows.length - 1].round + ' ===');
+  print('key'.padEnd(30) + 'first'.padStart(10) + 'last'.padStart(10) + 'delta'.padStart(10) + '   x');
+  list.slice(0, 22).forEach(function (r) {
+    print(r.k.padEnd(30) + String(r.a).padStart(10) + String(r.b).padStart(10) +
+          String(r.d).padStart(10) + '   ' + (r.a > 0 ? (r.b / r.a).toFixed(2) + 'x' : 'new'));
+  });
+}
 if (rows.length >= 6) {
   var a = rows.slice(0, 3), b = rows.slice(-3);
   var avg = function (set, f) { return set.reduce(function (t, m) { return t + (m[f] || 0); }, 0) / set.length; };

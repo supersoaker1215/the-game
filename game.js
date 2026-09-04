@@ -398,7 +398,29 @@ const Game = {
   // not about one renderer — every surface that prints stats reads it.
   cardHasBody(card) {
     if (!card) return false;
-    return !(card.isDiscardEffect || card.isEnvironment || card._neverPlayable);
+    if (card.isDiscardEffect || card.isEnvironment || card._neverPlayable) return false;
+    // …AND ANYTHING PRINTED 0/0, which is the fact the three flags above were
+    // only ever standing in for. Reading the printed numbers instead of a flag
+    // is what makes this survive a reclassification, and it just had to: Jigsaw
+    // stopped being isDiscardEffect (he is _spawnOnly and event-only now) and
+    // silently grew a body, so Apocalypse's empower started landing on a card
+    // that cannot fight and sim/hand-empower.js went red on three cases.
+    //
+    // PRINTED, not current: a live card debuffed to 0 ATK is still a body, and
+    // one at 0 HP is already dead. baseAttack/baseHealth are what
+    // createCardInstance stamps at draft time; a raw CARD_DEFS entry has only
+    // attack/health, so both shapes answer.
+    // An INSTANCE carries the answer as _printed00 (createCardInstance floors a
+    // 0 health to 1, so its own numbers can no longer tell you). A raw CARD_DEFS
+    // entry still has the printed pair.
+    if (card._printed00 != null) return !card._printed00;
+    // Only a def that actually PRINTS both numbers is making a claim. A record
+    // with no stats at all (a stub, a test double) is not asserting 0/0, and
+    // coercing its undefineds to 0 would call every such object bodyless.
+    if (typeof card.attack === 'number' && typeof card.health === 'number') {
+      return !(card.attack === 0 && card.health === 0);
+    }
+    return true;
   },
 
   // Public drain entry — safe to call anywhere; no-ops while a drain owns
@@ -5419,7 +5441,13 @@ const Game = {
     });
   },
 
-  runBeforeTricks() {
+  // `onDone` fires once EVERY queued hook (and every prompt it raised) has
+  // resolved — not when this function returns, which is almost immediately: the
+  // pass is a chain of whenPromptCleared continuations. A caller that needs the
+  // board settled before it hands control on must use this, because parking its
+  // own continuation instead puts it on the SAME LIFO stack, above the one this
+  // pass is using, and LIFO means it runs first. See the 2v2 boundary.
+  runBeforeTricks(onDone) {
     // SEQUENTIAL pass — hooks that raise prompts (Man-Bat's move, Anakin's
     // pick) fire ONE AT A TIME: each next hook waits for the previous
     // prompt to resolve via whenPromptCleared. The old forEach fired every
@@ -5449,6 +5477,7 @@ const Game = {
       // deaths. Runs once after ALL hooks + their prompts resolved.
       this.getAllCardsOnBoard().forEach(c => this.drainBonusAttacks(c));
       this.cleanupDead();
+      if (onDone) { try { onDone(); } catch (e) { console.error('[runBeforeTricks] onDone threw:', e); } }
     };
     const step = () => {
       const c = queue.shift();
@@ -7040,6 +7069,13 @@ const Game = {
           card.onAnyCardDamaged = orig.onAnyCardDamaged; card.onBlockMeterFired = orig.onBlockMeterFired;
           card.onRevive = orig.onRevive;
           card.onLaneResolved = orig.onLaneResolved;
+          // …and onLaneCombat, which the stash saved and the null-out cleared
+          // but this list forgot — so any card whose ability lives in that hook
+          // came back permanently inert from a stealth deploy, exactly the way
+          // Dormammu's onBeforeTricks used to die in the dead-pile archive. The
+          // two lists are now the same 18 keys; a hook nulled on the way down
+          // and not restored on the way up is silent, total ability loss.
+          card.onLaneCombat = orig.onLaneCombat;
           card.passive = orig.passive;
           delete card._faceDownOriginals;
           card.isFaceDown = false;
@@ -10027,7 +10063,31 @@ const Game = {
       this.log(`  [WARN] handleDeath: card "${card.name || '?'}" has no owner — skipping dead-pile archive.`);
       return;
     }
-    this.state[card.owner].deadPile.push({
+    // A NULL HOOK IS NOT INFORMATION. The archive below deliberately copies all
+    // 21 lifecycle hooks so a revive (Lazarus Pit, Hela, Solomon Grundy) rebuilds
+    // the card with its whole ability surface — right, and worth keeping. But
+    // most cards wire two or three of them, so ~18 of the 21 are copied as
+    // literal `null`, and the dead pile is on the wire: it lives on
+    // twoVTwo.teams[t].deadPile, which every broadcast carries.
+    //
+    // Measured on a live 2v2 at round 4, with only FOUR cards dead:
+    //   dead pile on the wire   3,784 bytes = 5.7% of EVERY broadcast
+    //   of which null-valued    1,615 bytes = 43% of that, saying nothing
+    // and it only ever grows — nothing is removed from a dead pile. By round 16
+    // that is tens of KB re-sent on every action, in a mode the owner reports as
+    // "laggy after round 11".
+    //
+    // serializeState already prunes false/null keys, but only off objects it
+    // can identify as card INSTANCES (id + name + numeric attack + currentHealth).
+    // A dead-pile record carries `health`, not `currentHealth`, and no id — so
+    // it slips the net. Fixed at the source instead of by widening that
+    // predicate: absent and null are identical to every reader of this record
+    // (they test `.cost`, `.name`, or truthiness of a hook), and
+    // createCardInstance re-wires from the definition on revive anyway.
+    //
+    // Zeroes and `false` are KEPT — 0 is arithmetic, not a flag; the same
+    // distinction serializeState draws.
+    const _deadEntry = {
       name: card.name, cost: card.baseCost || card.cost, attack: baseAtk,
       health: baseHp,
       // Restore the original ability list. createCardInstance stamps
@@ -10090,7 +10150,18 @@ const Game = {
       _playedVia: card._playedVia,
       statsLeftRound: card.statsLeftRound,
       owner: card.owner,
-    });
+    };
+    // …and the same for a stat that never moved. The per-card tallies below are
+    // read in exactly one shape — `c.statsEnemyDamage || 0`, at all six read
+    // sites — so a missing counter and a zero counter are the same number, and
+    // a card that died without contributing carries a dozen of them. Only the
+    // stats block is treated this way: a 0 elsewhere is arithmetic, not a flag.
+    for (const k in _deadEntry) {
+      const v = _deadEntry[k];
+      if (v === null || v === undefined) { delete _deadEntry[k]; continue; }
+      if (v === 0 && k.indexOf('stats') === 0) delete _deadEntry[k];
+    }
+    this.state[card.owner].deadPile.push(_deadEntry);
     // 2v2: each death-adjacent hook routes to ITS OWN card's seat (the killer's
     // onKill to the killer's owner, each ally's onAllyKilled to that ally's
     // owner). The token branch above already does this; the normal-card branch
@@ -15506,6 +15577,12 @@ const Game = {
       // time whether the card is currently buffed or debuffed (attack and
       // maxHealth can drift from these via Luke/Magneto/Man-Bat/etc.).
       baseAttack: safeAtk, baseHealth: safeHp,
+      // PRINTED 0/0 — the def's own numbers, before the floor below turns a 0
+      // into a 1. baseHealth cannot answer "does this card have a body" because
+      // safeHp is floored to 1, so the one fact that distinguishes Jigsaw and
+      // Brainiac from a real 0-ATK body is erased the moment an instance
+      // exists. Stamped here, where the definition is still in scope.
+      _printed00: ((def.attack | 0) === 0 && (def.health | 0) === 0),
       abilities: [...(def.abilities || [])], type: def.type || 'neutral',
       // Pristine ability list captured at instance creation. Used by
       // handleDeath's dead-pile reset so a revived card comes back with
@@ -19857,13 +19934,30 @@ const Game = {
         // The rest of the boundary: before-tricks hooks (Galactus, Man-Bat…),
         // then the Art-the-Clown trick-boundary jump check. Deferred behind any
         // reveal prompt, then re-enters to start the trick turn.
+        // WAIT FOR THE PASS, DO NOT RACE IT. runBeforeTricks returns as soon as
+        // it arms the FIRST prompt — the rest of its queue rides a chain of
+        // whenPromptCleared continuations. Everything below used to run right
+        // then, so `() => this._2v2StartSubPhase()` was parked on the very same
+        // _combatContStack, ON TOP of the continuation holding the next card in
+        // the pass. That stack pops LIFO and fires exactly one, so answering the
+        // first card's prompt started the trick turn and left the rest of the
+        // queue stranded — it only ran when some LATER prompt happened to pop
+        // it, which is the next round's boundary.
+        //
+        // (Owner: "man bat was offered to move at the beginning of round 8, he
+        // never moved in round 7, only omni man was offered — both should be
+        // offered based on lane priority." The ORDER was already right: the pass
+        // sorts lane 1-8 and higher-cost-first within a lane, and Omni-Man in
+        // lane 6 correctly preceded Man-Bat in lane 7. Only the second offer was
+        // being dropped.)
         const afterReveal = () => {
-          this.runBeforeTricks();
-          this.cleanupDead();
-          this.checkJumpConditions('beforeTricks', {});
-          this.cleanupDead();
-          if (this.hasPendingPrompt && this.hasPendingPrompt()) this.whenPromptCleared(() => this._2v2StartSubPhase());
-          else this._2v2StartSubPhase();
+          this.runBeforeTricks(() => {
+            this.cleanupDead();
+            this.checkJumpConditions('beforeTricks', {});
+            this.cleanupDead();
+            if (this.hasPendingPrompt && this.hasPendingPrompt()) this.whenPromptCleared(() => this._2v2StartSubPhase());
+            else this._2v2StartSubPhase();
+          });
         };
         if (this.hasPendingPrompt && this.hasPendingPrompt()) this.whenPromptCleared(afterReveal);
         else afterReveal();
@@ -19892,7 +19986,26 @@ const Game = {
     // exactly one take-back for the whole game. Host/local authority only: the
     // host owns the state, so a guest asks and receives the rewind in the next
     // broadcast, exactly like playing a card.
-    if (this._2v2IsAIAuthority && this._2v2IsAIAuthority()) {
+    // NO REWIND POINT FOR SOMEONE WHO CANNOT REWIND. The allowance is ONE
+    // take-back per player per match (_undoUsedThisMatch, written once and never
+    // cleared), but the snapshot was taken unconditionally at the top of every
+    // sub-turn — so after a seat spends its undo, every later turn of theirs
+    // paid a full cloneStateDeep of the entire game state for a button that can
+    // never light up again. Six sub-turns a round, and the clone gets more
+    // expensive as the state grows: it is most wasteful exactly when the owner
+    // reports the game getting heavy. Once all four seats have spent theirs it
+    // is 100% waste for the rest of the match.
+    //
+    // The snapshot is ~200 KB by mid-game and is the single largest object in
+    // state. It never reaches the wire (serializeState nulls it), so this is
+    // memory and CPU rather than payload — which is the half of the report that
+    // sounds like "a lot of memory being stored".
+    //
+    // The seat marker is cleared alongside it, so the guest's button reads the
+    // same "nothing to take back" the host would answer.
+    const _seatCanStillUndo = !(tt.players[activeKey] && tt.players[activeKey]._undoUsedThisMatch);
+    if (!_seatCanStillUndo) { tt._turnSnap = null; tt._undoSnapSeat = null; }
+    else if (this._2v2IsAIAuthority && this._2v2IsAIAuthority()) {
       try {
         // DETACH THE OLD SNAPSHOT BEFORE CLONING. Without this each snapshot
         // contains the previous one, which contains the one before it — the
