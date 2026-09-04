@@ -21207,8 +21207,20 @@ const Game = {
   _2v2TeamCanFaceDown(pk) {
     const tt = this.state && this.state.twoVTwo;
     if (!tt || !tt.players[pk]) return false;
-    const side = this._2v2TeamSide[tt.players[pk].team];
-    return this.getAllCardsOf(side).some(c => c.passive === 'faceDownOption' && c.currentHealth > 0);
+    const team = tt.players[pk].team;
+    // SEAT/TEAM MEMBERSHIP, not team -> canonical side. _2v2TeamSide maps a team
+    // to the HOST-frame 'player'/'ai' side, but 2v2 online broadcasts run through
+    // Multiplayer.serializeState, which FLIPS player<->ai per client. So on a
+    // flipped guest getAllCardsOf(thatSide) read the OPPOSING board — the enemy
+    // team was offered Invisible Woman's face-down deploy, and the flipped read
+    // of a populated side kept testing true even after she died. Seat keys
+    // (_2v2PlayedBy) and team letters are frame-independent, so match on those:
+    // a live Invisible Woman on the board whose caster is on THIS player's team.
+    // currentHealth > 0 + on-board membership means a dead IW no longer counts.
+    return this.getAllCardsOnBoard().some(c =>
+      c && c.currentHealth > 0 && c.passive === 'faceDownOption'
+      && c._2v2PlayedBy && tt.players[c._2v2PlayedBy]
+      && tt.players[c._2v2PlayedBy].team === team);
   },
 
   _2v2OnlinePlayCard(playerKey, cardIdx, laneIdx, faceDown) {
