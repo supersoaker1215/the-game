@@ -49789,3 +49789,206 @@ body.in-match:not(.board-v2) .board {
   font-size: 11px; letter-spacing: 0.20em; text-transform: uppercase; color: var(--mp-text-3);
 }
 .mpl-seatcount.is-ready { color: rgb(var(--theme-rgb)); }
+
+/* ============================================================
+   DRAFT — the owner's six changes
+   ------------------------------------------------------------
+   1  one header, pick progress as a five-segment tick
+   2  body text neutral; only trigger labels carry the accent
+   3  cards shrink; art 328px, name straddles the art seam, no dead gap
+   4  health white-cored like attack — red means the opposing side
+   5  picks rail becomes small horizontal chips
+   6  deck rail drops its boxed placeholders
+   ============================================================ */
+
+/* ---- 1 · one header ------------------------------------------------------ */
+.draft-panel .draft-hud {
+  display: flex; align-items: center; gap: 22px;
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--mp-hair, rgba(140,170,190,0.16));
+}
+.draft-panel .draft-hud > .dh-left { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.dh-title {
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 20px; font-weight: 700; letter-spacing: 0.16em;
+  text-transform: uppercase; color: #ffffff;
+}
+.dh-sep { width: 1px; height: 20px; background: var(--mp-hair, rgba(140,170,190,0.16)); }
+.dh-round, .dh-first {
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 12px; letter-spacing: 0.20em; text-transform: uppercase;
+}
+.dh-round { color: var(--mp-text-3, #6c7f8b); }
+.dh-first.is-mine   { color: rgb(var(--theme-rgb)); }
+.dh-first.is-theirs { color: rgb(var(--own-opponent)); }
+.dh-progress { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+.dh-pick-lbl {
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 12px; letter-spacing: 0.28em; text-transform: uppercase;
+  color: var(--mp-text-3, #6c7f8b);
+}
+.dh-tick { display: flex; gap: 6px; }
+.dh-seg {
+  width: 34px; height: 4px; background: rgba(140,170,190,0.22);
+  transition: background 160ms ease, filter 160ms ease;
+}
+.dh-seg.is-done {
+  background: rgb(var(--theme-rgb));
+  filter: drop-shadow(0 0 1px rgba(255,255,255,0.9))
+          drop-shadow(0 0 4px rgba(var(--theme-rgb), 0.85));
+}
+.dh-count {
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 15px; font-weight: 700; letter-spacing: 0.10em; color: #ffffff;
+  font-variant-numeric: tabular-nums;
+}
+.dh-actions { display: flex; align-items: center; gap: 20px; }
+.dh-actions .draft-quit-btn,
+.dh-actions .draft-audio-btn,
+.dh-actions .draft-mulligan-btn {
+  background: none !important; border: 0 !important; box-shadow: none !important;
+  padding: 4px 0 !important; cursor: pointer;
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--mp-text-2, #8fa3ae);
+}
+.dh-actions button:hover { color: #ffffff; }
+.dh-actions .mulligan-icon { display: none; }
+
+/* ---- 5 · picks rail: horizontal chips ------------------------------------ */
+.draft-rail-left .dpr-list { display: flex; flex-direction: column; gap: 6px; }
+.draft-rail-left .dpr-slot {
+  display: flex; align-items: center; gap: 12px;
+  background: none !important; border: 0 !important; box-shadow: none !important;
+  padding: 0 !important; min-height: 0 !important;
+}
+/* An empty chip is a small square outline, not a card-shaped container. */
+.draft-rail-left .dpr-slot .dpr-tile {
+  width: 30px; height: 34px; flex: 0 0 30px;
+  border: 1px solid rgba(140,170,190,0.16);
+  background: rgba(8,12,17,0.6);
+  border-radius: 0; overflow: hidden; position: relative;
+}
+.draft-rail-left .dpr-slot.is-current .dpr-tile {
+  border-color: rgb(var(--theme-rgb));
+  box-shadow: 0 0 6px rgba(var(--theme-rgb), 0.45);
+}
+.draft-rail-left .dpr-slot.is-card .dpr-tile { border-color: rgba(140,170,190,0.30); }
+.draft-rail-left .dpr-slot .dpr-art {
+  position: absolute; inset: 0; background-image: var(--portrait-bg);
+  background-size: cover; background-position: center 22%;
+}
+.draft-rail-left .dpr-slot .dpr-name { display: none; }
+.draft-rail-left .dpr-slot .dpr-cost {
+  position: absolute; left: 2px; top: 1px; z-index: 2;
+  font-size: 10px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px #000;
+}
+.draft-rail-left .dpr-slot .dpr-q {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-size: 14px; color: rgb(var(--theme-rgb));
+}
+.draft-rail-left .dpr-meta { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.draft-rail-left .dpr-label {
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 13px; letter-spacing: 0.02em; text-transform: none;
+  color: var(--mp-text-2, #8fa3ae); white-space: nowrap;
+}
+.draft-rail-left .dpr-slot.is-current .dpr-label { color: #ffffff; font-weight: 700; }
+.draft-rail-left .dpr-slot.is-empty .dpr-label { color: var(--mp-text-off, #5c6f7c); }
+.draft-rail-left .dpr-choosing {
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 10px; letter-spacing: 0.20em; text-transform: uppercase;
+  color: rgb(var(--theme-rgb));
+}
+.draft-rail-left .dpr-stats {
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 11px; color: var(--mp-text-3, #6c7f8b);
+}
+
+/* ---- 6 · the deck rail drops its boxed placeholders -----------------------
+   An outlined container says "something goes here"; for an empty state that is
+   the wrong promise, because nothing is coming until you pick it. A dim word
+   says the same thing without drawing a box around the absence. */
+.draft-rail-right .dcr-kw-none {
+  border: 0 !important; background: none !important; box-shadow: none !important;
+  padding: 0 !important;
+  color: var(--mp-text-off, #5c6f7c);
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 13px; letter-spacing: 0.02em; text-transform: none;
+}
+.draft-rail-right .dcr-tricks .dpr-slot.is-empty .dpr-tile,
+.draft-rail-right .dcr-tricks .dpr-slot.is-current .dpr-tile {
+  background: none; border: 1px solid rgba(140,170,190,0.16);
+}
+.draft-rail-right .dcr-tricks .dpr-slot { background: none !important; box-shadow: none !important; }
+
+/* ---- 2 · body text neutral; only the trigger labels keep the accent -------
+   `.card-desc` resolved to the rarity colour and every child inherited it, so
+   the entire rules text was green (or blue, or gold) — the card said its tier
+   in the frame, in the cost orb, in the pips AND in the prose you actually
+   have to read. Colour is the worst carrier for a paragraph: it costs
+   contrast, and it was spending it on a fact already stated three times.
+   The trigger labels stay accented, because there the colour is doing
+   structural work — it marks where one ability ends and the next begins. */
+.draft-card .card-desc,
+.draft-card .card-desc .cd-row,
+.draft-card .card-desc .cd-eff { color: #c9d6de !important; }
+.draft-card .card-desc .cd-trig {
+  color: rgb(var(--portrait-frame-rgb, var(--own-green))) !important;
+}
+/* the inline stat deltas keep their sign colours, but health stops being red */
+.draft-card .card-desc .stat-num-hp { color: #c9d6de !important; }
+
+/* ---- 4 · health is white-cored like attack --------------------------------
+   The HP pip was #ff6b6b. Red is the OPPONENT everywhere else in this game —
+   their row, their card frames, their seat in the lobby — so spending it on
+   your own card's health is the one place the colour means something else.
+   Both pips take the frame colour now; the numerals were already white. */
+.draft-card .stat-hp::before { background: rgb(var(--portrait-frame-rgb, var(--own-green))) !important; }
+.draft-card .stat-atk::before { background: rgb(var(--portrait-frame-rgb, var(--own-green))) !important; }
+.draft-card .stat-hp {
+  text-shadow: 0 1px 2px rgba(0,0,0,1), 0 0 3px rgba(0,0,0,0.95),
+               0 0 8px rgba(var(--portrait-frame-rgb, var(--own-green)), 0.85) !important;
+}
+
+/* ---- 3 · the card shrinks and loses the dead gap --------------------------
+   Measured before: art 360px, then the badge row, then a 36px band of nothing,
+   then the rules — the card was 647px tall to hold ~140px of text. Art comes
+   down to 328, the name straddles the art seam instead of sitting under it,
+   and the rules fill the panel rather than floating in the middle of it. */
+/* AT THE WINNING SPECIFICITY, and that is the whole trick here. The rule that
+   owns this is `.card.card.draft-card .card-portrait` — 0,4,0 AND !important —
+   which sets height:auto, min-height:calc(--card-w * .95) and flex-grow:1. So
+   the art is a flex item that ABSORBS whatever height the card has, and my
+   first attempt (`.draft-card .card-portrait`, 0,2,0) lost outright: measured
+   406px against the 328 it asked for. Shrinking the art also required the CARD
+   to stop being 2.00x its width, or the art would just have grown back into
+   the slack. --read-card-h is that number. */
+/* HEIGHT BECOMES A FLOOR, NOT A FIXTURE. Pinning it at 1.76x clipped the
+   longest card on screen (Thor's second ability ran under the stat row), and
+   pinning it higher puts the dead gap straight back for every short card. The
+   reference has the two offers at DIFFERENT heights — Grundy's frame ends
+   above Winter Soldier's — which is the tell that the card is sized by its
+   rules, not by a constant. So: a floor so a two-line card is still card
+   shaped, and no ceiling. The owning rule sets all three of height/min/max
+   with !important, so all three have to be answered here. */
+.card.card.draft-card {
+  --read-card-h: calc(var(--read-card-w) * 1.76);
+  height: auto !important;
+  min-height: var(--read-card-h) !important;
+  max-height: none !important;
+}
+.card.card.draft-card .card-portrait {
+  flex: 0 0 328px !important;
+  height: 328px !important;
+  min-height: 0 !important;
+  max-height: 328px !important;
+  aspect-ratio: auto !important;
+  margin-bottom: 0 !important;
+}
+.draft-card .status-badges { margin: 6px 0 0 !important; }
+.draft-card .card-desc {
+  margin-top: 8px !important;
+  padding-top: 0 !important;
+  flex: 1 1 auto;
+}

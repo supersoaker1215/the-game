@@ -123,6 +123,10 @@ echo "=== mp-screens.js (multiplayer set-up + lobby, to spec) ==="
 run_suite sim/mp-screens.js
 
 echo ""
+echo "=== draft-screen.js (the draft's six changes) ==="
+run_suite sim/draft-screen.js
+
+echo ""
 if [ "$FAIL" -ne 0 ]; then
   echo "❌ TESTS FAILED — see suites above."
   exit 1

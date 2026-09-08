@@ -760,7 +760,13 @@ const UI = {
     }
     const stats = c && c.attack != null && c.health != null && this._hasBody(c)
       ? `<span class="dpr-stats"><b>${c.attack}</b> / <i>${c.health}</i></span>` : '';
-    return `<div class="dpr-slot ${state}${kind ? ' dpr-' + kind : ''}">
+    // A CHIP, NOT A FULL-SIZE EMPTY SLOT. Five card-shaped outlines stacked down
+    // the rail spent the tallest column on the screen advertising four things
+    // that do not exist yet — and the empty ones were the loudest, because an
+    // outlined box reads as a container waiting to be filled. Filled picks keep
+    // their art; unfilled ones are a small chip and a dim word.
+    // (Owner's mock, change 5 of 6.)
+    return `<div class="dpr-slot ${state}${kind ? ' dpr-' + kind : ''}${c ? ' is-card' : ''}">
       <div class="dpr-tile">${face}</div>
       <div class="dpr-meta">
         <span class="dpr-label">${esc(label)}</span>
@@ -21866,70 +21872,52 @@ const UI = {
     // precisely the screen-change the owner asked to be rid of. The phase goes
     // on a data attribute instead, for anything that genuinely needs it.
     let html = `<div class="draft-panel draft-cards" data-draft-phase="${isCards ? 'cards' : 'tricks'}">`;
-    html += `<div class="draft-hud">`;
-    html +=   `<div class="draft-hud-row">`;
-    // The title stops changing too. The rail below says which group is live, and
-    // a heading that rewrites itself is one more thing moving at the boundary.
-    html +=     `<span class="draft-hud-label">Draft${hotName}</span>`;
-    html +=     `<span class="draft-hud-pips">${pips.join('')}</span>`;
-    html +=     `<span class="draft-hud-counter">Pick <em>${round}</em> / ${total}</span>`;
-    html +=   `</div>`;
-    // WHO OPENS ROUND 1. The coin flip resolves at match start, so this is
-    // already decided while you are still drafting — it was just never shown.
-    // It is not trivia: going second means you play into a board that already
-    // has a card in it, so a cheap early body is worth more; going first means
-    // your On Play resolves before theirs. Drafting without it is drafting
-    // blind to half the opening.
-    // Read through Game.firstPlayerForRound so this and the round-start code
-    // cannot disagree — re-deriving it from oddPlayer here is exactly the kind
-    // of second copy that drifts.
-    // NOT added to the 2v2 online draft: that screen seats four players in two
-    // teams, so "who goes first" is a different question there and deserves its
-    // own answer rather than this one reworded.
+    // ONE HEADER, NOT THREE STACKED BARS. Title+pips+counter sat on one row,
+    // "Round 1 / who goes first" on a second, and the three controls on a third
+    // — three full-width bands of chrome above two cards, each holding a
+    // handful of words. They are one row now: what this is and who opens on the
+    // left, where you are in the pick order in the middle, the controls on the
+    // right. (Owner's mock, change 1 of 6.)
+    //
+    // And the pick progress is a FIVE-SEGMENT TICK rather than numbered dots
+    // plus a separate "Pick 1 / 5" counter. The dots and the counter were the
+    // same fact twice; a segmented bar is the one place a reader looks to
+    // answer "how far in am I", and it answers it without being read.
     const _fp1 = (Game.firstPlayerForRound) ? Game.firstPlayerForRound(1) : null;
+    let _firstHtml = '';
     if (_fp1) {
-      const mine = _fp1 === 'player';
-      const nm = (s._mpNames && s._mpNames[_fp1]) ? s._mpNames[_fp1]
-               : (Game.seatLabel ? Game.seatLabel(_fp1) : (mine ? 'You' : 'AI'));
-      html +=   `<div class="draft-first ${mine ? 'is-mine' : 'is-theirs'}">`;
-      html +=     `<span class="draft-first-label">Round 1</span>`;
-      html +=     `<span class="draft-first-who">${nm} ${mine ? 'go' : 'goes'} first</span>`;
-      html +=   `</div>`;
+      const _mine = _fp1 === 'player';
+      const _nm = (s._mpNames && s._mpNames[_fp1]) ? s._mpNames[_fp1]
+                : (Game.seatLabel ? Game.seatLabel(_fp1) : (_mine ? 'You' : 'AI'));
+      _firstHtml = `<span class="dh-first ${_mine ? 'is-mine' : 'is-theirs'}">${_nm} ${_mine ? 'go' : 'goes'} first</span>`;
     }
-    html +=   `<div class="draft-hud-actions">`;
-    // Back-to-menu — early exit out of a draft. Confirms first so an
-    // accidental click doesn't wipe picks already made.
-    html +=     `<button type="button" class="draft-quit-btn" onclick="draftQuitToMenu()" title="Abandon draft and return to main menu">`;
-    html +=       `<span class="mulligan-icon">&#8592;</span>`;
-    html +=       `<span class="mulligan-label">Menu</span>`;
-    html +=     `</button>`;
-    // Undo / Back — rewind the last pick within this draft phase. Dims
-    // when there's nothing to undo (first pick of a phase). Uses the
-    // curved-left glyph &#x21B6; — the conventional "undo" symbol —
-    // paired with the label so it reads clearly even without the icon.
-    // MULLIGAN SITS HERE NOW, in Back's place — the owner drew the arrow from the
-    // button at the foot of the screen up to this slot. It also buys back the
-    // vertical space the bottom row was costing, which is what lets the offers
-    // go full width again instead of being squeezed until the art cropped.
-    html +=     this._draftMulliganHTML(mulliganUsed, 'draftMulligan()');
-    // Hand-audio privacy — draft cards have per-card hover cues exactly like a
-    // hand does, so someone beside you (or on the call) can hear which offers
-    // you're weighing. The in-hand glyph doesn't exist on this screen, so the
-    // control gets its own HUD button here. Same setting, same persisted key;
-    // [data-hand-audio-toggle] is what keeps every surface in sync.
+    const _ticks = Array.from({ length: total }, (_, i) =>
+      `<span class="dh-seg${i < round ? ' is-done' : ''}${i === round - 1 ? ' is-now' : ''}"></span>`).join('');
     const _haOn = !!(this.settings && this.settings.handAudioPrivacy);
+
+    html += `<div class="draft-hud">`;
+    html +=   `<div class="dh-left">`;
+    html +=     `<span class="dh-title">Draft${hotName}</span>`;
+    html +=     `<span class="dh-sep" aria-hidden="true"></span>`;
+    html +=     `<span class="dh-round">Round ${s.round || 1}</span>`;
+    html +=     _firstHtml;
+    html +=   `</div>`;
+    html +=   `<div class="dh-progress">`;
+    html +=     `<span class="dh-pick-lbl">Pick</span>`;
+    html +=     `<span class="dh-tick" role="img" aria-label="Pick ${round} of ${total}">${_ticks}</span>`;
+    html +=     `<span class="dh-count">${round} / ${total}</span>`;
+    html +=   `</div>`;
+    html +=   `<div class="dh-actions">`;
+    html +=     this._draftMulliganHTML(mulliganUsed, 'draftMulligan()');
     html +=     `<button type="button" class="draft-audio-btn${_haOn ? ' is-muted' : ''}"`;
     html +=       ` data-hand-audio-toggle aria-pressed="${_haOn ? 'true' : 'false'}"`;
     html +=       ` onclick="UI.toggleHandAudioPrivacy()"`;
     html +=       ` title="${_haOn ? 'Hand sounds hidden — per-card hover cues are replaced with one generic blip' : 'Hide hand sounds — stop per-card hover cues from revealing your picks'}">`;
-    html +=       `<span class="mulligan-icon">&#9834;</span>`;
-    html +=       `<span class="mulligan-label">${_haOn ? 'Sounds Hidden' : 'Hide Sounds'}</span>`;
+    html +=       `<span class="mulligan-label">${_haOn ? 'Sounds off' : 'Sound'}</span>`;
     html +=     `</button>`;
-    // MULLIGAN LEFT THIS ROW — see the .draft-mulligan CSS. It is the only
-    // control here that changes the cards in front of you, and it read as the
-    // fourth of four identical text links.
-    // (Settings button removed from the draft row per user — the settings cog
-    // in the top-right corner is always available; the row stays lean.)
+    html +=     `<button type="button" class="draft-quit-btn" onclick="draftQuitToMenu()" title="Abandon draft and return to main menu">`;
+    html +=       `<span class="mulligan-label">Menu</span>`;
+    html +=     `</button>`;
     html +=   `</div>`;
     html += `</div>`;
     // THREE COLUMNS: what you have built, what you are choosing, what it adds
