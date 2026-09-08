@@ -215,7 +215,46 @@ t('BL-12 the colour is one knob, and it is not a side colour', function () {
   var css = bareCss();
   eq('token declared', /--bat-lock-ink:\s*#/.test(css), true);
   var m = css.match(/\.hand-card-wrapper\s*>\s*\.bat-lock\s+path\s*\{([^}]*)\}/);
-  eq('the path reads the token', !!m && /stroke:\s*var\(--bat-lock-ink\)/.test(m[1]), true);
+  eq('the mark reads the token', !!m && /fill:\s*var\(--bat-lock-ink\)/.test(m[1]), true);
+});
+
+t('BL-13 the mark is a SILHOUETTE, and the traced outline survives its own rim', function () {
+  var css = bareCss();
+  var m = css.match(/\.hand-card-wrapper\s*>\s*\.bat-lock\s+path\s*\{([^}]*)\}/);
+  eq('rule found', !!m, true);
+  if (!m) return;
+  // Filled, not hollow — an outline of the reference reads as a drawing OF the
+  // mark rather than the mark.
+  eq('not hollow', /fill:\s*none/.test(m[1]), false);
+  // A centred stroke eats half its width off the shape all the way round. The
+  // separation rim is only allowed if it is painted BEHIND the fill, which is
+  // what keeps the traced silhouette the silhouette.
+  if (/stroke:/.test(m[1]) && !/stroke:\s*none/.test(m[1])) {
+    eq('a rim is painted behind the fill', /paint-order:\s*stroke/.test(m[1]), true);
+  }
+});
+
+t('BL-14 the viewBox matches the coordinate space the path is drawn in', function () {
+  var ui = read('ui.js');
+  var vb = ui.match(/_BAT_LOCK_VIEWBOX:\s*'0 0 ([\d.]+) ([\d.]+)'/);
+  eq('viewBox declared', !!vb, true);
+  if (!vb) return;
+  var w = +vb[1], h = +vb[2];
+  // Pull every coordinate out of the path and check it lands inside the box.
+  // A path authored at one scale and shown through another viewBox does not
+  // error — it silently crops or floats, which is exactly the kind of failure
+  // that looks like "the shape is just wrong".
+  var body = ui.slice(ui.indexOf('_BAT_LOCK_PATH:'));
+  body = body.slice(0, body.indexOf('\n  _applyBatLock'));
+  var nums = (body.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
+  var xs = [], ys = [];
+  for (var i = 0; i + 1 < nums.length; i += 2) { xs.push(nums[i]); ys.push(nums[i + 1]); }
+  var maxX = Math.max.apply(null, xs), maxY = Math.max.apply(null, ys);
+  var minX = Math.min.apply(null, xs), minY = Math.min.apply(null, ys);
+  eq('no coordinate escapes the box left/top', minX >= -1 && minY >= -1, true);
+  eq('no coordinate escapes the box right/bottom', maxX <= w + 1 && maxY <= h + 1, true);
+  // And it should actually FILL the box, or the mark renders smaller than asked.
+  eq('the path fills its box', maxX > w * 0.95 && maxY > h * 0.95, true);
 });
 
 // ---- run ----------------------------------------------------

@@ -49147,7 +49147,12 @@ body.in-match:not(.board-v2) .board {
   top: 46%;                 /* a touch above centre — the art's focal point sits
                                high, and the name banner owns the lower third */
   translate: -50% -50%;
-  width: 82%;
+  /* SIZED TO SIT INSIDE THE CARD, NOT ACROSS IT. The traced mark is wider and
+     flatter than the shape it replaced (2.36:1), so the same percentage put its
+     wingtips into the card's frame. 68% leaves a clear margin on both sides at
+     every hand-card width, and the glow below is tuned not to spill past it.
+     (Owner: "fit it all onto the card even if you have to make it smaller.") */
+  width: 68%;
   pointer-events: none;     /* the card underneath still flips, drags and reads */
   z-index: 40;
   transition: opacity 160ms ease;
@@ -49159,15 +49164,24 @@ body.in-match:not(.board-v2) .board {
   overflow: visible;        /* the drop-shadow bloom lives outside the viewBox */
 }
 .hand-card-wrapper > .bat-lock path {
-  /* Near-black fill, not `none`: the wings have to READ as a silhouette against
-     whatever art is behind them, and an unfilled outline lets the portrait show
-     through the body and breaks the shape at hand size. */
-  fill: #05070a;
-  stroke: var(--bat-lock-ink);
-  stroke-width: 7;
+  /* SOLID, matching the reference. The first pass drew the mark as an outline
+     with a dark interior, which reads as a drawing OF the bat rather than the
+     bat — the reference is a silhouette and the silhouette is the whole
+     identity of the thing. */
+  fill: var(--bat-lock-ink);
+  /* A dark rim for separation, because card art is not a controlled ground:
+     gold on a bright portrait loses its edge. `paint-order: stroke` puts the
+     stroke BEHIND the fill, so the rim sits outside the shape and the
+     traced silhouette stays exactly the silhouette — a normal centred stroke
+     would eat 3px of it all the way round. */
+  stroke: rgba(4, 6, 9, 0.92);
+  /* Stroke width is in USER UNITS, so it rescaled when the viewBox went from
+     810 wide to 1000 — 12 here is the same visual rim 10 was before. */
+  stroke-width: 12;
   stroke-linejoin: round;
-  filter: drop-shadow(0 0 3px rgba(var(--bat-lock-rgb), 1))
-          drop-shadow(0 0 13px rgba(var(--bat-lock-halo), 0.6));
+  paint-order: stroke fill;
+  filter: drop-shadow(0 0 3px rgba(var(--bat-lock-rgb), 0.95))
+          drop-shadow(0 0 9px rgba(var(--bat-lock-halo), 0.5));
 }
 
 /* One-shot entrance — the mark is built once per lock (see `_applyBatLock`),
