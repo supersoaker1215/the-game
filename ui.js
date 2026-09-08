@@ -27931,6 +27931,45 @@ const UI = {
 
   // ===================== HANDS =====================
 
+  // ===================== BATMAN'S LOCK WEARS HIS MARK =====================
+  // A locked card and a card you simply cannot afford were the SAME PICTURE:
+  // both just `.unplayable`, i.e. grey. The only tell that Batman was the
+  // reason was an el.title, which needs a hover and a fine pointer — so on a
+  // phone the rule was invisible, and on desktop you had to go looking for it.
+  // A rule the player cannot see is indistinguishable from a broken card.
+  //
+  // The mark hangs on the WRAPPER, never inside `.card`. `.card.unplayable`
+  // carries `filter: grayscale(.95) brightness(.6)`, and a filter applies to
+  // the element AND its descendants as one group — a bat parented to the card
+  // would be greyed and dimmed by the very rule it exists to explain. As a
+  // sibling it stays gold over a grey card, which is the whole point.
+  //
+  // Idempotent by contract: called every render, from every branch, with the
+  // live answer. Present + still locked = left alone (so its one-shot entrance
+  // plays once per lock, not once per frame); absent + locked = built; present
+  // + unlocked = removed. Nothing here depends on the cache-hit class strip.
+  _BAT_LOCK_PATH: 'M 240 44 Q 244 16 258 4 Q 262 28 272 48 Q 300 34 336 44 ' +
+    'Q 396 8 466 22 Q 440 44 424 72 Q 404 56 380 66 Q 372 96 352 112 ' +
+    'Q 340 84 316 88 Q 306 122 286 142 Q 268 152 240 172 Q 212 152 194 142 ' +
+    'Q 174 122 164 88 Q 140 84 128 112 Q 108 96 100 66 Q 76 56 56 72 ' +
+    'Q 40 44 14 22 Q 84 8 144 44 Q 180 34 208 48 Q 218 28 222 4 Q 236 16 240 44 Z',
+  _applyBatLock(wrap, el, on) {
+    if (el && el.classList) el.classList.toggle('batman-locked', !!on);
+    if (!wrap) return;
+    let mark = wrap.querySelector(':scope > .bat-lock');
+    if (!on) { if (mark) mark.remove(); return; }
+    if (mark) return;
+    mark = document.createElement('div');
+    mark.className = 'bat-lock';
+    // Decoration only — the reason is already on the card's title and in the
+    // rejection toast a real play attempt fires, so this must not be read out
+    // a second time.
+    mark.setAttribute('aria-hidden', 'true');
+    mark.innerHTML = '<svg viewBox="0 0 480 180" focusable="false" aria-hidden="true">' +
+                     '<path d="' + this._BAT_LOCK_PATH + '"/></svg>';
+    wrap.appendChild(mark);
+  },
+
   renderPlayerHand(s) {
     // Smart wipe — keep hand-card wrappers + their .card children
     // continuously attached to playerHand so CSS animations
@@ -28176,6 +28215,15 @@ const UI = {
       // even though hasPending blocks the normal !hasPending branch below.
       const isReqLcCard = lc && isMyLaneChoice && lc.previewCard && lc.previewCard.id === card.id;
       if (isReqLcCard) el.classList.add('is-selected', 'selected');
+
+      // HOISTED OUT OF THE PLAYABILITY BRANCH ON PURPOSE. The lock is a fact
+      // about the card, not about which branch this render took — it was
+      // computed inside `!hasPending`, so the moment anybody opened a prompt
+      // the bat vanished and the card went back to looking merely expensive.
+      // The affordability indicator is already documented as "always-on" for
+      // exactly this reason; the lock is the same kind of truth.
+      const batBlocked = Game.isCardBatmanBlocked('player', card) && !card.isDiscardEffect;
+
       if (cc && isMyHandChoice && targetHandIds.has(card.id)) {
         el.classList.add('target-highlight');
         const idx = cc.cards.findIndex(c => c.id === card.id);
@@ -28188,7 +28236,6 @@ const UI = {
         const cost = this._localCardCost(card);
         const afford = s.player.currency >= cost;
         const hasOpen = Game.getOpenLanes('player').length > 0 || card.isDiscardEffect || card.isEnvironment;
-        const batBlocked = Game.isCardBatmanBlocked('player', card) && !card.isDiscardEffect;
         // Per-card phase check — fixes the trick-phase bug where ALL
         // hand cards looked playable when only a single trickPhasePlayable
         // card (e.g. Thanos) was in hand. Visual must mirror onCardClick.
@@ -28302,6 +28349,10 @@ const UI = {
       // resets CSS animation timing.
       if (el.parentNode !== wrap) wrap.appendChild(el);
       if (wrap.parentNode !== this.playerHand) this.playerHand.appendChild(wrap);
+      // AFTER the attach guards: `wrap.appendChild(el)` on a first build would
+      // otherwise move the card to the end of the wrapper, i.e. on top of a
+      // mark stamped a moment earlier.
+      this._applyBatLock(wrap, el, batBlocked);
     });
 
     // Sweep wrappers for cards no longer in hand (played, discarded).

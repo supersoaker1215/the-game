@@ -49117,3 +49117,84 @@ body.in-match:not(.board-v2) .board {
     var(--rail-held) left  center / 1px 100% no-repeat,
     var(--rail-held) right center / 1px 100% no-repeat;
 }
+
+/* ============================================================
+   BATMAN'S LOCK WEARS HIS MARK          (ui.js `_applyBatLock`)
+   ------------------------------------------------------------
+   Batman locks the opponent's highest-cost AFFORDABLE card. Until now the
+   locked card and a card you simply could not pay for were the same picture —
+   both `.unplayable`, both grey — and the only difference was an `el.title`,
+   which needs a hover and a fine pointer. On a phone the rule was invisible.
+
+   PARENTED TO THE WRAPPER, NEVER TO `.card`. `.card.unplayable` carries
+   `filter: grayscale(.95) brightness(.6)`, and `filter` applies to the element
+   and its descendants as ONE group — a bat inside the card would be greyed and
+   dimmed by the rule it exists to explain. As a sibling it keeps its hue over a
+   grey card, which is the entire read.
+
+   Gold, not ice or crimson: those are the player and enemy lane colours, and a
+   blocked-card marker must not borrow a side's signal. Steel (the batarang
+   FX colour) vanished into the grayscale. `--bat-lock-ink` is the one knob.
+   ============================================================ */
+:root {
+  --bat-lock-ink:  #ffd23a;
+  --bat-lock-rgb:  255, 210, 58;
+  --bat-lock-halo: 255, 168, 0;
+}
+.hand-card-wrapper > .bat-lock {
+  position: absolute;
+  left: 50%;
+  top: 46%;                 /* a touch above centre — the art's focal point sits
+                               high, and the name banner owns the lower third */
+  translate: -50% -50%;
+  width: 82%;
+  pointer-events: none;     /* the card underneath still flips, drags and reads */
+  z-index: 40;
+  transition: opacity 160ms ease;
+}
+.hand-card-wrapper > .bat-lock svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;        /* the drop-shadow bloom lives outside the viewBox */
+}
+.hand-card-wrapper > .bat-lock path {
+  /* Near-black fill, not `none`: the wings have to READ as a silhouette against
+     whatever art is behind them, and an unfilled outline lets the portrait show
+     through the body and breaks the shape at hand size. */
+  fill: #05070a;
+  stroke: var(--bat-lock-ink);
+  stroke-width: 7;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 3px rgba(var(--bat-lock-rgb), 1))
+          drop-shadow(0 0 13px rgba(var(--bat-lock-halo), 0.6));
+}
+
+/* One-shot entrance — the mark is built once per lock (see `_applyBatLock`),
+   so this plays when the lock LANDS and never again on a re-render.
+   IT RUNS ON THE SVG, NOT ON `.bat-lock`, AND THAT IS LOAD-BEARING. An
+   animation with `fill-mode: both` keeps applying its `to` values after it
+   finishes, and animation values outrank every normal declaration in the
+   cascade — so a `to { opacity: 1 }` here pinned the mark opaque forever and
+   silently ate the flip dim below, no matter how specific that rule was.
+   Measured: opacity stayed 1 on a flipped card. Splitting the two across two
+   elements means neither can out-rank the other. */
+@keyframes batLockStamp {
+  from { opacity: 0; transform: scale(1.45); }
+  60%  { opacity: 1; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.hand-card-wrapper > .bat-lock > svg {
+  animation: batLockStamp 260ms var(--ease-snap, cubic-bezier(0.22, 1, 0.36, 1)) both;
+}
+
+/* READING THE CARD MUST STAY POSSIBLE. A click flips the hand card to its black
+   rules face; a bat stamped across that text would make the locked card the one
+   card you cannot read. `:has()` reacts to the flip class directly, with no
+   render in between — the flip is applied by a delegated listener, not by
+   renderPlayerHand, so a JS-side toggle here would lag a frame behind. */
+.hand-card-wrapper:has(> .card.face-flipped) > .bat-lock { opacity: 0.16; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hand-card-wrapper > .bat-lock > svg { animation: none; }
+}

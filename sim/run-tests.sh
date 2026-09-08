@@ -111,6 +111,10 @@ echo "=== css-parse.js (the stylesheet says what it looks like it says) ==="
 run_suite sim/css-parse.js
 
 echo ""
+echo "=== bat-lock.js (a locked card does not look like an expensive one) ==="
+run_suite sim/bat-lock.js
+
+echo ""
 if [ "$FAIL" -ne 0 ]; then
   echo "❌ TESTS FAILED — see suites above."
   exit 1
