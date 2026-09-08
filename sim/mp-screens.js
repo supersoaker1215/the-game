@@ -86,5 +86,31 @@ check('+ ADD AI only renders when a handler exists',
       /opts\.addAi\s*\?\s*`<button[^`]*mpl-addai/.test(UI),
       'the button is rendered unconditionally — nothing in the engine fills an online seat');
 
+// ---- 6. the player's neon drives the whole screen ---------------------------
+// Everything lit here was first written against --own-cyan, so picking purple
+// recoloured the menu chrome and left the multiplayer screen cyan — nine
+// elements measured still painting rgb(0,229,255) under a purple theme. The
+// neon pick is an OWNERSHIP colour: it means "you", so every surface that
+// means "you" follows it. (Owner: "the neon need to apply everywhere.")
+var THEMED = ['.mps-mode.is-on', '.mps-create', '.mps-mode.is-on .mps-mode-ind', '.mpl-code-tile',
+              '.mpl-seat.is-you', '.mpl-start.is-ready', '.mps-ev.is-on .mps-ev-sw'];
+THEMED.forEach(function (sel) {
+  var b = ruleBody(sel);
+  if (!b) { fails.push('themed element has no rule: ' + sel); return; }
+  check(sel + ' follows the player pick, not a fixed cyan',
+        /--theme-rgb/.test(b) && !/--own-cyan/.test(b),
+        b.replace(/\s+/g, ' ').trim().slice(0, 70));
+});
+// The six swatches are the deliberate exception: each shows the colour it
+// SELECTS, not the colour currently selected, so they stay literal.
+check('the neon swatches keep their own literal colours',
+      /\.mps-chip-blue\s*\{[^}]*--own-cyan/.test(BARE) &&
+      /\.mps-chip-purple\s*\{[^}]*--own-purple/.test(BARE),
+      'a swatch was rewired to --theme-rgb, so the picker previews one colour six times');
+// And the opponent is never the player's colour.
+check('the opponent seat stays red under every theme',
+      !!ruleBody('.mpl-seat.is-opp') && /--own-opponent/.test(ruleBody('.mpl-seat.is-opp')) &&
+      !/--theme-rgb/.test(ruleBody('.mpl-seat.is-opp')));
+
 print('mp-screens: ' + pass + ' passed, ' + fails.length + ' failed');
 if (fails.length) { print('Failures:'); fails.forEach(function (f) { print('  - ' + f); }); }
