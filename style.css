@@ -49292,3 +49292,83 @@ body.in-match:not(.board-v2) .board {
   --rar-white:    255, 255, 255;   /* #ffffff  pure, against board ice white */
   --rar-gold:     255, 239, 90;    /* #ffef5a  bright lemon, against board amber */
 }
+
+/* ============================================================
+   THE MAIN MENU FITS ON ONE SCREEN
+   ------------------------------------------------------------
+   Measured: .mm-panel came to 974px inside an 876px viewport — 138px over —
+   and .main-menu-overlay is overflow-y:auto, so that surplus became a
+   scrollbar and the bottom of the menu (LEADERBOARD, NOW PLAYING) fell off
+   the fold. (Owner: "the main menu shouldnt have a scroll bar as it should
+   fit all on 1 screen.")
+
+   The panel's height is almost entirely AIR, not content: ~194px of margins
+   between six blocks plus ~160px of padding inside eight option rows. Shaving
+   those as fixed pixels would only move the breakpoint to a shorter screen, so
+   the rhythm is viewport-relative instead — one scale, three sizes, applied to
+   every vertical gap in the panel. The clamp ceilings keep a tall monitor from
+   turning into a sparse column; the floors keep the rows touchable.
+   ============================================================ */
+.mm-mw3 {
+  --mm-vr:      clamp(9px, 1.45vh, 26px);   /* between the six blocks */
+  --mm-vr-sm:   clamp(5px, 0.95vh, 16px);   /* label -> list, list -> next */
+  --mm-opt-pad: clamp(4px, 0.62vh, 11px);   /* inside a menu row */
+}
+.mm-mw3 .mm-header  { margin-bottom: var(--mm-vr); }
+.mm-mw3 .mm-feature { margin-bottom: var(--mm-vr); }
+.mm-mw3 .mm-section { margin-bottom: var(--mm-vr); }
+.mm-mw3 .mm-section-label        { margin: var(--mm-vr-sm) 0 var(--mm-vr-sm) 0; }
+.mm-mw3 .mm-grid.mm-grid-section { margin-bottom: var(--mm-vr-sm); }
+.mm-mw3 .mm-option  { padding-top: var(--mm-opt-pad); padding-bottom: var(--mm-opt-pad); }
+.mm-mw3 .mm-lb-rail { margin-top: var(--mm-vr-sm); }
+.mm-mw3 .mm-botbar  { margin-top: var(--mm-vr); }
+
+/* ---- and the pieces that are sized off vw alone -----------------------------
+   A wide-but-short window is the case that breaks: 4.4vw on a 1280x720 screen
+   gives a 56px title and a 33px icon on every row, so the panel spends 100px on
+   the wordmark and 336px on eight rows before any content. Capping each against
+   vh as well as vw is what makes "fits on one screen" true at 720 and 640, not
+   only at 1080. min() picks whichever axis is the binding constraint. */
+.mm-mw3 .mm-title       { font-size: clamp(26px, min(4.4vw, 6vh), 62px); }
+.mm-mw3 .mm-option-icon { width:  clamp(22px, min(2.6vw, 3.8vh), 46px);
+                          height: clamp(22px, min(2.6vw, 3.8vh), 46px); }
+.mm-mw3 .mm-feature     { padding-top: var(--mm-vr); padding-bottom: var(--mm-vr); }
+/* The now-playing picker is a mini scroll list; its box does not need to be a
+   fixed 58px on a short screen. */
+.mm-mw3 .mm-heropick    { max-height: clamp(26px, 5vh, 58px); }
+/* !important because the rule this overrides is itself !important (a
+   positioning reset that also happens to hard-code a 14px margin). */
+.mm-mw3 .mm-lb-rail     { margin: var(--mm-vr-sm) 0 0 !important; }
+
+/* ---- and the container's own padding, which was the real scrollbar ---------
+   The panel measured 717 in a 720 viewport and the overlay STILL scrolled by
+   37. The panel was never the whole story: the overlay adds
+   padding-top 40 + padding-bottom 60 (20/40 under a 720px media query), so the
+   thing that has to fit is panel + 100, not panel. That is also why deleting
+   the hero picker appeared to "fix" it — the picker was innocent; removing it
+   just shrank the panel enough to absorb the padding.
+   Scaled with the same rhythm as everything else. !important and a 0,2,0
+   selector because the rule being corrected is itself !important. */
+.main-menu-overlay.mm-mw3 {
+  padding-top: var(--mm-vr) !important;
+  padding-bottom: var(--mm-vr) !important;
+}
+
+/* ---- short windows get a denser rhythm ------------------------------------
+   The clamps above land 720-and-up cleanly, but a 640-700px window is still a
+   few tens of pixels over, and every token's vh term is already the binding
+   one there — so lowering a floor buys nothing. A short-viewport step is the
+   honest lever: it cannot touch a large screen (the query never matches) and
+   it only tightens what is already the constraint. Below ~620 the menu will
+   scroll again, and it should: clipping the bottom off is worse than a
+   scrollbar. */
+@media (max-height: 760px) {
+  .mm-mw3 {
+    --mm-vr:      clamp(6px, 1.1vh, 26px);
+    --mm-vr-sm:   clamp(4px, 0.7vh, 16px);
+    --mm-opt-pad: clamp(3px, 0.45vh, 11px);
+  }
+  .mm-mw3 .mm-option-icon { width:  clamp(20px, min(2.6vw, 3.2vh), 46px);
+                            height: clamp(20px, min(2.6vw, 3.2vh), 46px); }
+  .mm-mw3 .mm-heropick    { max-height: clamp(22px, 3.6vh, 58px); }
+}

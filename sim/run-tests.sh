@@ -115,6 +115,10 @@ echo "=== bat-lock.js (a locked card does not look like an expensive one) ==="
 run_suite sim/bat-lock.js
 
 echo ""
+echo "=== menu-fits.js (the main menu fits on one screen) ==="
+run_suite sim/menu-fits.js
+
+echo ""
 if [ "$FAIL" -ne 0 ]; then
   echo "❌ TESTS FAILED — see suites above."
   exit 1
