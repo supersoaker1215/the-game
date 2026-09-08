@@ -49372,3 +49372,410 @@ body.in-match:not(.board-v2) .board {
                             height: clamp(20px, min(2.6vw, 3.2vh), 46px); }
   .mm-mw3 .mm-heropick    { max-height: clamp(22px, 3.6vh, 58px); }
 }
+
+/* ============================================================
+   MULTIPLAYER — SET UP SCREEN            (ui.js `_mpRender`, status 'idle')
+   ------------------------------------------------------------
+   Owner's spec sheet. Values are taken from it verbatim; where it and the
+   existing build disagreed, the spec wins, and the disagreements are named
+   at the rule that resolves them.
+
+   Two things the spec is emphatic about and this block enforces:
+     · Red is reserved for the opponent. It is never a rarity, never a player
+       pick, and never "empty" — open seats are neutral grey.
+     · Glow is stacked drop-shadow on painted pixels, never box-shadow, and
+       always carries a 1px white core. The core is what makes a tube read as
+       LIT rather than as a coloured border.
+   ============================================================ */
+:root {
+  --mp-bg:        #04060a;   /* page */
+  --mp-lit-cyan:  #06121a;   /* panel fill, lit  */
+  --mp-lit-red:   #170609;
+  --mp-inert:     #080c11;   /* panel fill, inert */
+  --mp-text:      #c9d6de;
+  --mp-text-2:    #8fa3ae;
+  --mp-text-3:    #6c7f8b;   /* labels */
+  --mp-text-off:  #5c6f7c;   /* disabled */
+  --mp-hair:      rgba(140, 170, 190, 0.16);
+  --mp-edge:      rgba(140, 170, 190, 0.20);
+  --mp-chamfer:   14px;
+}
+/* The one chamfer, top-left + bottom-right, on every panel/button/seat. */
+.mps-mode, .mps-create, .mps-chip, .mp-code-slot, .mpl-code-tile, .mpl-seat, .mpl-start {
+  clip-path: polygon(var(--mp-chamfer) 0, 100% 0, 100% calc(100% - var(--mp-chamfer)),
+                     calc(100% - var(--mp-chamfer)) 100%, 0 100%, 0 var(--mp-chamfer));
+}
+.mps, .mpl { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
+.mps-lbl {
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 11px; font-weight: 400; letter-spacing: 0.28em;
+  text-transform: uppercase; color: var(--mp-text-3);
+}
+.mps-lbl-block { display: block; margin: 18px 0 8px; }
+
+/* ---- identity row: name + neon, one row ---------------------------------- */
+.mps-idrow { display: flex; align-items: flex-end; gap: 26px; }
+.mps-field { flex: 1 1 auto; display: flex; flex-direction: column; gap: 6px; }
+.mps-name {
+  background: none; border: 0; border-bottom: 2px solid rgb(var(--own-cyan));
+  color: #ffffff; font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 20px; font-weight: 400; letter-spacing: 0.04em;
+  padding: 2px 0 5px; width: 100%; outline: none;
+}
+.mps-name::placeholder { color: var(--mp-text-off); }
+.mps-neon { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.mps-chips { display: flex; gap: 7px; }
+.mps-chip {
+  width: 24px; height: 24px; border: 0; padding: 0; cursor: pointer;
+  --mp-chamfer: 6px;
+  background: currentColor; opacity: 0.35;
+  transition: opacity 140ms ease, filter 140ms ease;
+}
+.mps-chip.is-on {
+  opacity: 1;
+  /* full-strength tube, spec §4 — 1px white core is not optional */
+  filter: drop-shadow(0 0 1px rgba(255,255,255,0.9))
+          drop-shadow(0 0 4px currentColor)
+          drop-shadow(0 0 12px currentColor);
+}
+.mps-chip:hover { opacity: 0.75; }
+.mps-chip-blue   { color: rgb(var(--own-cyan));   }
+.mps-chip-orange { color: rgb(var(--own-orange)); }
+.mps-chip-gold   { color: rgb(var(--own-gold));   }
+.mps-chip-green  { color: rgb(var(--own-green));  }
+.mps-chip-silver { color: rgb(var(--own-ice));    }
+.mps-chip-purple { color: rgb(var(--own-purple)); }
+
+/* ---- mode blocks ----------------------------------------------------------
+   The frame is two nested boxes: the outer carries the colour and 2px of
+   padding, and that 2px gap IS the tube. Drawing it as a border instead would
+   put the colour on a line the chamfer clips away at the corners — the same
+   defect the card frame had. Inert blocks use 1px and the neutral edge. */
+.mps-modes { display: flex; flex-direction: column; gap: 9px; }
+.mps-mode {
+  background: var(--mp-edge);
+  padding: 1px;
+  cursor: pointer;
+  transition: background 140ms ease, filter 140ms ease;
+}
+.mps-mode.is-on {
+  background: rgb(var(--own-cyan));
+  padding: 2px;
+  filter: drop-shadow(0 0 1px rgba(255,255,255,0.9))
+          drop-shadow(0 0 4px rgba(var(--own-cyan), 0.85))
+          drop-shadow(0 0 12px rgba(var(--own-cyan), 0.30));
+}
+.mps-mode > * { background: var(--mp-inert); }
+.mps-mode.is-on > * { background: var(--mp-lit-cyan); }
+.mps-mode-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 13px 16px;
+  clip-path: polygon(13px 0, 100% 0, 100% calc(100% - 13px),
+                     calc(100% - 13px) 100%, 0 100%, 0 13px);
+}
+/* A block with a deck row underneath must not chamfer its own bottom — the
+   two halves are one panel, and the cut belongs to the outer frame. */
+.mps-mode:has(.mps-deck) .mps-mode-head { clip-path: none; }
+.mps-mode-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.mps-mode-title {
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 21px; font-weight: 700; letter-spacing: 0.10em;
+  text-transform: uppercase; color: #ffffff;
+}
+.mps-mode.is-on .mps-mode-title { text-shadow: 0 0 5px rgba(var(--own-cyan), 0.85); }
+.mps-mode-meta {
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 11px; font-weight: 400; letter-spacing: 0.20em;
+  text-transform: uppercase; color: var(--mp-text-3);
+}
+.mps-mode-ind {
+  width: 13px; height: 13px; flex: 0 0 13px;
+  border: 1px solid var(--mp-edge); background: none;
+}
+.mps-mode.is-on .mps-mode-ind {
+  border-color: rgb(var(--own-cyan));
+  background: rgb(var(--own-cyan));
+  box-shadow: 0 0 6px rgba(var(--own-cyan), 0.8);
+}
+/* the nested deck row — belongs to 1v1 Custom Decks, dimmed until chosen */
+.mps-deck {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 16px 11px;
+  border-top: 1px solid var(--mp-hair);
+  opacity: 0.5;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 13px),
+                     calc(100% - 13px) 100%, 0 100%);
+}
+.mps-deck.is-on { opacity: 1; }
+.mps-deck-lbl {
+  font-size: 10px; letter-spacing: 0.28em; text-transform: uppercase;
+  color: var(--mp-text-3); font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+}
+.mps-deck-name {
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 14px; font-weight: 700; letter-spacing: 0.04em;
+  color: rgb(var(--own-gold));                      /* spec: yours is gold */
+  text-shadow: 0 0 5px rgba(var(--own-gold), 0.85);
+}
+.mps-deck-count { font-size: 11px; letter-spacing: 0.20em; text-transform: uppercase; color: var(--mp-text-off); }
+.mps-deck-act {
+  margin-left: auto; background: none; border: 0; cursor: pointer; padding: 2px 0;
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 11px; letter-spacing: 0.20em; text-transform: uppercase;
+  color: var(--mp-text-2);
+}
+.mps-deck-act:hover { color: #ffffff; }
+
+/* ---- random events: one row, screen level -------------------------------- */
+.mps-ev {
+  display: flex; align-items: center; gap: 12px;
+  margin-top: 16px; cursor: pointer; user-select: none;
+}
+.mps-ev input { position: absolute; opacity: 0; pointer-events: none; }
+.mps-ev-text {
+  flex: 1 1 auto;
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 16px; font-weight: 400; color: var(--mp-text);
+}
+.mps-ev-sw {
+  width: 38px; height: 18px; flex: 0 0 38px; position: relative;
+  background: rgba(140,170,190,0.18); border: 1px solid var(--mp-edge);
+  transition: background 140ms ease, border-color 140ms ease;
+}
+.mps-ev-sw::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 12px; height: 12px; background: var(--mp-text-3);
+  transition: transform 140ms var(--ease-snap, cubic-bezier(.22,1,.36,1)), background 140ms ease;
+}
+.mps-ev.is-on .mps-ev-sw { background: rgba(var(--own-cyan), 0.22); border-color: rgb(var(--own-cyan)); }
+.mps-ev.is-on .mps-ev-sw::after { transform: translateX(20px); background: rgb(var(--own-cyan)); }
+.mps-ev-val {
+  min-width: 26px;
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 13px; letter-spacing: 0.10em; text-transform: uppercase;
+  color: var(--mp-text-2);
+}
+.mps-ev.is-on .mps-ev-val { color: rgb(var(--own-cyan)); }
+
+/* ---- the CTA group, pushed to the bottom of the column -------------------
+   `margin-top:auto` is the whole reason the panel stops being pinned to the
+   top-left corner: the screen uses its full height and the action sits where
+   an action belongs, at the end of the reading order. */
+.mps-cta { margin-top: auto; padding-top: 22px; }
+/* ONE RULE, not four. This was split across four blocks while I iterated, and
+   the last of them declared only `isolation`, so anything reading "the
+   .mps-create rule" got a block with no glow in it at all. Same trap as the
+   card frame: what a selector says depends on which of its rules you read. */
+.mps-create {
+  position: relative; isolation: isolate;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  width: 100%; padding: 2px; border: 0; cursor: pointer;
+  background: rgb(var(--own-cyan));
+  filter: drop-shadow(0 0 1px rgba(255,255,255,0.9))
+          drop-shadow(0 0 4px rgba(var(--own-cyan), 0.85))
+          drop-shadow(0 0 12px rgba(var(--own-cyan), 0.30));
+}
+.mps-create > span { position: relative; z-index: 1; background: none; }
+/* the inner fill is a pseudo-element, so the 2px ring around it IS the tube */
+.mps-create::after {
+  content: ''; position: absolute; inset: 2px; z-index: 0;
+  background: var(--mp-lit-cyan);
+  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px),
+                     calc(100% - 12px) 100%, 0 100%, 0 12px);
+}
+.mps-create-label {
+  padding: 17px 0 17px 20px;
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 21px; font-weight: 700; letter-spacing: 0.10em;
+  text-transform: uppercase; color: #ffffff;
+  text-shadow: 0 0 5px rgba(var(--own-cyan), 0.85);
+}
+.mps-create-sub {
+  padding-right: 20px;
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 11px; letter-spacing: 0.20em; text-transform: uppercase;
+  color: rgba(var(--own-cyan), 0.85);
+}
+
+/* ---- join: present, but quiet. Same weight of action, not of emphasis. ---- */
+.mps-join { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+.mps-join .mp-code-slots { display: flex; gap: 6px; }
+.mps-join .mp-code-slot {
+  width: 40px; height: 36px; text-align: center;
+  background: var(--mp-inert); border: 1px solid var(--mp-edge); color: #ffffff;
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 17px; font-weight: 700; text-transform: uppercase; outline: none;
+  --mp-chamfer: 7px;
+}
+.mps-join .mp-code-slot:focus { border-color: rgb(var(--own-cyan)); }
+.mps-enter {
+  background: none; border: 0; cursor: pointer; padding: 4px 0;
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 13px; letter-spacing: 0.10em; text-transform: uppercase;
+  color: var(--mp-text-2);
+}
+.mps-enter:hover { color: #ffffff; }
+
+/* ---- the panel itself -----------------------------------------------------
+   .mp-section was capped at 320px and centred inside the menu panel, so every
+   label wrapped and the screen read as a narrow strip floating in the middle
+   of the art. The spec's left panel is 620px, flush left, with the art taking
+   the remaining width behind a left-to-right scrim. */
+.mm-section.mp-section {
+  max-width: 620px !important;
+  width: 100%;
+  margin-left: 0 !important;
+  margin-right: auto !important;
+  display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0;
+}
+/* The name field is an underline, not a box. The generic input styling gives
+   every field in the app a 1px themed border and a dark fill; here that read
+   as a form control competing with the mode blocks below it. */
+.mps .mps-name,
+.mm-section.mp-section .mps-name {
+  border: 0 !important;
+  border-bottom: 2px solid rgb(var(--own-cyan)) !important;
+  background: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* ---- the multiplayer screen owns the whole column -------------------------
+   Two consequences of the panel being content-height:
+     · `margin-top:auto` on the CTA group had nothing to push against, so
+       Create Room sat directly under the toggle instead of at the foot of the
+       screen. `align-self: stretch` gives the column a height to distribute.
+     · The menu's NOW PLAYING rail kept rendering underneath, because it is a
+       sibling of the swapped panel body rather than part of it. On this screen
+       it is not chrome, it is a leftover from a different screen.
+   Scoped with :has(.mps) so nothing here can leak back into the main menu. */
+.mm-panel:has(.mps) { align-self: stretch; display: flex; flex-direction: column; }
+.mm-panel:has(.mps) .mm-botbar,
+.mm-panel:has(.mps) .mm-lb-rail { display: none !important; }
+
+/* ============================================================
+   MULTIPLAYER — LOBBY                    (ui.js `_mpRender`, status 'waiting')
+   ============================================================ */
+.mm-panel:has(.mpl) { align-self: stretch; display: flex; flex-direction: column; }
+.mm-panel:has(.mpl) .mm-botbar,
+.mm-panel:has(.mpl) .mm-lb-rail { display: none !important; }
+.mpl { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+
+/* ---- room code — the biggest thing on the screen, because it is read aloud */
+.mpl-codewrap { display: flex; flex-direction: column; gap: 8px; }
+.mpl-code { display: flex; align-items: center; gap: 16px; }
+.mpl-code-tiles { display: flex; gap: 8px; cursor: pointer; }
+.mpl-code-tile {
+  width: 52px; height: 62px; display: grid; place-items: center;
+  background: rgb(var(--own-cyan)); color: #04060a;
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 34px; font-weight: 700; line-height: 1;
+  filter: drop-shadow(0 0 1px rgba(255,255,255,0.9))
+          drop-shadow(0 0 4px rgba(var(--own-cyan), 0.85))
+          drop-shadow(0 0 12px rgba(var(--own-cyan), 0.30));
+}
+/* Room full: the code stops instructing, so it stops glowing. */
+.mpl-code-tiles.is-closed .mpl-code-tile {
+  background: rgba(var(--own-cyan), 0.14);
+  border: 1px solid rgba(var(--own-cyan), 0.40);
+  color: #8fd8e8; filter: none;
+}
+.mpl-code-acts { display: flex; flex-direction: column; gap: 4px; }
+.mpl-code-act {
+  background: none; border: 0; cursor: pointer; padding: 1px 0; text-align: left;
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase;
+  color: var(--mp-text-3);
+}
+.mpl-code-act:hover { color: #ffffff; }
+.mpl-code-cap {
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 11px; letter-spacing: 0.20em; text-transform: uppercase;
+  color: #8fd8e8;
+}
+
+/* ---- seats ---------------------------------------------------------------
+   Three states, and only two of them carry a side colour. An OPEN seat is
+   neutral grey, never red: red means "the opponent", and painting an empty
+   chair with it says a person is there. */
+.mpl-seats { display: flex; flex-direction: column; gap: 10px; margin-top: 22px; }
+.mpl-seat { padding: 1px; background: rgba(140,170,190,0.18); }
+.mpl-seat > * { background: rgba(8,12,17,0.9); }
+.mpl-seat.is-you  { padding: 2px; background: rgb(var(--own-cyan));
+  filter: drop-shadow(0 0 1px rgba(255,255,255,0.9))
+          drop-shadow(0 0 4px rgba(var(--own-cyan), 0.85))
+          drop-shadow(0 0 12px rgba(var(--own-cyan), 0.30)); }
+.mpl-seat.is-you  > * { background: var(--mp-lit-cyan); }
+.mpl-seat.is-opp  { padding: 2px; background: rgb(var(--own-opponent));
+  filter: drop-shadow(0 0 1px rgba(255,255,255,0.9))
+          drop-shadow(0 0 4px rgba(var(--own-opponent), 0.85))
+          drop-shadow(0 0 12px rgba(var(--own-opponent), 0.30)); }
+.mpl-seat.is-opp  > * { background: var(--mp-lit-red); }
+.mpl-seat-head {
+  display: flex; align-items: center; gap: 12px; padding: 22px 18px;
+  clip-path: polygon(13px 0, 100% 0, 100% calc(100% - 13px),
+                     calc(100% - 13px) 100%, 0 100%, 0 13px);
+}
+.mpl-seat:has(.mpl-seat-deck) .mpl-seat-head { clip-path: none; padding-bottom: 14px; }
+.mpl-seat-dot { width: 16px; height: 16px; flex: 0 0 16px; border-radius: 50%; background: var(--mp-text-off); }
+.mpl-seat.is-you .mpl-seat-dot { background: rgb(var(--own-cyan)); }
+.mpl-seat.is-opp .mpl-seat-dot { background: rgb(var(--own-opponent)); }
+.mpl-seat-name {
+  flex: 1 1 auto; min-width: 0;
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 21px; font-weight: 400; letter-spacing: 0.04em; color: #ffffff;
+}
+.mpl-seat.is-open .mpl-seat-name {
+  color: var(--mp-text-off); text-transform: uppercase; letter-spacing: 0.10em; font-size: 17px;
+}
+.mpl-seat-state {
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 11px; letter-spacing: 0.20em; text-transform: uppercase;
+}
+.mpl-seat.is-you .mpl-seat-state { color: rgb(var(--own-cyan)); }
+.mpl-seat.is-opp .mpl-seat-state { color: #ff8494; }
+.mpl-addai {
+  background: none; border: 1px solid rgba(140,170,190,0.35); cursor: pointer;
+  padding: 5px 10px; color: var(--mp-text-2);
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 12px; letter-spacing: 0.10em; text-transform: uppercase;
+  clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+}
+.mpl-addai:hover { color: #ffffff; border-color: rgba(140,170,190,0.6); }
+.mpl-seat-deck {
+  display: flex; align-items: center; gap: 10px; padding: 8px 18px 14px;
+  border-top: 1px solid var(--mp-hair);
+}
+.mpl-deck-hidden { font-size: 14px; color: var(--mp-text-2); font-family: 'Chakra Petch','Rajdhani',sans-serif; }
+.mpl-vs {
+  display: flex; align-items: center; gap: 12px;
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 11px; letter-spacing: 0.28em; color: var(--mp-text-3);
+}
+.mpl-vs::after { content: ''; flex: 1 1 auto; height: 1px; background: var(--mp-hair); }
+
+/* ---- foot: one dim settings line, then START ----------------------------- */
+.mpl-foot { margin-top: auto; padding-top: 26px; }
+.mpl-summary {
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 13px; letter-spacing: 0.10em; color: var(--mp-text-3); margin-bottom: 12px;
+}
+.mpl-startrow { display: flex; align-items: center; gap: 16px; }
+.mpl-start {
+  padding: 15px 40px; cursor: pointer; background: none;
+  border: 1px solid rgba(140,170,190,0.35); color: #7b8d99;
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 19px; font-weight: 700; letter-spacing: 0.10em; text-transform: uppercase;
+}
+.mpl-start[disabled] { cursor: not-allowed; }
+.mpl-start.is-ready {
+  border-color: rgb(var(--own-cyan)); color: #ffffff;
+  filter: drop-shadow(0 0 1px rgba(255,255,255,0.9))
+          drop-shadow(0 0 4px rgba(var(--own-cyan), 0.85))
+          drop-shadow(0 0 12px rgba(var(--own-cyan), 0.30));
+}
+.mpl-seatcount {
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 11px; letter-spacing: 0.20em; text-transform: uppercase; color: var(--mp-text-3);
+}
+.mpl-seatcount.is-ready { color: rgb(var(--own-cyan)); }

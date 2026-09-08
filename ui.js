@@ -19310,6 +19310,60 @@ const UI = {
   // Re-render the in-shell multiplayer submenu in place on every connection
   // event (roomCreated / joined / paired / error). No letter-flip on these
   // state ticks — just refresh the panel content so it updates smoothly.
+  // ===================== MULTIPLAYER — SET UP =====================
+  // Three screens, not four: Main menu -> SET UP -> LOBBY. Create Room mints
+  // the code and opens the lobby directly; there is no separate create step.
+  //
+  // And three MODES, not two crossed axes. The old screen asked "2v2, or
+  // create, or join?" and then separately "classic or custom decks?", which
+  // made Custom Decks read as a property of Create Room rather than as its own
+  // mode — and left Active Deck sitting at screen level as if it applied to
+  // all three. It applies to exactly one.
+  _MP_MODES: [
+    { id: '2v2',     title: '2v2 Online',       meta: '4 players \u00b7 2 teams \u00b7 shared draft' },
+    { id: '1v1',     title: '1v1 Online',       meta: '2 players \u00b7 shared draft' },
+    { id: '1v1deck', title: '1v1 Custom Decks', meta: '2 players \u00b7 bring your own' },
+  ],
+  _mpMode() {
+    const ok = this._MP_MODES.some(m => m.id === this._mpSetupMode);
+    return ok ? this._mpSetupMode : '2v2';
+  },
+  _mpPickMode(id) {
+    if (!this._MP_MODES.some(m => m.id === id)) return;
+    this._mpSetupMode = id;
+    this._mpRender();
+  },
+  // The random-events row is screen level and appears ONCE. It used to be
+  // printed twice — once beside the 2v2 hero and once inside the create-room
+  // list — two switches for the same idea, which poses a question about which
+  // is authoritative that the screen cannot answer. It writes the key for the
+  // mode currently selected, because that is the setting the run will actually
+  // read; one shared key would silently change the other mode's behaviour.
+  _mpEventsKey() { return this._mpMode() === '2v2' ? 'twoVTwo' : 'oneVOne'; },
+  _mpEventsOn() {
+    const key = this._mpEventsKey();
+    const cfg = (this.settings && this.settings.randomEvents) || {};
+    return (key === 'oneVOne' && cfg.oneVOne === undefined && cfg.hotseat !== undefined)
+      ? cfg.hotseat !== false : cfg[key] !== false;
+  },
+  _mpToggleEvents() {
+    const key = this._mpEventsKey();
+    if (!this.settings.randomEvents) this.settings.randomEvents = { solo: true, oneVOne: true, twoVTwo: true };
+    const cur = this.settings.randomEvents;
+    const now = this._mpEventsOn();
+    cur[key] = !now;
+    if (key === 'oneVOne') delete cur.hotseat;
+    try { localStorage.setItem(this.SETTINGS_KEY, JSON.stringify(this.settings)); } catch (e) {}
+    this._mpRender();
+  },
+  // CREATE ROOM routes by mode. One button, because from the player's side it
+  // is one action — the mode was already chosen above it.
+  _mpCreateFromSetup() {
+    const m = this._mpMode();
+    if (m === '2v2') { if (typeof Game !== 'undefined' && Game.goTo2v2OnlineLobby) Game.goTo2v2OnlineLobby(); return; }
+    this._mpCreateRoom(m === '1v1deck' ? 'deck' : 'classic');
+  },
+
   _mpRender() {
     if (this._mmSub !== 'mp') return;
     const el = document.getElementById('main-menu-overlay');
@@ -19368,47 +19422,92 @@ const UI = {
       // JOIN ROOM gets a real code FIELD. It was a button that revealed an
       // input, so the actual join flow was one click further away than the two
       // create flows it sits beside, for no reason.
-      const _savedDecks = (() => { try { return Object.keys(this._dbGetSavedDecks() || {}).length; } catch (e) { return 0; } })();
+      const _mode = this._mpMode();
       const _deckKey = (typeof this._mpDeckKey === 'function') ? (this._mpDeckKey() || '') : '';
       const _activeDeck = _deckKey || 'Classic Draft';
+      let _deckCount = 0;
+      try { const d = this._mpLobbyMyCounts && this._mpLobbyMyCounts(); if (d) _deckCount = (d.cards | 0) + (d.tricks | 0); } catch (e) {}
+      const _esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+
+      // NEON — the six ownership colours, shown as the colour each one actually
+      // selects. Red is absent by construction: it belongs to the opponent.
+      // Shown in the spec's pick order (cyan, purple, orange, green, ice, gold),
+      // not THEME_VALUES order — that array is the storage/validation list and
+      // reordering it would churn saved settings for a purely visual sequence.
+      const _CHIP_ORDER = ['blue', 'purple', 'orange', 'green', 'silver', 'gold'];
+      const _chips = _CHIP_ORDER.filter(t => (this.THEME_VALUES || []).includes(t)).map(t =>
+        `<button type="button" class="mps-chip mps-chip-${t}${this.settings.theme === t ? ' is-on' : ''}"
+                 data-theme="${t}" title="${_esc(t)}" aria-label="Neon ${_esc(t)}"
+                 onclick="UI.previewTheme('${t}'); UI._mpRender();"></button>`).join('');
+
+      const _modes = this._MP_MODES.map(m => {
+        const on = (m.id === _mode);
+        // The deck row is nested INSIDE the custom-decks block and dimmed until
+        // that mode is chosen, because it is a property of the mode and not of
+        // the screen. It used to sit at the bottom as a screen-level footer,
+        // which said it applied to every mode; it applies to one.
+        const deckRow = (m.id !== '1v1deck') ? '' : `
+          <div class="mps-deck${on ? ' is-on' : ''}">
+            <span class="mps-deck-lbl">Deck</span>
+            <span class="mps-deck-name">${_esc(_activeDeck)}</span>
+            <span class="mps-deck-count">${_deckCount ? _deckCount + ' cards' : 'not built'}</span>
+            <button type="button" class="mps-deck-act" onclick="event.stopPropagation(); UI._mpOpenDeckBuilder()">Change &rarr;</button>
+          </div>`;
+        return `
+        <div class="mps-mode${on ? ' is-on' : ''}" role="radio" tabindex="0" aria-checked="${on}"
+             onclick="UI._mpPickMode('${m.id}')"
+             onkeydown="if(event.key===' '||event.key==='Enter'){event.preventDefault();UI._mpPickMode('${m.id}');}">
+          <div class="mps-mode-head">
+            <span class="mps-mode-text">
+              <span class="mps-mode-title">${m.title}</span>
+              <span class="mps-mode-meta">${m.meta}</span>
+            </span>
+            <span class="mps-mode-ind" aria-hidden="true"></span>
+          </div>${deckRow}
+        </div>`;
+      }).join('');
+
       const _slots = [0,1,2,3].map(i =>
         `<input class="mp-code-slot" data-cs="${i}" maxlength="1" inputmode="latin" autocapitalize="characters"`
         + ` autocomplete="off" spellcheck="false" aria-label="Room code letter ${i+1}" />`).join('');
+
+      const _evOn = this._mpEventsOn();
       body = `
-        <div class="mp-hero">
-          <button type="button" class="mp-hero-btn" onclick="Game.goTo2v2OnlineLobby()">
-            <span class="mp-hero-ic">${IC.multi || ''}</span>
-            <span class="mp-hero-text">
-              <span class="mp-hero-title">2v2 Online</span>
-              <span class="mp-hero-sub">4 players · own devices · one tap</span>
-            </span>
-          </button>
-          ${UI._mmEventToggle('twoVTwo', 'Random events in 2v2 matches — local and online')}
-        </div>
+        <div class="mps">
+          <div class="mps-idrow">
+            <div class="mps-field">
+              <label class="mps-lbl" for="mp-name-input">Name</label>
+              <input type="text" id="mp-name-input" class="mps-name" maxlength="12" placeholder="Your name"
+                     value="${_esc(this._mpName())}" oninput="UI._mpSaveName(this.value)" />
+            </div>
+            <div class="mps-neon">
+              <span class="mps-lbl">Neon</span>
+              <div class="mps-chips" role="radiogroup" aria-label="Neon colour">${_chips}</div>
+            </div>
+          </div>
 
-        <div class="mp-rule"><span class="mp-rule-label">Create Room</span><span class="mp-rule-line"></span></div>
-        <div class="mp-rows">
-          <button type="button" class="mp-row" onclick="UI._mpCreateRoom('classic')">
-            <span class="mp-row-name">Classic Draft</span>
-            <span class="mp-row-meta">Shared pool</span>
-          </button>
-          <button type="button" class="mp-row" onclick="UI._mpCreateRoom('deck')">
-            <span class="mp-row-name">Custom Decks</span>
-            <span class="mp-row-meta">${_savedDecks ? `Your ${_savedDecks} deck${_savedDecks === 1 ? '' : 's'}` : 'Build one first'}</span>
-          </button>
-          ${UI._mmEventToggle('oneVOne', 'Random events in 1v1 matches — local and online')}
-        </div>
+          <div class="mps-lbl mps-lbl-block">Mode</div>
+          <div class="mps-modes" role="radiogroup" aria-label="Multiplayer mode">${_modes}</div>
 
-        <div class="mp-rule"><span class="mp-rule-label">Join Room</span><span class="mp-rule-line"></span></div>
-        <div class="mp-join-row">
-          <div class="mp-code-slots" id="mp-code-slots">${_slots}</div>
-          <button type="button" class="mp-code-go" onclick="UI._mpJoinFromSlots()">Enter code &rarr;</button>
-        </div>
+          <label class="mps-ev${_evOn ? ' is-on' : ''}">
+            <span class="mps-ev-text">Random events</span>
+            <input type="checkbox" ${_evOn ? 'checked' : ''} onchange="UI._mpToggleEvents()"
+                   aria-label="Random events">
+            <span class="mps-ev-sw" aria-hidden="true"></span>
+            <span class="mps-ev-val">${_evOn ? 'On' : 'Off'}</span>
+          </label>
 
-        <div class="mp-foot">
-          <span class="mp-foot-label">Active deck</span>
-          <span class="mp-foot-value">${String(_activeDeck).replace(/&/g,'&amp;').replace(/</g,'&lt;')}</span>
-          <button type="button" class="mp-foot-act" onclick="UI._mpOpenDeckBuilder()">Build a deck &rarr;</button>
+          <div class="mps-cta">
+            <button type="button" class="mps-create" onclick="UI._mpCreateFromSetup()">
+              <span class="mps-create-label">Create Room</span>
+              <span class="mps-create-sub">Opens the lobby</span>
+            </button>
+            <div class="mps-join">
+              <span class="mps-lbl">or join</span>
+              <div class="mp-code-slots" id="mp-code-slots">${_slots}</div>
+              <button type="button" class="mps-enter" onclick="UI._mpJoinFromSlots()">Enter code &rarr;</button>
+            </div>
+          </div>
         </div>`;
     } else if (st.status === 'waiting') {
       // Dots sit inline next to the label; the code is boxless glow-text (tap
@@ -19422,15 +19521,106 @@ const UI = {
       // and correct: the host's deck is resolved lazily in the opponentJoined
       // handler (_mpDeckPayload() is read there, not at createRoom), so the
       // pick that counts is whatever is selected when the friend actually joins.
-      body = `<div class="mp-status">
-        <div class="mp-status-label mp-status-waiting">Waiting for opponent<span class="mp-loader mp-loader-inline" aria-hidden="true"><span></span><span></span><span></span></span></div>
-        <div id="mp-code-display" class="mp-code-display mp-code-boxless" onclick="UI._mpCopyCode()" title="Tap to copy">${st.code || '----'}</div>
-        <div class="mp-share-hint">Share this code — your friend picks Join Room and enters it.</div>
-        <div class="mp-share-hint">${st.mode === 'deck'
-          ? `Custom decks — when they join you'll both build a ${UI.DECK_CARD_MAX}-card deck and ready up.`
-          : 'Classic draft — the match starts as soon as they join.'}</div>
-        ${st.mode === 'deck' ? this._mpDeckPickerHTML({ waiting: true }) : ''}
-      </div>`;
+      // ===================== MULTIPLAYER — LOBBY =====================
+      // Create Room lands here directly; there is no separate create step. The
+      // room CODE is the largest element on the screen, deliberately: it is the
+      // one thing a person reads out loud to someone in another room.
+      const _esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+      const _code = String(st.code || '----').toUpperCase().slice(0, 4).padEnd(4, '-');
+      const _isDeck = (st.mode === 'deck');
+      const _modeName = _isDeck ? '1v1 Custom Decks' : '1v1 Online';
+      const L = this._mpLobby || {};
+      const _oppIn = !!L.oppName;
+      const _seated = _oppIn ? 2 : 1;
+      const _ready = _oppIn && (!_isDeck || (L.myReady && L.oppReady));
+      // ROOM FULL closes the code: it stops being lit, because it has stopped
+      // being an instruction. A code still glowing at full strength after the
+      // room is full is telling you to do something that can no longer work.
+      const _full = _oppIn;
+      const _tiles = _code.split('').map(ch =>
+        `<span class="mpl-code-tile">${_esc(ch)}</span>`).join('');
+
+      const _seat = (opts) => {
+        const cls = opts.open ? 'is-open' : (opts.you ? 'is-you' : 'is-opp');
+        // + ADD AI ONLY IF THERE IS AN AI TO ADD. The spec puts this button on
+        // every open seat, and it should be there — but nothing in the engine
+        // fills an online seat with a bot today (no handler exists anywhere in
+        // ui/game/multiplayer). A button that does nothing is worse than an
+        // absent one: it reads as broken rather than as unbuilt. The markup
+        // path stays, so wiring a handler is the only change needed later.
+        const right = opts.open
+          ? (opts.addAi ? `<button type="button" class="mpl-addai" onclick="${opts.addAi}">+ Add AI</button>` : '')
+          : `<span class="mpl-seat-state">${_esc(opts.state || '')}</span>`;
+        const deck = !opts.deck ? '' : `
+          <div class="mpl-seat-deck">
+            <span class="mps-deck-lbl">Deck</span>
+            ${opts.deckHidden
+              ? `<span class="mpl-deck-hidden">Hidden until start</span>`
+              : `<span class="mps-deck-name">${_esc(opts.deck)}</span>`}
+            <span class="mps-deck-count">${_esc(opts.deckCount || '')}</span>
+            ${opts.deckAct ? `<button type="button" class="mps-deck-act" onclick="${opts.deckAct}">Change &rarr;</button>` : ''}
+          </div>`;
+        return `
+        <div class="mpl-seat ${cls}">
+          <div class="mpl-seat-head">
+            <span class="mpl-seat-dot" aria-hidden="true"></span>
+            <span class="mpl-seat-name">${opts.open ? 'Open seat' : _esc(opts.name)}</span>
+            ${right}
+          </div>${deck}
+        </div>`;
+      };
+
+      const _myCounts = (() => { try { const c = this._mpLobbyMyCounts(); return c ? ((c.cards|0) + (c.tricks|0)) + ' cards' : ''; } catch (e) { return ''; } })();
+      const _oppCounts = (L.oppCounts ? ((L.oppCounts.cards|0) + (L.oppCounts.tricks|0)) + ' cards' : '');
+      const _mySeat = _seat({
+        you: true, name: this._mpName() || 'You',
+        state: _isDeck ? (L.myReady ? 'Host \u00b7 Ready' : 'Host') : 'Host \u00b7 Ready',
+        deck: _isDeck ? ((typeof this._mpDeckKey === 'function' && this._mpDeckKey()) || 'Classic Draft') : null,
+        deckCount: _myCounts, deckAct: _isDeck ? 'UI._mpOpenDeckBuilder()' : '',
+      });
+      const _oppSeat = _oppIn
+        ? _seat({ name: L.oppName, state: (!_isDeck || L.oppReady) ? 'Ready' : 'Choosing\u2026',
+                  deck: _isDeck ? true : null, deckHidden: true, deckCount: _oppCounts })
+        : _seat({ open: true, addAi: '' });
+
+      const _evOn = this._mpEventsOn();
+      const _summary = [
+        _isDeck ? 'Custom decks' : 'Classic draft',
+        'Random events ' + (_evOn ? 'on' : 'off'),
+        '6 lanes',
+      ].join(' \u00b7 ');
+
+      body = `
+        <div class="mpl">
+          <div class="mpl-codewrap">
+            <span class="mps-lbl">Room code</span>
+            <div class="mpl-code">
+              <div class="mpl-code-tiles${_full ? ' is-closed' : ''}" id="mp-code-display"
+                   onclick="UI._mpCopyCode()" title="Tap to copy">${_tiles}</div>
+              <div class="mpl-code-acts">
+                <button type="button" class="mpl-code-act" onclick="UI._mpCopyCode()">Copy</button>
+                <button type="button" class="mpl-code-act" onclick="UI._mpCopyCode()">Share</button>
+              </div>
+            </div>
+            ${_full ? `<div class="mpl-code-cap">Room full \u2014 code closed</div>` : ''}
+          </div>
+
+          <div class="mpl-seats">
+            ${_mySeat}
+            <div class="mpl-vs"><span>VS</span></div>
+            ${_oppSeat}
+          </div>
+
+          <div class="mpl-foot">
+            <div class="mpl-summary">${_esc(_summary)}</div>
+            <div class="mpl-startrow">
+              <button type="button" class="mpl-start${_ready ? ' is-ready' : ''}"
+                      ${_ready ? '' : 'disabled'}>Start</button>
+              <span class="mpl-seatcount${_ready ? ' is-ready' : ''}">${_seated} / 2 seated${
+                _ready ? ' \u2014 both ready' : (_oppIn ? ' \u2014 waiting on decks\u2026' : ' \u2014 waiting for players\u2026')}</span>
+            </div>
+          </div>
+        </div>`;
     } else if (st.status === 'joining') {
       body = `<div class="mp-status">
         <div class="mp-status-label">Joining ${st.code}…</div>
@@ -19460,13 +19650,11 @@ const UI = {
         <button type="button" class="mp-glow-go" onclick="UI._mpLeaveRoom()">Try Again</button></div>`;
     }
 
-    // Minimal name field — left-aligned, underline (no box), only when idle.
-    const nameRow = (st.status === 'idle') ? `
-      <div class="mp-name-min-row">
-        <label class="mp-name-min-label" for="mp-name-input">Name</label>
-        <input type="text" id="mp-name-input" class="mp-name-min" maxlength="12" placeholder="Your name"
-               value="${this._mpName().replace(/"/g, '&quot;')}" oninput="UI._mpSaveName(this.value)" />
-      </div>` : '';
+    // The name field moved INTO the set-up screen, beside the neon picker —
+    // they are one row now ("who am I, and what colour am I"), instead of a
+    // stray field above the panel. Nothing else needs it: every other status
+    // is a room you are already in under a name you already chose.
+    const nameRow = '';
 
     // TOURNAMENT banner — when a series is queued, make it unmistakable that
     // this lobby is setting up a Tournament (not a normal match), and that the
@@ -19480,11 +19668,16 @@ const UI = {
       </div>` : '';
     // BREADCRUMB ON ONE LINE. The back control and the "where am I" label were
     // two separate elements saying two halves of the same thing on two rows.
+    // In a room it reads "Leave / <mode>": the action is no longer "go back to
+    // the menu", it is "give up this room", and the label should say which
+    // room. Outside one it stays "Menu / Multiplayer".
+    const _inRoom = (st.status === 'waiting');
+    const _crumbMode = (st.mode === 'deck') ? '1v1 Custom Decks' : '1v1 Online';
     const crumb = `
       <nav class="mp-crumb" aria-label="Breadcrumb">
-        <button type="button" class="mp-crumb-back" onclick="UI._mpBack()">&larr; Menu</button>
+        <button type="button" class="mp-crumb-back" onclick="UI._mpBack()">&larr; ${_inRoom ? 'Leave' : 'Menu'}</button>
         <span class="mp-crumb-sep">/</span>
-        <span class="mp-crumb-here">${_tq ? 'Tournament' : 'Multiplayer'}</span>
+        <span class="mp-crumb-here">${_tq ? 'Tournament' : (_inRoom ? _crumbMode : 'Multiplayer')}</span>
       </nav>`;
     return `
       ${crumb}

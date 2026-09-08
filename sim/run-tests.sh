@@ -119,6 +119,10 @@ echo "=== menu-fits.js (the main menu fits on one screen) ==="
 run_suite sim/menu-fits.js
 
 echo ""
+echo "=== mp-screens.js (multiplayer set-up + lobby, to spec) ==="
+run_suite sim/mp-screens.js
+
+echo ""
 if [ "$FAIL" -ne 0 ]; then
   echo "❌ TESTS FAILED — see suites above."
   exit 1
