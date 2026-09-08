@@ -6655,56 +6655,38 @@ body.hit-pause .ai-hand * {
     0 1px 2px rgba(0,0,0,0.95);
 }
 
-/* --- Hand cards — rarity-tier text with a strong triple-layer neon glow --- */
-.card.hand-card.cost-0 .card-name, .card.hand-card.cost-1 .card-name,
-.card.hand-card.cost-2 .card-name, .card.hand-card.cost-3 .card-name {
-  color: #8ef2ad;
+/* --- BOARD — CORRECTED 03 · NAME PLATE ------------------------------------
+   Four per-tier rules used to TINT the name — green, blue, silver, gold — so
+   the card's name was the third thing on the tile already saying the tier,
+   after the frame and the cost orb, and it said it in the dimmest, least
+   legible way: coloured text on dark art. The name's job is to be READ.
+   It is now pure #ffffff on every card, and the tier arrives as the halo
+   around it, which carries the colour without spending contrast on it.
+   One rule replaces four, and it reads --portrait-frame-rgb, so it follows
+   ownership on the board and rarity in hand with no extra selectors.
+   ------------------------------------------------------------------------- */
+.card .card-name,
+.card.hand-card .card-name {
+  color: #ffffff;
   text-shadow:
-    0 0 4px rgba(46,204,113,1),
-    0 0 12px rgba(46,204,113,0.6),
-    0 0 20px rgba(46,204,113,0.30),
-    0 1px 2px rgba(0,0,0,0.95);
-}
-.card.hand-card.cost-4 .card-name, .card.hand-card.cost-5 .card-name, .card.hand-card.cost-6 .card-name {
-  color: #9adcff;
-  text-shadow:
-    0 0 4px rgba(79,195,247,1),
-    0 0 12px rgba(79,195,247,0.6),
-    0 0 20px rgba(79,195,247,0.30),
-    0 1px 2px rgba(0,0,0,0.95);
-}
-.card.hand-card.cost-7 .card-name, .card.hand-card.cost-8 .card-name {
-  color: var(--text-body, #f5fbff);
-  text-shadow:
-    0 0 4px rgba(240,245,250,1),
-    0 0 12px rgba(240,245,250,0.8),
-    0 0 20px rgba(240,245,250,0.45),
-    0 1px 2px rgba(0,0,0,0.95);
-}
-.card.hand-card.cost-9 .card-name, .card.hand-card.cost-10 .card-name {
-  color: #ffe066;
-  text-shadow:
-    0 0 4px rgba(var(--gold-rgb),1),
-    0 0 12px rgba(var(--gold-rgb),0.7),
-    0 0 20px rgba(var(--gold-rgb),0.40),
+    0 0 5px rgba(var(--portrait-frame-rgb, var(--own-cyan)), 0.95),
+    0 0 12px rgba(var(--portrait-frame-rgb, var(--own-cyan)), 0.45),
     0 1px 2px rgba(0,0,0,0.95);
 }
 
 /* --- Board cards — side-color text (Tron blue ally / Tron red enemy) --- */
 .card.ally-card .card-name {
-  color: #7fd0ff;
+  color: #ffffff;                       /* see the NAME PLATE note above */
   text-shadow:
-    0 0 4px rgba(var(--theme-rgb, 79,195,247),1),
-    0 0 12px rgba(var(--theme-rgb, 79,195,247),0.65),
-    0 0 20px rgba(var(--theme-rgb, 79,195,247),0.35),
+    0 0 5px rgba(var(--theme-rgb), 0.95),
+    0 0 12px rgba(var(--theme-rgb), 0.45),
     0 1px 2px rgba(0,0,0,0.95);
 }
 .card.enemy-card .card-name {
-  color: #ff8a7a;
+  color: #ffffff;                       /* see the NAME PLATE note above */
   text-shadow:
-    0 0 4px rgba(231,76,60,1),
-    0 0 12px rgba(231,76,60,0.65),
-    0 0 20px rgba(231,76,60,0.35),
+    0 0 5px rgba(var(--own-opponent), 0.95),
+    0 0 12px rgba(var(--own-opponent), 0.45),
     0 1px 2px rgba(0,0,0,0.95);
 }
 
@@ -14357,14 +14339,20 @@ body.round-first-ai .hud-pill-main {
    once at :root scope with :root's numbers and the theme override
    would never take effect. */
 body, :root {
-  --theme-r: 79;
-  --theme-g: 195;
-  --theme-b: 247;
+  /* BOARD — CORRECTED 01: the six the player picks from. Values live in the
+     --own-* tokens at the end of this file; these three are the active pick. */
+  --theme-r: 0;
+  --theme-g: 229;
+  --theme-b: 255;
 }
-body.theme-red,    :root.theme-red    { --theme-r: 231; --theme-g: 76;  --theme-b: 60;  }
-body.theme-gold,   :root.theme-gold   { --theme-r: 255; --theme-g: 215; --theme-b: 0;   }
-body.theme-green,  :root.theme-green  { --theme-r: 46;  --theme-g: 204; --theme-b: 113; }
-body.theme-silver, :root.theme-silver { --theme-r: 220; --theme-g: 226; --theme-b: 234; }
+/* theme-red is GONE, not merely unlisted. It had already been dropped from
+   THEME_VALUES, but the rule stayed behind and would still paint a player red
+   if the class ever reappeared — and "red is opponent only" is the one rule
+   this palette is built on. Orange takes its slot in the picker. */
+body.theme-orange, :root.theme-orange { --theme-r: 255; --theme-g: 122; --theme-b: 24;  }
+body.theme-gold,   :root.theme-gold   { --theme-r: 255; --theme-g: 209; --theme-b: 102; }
+body.theme-green,  :root.theme-green  { --theme-r: 38;  --theme-g: 255; --theme-b: 156; }
+body.theme-silver, :root.theme-silver { --theme-r: 169; --theme-g: 214; --theme-b: 255; }
 body, :root {
   /* ===== NEON INTENSITY, ON ONE KNOB (2026-09-02) =====================
      Owner: "i want the colors neon to pop more."
@@ -14717,7 +14705,7 @@ body, :root {
    prefers the signature purple for tricks + a 6th "purple" theme
    option alongside blue/red/gold/green/silver.
    ============================================================ */
-body.theme-purple, :root.theme-purple { --theme-r: 155; --theme-g: 89; --theme-b: 182; }
+body.theme-purple, :root.theme-purple { --theme-r: 176; --theme-g: 97; --theme-b: 255; }
 
 /* Restore trick chrome to purple (overrides the silver block above
    it since this rule comes later in the cascade). */
@@ -14831,8 +14819,8 @@ body.theme-purple, :root.theme-purple { --theme-r: 155; --theme-g: 89; --theme-b
    each body.theme-* variant sets both.
    ============================================================ */
 body, :root {
-  --player-r: 79;  --player-g: 195; --player-b: 247;   /* cyan default */
-  --enemy-r:  231; --enemy-g:  76;  --enemy-b:  60;    /* red default */
+  --player-r: 0;   --player-g: 229; --player-b: 255;   /* #00e5ff cyan default */
+  --enemy-r:  255; --enemy-g:  47;  --enemy-b:  69;    /* #ff2f45 — FIXED, always */
   /* Hand-picked POP color for the contested-lane midpoint. The naive
      50/50 sRGB mix between AI red and the player accent produces
      muddy, low-saturation mids (cyan+red = washed mauve, white+red =
@@ -14846,29 +14834,30 @@ body, :root {
 }
 /* Per-theme contest-pop overrides — hand-tuned so the midpoint always
    reads as saturated neon, never muddy. */
-body.theme-red, :root.theme-red {
-  --player-r: 231; --player-g: 76;  --player-b: 60;
-  --enemy-r:  79;  --enemy-g:  195; --enemy-b:  247;
-  --contest-pop: rgb(255, 60, 200);
-  --contest-pop-soft: rgba(255, 60, 200, 0.55);
+/* No theme-red here either — the enemy no longer needs a swap partner,
+   because red is never handed to a player. See the note beside --theme-r. */
+body.theme-orange, :root.theme-orange {
+  --player-r: 255; --player-g: 122; --player-b: 24;
+  --contest-pop: rgb(255, 190, 40);            /* warm yellow (orange+red) */
+  --contest-pop-soft: rgba(255, 190, 40, 0.55);
 }
 body.theme-gold, :root.theme-gold {
-  --player-r: 255; --player-g: 215; --player-b: 0;
+  --player-r: 255; --player-g: 209; --player-b: 102;
   --contest-pop: rgb(255, 130, 20);            /* vivid orange (gold+red) */
   --contest-pop-soft: rgba(255, 130, 20, 0.55);
 }
 body.theme-green, :root.theme-green {
-  --player-r: 46;  --player-g: 204; --player-b: 113;
+  --player-r: 38;  --player-g: 255; --player-b: 156;
   --contest-pop: rgb(255, 220, 30);            /* bright yellow (green+red) */
   --contest-pop-soft: rgba(255, 220, 30, 0.55);
 }
 body.theme-silver, :root.theme-silver {
-  --player-r: 220; --player-g: 226; --player-b: 234;
+  --player-r: 169; --player-g: 214; --player-b: 255;
   --contest-pop: rgb(255, 80, 170);            /* HOT PINK (white+red) */
   --contest-pop-soft: rgba(255, 80, 170, 0.55);
 }
 body.theme-purple, :root.theme-purple {
-  --player-r: 155; --player-g: 89;  --player-b: 182;
+  --player-r: 176; --player-g: 97;  --player-b: 255;
   --contest-pop: rgb(230, 50, 150);            /* vivid magenta (purple+red) */
   --contest-pop-soft: rgba(230, 50, 150, 0.55);
 }
@@ -15290,19 +15279,21 @@ body {
 
 /* ---- Board card name + desc highlights follow side theme ---- */
 .card.ally-card .card-name {
-  color: color-mix(in srgb, var(--player-accent) 35%, white) !important;
+  color: #ffffff !important;            /* see the note on the enemy rule below */
   text-shadow:
-    0 0 4px var(--player-accent-bright),
-    0 0 12px var(--player-glow-outer),
-    0 0 20px var(--player-glow-inner),
+    0 0 5px rgba(var(--player-r), var(--player-g), var(--player-b), 0.95),
+    0 0 12px rgba(var(--player-r), var(--player-g), var(--player-b), 0.45),
     0 1px 2px rgba(0,0,0,0.95) !important;
 }
 .card.enemy-card .card-name {
-  color: color-mix(in srgb, rgb(var(--enemy-r), var(--enemy-g), var(--enemy-b)) 35%, white) !important;
+  /* BOARD — CORRECTED 03. These two are the rules that WIN — they carry
+     !important, so the pair up at the NAME PLATE note is inert until these
+     agree with it. Was a 35% side-tint; now pure white with the side colour
+     as the halo. */
+  color: #ffffff !important;
   text-shadow:
-    0 0 4px var(--enemy-accent-bright),
-    0 0 12px var(--enemy-glow-outer),
-    0 0 20px var(--enemy-glow-inner),
+    0 0 5px rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.95),
+    0 0 12px rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.45),
     0 1px 2px rgba(0,0,0,0.95) !important;
 }
 /* "WHEN PLAYED:" / "START OF TRICKS:" trigger labels. Keep them in
@@ -16219,12 +16210,16 @@ body.round-first-ai .hud-pill-main {
 /* Per-theme color — set as CSS color so currentColor cascades into the
    reticle ring + tick marks. Background stays transparent; the swatch
    draws itself from ring + ticks only. */
-.theme-swatch-blue   { color: #7fd0ff; }
-.theme-swatch-red    { color: #ff8a7a; }
-.theme-swatch-gold   { color: #ffe066; }
-.theme-swatch-green  { color: #7ee8a5; }
-.theme-swatch-silver { color: var(--text-dim, #d8dee4); }
-.theme-swatch-purple { color: #d7b3e6; }
+/* Each swatch shows the colour it actually SELECTS. These used to be softened
+   pastels of the theme rather than the theme, so the picker was previewing a
+   colour the board never paints. And theme-swatch-red is gone with the theme
+   itself — red belongs to the opponent. */
+.theme-swatch-blue   { color: rgb(var(--own-cyan));   }
+.theme-swatch-orange { color: rgb(var(--own-orange)); }
+.theme-swatch-gold   { color: rgb(var(--own-gold));   }
+.theme-swatch-green  { color: rgb(var(--own-green));  }
+.theme-swatch-silver { color: rgb(var(--own-ice));    }
+.theme-swatch-purple { color: rgb(var(--own-purple)); }
 
 /* ---- #5 AI hand card-back — Tron circuit pattern ---- */
 /* Replace the diamond pattern with a subtle circuit diagram:
@@ -31213,10 +31208,12 @@ body.combat-anticipate::after  { content: none !important; }
      • cost 7-8  → silver  (240, 245, 250)
      • cost 9-10 → gold    (var(--gold-rgb))
    ---------------------------------------------------------------- */
-.card.cost-0,  .card.cost-1, .card.cost-2,  .card.cost-3  { --rarity-rgb: 46, 204, 113; }
-.card.cost-4,  .card.cost-5, .card.cost-6                { --rarity-rgb: 79, 195, 247; }
-.card.cost-7,  .card.cost-8                              { --rarity-rgb: 240, 245, 250; }
-.card.cost-9,  .card.cost-10                             { --rarity-rgb: 245, 191, 28; }
+/* BOARD — CORRECTED 01: the hand ladder. Four tiers, four hues, each unique
+   to this set — the board's six ownership colours never reuse one of them. */
+.card.cost-0,  .card.cost-1, .card.cost-2,  .card.cost-3  { --rarity-rgb: var(--rar-green); }
+.card.cost-4,  .card.cost-5, .card.cost-6                { --rarity-rgb: var(--rar-blue);  }
+.card.cost-7,  .card.cost-8                              { --rarity-rgb: var(--rar-white); }
+.card.cost-9,  .card.cost-10                             { --rarity-rgb: var(--rar-gold);  }
 
 /* ----------------------------------------------------------------
    SIMPLIFIED PORTRAIT — MINIMAL CHROME, NO EFFECTS LAYER STACK
@@ -31255,7 +31252,7 @@ body.combat-anticipate::after  { content: none !important; }
   --portrait-frame-rgb: var(--rarity-rgb, 79, 195, 247);
 }
 .card.ally-card  { --portrait-frame-rgb: var(--theme-rgb, 79, 195, 247); }
-.card.enemy-card { --portrait-frame-rgb: 231, 76, 60; }
+.card.enemy-card { --portrait-frame-rgb: var(--own-opponent); }
 
 .card-portrait {
   /* Sits at the TOP of the card now — the standalone name banner row
@@ -31479,9 +31476,14 @@ body.combat-anticipate::after  { content: none !important; }
     #000 100%);
   color: rgba(255, 255, 255, 0.96);
   font-family: 'Rajdhani', sans-serif;
-  font-weight: 700;
-  font-size: 11px;
-  letter-spacing: 0.08em;
+  /* BOARD — CORRECTED 03: 13px / 600 / .13em. Measured before committing to it,
+     because a bigger face on a 110px card is a wrapping risk, not a free win:
+     across the eight names on screen nothing overflows and exactly one
+     ("Freddy Fazbear") gains a second line. Rajdhani only ships 500/600/700, so
+     600 is a real weight here and not a silent round to 700. */
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.13em;
   text-transform: uppercase;
   text-align: center;
   /* The top padding is the FADE LENGTH, not spacing. The box is anchored
@@ -43996,12 +43998,23 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 /* THE NAME takes the frame colour. --portrait-frame-rgb, not --card-edge:
    it is the rarity tier in hand/draft/codex and the SIDE colour on the board,
    which is the rule the canvas states, and tricks carry it too. */
+/* BOARD — CORRECTED 03 · NAME PLATE.
+   This is the rule that actually paints the card's name — `.card-name`, which
+   I edited first, is a different element entirely, and everything I did up
+   there was inert. It carries !important, so nothing later can talk it out of
+   the colour it picks.
+   It used to paint the name IN the frame colour, which meant the tile said the
+   tier three times (frame, cost orb, name) and said it worst here: coloured
+   letters over dark art is the lowest-contrast place on the card. The name's
+   job is to be READ. Pure white now, with the frame colour as a 5px halo, so
+   the tier still arrives — just not at the cost of legibility. */
 .card .card-portrait .card-name-overlay,
 .card .card-name-overlay .cn-text {
-  color: rgba(var(--frame-rgb), 1) !important;
+  color: #ffffff !important;
   text-shadow:
     0 1px 3px rgba(0,0,0,0.95),
-    0 0 10px rgba(var(--frame-rgb), 0.55) !important;
+    0 0 5px  rgba(var(--frame-rgb), 0.95),
+    0 0 12px rgba(var(--frame-rgb), 0.45) !important;
 }
 /* The two overlays that carry information rather than spectacle, moved inside
    the silhouette so the clip cannot eat them. */
@@ -44059,8 +44072,14 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    health, in every state." Scoped to the stat readouts ONLY: 46,204,113 and
    231,76,60 are also the ally/enemy side colours everywhere else, and those
    are a different channel that the handoff does not speak to. */
-.card .stat-atk { color: #ddfff0; }
-.card .stat-hp  { color: #ffdede; }
+/* BOARD — CORRECTED 03: "corner stats are white-cored too — no green".
+   These were tinted toward their own channel (#ddfff0 green-white, #ffdede
+   red-white), which pushed the numeral itself off white on the exact element
+   that has to be read fastest and at the smallest size on the card. The colour
+   stays — it just moves entirely into the pip and the halo below, where it
+   costs no contrast. */
+.card .stat-atk { color: #ffffff; }
+.card .stat-hp  { color: #ffffff; }
 .card .stat-atk::before { background: #3dff9e; }
 .card .stat-hp::before  { background: #ff6b6b; }
 .card .stat-atk { text-shadow: 0 1px 2px rgba(0,0,0,1), 0 0 3px rgba(0,0,0,0.95), 0 0 8px rgba(61,255,158,0.85); }
@@ -48783,6 +48802,18 @@ body.in-match:not(.board-v2) .board {
   --cf-core-lift: 0;
   /* the fallback path's ratio, for engines without relative colour syntax.
      Held at 0 alongside the lift so the two paths agree. */
+  /* BOARD — CORRECTED 02, and the one place I did NOT follow the spec's
+     wording. It says "1px #fff core". Measuring the reference gives a 1px line
+     whose peak carries some white — but the amount VARIES BY HUE (red 8%, cyan
+     15%, green 24%), and a designed constant core would not do that. It is
+     antialiasing between a 1px line and its own bloom, and every frame in the
+     reference is 1px, so there is no thicker sample that could separate the
+     two. Against that stands an explicit earlier instruction on these very
+     frames — "too white more saturation" — with a test pinning it (BL: see
+     sim/card-tube.js). So the line stays fully saturated, and the white core
+     is delivered where the spec is unambiguous and where it buys legibility
+     instead of spending it: the name plate and the corner stats, both pure
+     #ffffff. Flip these two to 15% / 0.06 if the frames should whiten too. */
   --cf-core-white: 0%;
 }
 
@@ -48796,12 +48827,15 @@ body.in-match:not(.board-v2) .board {
 }
 
 /* ---- stops 2 and 3: the gas on the glass, then what it throws on the dark.
-   Radii stay small on purpose — 3px tube, 10px bloom. Past that a halo reads as
-   blur rather than neon, which is the trap --neon-boost x3 would have walked
-   into the moment it was wired to a rule that actually paints. */
+   BOARD — CORRECTED 02 sets the ladder: board is 4px tube / 12px bloom, and
+   hand is the same stack at half, 3px / 7px (see the .hand-card rule below).
+   Still drop-shadow, never box-shadow, which the spec calls out and which
+   matters here for a reason it does not state: box-shadow traces the element's
+   BOUNDING BOX, so on a chamfered card it would paint a glowing rectangle
+   corner where the card has none. */
 .card, .trick-card {
-  --tube-r1: 3px;
-  --tube-r2: 10px;
+  --tube-r1: 4px;
+  --tube-r2: 12px;
   --tube-a1: 0.90;
   --tube-a2: 0.45;
   --card-tube:
@@ -48813,7 +48847,12 @@ body.in-match:not(.board-v2) .board {
 /* ---- the base state, and the hover that lifts the same tube rather than
    describing a second one. Hover only moves the four numbers. */
 .card.card, .card.card:hover { filter: var(--card-tube); }
-.card.card:hover { --tube-r1: 4px; --tube-r2: 16px; --tube-a1: 1; --tube-a2: 0.58; }
+.card.card:hover { --tube-r1: 5px; --tube-r2: 18px; --tube-a1: 1; --tube-a2: 0.58; }
+/* HAND RUNS AT HALF. Six cards fanned at the bottom of the screen each throwing
+   a board-strength bloom is a wall of light, and it competes with the board for
+   the same attention the board is supposed to win. Hover restores full strength
+   because then you have singled one out. */
+.card.card.hand-card:not(:hover) { --tube-r1: 3px; --tube-r2: 7px; }
 .trick-card { filter: var(--card-tube); }
 .trick-card:hover { --tube-r1: 4px; --tube-r2: 16px; --tube-a1: 1; --tube-a2: 0.58;
                     filter: var(--card-tube); }
@@ -49211,4 +49250,45 @@ body.in-match:not(.board-v2) .board {
 
 @media (prefers-reduced-motion: reduce) {
   .hand-card-wrapper > .bat-lock > svg { animation: none; }
+}
+
+/* ============================================================
+   BOARD — CORRECTED   ·  ownership colour / glow ladder / name contrast
+   ------------------------------------------------------------
+   The owner's spec sheet, implemented. Every value here was MEASURED off the
+   reference render rather than read off its caption, because the two disagree
+   in one important place (see --cf-core-white below).
+
+   01 · OWNERSHIP   Your row is your chosen colour, the opponent's row is always
+                    red — and red is opponent-only, so it is not offered as a
+                    player pick. Rarity does not touch the frame on board; it
+                    lives on the hairline only. In hand the ladder is
+                    green / blue / white / gold.
+   02 · GLOW LADDER Board 1px core / 4px tube / 12px bloom.
+                    Hand the same stack at half: 1px / 3px / 7px.
+                    Never box-shadow — this is a drop-shadow stack so it hugs
+                    the card's chamfered silhouette instead of its bounding box.
+   03 · NAME PLATE  Pure #ffffff with a 5px frame-colour halo. Corner stats are
+                    white-cored too, so no tier tint survives on the numerals.
+
+   Every hue is unique to one set, which is what lets colour alone say whose
+   card it is AND what tier it is. The two closest are card blue #3d8bff and
+   board ice white #a9d6ff, only 7.3 degrees apart in hue — they are separated
+   by WEIGHT instead (L .62 against .83), the same trick the spec prescribes
+   for the green pair.
+   ============================================================ */
+:root {
+  /* -- ownership ------------------------------------------------------ */
+  --own-opponent: 255, 47, 69;     /* #ff2f45  fixed, never a player option */
+  --own-cyan:     0, 229, 255;     /* #00e5ff */
+  --own-purple:   176, 97, 255;    /* #b061ff */
+  --own-orange:   255, 122, 24;    /* #ff7a18  replaces red in the picker */
+  --own-green:    38, 255, 156;    /* #26ff9c */
+  --own-ice:      169, 214, 255;   /* #a9d6ff */
+  --own-gold:     255, 209, 102;   /* #ffd166  warm amber */
+  /* -- card rarity, four only ----------------------------------------- */
+  --rar-green:    38, 255, 156;    /* #26ff9c  pairs with board green */
+  --rar-blue:     61, 139, 255;    /* #3d8bff  cooler + deeper than board cyan */
+  --rar-white:    255, 255, 255;   /* #ffffff  pure, against board ice white */
+  --rar-gold:     255, 239, 90;    /* #ffef5a  bright lemon, against board amber */
 }

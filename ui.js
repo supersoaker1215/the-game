@@ -983,7 +983,10 @@ const UI = {
   // danger / enemy / lethal red that combat VFX use, muddying threat
   // readability. Existing red-theme players migrate to blue (applyTheme below
   // coerces the now-invalid 'red' and strips the legacy class).
-  THEME_VALUES: ['blue', 'gold', 'green', 'silver', 'purple'],
+  // BOARD — CORRECTED 01: six player colours, and red is not among them —
+  // it is the opponent's, permanently. 'orange' takes the slot red used to
+  // hold; a saved 'red' still coerces to 'blue' through the guard below.
+  THEME_VALUES: ['blue', 'orange', 'gold', 'green', 'silver', 'purple'],
 
   // Swap the body.theme-* class so CSS --theme-* vars pick up the new RGB triplet.
   applyTheme(theme) {
