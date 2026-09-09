@@ -127,6 +127,10 @@ echo "=== draft-screen.js (the draft's six changes) ==="
 run_suite sim/draft-screen.js
 
 echo ""
+echo "=== event-rail.js (one rail, every event type) ==="
+run_suite sim/event-rail.js
+
+echo ""
 if [ "$FAIL" -ne 0 ]; then
   echo "❌ TESTS FAILED — see suites above."
   exit 1

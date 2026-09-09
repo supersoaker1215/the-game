@@ -5773,7 +5773,11 @@ test('Every environment is claimed by exactly one event franchise', function () 
   var known = {};
   CARD_DEFS.forEach(function (d) { known[d.name] = true; });
   if (typeof SUMMON_TOKEN_DEFS !== 'undefined') SUMMON_TOKEN_DEFS.forEach(function (d) { known[d.name] = true; });
-  ['MC Ballyhoo', 'Shadow Man', 'Apothicon Rift'].forEach(function (n) { known[n] = true; });
+  // The SCRIPTED events — the ones that are not a placeable card. Ballyhoo
+  // hands out candy, the Shadow Man pays out later, the Rift is a board state,
+  // and the Cog Invasion runs a four-VP engine out of s._cog. None of them
+  // resolve to a CARD_DEFS entry, and none of them should.
+  ['MC Ballyhoo', 'Shadow Man', 'Apothicon Rift', 'Cog Invasion'].forEach(function (n) { known[n] = true; });
   EVENT_FRANCHISES.forEach(function (fr) {
     (fr.events || []).forEach(function (ev) {
       assert(known[ev.name], fr.title + ' names a real event: ' + ev.name);
