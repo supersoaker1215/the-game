@@ -17613,9 +17613,21 @@ const Game = {
       if (fx && typeof UI !== 'undefined' && UI.sfx && UI.sfx.playEffect) UI.sfx.playEffect(fx);
     } catch (e) { /* presentation must never break the event */ }
   },
+  // ON FOR EVERY MATCH (owner). Cog Invasion is a persistent background system,
+  // not a one-shot placement, so it runs alongside whatever one-off event the
+  // match rolled (MC Ballyhoo / Shadow Man) rather than replacing it. Flip this
+  // to false to make it opt-in again (via _cogForce or a Cog Invasion roll).
+  _COG_ALL_GAMES: true,
   _cogEnabled() {
     const s = this.state;
-    return !!(s && (s._cogForce || s._matchEventName === 'Cog Invasion'));
+    // _cogForce is the explicit dev/console override and always wins.
+    if (s && s._cogForce) return true;
+    // RANDOM EVENTS OFF MEANS OFF. Cog Invasion is a random event, so when the
+    // player has switched random events off for this mode, it must not run —
+    // exactly like MC Ballyhoo and the Shadow Man. (Owner: "if they turn random
+    // events off no random events should happen during the game.")
+    if (this._randomEventsEnabled && !this._randomEventsEnabled()) return false;
+    return !!(s && (this._COG_ALL_GAMES || s._matchEventName === 'Cog Invasion'));
   },
   _cogInit() {
     const s = this.state;
@@ -17624,7 +17636,10 @@ const Game = {
       vps[k] = { key: k, name: this._COG_VP_DEFS[k].name, cog: this._COG_VP_DEFS[k].cog,
                  hp: this._COG_VP_MAX_HP, maxHp: this._COG_VP_MAX_HP,
                  active: false, dead: false, firstRound: null, lastSpawnRound: null,
-                 lastDrainRound: null, nextSide: 'player' };
+                 // Random starting side per VP so the Cogs (neutral bodies that
+                 // fight for whichever side they land on) don't systematically
+                 // reinforce the 'player' seat first — that skewed self-play hard.
+                 lastDrainRound: null, nextSide: (this.rng() < 0.5 ? 'player' : 'ai') };
     });
     s._cog = { active: true, vps, gagBag: { player: [], ai: [] } };
     this.log('[COG INVASION] The Cogs are on the move — four executives eye the board.');
