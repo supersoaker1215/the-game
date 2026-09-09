@@ -17624,6 +17624,20 @@ const Game = {
       if (fx && typeof UI !== 'undefined' && UI.sfx && UI.sfx.playEffect) UI.sfx.playEffect(fx);
     } catch (e) { /* presentation must never break the event */ }
   },
+  // A VP arriving gets a reveal so the player SEES it and reads what it does —
+  // and its theme plays only while that panel is up ("while it's talking"). Both
+  // are pure presentation, wrapped so they can never break the event.
+  _cogAnnounceVP(vp, vpKey) {
+    try {
+      if (typeof UI === 'undefined' || !UI.showCardReveal) { this._cogPlayTheme(vpKey); return; }
+      const blurb = (UI._COG_VP_BLURB && UI._COG_VP_BLURB[vpKey]) || '';
+      const desc = `Sends ${vp.cog} to both sides every 2 rounds and, left alone, drains 2 health from both players every 3rd round. `
+        + blurb + ` Beat ${vp.name} (10 HP) to stop it — click it in the panel on the right and send one of your cards' swings at it.`;
+      UI.showCardReveal(vp.name, desc, null, true, 'COG INVASION', {
+        onShow: () => { try { this._cogPlayTheme(vpKey); } catch (e) {} },
+      });
+    } catch (e) { try { this._cogPlayTheme(vpKey); } catch (e2) {} }
+  },
   // ON FOR EVERY MATCH (owner). Cog Invasion is a persistent background system,
   // not a one-shot placement, so it runs alongside whatever one-off event the
   // match rolled (MC Ballyhoo / Shadow Man) rather than replacing it. Flip this
@@ -17671,7 +17685,7 @@ const Game = {
         if (this.rng() < this._COG_VP_ROLL) {
           vp.active = true; vp.firstRound = round; vp.lastSpawnRound = round; vp.lastDrainRound = round;
           this.log(`[COG INVASION] ${vp.name} arrives!`);
-          this._cogPlayTheme(k);   // his theme plays as he steps out
+          this._cogAnnounceVP(vp, k);   // reveal + theme as it steps out
           this._cogSpawnCog(vp, round);
         }
         return;

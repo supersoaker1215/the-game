@@ -2347,10 +2347,10 @@ const UI = {
       // Cog Invasion — one battle theme per VP, fired when that VP first arrives
       // ("when they are talking"). maxDur keeps it a strong arrival flourish
       // rather than hijacking the match music. (Owner supplied the four tracks.)
-      cogThemeVp:       { src: 'audio/cog-theme-vp.mp3',       maxDur: 15 },
-      cogThemeCfo:      { src: 'audio/cog-theme-cfo.mp3',      maxDur: 15 },
-      cogThemeCj:       { src: 'audio/cog-theme-cj.mp3',       maxDur: 15 },
-      cogThemeChairman: { src: 'audio/cog-theme-chairman.mp3', maxDur: 15 },
+      cogThemeVp:       { src: 'audio/cog-theme-vp.mp3',       maxDur: 7 },
+      cogThemeCfo:      { src: 'audio/cog-theme-cfo.mp3',      maxDur: 7 },
+      cogThemeCj:       { src: 'audio/cog-theme-cj.mp3',       maxDur: 7 },
+      cogThemeChairman: { src: 'audio/cog-theme-chairman.mp3', maxDur: 7 },
       buff:        null,
       debuff:      null,
       summon:      null,
@@ -13910,7 +13910,11 @@ const UI = {
     // NO SEAT TABLE REQUIRED. The tracker used to demand tt.players, so it
     // simply never drew in 1v1 or solo — where the Shadow Man now also runs,
     // with the two SIDES as the competitors.
-    const live = !!(sh && sh.shows && sh.appeared && sh.stats);
+    // Gone once his challenge is settled. sh.returned flips true the moment he
+    // comes back to hand out the Wonder Weapons, so the scoreboard's job — the
+    // live race during the challenge — is done and it leaves. (Owner: "once the
+    // shadow mans challenge is done his scoreboard should leave.")
+    const live = !!(sh && sh.shows && sh.appeared && sh.stats && !sh.returned);
     if (!live) { if (el) el.style.display = 'none'; return; }
     if (!el) {
       el = document.createElement('div');
