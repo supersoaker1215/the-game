@@ -17776,6 +17776,15 @@ const Game = {
       const def = GAG_DEFS.find(g => g.name === name);
       if (!def) continue;
       holder.trickHand.push({ ...def, id: nextCardId++ });
+      // Every Cog kill pays a Gag and there is no cap on that — so the trick
+      // hand must never turn one away. Grow maxTrickHandSize to fit whatever the
+      // player has earned (like Ballyhoo's candies push past 3, but unbounded so
+      // a long invasion can stack more than one over) so no Gag is discarded as
+      // "TRICKS FULL" and every earned Gag renders and is playable. (Owner:
+      // "everytime you kill a cog you get a gag so you shouldnt max it out at 2.")
+      if ((holder.maxTrickHandSize | 0) < holder.trickHand.length) {
+        holder.maxTrickHandSize = holder.trickHand.length;
+      }
       this.log(`  [GAG] ${this.seatLabel ? this.seatLabel(owner) : owner} earns ${name}!`);
     }
   },
