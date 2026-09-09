@@ -185,14 +185,16 @@ export default {
           };
         }
         entry.at = Date.now();
-        // Corroboration: commit results only once this match has been reported
-        // by ≥2 distinct devices AND carries BOTH a win and a loss. Then apply
-        // every not-yet-applied reporter (covers 1v1's two and 2v2's four).
-        const reps = Object.values(entry.reps);
+        // Corroboration: commit once this match has been reported by ≥2 DISTINCT
+        // devices. Then apply every not-yet-applied reporter (1v1's two, 2v2's
+        // four). Dropped the old "one win AND one loss" requirement, which
+        // refused every 2v2 with the two humans as teammates and every 3-AI game
+        // — none ever counted. A host-stamped matchId only exists in a real
+        // online match and a device has one id, so two distinct devices agreeing
+        // on the same match already blocks lone fabrication. (Mirror of
+        // cloudflare/worker.js — keep the two in sync.)
         const distinct = Object.keys(entry.reps).length >= 2;
-        const hasWin = reps.some(r => r.win);
-        const hasLoss = reps.some(r => !r.win);
-        if (distinct && hasWin && hasLoss) {
+        if (distinct) {
           for (const devId in entry.reps) {
             const r = entry.reps[devId];
             if (r.applied) continue;

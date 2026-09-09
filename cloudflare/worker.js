@@ -193,14 +193,18 @@ export class StatsRoom {
           };
         }
         entry.at = Date.now();
-        // Corroboration: commit only once this match has been reported by ≥2
-        // distinct devices AND carries BOTH a win and a loss. Then apply every
-        // not-yet-applied reporter (covers 1v1's two and 2v2's four).
-        const reps = Object.values(entry.reps);
+        // Corroboration: commit once this match has been reported by ≥2 DISTINCT
+        // devices. Then apply every not-yet-applied reporter (covers 1v1's two
+        // and 2v2's four). The old rule ALSO required one win AND one loss among
+        // the reports — which quietly refused every 2v2 where the two humans were
+        // teammates (both reported a win) or a 3-AI game (one reporter), so those
+        // never counted at all. A host-stamped matchId only ever exists inside a
+        // real online match, and a single device has one deviceId, so "two
+        // distinct devices agreed on the same match" already blocks the abuse the
+        // gate was for (a lone client fabricating wins). Each device still records
+        // its OWN result via applyResult, so the tallies stay correct.
         const distinct = Object.keys(entry.reps).length >= 2;
-        const hasWin = reps.some(r => r.win);
-        const hasLoss = reps.some(r => !r.win);
-        if (distinct && hasWin && hasLoss) {
+        if (distinct) {
           for (const devId in entry.reps) {
             const r = entry.reps[devId];
             if (r.applied) continue;
