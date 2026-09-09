@@ -13,7 +13,7 @@ const UI = {
   // cached PNGs (which don't have built-in cache busters since they're
   // referenced via background-image url() and not the index.html
   // version-suffix system). Bump this every time you regen art.
-  _CARD_ART_VERSION: 95,
+  _CARD_ART_VERSION: 96,
 
   // Per-card background-position overrides. Default is "center center".
   // Use when an image crops poorly at the default — e.g. a head gets cut
@@ -13974,9 +13974,14 @@ const UI = {
       const hint = (vp.active && !vp.dead)
         ? `<button type="button" class="cog-hit" data-cog="${k}">Send a card at ${this._esc ? this._esc(vp.name) : vp.name}</button>`
         : '';
+      // VP portrait — the VPs are not cards, but their art lives in the same
+      // art/ folder under their exact name, so getCardArtPath resolves it.
+      const artUrl = (this.getCardArtPath ? this.getCardArtPath(vp.name) : null);
+      const art = artUrl ? `<div class="cog-vp-art" style="background-image:url('${String(artUrl).replace(/'/g, '%27')}')"></div>` : '';
       return `<div class="cog-vp cog-${state}">`
         + `<div class="cog-vp-head"><span class="cog-vp-name">${this._esc ? this._esc(vp.name) : vp.name}</span>`
         +   `<span class="cog-vp-hp">${vp.dead ? '✕' : vp.hp + '/' + vp.maxHp}</span></div>`
+        + art
         + `<div class="cog-vp-cog">Cog: ${this._esc ? this._esc(vp.cog) : vp.cog}</div>`
         + (vp.dead ? '' : `<div class="cog-hpbar"><div class="cog-hpfill" style="width:${pct}%"></div></div>`)
         + `<div class="cog-vp-blurb">${statusText}</div>`
