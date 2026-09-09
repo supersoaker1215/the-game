@@ -638,26 +638,13 @@ body.board-v2 .card .stat-atk { color: var(--atk) !important; }
 body.board-v2 .card .stat-hp  { color: var(--hp)  !important; }
 
 /* --------------------------------------------------------------------------
-   12. FOLD. The spec's own note: the three-column layout assumes >=1600 logical
-   px, and below that the side panels fold first. The scale unit keeps the
-   design intact well under that, so this only fires where a 340px panel would
-   genuinely have nowhere to go.
+   12. FOLD — the block itself now lives at the END of this file, and has to.
+   A media query carries NO extra specificity, so a fold written here is decided
+   against the desktop rules purely on source order — and every rule it must
+   beat (the three-column split, the left rail's own `display`) is written
+   BELOW this point at exactly the same specificity. Declared here, the fold
+   lost every one of them. See "12. FOLD" at the bottom of the file.
    ------------------------------------------------------------------------- */
-@media (max-width: 900px) {
-  body.board-v2 #game-area {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      "hud hud" "foebar foebar" "board board"
-      "strip strip" "mebar mebar" "hand right";
-    grid-template-rows: auto auto minmax(0,1fr) auto auto auto;
-    padding: calc(8 * var(--u)) calc(16 * var(--u));
-  }
-  body.board-v2 #bv2-rail-left { display: none; }
-  /* Tight enough that the divider and its gutter are the first thing to go. */
-  body.board-v2 #bv2-handrow { gap: calc(14 * var(--u)); }
-  body.board-v2 #bv2-handrow > .tricks-section { padding-left: calc(14 * var(--u)); }
-  body.board-v2 .tricks-section .trick-card { width: calc(96 * var(--u)); max-width: calc(96 * var(--u)); }
-}
 
 
 /* The spec's lane badge, applied to the element ui.js already maintains. */
@@ -684,14 +671,17 @@ body.board-v2 #board .lane-sep .lane-number {
    130:254 aspect inside them. Chamfers, colours, type, tube edges and every
    ratio are untouched — only the three widths the spec calls incidental move.
    =========================================================================== */
-body.board-v2 #game-area {
-  grid-template-columns:
-    calc(296 * var(--u))
-    minmax(0, 1fr)
-    calc(296 * var(--u));
-  column-gap: calc(22 * var(--u));
-  padding-left:  calc(32 * var(--u));
-  padding-right: calc(32 * var(--u));
+/* Desktop only: below 901px the fold at the end of this file owns these. */
+@media (min-width: 901px) {
+  body.board-v2 #game-area {
+    grid-template-columns:
+      calc(296 * var(--u))
+      minmax(0, 1fr)
+      calc(296 * var(--u));
+    column-gap: calc(22 * var(--u));
+    padding-left:  calc(32 * var(--u));
+    padding-right: calc(32 * var(--u));
+  }
 }
 
 /* Lanes take the column between them; the flex line sizes the lane, nothing
@@ -826,11 +816,14 @@ body.board-v2 #lane-forecast-strip .lf-cell.lf-empty::after { font-size: calc(11
    REFERENCE VALUES (BOARD-SPEC sections 4-9). Gutter 56, lane 168 / gap 14,
    slot 148 x 236 chamfer 12, midline 168 x 28, band 76, panels 324.
    =========================================================================== */
-body.board-v2 #game-area {
-  grid-template-columns: calc(324 * var(--u)) minmax(0, 1fr) calc(324 * var(--u));
-  padding-left:  var(--bv2-gutter, calc(56 * var(--u)));
-  padding-right: var(--bv2-gutter, calc(56 * var(--u)));
-  column-gap: calc(20 * var(--u));
+/* Desktop only: below 901px the fold at the end of this file owns these. */
+@media (min-width: 901px) {
+  body.board-v2 #game-area {
+    grid-template-columns: calc(324 * var(--u)) minmax(0, 1fr) calc(324 * var(--u));
+    padding-left:  var(--bv2-gutter, calc(56 * var(--u)));
+    padding-right: var(--bv2-gutter, calc(56 * var(--u)));
+    column-gap: calc(20 * var(--u));
+  }
 }
 body.board-v2 #board { gap: calc(14 * var(--u)); }
 body.board-v2 #game-area > .info-bar { min-height: calc(76 * var(--u)); height: calc(76 * var(--u)); gap: calc(22 * var(--u)); }
@@ -1023,8 +1016,11 @@ body.board-v2 #board .lane .card {
    vertically while the cards stayed small. Narrowing the panels moves that
    spare height into card size. 268 keeps the log readable without wrapping;
    below about 240 it starts to. */
-body.board-v2 #game-area {
-  grid-template-columns: calc(268 * var(--u)) minmax(0, 1fr) calc(268 * var(--u));
+/* Desktop only: below 901px the fold at the end of this file owns these. */
+@media (min-width: 901px) {
+  body.board-v2 #game-area {
+    grid-template-columns: calc(268 * var(--u)) minmax(0, 1fr) calc(268 * var(--u));
+  }
 }
 
 /* ===========================================================================
@@ -3174,3 +3170,69 @@ body.board-v2 #board .card-slot.target-highlight::before {
 /* (V2's palette version of the ownership wash retired with the wash itself —
    see the note in style.css. The environment's picture only covers one half of
    the lane now, and which half it covers is what says whose it is.) */
+
+
+/* ===========================================================================
+   12. FOLD.  >>> KEEP THIS BLOCK LAST IN THE FILE. APPEND ABOVE IT. <<<
+
+   The spec's own note: the three-column layout assumes >=1600 logical px, and
+   below that the side panels fold first. The scale unit keeps the design
+   intact well under that, so this only fires where a 340px panel would
+   genuinely have nowhere to go.
+
+   WHY IT LIVES AT THE BOTTOM. It used to sit up at section 12, and none of it
+   reached the screen. A media query adds NOTHING to specificity, so
+   `@media (max-width:900px) { body.board-v2 #game-area { ... } }` and a plain
+   `body.board-v2 #game-area { ... }` are a dead heat, decided on source order
+   — and this file grew by appending, so every later pass out-ordered the fold:
+
+     the three-column split was re-declared three times below it (296 / 324 /
+     268 columns) and the last one won, so at 880px the grid still had THREE
+     tracks while these areas name TWO;
+     the left rail was re-declared `display: flex` twice below it, so the
+     `display: none` here never applied.
+
+   What that produced at 880x760, measured: five column tracks (three explicit,
+   two implicit), `hand` landing in the 268u track meant for a rail so the hand
+   cards centred in 123px and hung 137px off the LEFT of the viewport, and
+   `#bv2-rail-left` — still visible, and naming a `left` area that this template
+   does not define — auto-placed into an implicit row BELOW the board.
+
+   Two things keep that from coming back. The three desktop column rules are
+   now inside `@media (min-width: 901px)` at their own sites, so they can no
+   longer leak under the fold at all. And this block is last, which is what
+   lets its `display: none` beat the rail's own later `display: flex`.
+
+   THE GUTTER AND THE PADDING ARE ONE NUMBER. The bands hang off #game-area by
+   `-1 * --bv2-gutter` and pad themselves back by the same amount, so a padding
+   that disagrees with --bv2-gutter pushes them off the viewport edge. The old
+   fold set `padding: 8u 16u` and left --bv2-gutter at 56u; had it ever applied,
+   the two info bars would have overflowed 40u to each side. Setting the
+   variable is what makes the padding safe to change.
+
+   The right column takes the same 268u the desktop rails use, so folding is a
+   RE-FLOW and not a re-scale — the rail keeps its proportions and simply moves
+   next to the hand. `auto` (what this block asked for before) would have sized
+   it to the decision tray's max-content, which is a whole card wide.
+   =========================================================================== */
+@media (max-width: 900px) {
+  body.board-v2 #game-area {
+    --bv2-gutter: calc(16 * var(--u));
+    grid-template-columns: minmax(0, 1fr) calc(268 * var(--u));
+    grid-template-areas:
+      "hud    hud"
+      "foebar foebar"
+      "board  board"
+      "strip  strip"
+      "mebar  mebar"
+      "hand   right";
+    grid-template-rows: auto auto minmax(0, 1fr) auto auto auto;
+    column-gap: calc(16 * var(--u));
+    padding: calc(8 * var(--u)) var(--bv2-gutter) calc(12 * var(--u));
+  }
+  body.board-v2 #bv2-rail-left { display: none; }
+  /* Tight enough that the divider and its gutter are the first thing to go. */
+  body.board-v2 #bv2-handrow { gap: calc(14 * var(--u)); }
+  body.board-v2 #bv2-handrow > .tricks-section { padding-left: calc(14 * var(--u)); }
+  body.board-v2 .tricks-section .trick-card { width: calc(96 * var(--u)); max-width: calc(96 * var(--u)); }
+}
