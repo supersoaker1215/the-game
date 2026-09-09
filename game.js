@@ -7396,6 +7396,11 @@ const Game = {
     // after the onBeforeCombat hooks (so Han's redirect lane is already chosen)
     // and after _inCombat is set (deaths batch to postCombat correctly).
     this._resolveFirstStrikes();
+    // COG INVASION — any card a player pointed at a VP this round spends its
+    // swing on that VP instead of its lane (see UI.cogAttackVP). Runs here, in
+    // the same pre-lane window as first strikes, so the redirected card is
+    // marked _skipNormalAttack before its lane resolves.
+    this._cogResolveVPStrikes();
 
     resolveLane(0);
   },
@@ -17692,6 +17697,24 @@ const Game = {
       } else {
         card.attack = base;
       }
+    });
+  },
+  // Pre-combat pass: a card the player aimed at a VP (card._cogAttackVP) spends
+  // its swing on that VP this round instead of its lane. One-shot — the flag is
+  // consumed here whether or not the strike lands.
+  _cogResolveVPStrikes() {
+    const c = this.state && this.state._cog;
+    if (!c) return;
+    this.getAllCardsOnBoard().forEach(card => {
+      if (!card._cogAttackVP) return;
+      const vpKey = card._cogAttackVP;
+      delete card._cogAttackVP;
+      if (card.currentHealth <= 0 || this.isActionLocked(card) || (card.attack | 0) <= 0) return;
+      const vp = c.vps[vpKey];
+      if (!vp || vp.dead) return;
+      this.log(`[COG INVASION] ${card.name} turns its swing on ${vp.name} for ${card.attack}!`);
+      this._cogDamageVP(vpKey, card.attack, card.owner);
+      card._skipNormalAttack = true;
     });
   },
   // A VP takes damage (routed from the VP-targeting UI). A kill awards 2 Gags to

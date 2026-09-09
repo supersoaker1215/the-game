@@ -8115,6 +8115,7 @@ const UI = {
     // hides outside an online match, so this one call covers both.
     this._safe('turnTracker',             () => this._render2v2TurnTracker(s, s.twoVTwo));
     this._safe('shadowTracker',           () => this._renderShadowTracker(s));
+    this._safe('cogPanel',                () => this._renderCogPanel(s));
     // Party voice — mounts itself only in an online match and removes itself
     // otherwise, so this one call covers 1v1 online, 2v2 online and every
     // screen that is neither.
@@ -13938,6 +13939,88 @@ const UI = {
     this._applyShadowTrackerBox(el);
   },
 
+  // ============================================================
+  // COG INVASION — the VP panel (right rail)
+  // ============================================================
+  // Four Vice-President health bars with a plain-language line on what each one
+  // is doing and how to fight it. Clicking a live VP lets you send one of your
+  // cards' swings at it this round (reuses the card-choice tray).
+  _COG_VP_BLURB: {
+    vp:       'Shields Mr. Hollywood: his first hit each round is ignored.',
+    cfo:      'Shields Robber Baron: all damage blocked until a Freeze/Stun breaks it.',
+    cj:       'Buffs Big Wig: +1 ATK for every ally on his side of the board.',
+    chairman: 'Shields the Big Cheese: immune to Freeze/Stun for its first 2 rounds.',
+  },
+  _renderCogPanel(s) {
+    let el = document.getElementById('cog-panel');
+    const c = s && s._cog;
+    const live = !!(c && c.active);
+    if (!live) { if (el) el.style.display = 'none'; return; }
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'cog-panel';
+      el.className = 'cog-panel';
+      document.body.appendChild(el);
+    }
+    const order = (Game._COG_ORDER || ['vp', 'cfo', 'cj', 'chairman']);
+    const anyAppeared = order.some(k => c.vps[k] && (c.vps[k].active || c.vps[k].dead));
+    const cards = order.map(k => {
+      const vp = c.vps[k]; if (!vp) return '';
+      const pct = Math.max(0, Math.min(100, Math.round((vp.hp / (vp.maxHp || 10)) * 100)));
+      const state = vp.dead ? 'dead' : vp.active ? 'active' : 'waiting';
+      const statusText = vp.dead ? 'Defeated — its shield is gone.'
+        : vp.active ? this._COG_VP_BLURB[k]
+        : 'Watching. May arrive any round.';
+      const hint = (vp.active && !vp.dead)
+        ? `<button type="button" class="cog-hit" data-cog="${k}">Send a card at ${this._esc ? this._esc(vp.name) : vp.name}</button>`
+        : '';
+      return `<div class="cog-vp cog-${state}">`
+        + `<div class="cog-vp-head"><span class="cog-vp-name">${this._esc ? this._esc(vp.name) : vp.name}</span>`
+        +   `<span class="cog-vp-hp">${vp.dead ? '✕' : vp.hp + '/' + vp.maxHp}</span></div>`
+        + `<div class="cog-vp-cog">Cog: ${this._esc ? this._esc(vp.cog) : vp.cog}</div>`
+        + (vp.dead ? '' : `<div class="cog-hpbar"><div class="cog-hpfill" style="width:${pct}%"></div></div>`)
+        + `<div class="cog-vp-blurb">${statusText}</div>`
+        + hint
+        + `</div>`;
+    }).join('');
+    el.innerHTML = `<div class="cog-title">COG INVASION</div>`
+      + `<div class="cog-how">Four executives. Each sends its Cog out every 2 rounds and, left alone, drains 2 HP from both players every 3rd round. Beat a VP to stop its spawns and shed its shield — then claim the Gags.</div>`
+      + `<div class="cog-vps">${cards}</div>`
+      + (anyAppeared ? '' : `<div class="cog-how cog-how--dim">None have shown themselves yet.</div>`);
+    el.style.display = '';
+    // Wire the "send a card" buttons (innerHTML is rebuilt each render).
+    el.querySelectorAll('.cog-hit').forEach(btn => {
+      btn.onclick = (e) => { e.stopPropagation(); this.cogAttackVP(btn.getAttribute('data-cog')); };
+    });
+  },
+  // Redirect a card's swing at a VP: pick one of your live board cards through
+  // the normal card-choice tray; its attack goes to the VP next combat.
+  cogAttackVP(vpKey) {
+    const s = Game.state, c = s && s._cog;
+    if (!c || !c.vps[vpKey] || c.vps[vpKey].dead) return;
+    const side = (typeof Game.localSide === 'function') ? Game.localSide() : 'player';
+    const mine = Game.getAllCardsOf(side).filter(card =>
+      card.currentHealth > 0 && (card.attack | 0) > 0 && !card.isEnvironment
+      && !card._cogVP && !Game.isActionLocked(card));
+    if (!mine.length) {
+      if (typeof toast === 'function') toast('No target', 'No card of yours can swing at a VP right now.');
+      else Game.log('  [COG INVASION] No card of yours can swing at a VP right now.');
+      return;
+    }
+    const vp = c.vps[vpKey];
+    Game.promptCardChoice(side, mine, `Attack ${vp.name}`,
+      `Choose a card — its attack (and only that) goes to ${vp.name} this round instead of its lane.`,
+      (card) => {
+        if (!card) return;
+        card._cogAttackVP = vpKey;
+        Game.log(`  [COG INVASION] ${card.name} is aimed at ${vp.name} for next combat.`);
+        this.render();
+      },
+      cards => cards.slice().sort((a, b) => (b.attack | 0) - (a.attack | 0))[0],
+      { localOnly: true, forcePrompt: true });
+    this.render();
+  },
+
   // MOVABLE AND RESIZABLE, because a fixed panel on a board this busy is in
   // somebody's way by definition — and which corner is free depends on the
   // screen, the mode and where the lanes fall. (Owner: "have the tracker be
@@ -14537,6 +14620,7 @@ const UI = {
     // Turn-order tracker — who's up, who's next, and what each may play.
     this._render2v2TurnTracker(s, tt);
     this._safe('shadowTracker', () => this._renderShadowTracker(s));
+    this._safe('cogPanel', () => this._renderCogPanel(s));
 
     // Lane-select strip shown when a card is selected
     this._render2v2OnlineLaneSelect(s, ap, mySide, canCards);
