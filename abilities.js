@@ -219,21 +219,18 @@ function _cogTarget(G, self) {
   const enemies = G.getEnemiesOf(self.owner).filter(e => e.currentHealth > 0 && !e.isFaceDown);
   return enemies.length ? enemies[Math.floor(G.rng() * enemies.length)] : null;
 }
-// Power Trip: every 3rd round since this copy spawned, 2 damage to the enemies
-// in the Cog's own lane. Runs at most once per round. Three of the four Cogs
-// share it (the Big Cheese trades it for a bigger single hit).
+// Power Trip: every 3rd round since this copy spawned, 2 damage to ALL enemies.
+// Runs at most once per round. Three of the four Cogs share it (the Big Cheese
+// trades it for a bigger single hit).
 function _cogPowerTrip(G, self) {
   const spawn = self._cogSpawnRound || self.statsEnteredRound || (G.state.round || 1);
   const elapsed = (G.state.round || 1) - spawn;
   if (elapsed <= 0 || elapsed % 3 !== 0) return;
   if (self._cogPowerTripRound === (G.state.round || 1)) return;
   self._cogPowerTripRound = (G.state.round || 1);
-  const opp = G.opponent(self.owner);
-  const lane = G.findCardLane(self);
-  if (lane < 0) return;
-  const l = G.state.lanes[lane];
-  [l[opp], l._env && l._env[opp]].forEach(c => { if (c && c.currentHealth > 0) G.dealDamage(c, 2, self); });
-  G.log(`  [POWER TRIP] ${self.name} shocks lane ${lane + 1} for 2!`);
+  const enemies = G.getEnemiesOf(self.owner).filter(c => c && c.currentHealth > 0);
+  enemies.forEach(c => G.dealDamage(c, 2, self));
+  if (enemies.length) G.log(`  [POWER TRIP] ${self.name} shocks all enemies for 2!`);
 }
 if (typeof window !== 'undefined') { window._cogTarget = _cogTarget; window._cogPowerTrip = _cogPowerTrip; }
 
