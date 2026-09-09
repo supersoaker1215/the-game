@@ -17627,6 +17627,13 @@ const Game = {
   // A VP arriving gets a reveal so the player SEES it and reads what it does —
   // and its theme plays only while that panel is up ("while it's talking"). Both
   // are pure presentation, wrapped so they can never break the event.
+  // How long a VP "talks" — the reveal panel's hold. The reveal is on screen for
+  // this plus the 240ms exit slide, so the panel is visible for _COG_REVEAL_MS +
+  // 240 ≈ 7.0s. The VP theme's maxDur (ui.js EFFECT_SFX) is set to the SAME 7s so
+  // the music plays for exactly as long as the VP is talking and stops with it.
+  // Change both together to retime it. (Owner: "i want the music playing the
+  // whole time the VP is talking.")
+  _COG_REVEAL_MS: 6760,
   _cogAnnounceVP(vp, vpKey) {
     try {
       if (typeof UI === 'undefined' || !UI.showCardReveal) { this._cogPlayTheme(vpKey); return; }
@@ -17634,6 +17641,7 @@ const Game = {
       const desc = `Sends ${vp.cog} to both sides every 2 rounds and, left alone, drains 2 health from both players every 3rd round. `
         + blurb + ` Beat ${vp.name} (10 HP) to stop it — click it in the panel on the right and send one of your cards' swings at it.`;
       UI.showCardReveal(vp.name, desc, null, true, 'COG INVASION', {
+        holdMs: this._COG_REVEAL_MS,
         onShow: () => { try { this._cogPlayTheme(vpKey); } catch (e) {} },
       });
     } catch (e) { try { this._cogPlayTheme(vpKey); } catch (e2) {} }
