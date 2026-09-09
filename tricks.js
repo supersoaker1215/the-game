@@ -1167,30 +1167,22 @@ const GAG_DEFS = [
   },
   {
     name: "Opera Singer", cost: 3, _isGag: true, track: 'Sound',
-    desc: "Deal 3 damage to every enemy in one lane.",
+    desc: "Deal 3 damage to all enemy cards.",
     canPlay(G, owner) { return G.getEnemiesOf(owner).some(e => e.currentHealth > 0); },
     play(G, owner) {
       const enemies = G.getEnemiesOf(owner).filter(e => e.currentHealth > 0);
       if (!enemies.length) { G.log('Opera Singer: no enemy on the board.'); return; }
-      G.promptCardChoice(owner, enemies, 'Opera Singer', 'Choose a lane to hit for 3',
-        (t) => {
-          if (!t) return;
-          const lane = G.findCardLane(t);
-          const opp = G.opponent(owner);
-          const l = G.state.lanes[lane];
-          [l && l[opp], l && l._env && l._env[opp]].forEach(c => { if (c && c.currentHealth > 0) G.dealDamage(c, 3, { name: 'Opera Singer', owner }); });
-          G.log(`Opera Singer: 3 damage rings through lane ${lane + 1}!`);
-        },
-        cs => cs.slice().sort((a, b) => (b.attack | 0) - (a.attack | 0))[0]);
+      enemies.forEach(e => G.dealDamage(e, 3, { name: 'Opera Singer', owner }));
+      G.log('Opera Singer: 3 damage rings across the whole enemy board!');
     }
   },
   {
     name: "Railroad", cost: 3, _isGag: true, track: 'Trap',
-    desc: "Destroy an enemy card outright.",
-    canPlay(G, owner) { return G.getEnemiesOf(owner).some(e => e.currentHealth > 0 && G.canTrickLand(e, 'trick', owner)); },
+    desc: "Destroy an enemy card with cost ≤ 4.",
+    canPlay(G, owner) { return G.getEnemiesOf(owner).some(e => e.currentHealth > 0 && (e.baseCost || e.cost || 0) <= 4 && G.canTrickLand(e, 'trick', owner)); },
     play(G, owner) {
-      const enemies = G.getEnemiesOf(owner).filter(e => e.currentHealth > 0 && G.canTrickLand(e, 'trick', owner));
-      if (!enemies.length) { G.log('Railroad: no enemy it can flatten.'); return; }
+      const enemies = G.getEnemiesOf(owner).filter(e => e.currentHealth > 0 && (e.baseCost || e.cost || 0) <= 4 && G.canTrickLand(e, 'trick', owner));
+      if (!enemies.length) { G.log('Railroad: no enemy with cost 4 or less to flatten.'); return; }
       G.promptCardChoice(owner, enemies, 'Railroad', 'Choose an enemy to destroy',
         (t) => { if (t) { G.log(`Railroad: ${t.name} is flattened!`); G.killCard(t, { name: 'Railroad', owner }); } },
         cs => cs.slice().sort((a, b) => G.threatScoreSafe ? G.threatScoreSafe(b) - G.threatScoreSafe(a) : (b.attack | 0) - (a.attack | 0))[0]);

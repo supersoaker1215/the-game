@@ -1212,7 +1212,8 @@ const UI = {
   // their audio files. Built once from CARD_DEFS + TRICK_DEFS (stones live in
   // TRICK_DEFS) so it auto-tracks the roster — no hand-maintained table.
   // Non-card characters that are still allowed into the main-menu shuffle.
-  _MENU_EVENT_HEROES: new Set(['MC Ballyhoo', 'Shadow Man']),
+  _MENU_EVENT_HEROES: new Set(['MC Ballyhoo', 'Shadow Man',
+    'The V.P.', 'The C.F.O.', 'The C.J.', 'The Chairman']),
   _buildMenuStemMap() {
     const map = {};
     const kebab = (s) => s.toLowerCase().replace(/\./g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
@@ -1224,7 +1225,11 @@ const UI = {
     Object.assign(map, { 'anakin': 'Anakin Skywalker', 'luke': 'Luke Skywalker',
       // Event themes: neither filename kebabs to its display name, so the
       // now-playing credit and the art lookup both need these spelled out.
-      'ballyhoo-fanfare': 'MC Ballyhoo', 'shadow-man-theme': 'Shadow Man' });
+      'ballyhoo-fanfare': 'MC Ballyhoo', 'shadow-man-theme': 'Shadow Man',
+      // Cog Invasion VP battle themes — the filename kebab doesn't match the
+      // display name, so the now-playing credit and art lookup need these.
+      'cog-theme-vp': 'The V.P.', 'cog-theme-cfo': 'The C.F.O.',
+      'cog-theme-cj': 'The C.J.', 'cog-theme-chairman': 'The Chairman' });
     return map;
   },
   _menuHoverArtName(src) {
@@ -1934,6 +1939,13 @@ const UI = {
       // lookups, so both are needed.
       'MC Ballyhoo': { hover: 'audio/ballyhoo-fanfare.mp3' },
       'Shadow Man':  { hover: 'audio/shadow-man-theme.mp3' },
+      // Cog Invasion VPs — added to the main-menu hero shuffle, each playing its
+      // own battle theme on hover. (Owner: "add the 4 vps to the main menu
+      // themes.") getCardArtPathDefault resolves their portraits by name.
+      'The V.P.':     { hover: 'audio/cog-theme-vp.mp3' },
+      'The C.F.O.':   { hover: 'audio/cog-theme-cfo.mp3' },
+      'The C.J.':     { hover: 'audio/cog-theme-cj.mp3' },
+      'The Chairman': { hover: 'audio/cog-theme-chairman.mp3' },
 
       // ── SHADOW MAN'S WONDER WEAPONS ──
       // These are CARDS (isDiscardEffect), not tricks: they are played through
@@ -18005,12 +18017,29 @@ const UI = {
             + "earns a Gag, dropping a VP earns two, and clicking a VP lets you "
             + "send one of your cards' swings at it.",
       };
+      // The four Vice Presidents — persistent 10-HP bosses, not cards, so their
+      // codex rows are synthesised like the events above. They render with CARD
+      // chrome (they carry portrait art and a health pool), showing 0/10.
+      const vpRow = (name, cog, protection) => ({
+        name, cost: null, attack: 0, health: 10, type: 'villain', _isEvent: true,
+        desc: "A Cog Invasion boss (10 HP) — it turns up on its own, sends out "
+            + cog + " every 2 rounds, and left alone drains 2 health from both "
+            + "players every 3rd round while it heals. " + protection + " Beat it "
+            + "to stop its spawns and drop that shield — it pays 2 Gags.",
+      });
+      const vpSynths = [
+        vpRow('The V.P.',     'Mr. Hollywood',  "While it lives, the first attack Mr. Hollywood takes each round deals no damage."),
+        vpRow('The C.F.O.',   'Robber Baron',   "While it lives, Robber Baron is shielded from all damage until a Freeze or Stun breaks it; the shield reforms after 2 rounds."),
+        vpRow('The C.J.',     'Big Wig',        "While it lives, Big Wig gains +1 ATK for every ally on his side of the board."),
+        vpRow('The Chairman', 'The Big Cheese', "While it lives, the Big Cheese is immune to Freeze and Stun for its first 2 rounds on the board."),
+      ];
       const synths = [ballyhoo, shadow, rift, cogInvasion];
       const encIndex = {};
       const addAll = (arr, layout) => (arr || []).forEach(d => {
         if (d && d.name && !encIndex[d.name]) encIndex[d.name] = Object.assign({}, d, { _encLayout: layout });
       });
       addAll(synths, 'trick');
+      addAll(vpSynths, 'card');   // VPs carry portrait art — render with card chrome
       addAll(typeof CANDY_DEFS  !== 'undefined' ? CANDY_DEFS  : [], 'trick');
       addAll(typeof WONDER_DEFS !== 'undefined' ? WONDER_DEFS : [], 'trick');
       addAll(typeof GAG_DEFS    !== 'undefined' ? GAG_DEFS    : [], 'trick');
@@ -18019,6 +18048,7 @@ const UI = {
       const CANDIES = (typeof CANDY_DEFS  !== 'undefined' ? CANDY_DEFS  : []).map(d => d.name);
       const WONDERS = (typeof WONDER_DEFS !== 'undefined' ? WONDER_DEFS : []).map(d => d.name);
       const GAGS    = (typeof GAG_DEFS    !== 'undefined' ? GAG_DEFS    : []).map(d => d.name);
+      const VPS     = vpSynths.map(d => d.name);
       // AN EVENT IS WHAT GETS ROLLED; ITS SPAWNS ARE WHAT COME OUT OF IT.
       // Jurassic Park is two events (Wetlands, Enclosure) that between them
       // release two monsters — not four peers. Flattening the two tiers, which
@@ -18030,6 +18060,7 @@ const UI = {
           if (m === '@candies')      out.push.apply(out, CANDIES);
           else if (m === '@wonders') out.push.apply(out, WONDERS);
           else if (m === '@gags')    out.push.apply(out, GAGS);
+          else if (m === '@vps')     out.push.apply(out, VPS);
           else out.push(m);
         });
         return out;

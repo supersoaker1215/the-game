@@ -651,6 +651,6 @@ const EVENT_FRANCHISES = [
   { key: 'toontown', title: 'Toontown',
     blurb: 'Four executives, four Cogs, and a bag of Gags for whoever drops them.',
     events: [ { name: 'Cog Invasion',
-      spawns: ['Mr. Hollywood', 'Robber Baron', 'Big Wig', 'The Big Cheese', '@gags'] } ] },
+      spawns: ['@vps', 'Mr. Hollywood', 'Robber Baron', 'Big Wig', 'The Big Cheese', '@gags'] } ] },
 ];
 if (typeof window !== 'undefined') window.EVENT_FRANCHISES = EVENT_FRANCHISES;
