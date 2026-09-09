@@ -38,8 +38,11 @@ window.CARD_ART_VARIANTS = {
   'Vampire Candy':       ['Vampire Candy.jpg'],
   'Bloway Candy':        ['Bloway Candy.jpg'],
   // ── Cog Invasion Gags (earned tricks; art trickles in, listed as it lands) ──
+  'High Dive':           ['High Dive.jpeg'],
+  'Presentation':        ['Presentation.jpeg'],
   'Geyser':              ['Geyser.jpeg'],
   'Railroad':            ['Railroad.jpeg'],
+  'Wedding Cake':        ['Wedding Cake.jpeg'],
   // ── Shadow Man and his Wonder Weapons ──
   // Same reason as the candies: no manifest entry means a card falls back to
   // <Name>.png, and these shipped as JPEG. Entries are added as the art
