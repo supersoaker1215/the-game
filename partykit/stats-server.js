@@ -75,6 +75,32 @@ function applyResult(rec, r) {
   }
 }
 
+// HEAD-TO-HEAD: per-opponent record from one match's reps (mirror of
+// cloudflare/worker.js — keep the two in sync). Opponents = reporters whose
+// outcomes differ; each ordered pair counted once via entry.h2hDone.
+function applyH2H(players, entry) {
+  entry.h2hDone = entry.h2hDone || {};
+  const ids = Object.keys(entry.reps);
+  for (const a of ids) {
+    for (const b of ids) {
+      if (a === b) continue;
+      const key = a + '>' + b;
+      if (entry.h2hDone[key]) continue;
+      const ra = entry.reps[a], rb = entry.reps[b];
+      if (!ra.applied || !rb.applied) continue;
+      entry.h2hDone[key] = true;
+      if (ra.win === rb.win) continue;
+      const rec = players[a];
+      if (!rec) continue;
+      rec.h2h = rec.h2h || {};
+      const cell = rec.h2h[b] || (rec.h2h[b] = { name: rb.name || 'Anonymous', wins: 0, losses: 0 });
+      if (rb.name) cell.name = rb.name;
+      if (ra.win) cell.wins = (cell.wins || 0) + 1;
+      else cell.losses = (cell.losses || 0) + 1;
+    }
+  }
+}
+
 // Drop pending matches older than the TTL so un-corroborated reports (a lone
 // fabricated win, a disconnect before the opponent reported) can't pile up.
 function prunePending(pending) {
@@ -111,6 +137,7 @@ function boardFrom(players) {
       playMs: r.playMs || 0,
       favorite: r.favorite || null,
       mvp, mvpWins,
+      h2h: r.h2h || {},   // per-opponent record for the Head-to-Head view
     };
   });
   rows.sort((a, b) => {
@@ -204,6 +231,8 @@ export default {
             r.applied = true;
             players[devId] = target;
           }
+          // Head-to-Head, derived from the reps (mirror of cloudflare/worker.js).
+          applyH2H(players, entry);
         }
         pending[matchId] = entry;
         await room.storage.put(PENDING_KEY, pending);

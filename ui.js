@@ -15831,6 +15831,34 @@ const UI = {
       .concat(defs.map(d => `<option value="${esc(d.name)}"${d.name === cur ? ' selected' : ''}>${esc(d.name)}</option>`))
       .join('');
 
+    // HEAD-TO-HEAD — your record against each opponent you have actually played,
+    // read straight off your own row's h2h map (the server derives it from who
+    // reported each match). Most-played first.
+    const myRow = Leaderboard.myRow ? Leaderboard.myRow() : null;
+    const h2hMap = (myRow && myRow.h2h) || {};
+    const h2hList = Object.keys(h2hMap).map(k => h2hMap[k])
+      .filter(c => c && ((c.wins | 0) + (c.losses | 0) > 0))
+      .sort((a, b) => ((b.wins | 0) + (b.losses | 0)) - ((a.wins | 0) + (a.losses | 0)));
+    const h2hRows = h2hList.map(c => {
+      const w = c.wins | 0, l = c.losses | 0, t = w + l;
+      const wr = t ? Math.round((w / t) * 100) : 0;
+      const edge = w > l ? ' h2h-up' : (l > w ? ' h2h-down' : '');
+      return `<tr class="h2h-r${edge}">
+        <td class="h2h-name">${esc(c.name || 'Anonymous')}</td>
+        <td class="h2h-wl">${w}<span class="lb-dim">–</span>${l}</td>
+        <td class="h2h-wr">${wr}%</td>
+      </tr>`;
+    }).join('');
+    const h2hHtml = `
+      <div class="lb-h2h">
+        <div class="lb-h2h-title">⚔️ Head-to-Head</div>
+        ${h2hList.length
+          ? `<div class="lb-h2h-scroll"><table class="h2h-table">
+               <thead><tr><th>Opponent</th><th>Your W–L</th><th>Win%</th></tr></thead>
+               <tbody>${h2hRows}</tbody></table></div>`
+          : `<div class="lb-h2h-empty">Play a corroborated online match and your record against each opponent shows up here.</div>`}
+      </div>`;
+
     ov.innerHTML = `
       <style>
         #leaderboard-overlay .lb-table td { padding:6px 8px; border-top:1px solid rgba(120,160,210,0.14); color:#dfe8f6; white-space:nowrap; }
@@ -15842,6 +15870,16 @@ const UI = {
         #leaderboard-overlay .lb-row-me td { background:rgba(126,232,165,0.10); }
         #leaderboard-overlay .lb-row-me .lb-name::after { content:' (you)'; color:#7ee8a5; font-weight:600; font-size:11px; }
         #leaderboard-overlay .lb-empty { padding:22px 12px; text-align:center; color:#9fb6d6; white-space:normal; }
+        #leaderboard-overlay .lb-h2h { margin-top:12px; border:1px solid rgba(120,160,210,0.25); border-radius:8px; overflow:hidden; }
+        #leaderboard-overlay .lb-h2h-title { padding:8px 10px; font-weight:700; color:#ffcf6a; background:rgba(10,16,28,0.96); border-bottom:1px solid rgba(120,160,210,0.25); }
+        #leaderboard-overlay .lb-h2h-scroll { max-height:180px; overflow-y:auto; }
+        #leaderboard-overlay .h2h-table { width:100%; border-collapse:collapse; font-size:13px; }
+        #leaderboard-overlay .h2h-table th { color:#9fb6d6; font-weight:700; text-align:left; padding:6px 10px; border-bottom:1px solid rgba(120,160,210,0.22); }
+        #leaderboard-overlay .h2h-table td { padding:6px 10px; border-top:1px solid rgba(120,160,210,0.12); color:#dfe8f6; }
+        #leaderboard-overlay .h2h-name { font-weight:700; color:#eef4ff; }
+        #leaderboard-overlay .h2h-up .h2h-wl { color:#7ee8a5; }
+        #leaderboard-overlay .h2h-down .h2h-wl { color:#ff8a7a; }
+        #leaderboard-overlay .lb-h2h-empty { padding:16px 12px; text-align:center; color:#9fb6d6; font-size:12px; }
       </style>
       <div class="app-modal-panel lb-panel" role="dialog" aria-modal="true" aria-label="Leaderboard"
            style="max-width:720px;width:94vw;display:flex;flex-direction:column;">
@@ -15869,6 +15907,7 @@ const UI = {
             <tbody>${bodyRows}</tbody>
           </table>
         </div>
+        ${h2hHtml}
         <div class="lb-foot" style="display:flex;align-items:center;gap:8px;margin-top:10px;">
           <label style="font-size:12px;color:#9fb6d6;white-space:nowrap;">Your favorite card</label>
           <select class="lb-fav-select" style="flex:1;padding:7px 9px;border-radius:8px;border:1px solid rgba(120,160,210,0.45);background:rgba(8,14,24,0.9);color:#e8eefc;font:600 13px/1.2 inherit;">

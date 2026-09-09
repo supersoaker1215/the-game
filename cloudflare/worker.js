@@ -51,6 +51,37 @@ function applyResult(rec, r) {
   }
 }
 
+// HEAD-TO-HEAD: update each player's per-opponent record from one match's reps.
+// A reporter A and reporter B are opponents when their outcomes differ (one won,
+// one lost) — in 1v1 that is the two of them, in 2v2 it is each winner against
+// each loser (teammates share an outcome, so they are skipped). Every ordered
+// pair is counted at most once for the life of the pending entry via h2hDone, so
+// re-sends and late 2v2 reporters can't inflate it. Stored as
+// players[id].h2h[oppId] = { name, wins, losses }.
+function applyH2H(players, entry) {
+  entry.h2hDone = entry.h2hDone || {};
+  const ids = Object.keys(entry.reps);
+  for (const a of ids) {
+    for (const b of ids) {
+      if (a === b) continue;
+      const key = a + '>' + b;
+      if (entry.h2hDone[key]) continue;
+      const ra = entry.reps[a], rb = entry.reps[b];
+      // Only both-applied pairs, so a half-reported match doesn't post a phantom.
+      if (!ra.applied || !rb.applied) continue;
+      entry.h2hDone[key] = true;
+      if (ra.win === rb.win) continue;              // teammates — no matchup
+      const rec = players[a];
+      if (!rec) continue;
+      rec.h2h = rec.h2h || {};
+      const cell = rec.h2h[b] || (rec.h2h[b] = { name: rb.name || 'Anonymous', wins: 0, losses: 0 });
+      if (rb.name) cell.name = rb.name;
+      if (ra.win) cell.wins = (cell.wins || 0) + 1;
+      else cell.losses = (cell.losses || 0) + 1;
+    }
+  }
+}
+
 // Drop pending matches older than the TTL so un-corroborated reports (a lone
 // fabricated win, a disconnect before the opponent reported) can't pile up.
 function prunePending(pending) {
@@ -87,6 +118,9 @@ function boardFrom(players) {
       playMs: r.playMs || 0,
       favorite: r.favorite || null,
       mvp, mvpWins,
+      // Per-opponent record for the Head-to-Head view. Small for a casual board;
+      // the client reads its OWN row's h2h (myRow) to render "You vs <name>".
+      h2h: r.h2h || {},
     };
   });
   rows.sort((a, b) => {
@@ -214,6 +248,12 @@ export class StatsRoom {
             r.applied = true;
             players[devId] = target;
           }
+          // HEAD-TO-HEAD, derived here for free: every device that reported this
+          // match is in entry.reps with its win/loss, so an "A won, B lost" pair
+          // is an opponent matchup (teammates share an outcome and are skipped).
+          // Each ordered pair is counted once via entry.h2hDone so late 2v2
+          // reporters and re-sends never double-count.
+          applyH2H(players, entry);
         }
         pending[matchId] = entry;
         await storage.put(PENDING_KEY, pending);
