@@ -648,7 +648,7 @@ const EVENT_FRANCHISES = [
   // spawns and protects its own Cog, and killing Cogs / VPs pays out Gags.
   // NOT in matchEventPool's ALLOWED list yet, so it is codex-only until the VP
   // engine is finished and switched on. (Owner is still flushing out the rules.)
-  { key: 'toontown', title: 'Cog Invasion',
+  { key: 'toontown', title: 'Toontown',
     blurb: 'Four executives, four Cogs, and a bag of Gags for whoever drops them.',
     events: [ { name: 'Cog Invasion',
       spawns: ['Mr. Hollywood', 'Robber Baron', 'Big Wig', 'The Big Cheese', '@gags'] } ] },

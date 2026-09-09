@@ -17992,7 +17992,20 @@ const UI = {
       // `_encLayout` rides along because a franchise mixes both chromes: an
       // environment or a monster is a real card and must render as one, while a
       // candy, a wonder weapon and the hosts render as tricks.
-      const synths = [ballyhoo, shadow, rift];
+      // Cog Invasion is a whole-match event like Ballyhoo / the Shadow Man — no
+      // cost, never played. Its franchise's spawns are the four Cogs (real cards)
+      // and the Gags (@gags, resolved below), so this synth row is just the
+      // event itself.
+      const cogInvasion = {
+        name: 'Cog Invasion', cost: null, _isEvent: true,
+        desc: "Not a card — four Vice Presidents run the whole match. Each turns "
+            + "up on its own, sends its Cog out every 2 rounds, and left alone "
+            + "drains 2 health from both players every 3rd round while it heals. "
+            + "Each VP shields or buffs its Cog until you beat it — dropping a Cog "
+            + "earns a Gag, dropping a VP earns two, and clicking a VP lets you "
+            + "send one of your cards' swings at it.",
+      };
+      const synths = [ballyhoo, shadow, rift, cogInvasion];
       const encIndex = {};
       const addAll = (arr, layout) => (arr || []).forEach(d => {
         if (d && d.name && !encIndex[d.name]) encIndex[d.name] = Object.assign({}, d, { _encLayout: layout });
@@ -18000,10 +18013,12 @@ const UI = {
       addAll(synths, 'trick');
       addAll(typeof CANDY_DEFS  !== 'undefined' ? CANDY_DEFS  : [], 'trick');
       addAll(typeof WONDER_DEFS !== 'undefined' ? WONDER_DEFS : [], 'trick');
+      addAll(typeof GAG_DEFS    !== 'undefined' ? GAG_DEFS    : [], 'trick');
       addAll(CARD_DEFS, 'card');
       addAll(SUMMON_TOKENS, 'card');
       const CANDIES = (typeof CANDY_DEFS  !== 'undefined' ? CANDY_DEFS  : []).map(d => d.name);
       const WONDERS = (typeof WONDER_DEFS !== 'undefined' ? WONDER_DEFS : []).map(d => d.name);
+      const GAGS    = (typeof GAG_DEFS    !== 'undefined' ? GAG_DEFS    : []).map(d => d.name);
       // AN EVENT IS WHAT GETS ROLLED; ITS SPAWNS ARE WHAT COME OUT OF IT.
       // Jurassic Park is two events (Wetlands, Enclosure) that between them
       // release two monsters — not four peers. Flattening the two tiers, which
@@ -18014,6 +18029,7 @@ const UI = {
         (list || []).forEach(m => {
           if (m === '@candies')      out.push.apply(out, CANDIES);
           else if (m === '@wonders') out.push.apply(out, WONDERS);
+          else if (m === '@gags')    out.push.apply(out, GAGS);
           else out.push(m);
         });
         return out;
