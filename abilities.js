@@ -1891,12 +1891,31 @@ const CARD_ABILITIES = {
       if (!t) return;
       G.log(`  [EMBEZZLE] Robber Baron shakes down ${t.name} — 3 damage, steals 1 Energy.`);
       G.dealDamage(t, 3, self);
-      // Steal 1 Energy from the victim's side to the Cog's side (best-effort:
-      // reduce the victim owner's available energy, top up the Cog's owner).
+      // Steal 1 Energy. In 2v2 a side is two people with separate energy pools,
+      // so the theft lands on ONE RANDOM player on the victim's team and is
+      // credited to a random player on the Cog's own team (owner rule). In 1v1
+      // it is the plain side-to-side transfer.
       try {
-        const victim = G.state[t.owner], mine = G.state[self.owner];
-        if (victim) victim.usedEnergy = (victim.usedEnergy | 0) + 1;
-        if (mine) mine.usedEnergy = Math.max(0, (mine.usedEnergy | 0) - 1);
+        const tt = G.state.twoVTwo;
+        if (tt && tt.online && G.is2v2 && G.is2v2()) {
+          const seatsOn = (side) => (G._2v2SLOTS || ['p1', 'p2', 'p3', 'p4'])
+            .filter(pk => tt.players[pk] && G._2v2SeatOnSide(pk, side));
+          const vseats = seatsOn(t.owner);
+          if (vseats.length) {
+            const vpk = vseats[Math.floor(G.rng() * vseats.length)];
+            tt.players[vpk].usedEnergy = (tt.players[vpk].usedEnergy | 0) + 1;
+            G.log(`  [EMBEZZLE] 1 Energy taken from ${tt.players[vpk].name || vpk}.`);
+          }
+          const cseats = seatsOn(self.owner);
+          if (cseats.length) {
+            const cpk = cseats[Math.floor(G.rng() * cseats.length)];
+            tt.players[cpk].usedEnergy = Math.max(0, (tt.players[cpk].usedEnergy | 0) - 1);
+          }
+        } else {
+          const victim = G.state[t.owner], mine = G.state[self.owner];
+          if (victim) victim.usedEnergy = (victim.usedEnergy | 0) + 1;
+          if (mine) mine.usedEnergy = Math.max(0, (mine.usedEnergy | 0) - 1);
+        }
       } catch (e) {}
     }
   },
