@@ -49996,16 +49996,21 @@ body.in-match:not(.board-v2) .board {
 /* the inline stat deltas keep their sign colours, but health stops being red */
 .draft-card .card-desc .stat-num-hp { color: #c9d6de !important; }
 
-/* ---- 4 · health is white-cored like attack --------------------------------
-   The HP pip was #ff6b6b. Red is the OPPONENT everywhere else in this game —
-   their row, their card frames, their seat in the lobby — so spending it on
-   your own card's health is the one place the colour means something else.
-   Both pips take the frame colour now; the numerals were already white. */
-.draft-card .stat-hp::before { background: rgb(var(--portrait-frame-rgb, var(--own-green))) !important; }
-.draft-card .stat-atk::before { background: rgb(var(--portrait-frame-rgb, var(--own-green))) !important; }
+/* ---- 4 · attack is GREEN, health is RED, so the two stats read apart --------
+   Owner reversed the earlier "both pips take the frame colour" call: on the
+   draft cards the corners were both green, so you could not tell attack from
+   health at a glance. Attack takes the on-board green pip, health the on-board
+   red pip — the same colours the hand and board already use — so "everyone
+   knows what's health and what's attack." (Owner.) */
+.draft-card .stat-atk::before { background: #3dff9e !important; }
+.draft-card .stat-hp::before  { background: #ff6b6b !important; }
 .draft-card .stat-hp {
   text-shadow: 0 1px 2px rgba(0,0,0,1), 0 0 3px rgba(0,0,0,0.95),
-               0 0 8px rgba(var(--portrait-frame-rgb, var(--own-green)), 0.85) !important;
+               0 0 8px rgba(255,107,107,0.85) !important;
+}
+.draft-card .stat-atk {
+  text-shadow: 0 1px 2px rgba(0,0,0,1), 0 0 3px rgba(0,0,0,0.95),
+               0 0 8px rgba(61,255,158,0.85) !important;
 }
 
 /* ---- 3 · the card shrinks and loses the dead gap --------------------------
