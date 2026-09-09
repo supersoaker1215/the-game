@@ -371,6 +371,31 @@ const CARD_DEFS = [
     // "Hunt" and "Hunt Meter" parse as two independent entries, so both land.
     abilities: ["Hunt", "Hunt Meter"],
     desc: "While Active: Each time an enemy is damaged the Hunt Meter fills by 1 — at 3, the Hunt Meter is spent and Spinosaurus permanently gains Overdrive." },
+
+  // ==================== COG INVASION — Toontown ====================
+  // The four Cogs are spawned by their Vice President (see Game._cog* in
+  // game.js), never drafted or drawn — _spawnOnly keeps them out of every pool.
+  // All four are 3-cost 4/6 bodies; the variety is in their signature attack
+  // (fired in place of a normal swing via onBeforeAttack) and the shared Power
+  // Trip that three of them fire every 3rd round. Their VP's protection (§2.5)
+  // is applied from the damage path in game.js while that VP is alive.
+  { name: "Mr. Hollywood", cost: 3, attack: 4, health: 6, type: "villain",
+    _spawnOnly: true, _cog: 'vp',
+    abilities: [],
+    desc: "Beguile: Deal 3 damage to an enemy and Stun it 1 round. Power Trip (every 3rd round): 2 damage to all enemies in this lane. While The V.P. lives: the first attack Mr. Hollywood takes each round deals no damage." },
+  { name: "Robber Baron", cost: 3, attack: 4, health: 6, type: "villain",
+    _spawnOnly: true, _cog: 'cfo',
+    abilities: [],
+    desc: "Embezzle: Deal 3 damage to an enemy and steal 1 Energy from its owner. Power Trip (every 3rd round): 2 damage to all enemies in this lane. While The C.F.O. lives: shielded from all damage until hit by Freeze or Stun; the shield reforms after 2 rounds." },
+  { name: "Big Wig", cost: 3, attack: 4, health: 6, type: "villain",
+    _spawnOnly: true, _cog: 'cj',
+    abilities: [],
+    desc: "Fired!: Deal 3 damage to an enemy, then bounce it to a random empty lane. Power Trip (every 3rd round): 2 damage to all enemies in this lane. While The C.J. lives: +1 ATK for every ally on Big Wig's side of the board." },
+  { name: "The Big Cheese", cost: 3, attack: 4, health: 6, type: "villain",
+    _spawnOnly: true, _cog: 'chairman',
+    abilities: [],
+    desc: "Glower Power: Deal 5 damage to an enemy and knock it down (Stun 1). While The Chairman lives: immune to Freeze and Stun for its first 2 rounds on the board." },
+
   { name: "Davy Jones", cost: 5, attack: 3, health: 6, type: "villain",
     abilities: [],
     desc: "When Played: Summon The Kraken (5/6) in any lane." },
@@ -618,5 +643,14 @@ const EVENT_FRANCHISES = [
   { key: 'zombies', title: 'Call of Duty: Zombies',
     blurb: 'Four challenges, named up front, paid out later.',
     events: [ { name: 'Shadow Man', spawns: ['Apothicon Rift', '@wonders'] } ] },
+  // COG INVASION — a whole-match franchise, not a one-off placement. Four Vice
+  // Presidents roll independently every round (Game._cog* in game.js); each
+  // spawns and protects its own Cog, and killing Cogs / VPs pays out Gags.
+  // NOT in matchEventPool's ALLOWED list yet, so it is codex-only until the VP
+  // engine is finished and switched on. (Owner is still flushing out the rules.)
+  { key: 'toontown', title: 'Cog Invasion',
+    blurb: 'Four executives, four Cogs, and a bag of Gags for whoever drops them.',
+    events: [ { name: 'Cog Invasion',
+      spawns: ['Mr. Hollywood', 'Robber Baron', 'Big Wig', 'The Big Cheese', '@gags'] } ] },
 ];
 if (typeof window !== 'undefined') window.EVENT_FRANCHISES = EVENT_FRANCHISES;

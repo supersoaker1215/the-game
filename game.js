@@ -11630,6 +11630,13 @@ const Game = {
     if (card.isEnvironment) return;
     // Blood Bath — double all card-dealt damage (splash, ability hits, etc.).
     if (this.mod('bloodBath') && amount > 0) amount *= 2;
+    // Toontown "Presentation" Gag — the marked enemy takes double damage from
+    // the very next hit it receives this turn, then the mark is spent.
+    if (card._toonDoubleNextHit && amount > 0) {
+      amount *= 2;
+      card._toonDoubleNextHit = false;
+      this.log(`  [PRESENTATION] ${card.name} takes double damage!`);
+    }
     // FACE-DOWN IMMUNITY. Invisible Woman's card text promises face-down cards
     // are "immune to everything until revealed before Tricks", but nothing
     // enforced it — Anti-Life Equation, Darkseid, splash, any trick or ability

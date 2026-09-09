@@ -1121,6 +1121,143 @@ const CANDY_DEFS = [
 if (typeof window !== 'undefined') window.CANDY_DEFS = CANDY_DEFS;
 
 // ============================================================
+// GAGS — Cog Invasion (Toontown) rewards
+// ============================================================
+// Earned, never drafted: dropping a Cog draws 1, dropping a VP draws 2, from a
+// no-dupes-until-exhausted bag per player (Game._cogDrawGag). They are ordinary
+// tricks that cost Energy to fire — being earned is not being free. Kept out of
+// TRICK_DEFS so they never appear in a draft; granted straight to the trick
+// hand like a candy. (Owner spec §2.6.)
+const GAG_DEFS = [
+  {
+    name: "High Dive", cost: 2, _isGag: true, track: 'Toon-Up',
+    desc: "Heal one ally to full, or heal all allies for 2 (your choice).",
+    canPlay(G, owner) { return G.getAlliesOf(owner).some(a => a.currentHealth > 0); },
+    play(G, owner) {
+      const allies = G.getAlliesOf(owner).filter(a => a.currentHealth > 0);
+      if (!allies.length) { G.log('High Dive: no ally to heal.'); return; }
+      const one = { name: 'Heal One to Full', desc: 'Restore one ally to full health', id: 'one' };
+      const all = { name: 'Heal All for 2', desc: 'Every ally recovers 2 health', id: 'all' };
+      G.promptCardChoice(owner, [one, all], 'High Dive', 'Heal one ally to full, or all allies for 2',
+        (mode) => {
+          if (mode && mode.id === 'all') {
+            allies.forEach(a => { a.currentHealth = Math.min(a.maxHealth, a.currentHealth + 2); });
+            G.log('High Dive: the whole team recovers 2 health!');
+            return;
+          }
+          G.promptCardChoice(owner, allies, 'High Dive', 'Choose an ally to heal to full',
+            (t) => { if (t) { t.currentHealth = t.maxHealth; G.log(`High Dive: ${t.name} is healed to full!`); } },
+            cs => cs.slice().sort((a, b) => (b.maxHealth - b.currentHealth) - (a.maxHealth - a.currentHealth))[0]);
+        },
+        // AI: heal-all is the safe general pick.
+        cs => cs[1]);
+    }
+  },
+  {
+    name: "Presentation", cost: 2, _isGag: true, track: 'Lure',
+    desc: "Mark an enemy — the next hit it takes this turn deals double damage.",
+    canPlay(G, owner) { return G.getEnemiesOf(owner).some(e => e.currentHealth > 0); },
+    play(G, owner) {
+      const enemies = G.getEnemiesOf(owner).filter(e => e.currentHealth > 0);
+      if (!enemies.length) { G.log('Presentation: no enemy to mark.'); return; }
+      G.promptCardChoice(owner, enemies, 'Presentation', 'Mark an enemy for double damage on its next hit',
+        (t) => { if (t) { t._toonDoubleNextHit = true; G.log(`Presentation: ${t.name} will take double from the next hit!`); } },
+        cs => cs.slice().sort((a, b) => (b.attack | 0) - (a.attack | 0))[0]);
+    }
+  },
+  {
+    name: "Opera Singer", cost: 3, _isGag: true, track: 'Sound',
+    desc: "Deal 3 damage to every enemy in one lane.",
+    canPlay(G, owner) { return G.getEnemiesOf(owner).some(e => e.currentHealth > 0); },
+    play(G, owner) {
+      const enemies = G.getEnemiesOf(owner).filter(e => e.currentHealth > 0);
+      if (!enemies.length) { G.log('Opera Singer: no enemy on the board.'); return; }
+      G.promptCardChoice(owner, enemies, 'Opera Singer', 'Choose a lane to hit for 3',
+        (t) => {
+          if (!t) return;
+          const lane = G.findCardLane(t);
+          const opp = G.opponent(owner);
+          const l = G.state.lanes[lane];
+          [l && l[opp], l && l._env && l._env[opp]].forEach(c => { if (c && c.currentHealth > 0) G.dealDamage(c, 3, { name: 'Opera Singer', owner }); });
+          G.log(`Opera Singer: 3 damage rings through lane ${lane + 1}!`);
+        },
+        cs => cs.slice().sort((a, b) => (b.attack | 0) - (a.attack | 0))[0]);
+    }
+  },
+  {
+    name: "Railroad", cost: 3, _isGag: true, track: 'Trap',
+    desc: "Destroy an enemy card outright.",
+    canPlay(G, owner) { return G.getEnemiesOf(owner).some(e => e.currentHealth > 0 && G.canTrickLand(e, 'trick', owner)); },
+    play(G, owner) {
+      const enemies = G.getEnemiesOf(owner).filter(e => e.currentHealth > 0 && G.canTrickLand(e, 'trick', owner));
+      if (!enemies.length) { G.log('Railroad: no enemy it can flatten.'); return; }
+      G.promptCardChoice(owner, enemies, 'Railroad', 'Choose an enemy to destroy',
+        (t) => { if (t) { G.log(`Railroad: ${t.name} is flattened!`); G.killCard(t, { name: 'Railroad', owner }); } },
+        cs => cs.slice().sort((a, b) => G.threatScoreSafe ? G.threatScoreSafe(b) - G.threatScoreSafe(a) : (b.attack | 0) - (a.attack | 0))[0]);
+    }
+  },
+  {
+    name: "Wedding Cake", cost: 4, _isGag: true, track: 'Throw',
+    desc: "Deal 6 damage to one enemy and 3 to the enemy in an adjacent lane.",
+    canPlay(G, owner) { return G.getEnemiesOf(owner).some(e => e.currentHealth > 0); },
+    play(G, owner) {
+      const enemies = G.getEnemiesOf(owner).filter(e => e.currentHealth > 0);
+      if (!enemies.length) { G.log('Wedding Cake: no enemy to splatter.'); return; }
+      G.promptCardChoice(owner, enemies, 'Wedding Cake', 'Deal 6 to an enemy, 3 to an adjacent enemy',
+        (t) => {
+          if (!t) return;
+          const lane = G.findCardLane(t);
+          const opp = G.opponent(owner);
+          G.dealDamage(t, 6, { name: 'Wedding Cake', owner });
+          [lane - 1, lane + 1].forEach(i => {
+            const l = G.state.lanes[i];
+            const c = l && l[opp];
+            if (c && c.currentHealth > 0) { G.dealDamage(c, 3, { name: 'Wedding Cake', owner }); }
+          });
+          G.log(`Wedding Cake: 6 to ${t.name}, 3 to the splash zone!`);
+        },
+        cs => cs.slice().sort((a, b) => (b.currentHealth | 0) - (a.currentHealth | 0))[0]);
+    }
+  },
+  {
+    name: "Geyser", cost: 4, _isGag: true, track: 'Squirt',
+    desc: "Deal 4 damage to an enemy and 3 to each enemy beside it.",
+    canPlay(G, owner) { return G.getEnemiesOf(owner).some(e => e.currentHealth > 0); },
+    play(G, owner) {
+      const enemies = G.getEnemiesOf(owner).filter(e => e.currentHealth > 0);
+      if (!enemies.length) { G.log('Geyser: no enemy in front.'); return; }
+      G.promptCardChoice(owner, enemies, 'Geyser', 'Deal 4 to an enemy, 3 to each side',
+        (t) => {
+          if (!t) return;
+          const lane = G.findCardLane(t);
+          const opp = G.opponent(owner);
+          G.dealDamage(t, 4, { name: 'Geyser', owner });
+          [lane - 1, lane + 1].forEach(i => {
+            const l = G.state.lanes[i];
+            const c = l && l[opp];
+            if (c && c.currentHealth > 0) { G.dealDamage(c, 3, { name: 'Geyser', owner }); }
+          });
+          G.log(`Geyser: 4 to ${t.name}, 3 to each side!`);
+        },
+        cs => cs.slice().sort((a, b) => (b.attack | 0) - (a.attack | 0))[0]);
+    }
+  },
+  {
+    name: "Toontanic", cost: 5, _isGag: true, track: 'Drop',
+    desc: "Deal 8 damage to one enemy.",
+    canPlay(G, owner) { return G.getEnemiesOf(owner).some(e => e.currentHealth > 0); },
+    play(G, owner) {
+      const enemies = G.getEnemiesOf(owner).filter(e => e.currentHealth > 0);
+      if (!enemies.length) { G.log('Toontanic: nothing to drop it on.'); return; }
+      G.promptCardChoice(owner, enemies, 'Toontanic', 'Drop 8 damage on one enemy',
+        (t) => { if (t) { G.dealDamage(t, 8, { name: 'Toontanic', owner }); G.log(`Toontanic: 8 damage crashes onto ${t.name}!`); } },
+        cs => cs.slice().sort((a, b) => (b.currentHealth | 0) - (a.currentHealth | 0))[0]);
+    }
+  },
+];
+if (typeof window !== 'undefined') window.GAG_DEFS = GAG_DEFS;
+
+// ============================================================
 // WONDER WEAPONS — Shadow Man's prizes
 // ============================================================
 // Handed to whoever leads a Shadow Man category. They are CARDS, not tricks:

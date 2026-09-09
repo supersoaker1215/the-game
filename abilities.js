@@ -204,6 +204,39 @@ function releaseHabitatMonster(G, o) {
 }
 if (typeof window !== 'undefined') window.releaseHabitatMonster = releaseHabitatMonster;
 
+// ============================================================
+// COG INVASION — shared Cog combat helpers
+// ============================================================
+// A Cog is a neutral invader seated on one side; it swings automatically (no
+// controller makes the pick), so its signature attack aims at the enemy
+// directly opposite, falling back to any live enemy. Stun is deprecated in this
+// engine — freezeCard IS the Stun/knock-down (see game.js note near tickStun).
+function _cogTarget(G, self) {
+  const opp = G.opponent(self.owner);
+  const lane = G.findCardLane(self);
+  const front = lane >= 0 && G.state.lanes[lane] ? G.state.lanes[lane][opp] : null;
+  if (front && front.currentHealth > 0 && !front.isFaceDown) return front;
+  const enemies = G.getEnemiesOf(self.owner).filter(e => e.currentHealth > 0 && !e.isFaceDown);
+  return enemies.length ? enemies[Math.floor(G.rng() * enemies.length)] : null;
+}
+// Power Trip: every 3rd round since this copy spawned, 2 damage to the enemies
+// in the Cog's own lane. Runs at most once per round. Three of the four Cogs
+// share it (the Big Cheese trades it for a bigger single hit).
+function _cogPowerTrip(G, self) {
+  const spawn = self._cogSpawnRound || self.statsEnteredRound || (G.state.round || 1);
+  const elapsed = (G.state.round || 1) - spawn;
+  if (elapsed <= 0 || elapsed % 3 !== 0) return;
+  if (self._cogPowerTripRound === (G.state.round || 1)) return;
+  self._cogPowerTripRound = (G.state.round || 1);
+  const opp = G.opponent(self.owner);
+  const lane = G.findCardLane(self);
+  if (lane < 0) return;
+  const l = G.state.lanes[lane];
+  [l[opp], l._env && l._env[opp]].forEach(c => { if (c && c.currentHealth > 0) G.dealDamage(c, 2, self); });
+  G.log(`  [POWER TRIP] ${self.name} shocks lane ${lane + 1} for 2!`);
+}
+if (typeof window !== 'undefined') { window._cogTarget = _cogTarget; window._cogPowerTrip = _cogPowerTrip; }
+
 const CARD_ABILITIES = {
   // ==================== ROGUELITE STARTERS ====================
   // The 3 vanilla bodies from Roguelite.STARTER_DEFS. These get
@@ -1829,6 +1862,73 @@ const CARD_ABILITIES = {
 
       G.log(`Jigsaw's game begins — two rooms, then drag someone into one.`);
       placeRoomStep(0);
+    }
+  },
+
+  // ==================== COG INVASION — the four Cogs ====================
+  // 3-cost 4/6 invaders. onBeforeAttack replaces the normal swing with the
+  // Cog's signature and (for three of them) folds in Power Trip. Their VP's
+  // protection (§2.5) is enforced from the damage path in game.js while the VP
+  // lives; here is only what the Cog itself does on its turn.
+  "Mr. Hollywood": {
+    onBeforeAttack(G, self) {
+      if (self.isFrozen || self.isFeared || self.isMindControlled) return;
+      self._skipNormalAttack = true;
+      _cogPowerTrip(G, self);
+      const t = _cogTarget(G, self);
+      if (!t) return;
+      G.log(`  [BEGUILE] Mr. Hollywood dazzles ${t.name} — 3 damage and Stun.`);
+      G.dealDamage(t, 3, self);
+      if (t.currentHealth > 0) G.freezeCard(t, self, 1);   // Stun == freeze in this engine
+    }
+  },
+  "Robber Baron": {
+    onBeforeAttack(G, self) {
+      if (self.isFrozen || self.isFeared || self.isMindControlled) return;
+      self._skipNormalAttack = true;
+      _cogPowerTrip(G, self);
+      const t = _cogTarget(G, self);
+      if (!t) return;
+      G.log(`  [EMBEZZLE] Robber Baron shakes down ${t.name} — 3 damage, steals 1 Energy.`);
+      G.dealDamage(t, 3, self);
+      // Steal 1 Energy from the victim's side to the Cog's side (best-effort:
+      // reduce the victim owner's available energy, top up the Cog's owner).
+      try {
+        const victim = G.state[t.owner], mine = G.state[self.owner];
+        if (victim) victim.usedEnergy = (victim.usedEnergy | 0) + 1;
+        if (mine) mine.usedEnergy = Math.max(0, (mine.usedEnergy | 0) - 1);
+      } catch (e) {}
+    }
+  },
+  "Big Wig": {
+    onBeforeAttack(G, self) {
+      if (self.isFrozen || self.isFeared || self.isMindControlled) return;
+      self._skipNormalAttack = true;
+      _cogPowerTrip(G, self);
+      const t = _cogTarget(G, self);
+      if (!t) return;
+      G.log(`  [FIRED!] Big Wig fires ${t.name} — 3 damage, then a transfer.`);
+      G.dealDamage(t, 3, self);
+      if (t.currentHealth > 0 && !t.isFaceDown) {
+        const from = G.findCardLane(t);
+        const empties = G.getOpenLanes(t.owner);
+        if (from >= 0 && empties.length) {
+          const to = empties[Math.floor(G.rng() * empties.length)];
+          G.moveCard(t, from, to);
+        }
+      }
+    }
+  },
+  "The Big Cheese": {
+    onBeforeAttack(G, self) {
+      if (self.isFrozen || self.isFeared || self.isMindControlled) return;
+      self._skipNormalAttack = true;
+      // No Power Trip — the Chairman's Cog trades the group hit for a bigger one.
+      const t = _cogTarget(G, self);
+      if (!t) return;
+      G.log(`  [GLOWER POWER] The Big Cheese glares at ${t.name} — 5 damage and a knock-down.`);
+      G.dealDamage(t, 5, self);
+      if (t.currentHealth > 0) G.freezeCard(t, self, 1);
     }
   },
   "Brainiac": {
