@@ -37664,6 +37664,17 @@ function twov2OnlineJoin() {
       // Preserve which slot we are
       if (mySlot) Game.state.twoVTwo.you = mySlot;
     }
+    // EACH SEAT REPORTS ITS OWN RESULT — the 2v2 twin of the 1v1 guest report in
+    // acceptMultiplayerState. Only the host runs the engine, so the joiners never
+    // reach finalizeStats on their own; without this the leaderboard's
+    // corroboration (two distinct devices, one win + one loss) can never be met
+    // for a 2v2, so NO 2v2 match ever counted — not wins, not losses, not hours.
+    // finalizeStats is latched per matchId, so repeated state pushes are safe,
+    // and it reads this seat's team for the win/loss, so each device reports its
+    // own outcome. (Owner: "the leaderboard has never updated for any ... 2v2.")
+    if (Game.state && Game.state.gameOver && Game.state.winner) {
+      try { Game.finalizeStats(); } catch (e) { /* never let a report break state intake */ }
+    }
     // A team pick that landed while mine was half-made would leave my
     // highlight pointing at a player who has since moved. Drop it.
     UI._2v2TeamSel = null;
