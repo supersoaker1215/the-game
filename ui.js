@@ -13,7 +13,7 @@ const UI = {
   // cached PNGs (which don't have built-in cache busters since they're
   // referenced via background-image url() and not the index.html
   // version-suffix system). Bump this every time you regen art.
-  _CARD_ART_VERSION: 96,
+  _CARD_ART_VERSION: 97,
 
   // Per-card background-position overrides. Default is "center center".
   // Use when an image crops poorly at the default — e.g. a head gets cut
@@ -2332,6 +2332,13 @@ const UI = {
       // _announceHabitatEvent when the Saw event appears, as his card pops up.
       // (Owner supplied the clip and asked for it on the Jigsaw event.)
       sawGame: { src: 'audio/saw-play-a-game.mp3', maxDur: 8 },
+      // Cog Invasion — one battle theme per VP, fired when that VP first arrives
+      // ("when they are talking"). maxDur keeps it a strong arrival flourish
+      // rather than hijacking the match music. (Owner supplied the four tracks.)
+      cogThemeVp:       { src: 'audio/cog-theme-vp.mp3',       maxDur: 15 },
+      cogThemeCfo:      { src: 'audio/cog-theme-cfo.mp3',      maxDur: 15 },
+      cogThemeCj:       { src: 'audio/cog-theme-cj.mp3',       maxDur: 15 },
+      cogThemeChairman: { src: 'audio/cog-theme-chairman.mp3', maxDur: 15 },
       buff:        null,
       debuff:      null,
       summon:      null,

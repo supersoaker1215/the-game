@@ -17604,6 +17604,15 @@ const Game = {
     cj:       { name: 'The C.J.',     cog: 'Big Wig' },
     chairman: { name: 'The Chairman', cog: 'The Big Cheese' },
   },
+  // One battle theme per VP, played when it first arrives ("when they are
+  // talking"). The Chairman — the top boss — gets the Final Floor boss theme.
+  _COG_VP_THEME: { vp: 'cogThemeVp', cfo: 'cogThemeCfo', cj: 'cogThemeCj', chairman: 'cogThemeChairman' },
+  _cogPlayTheme(vpKey) {
+    try {
+      const fx = this._COG_VP_THEME[vpKey];
+      if (fx && typeof UI !== 'undefined' && UI.sfx && UI.sfx.playEffect) UI.sfx.playEffect(fx);
+    } catch (e) { /* presentation must never break the event */ }
+  },
   _cogEnabled() {
     const s = this.state;
     return !!(s && (s._cogForce || s._matchEventName === 'Cog Invasion'));
@@ -17636,6 +17645,7 @@ const Game = {
         if (this.rng() < this._COG_VP_ROLL) {
           vp.active = true; vp.firstRound = round; vp.lastSpawnRound = round; vp.lastDrainRound = round;
           this.log(`[COG INVASION] ${vp.name} arrives!`);
+          this._cogPlayTheme(k);   // his theme plays as he steps out
           this._cogSpawnCog(vp, round);
         }
         return;
