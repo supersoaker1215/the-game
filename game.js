@@ -4786,6 +4786,9 @@ const Game = {
     // unless the match actually rolled them, and _rollMatchEvent picks exactly
     // one, so no two can ever fire together.
     this._maybeHabitatEvent(this.state.round);
+    // …and the Cog Invasion VP engine, from the same seam. A no-op unless the
+    // match is the Cog Invasion event (or _cogForce is set).
+    this._maybeCogInvasion(this.state.round);
     this.state.lanes.forEach(l => l.protected = null);
     // Clear Parlay — one-round effect from Jack Sparrow (per-card flag;
     // legacy side-wide key deleted too for old saves)
@@ -9763,6 +9766,12 @@ const Game = {
     // the resolve callback either restores the card or re-enters
     // handleDeath to finish the death for real.
     if (this._ironGiantIntercept(card, laneIdx, killer)) return;
+    // COG INVASION — a Cog that dies pays its killer 1 Gag. The killer is the
+    // side that landed the blow; fall back to the opponent of the Cog's side.
+    if (card._cogVP && this.state._cog) {
+      const winner = (killer && killer.owner) || this.opponent(card.owner);
+      this._cogDrawGag(winner, 1);
+    }
     // TOURNAMENT — Chain Reaction: a confirmed death detonates, dealing 1 to
     // every card in the two adjacent lanes (both sides). Routed through the
     // death stack (dealDamage → handleDeath re-entry queues), so a chain that
@@ -11646,6 +11655,12 @@ const Game = {
     // it during a fight).
     if (card.isFaceDown) return;
     if (this._trickBlocked(card)) return;
+    // COG INVASION — a Cog protected by its living VP may shrug the hit off
+    // entirely (Mr. Hollywood's first hit each round, Robber Baron's shield).
+    if (card._cogVP && this._cogBlocksDamage(card)) {
+      this.log(`  [COG INVASION] ${card.name} is protected — the hit is absorbed.`);
+      return;
+    }
     // Invincible / Damage Immunity blocks — attribute the full amount to
     // the blocking card's `statsDamageAbsorbed` so the Stats dashboard
     // sees defensive contribution beyond just armor. Previously this
@@ -12990,6 +13005,12 @@ const Game = {
   },
   freezeCard(card, source, n) {
     if (!card) return;
+    // COG INVASION — the Big Cheese resists Freeze/Stun for its first 2 rounds;
+    // a Freeze/Stun on Robber Baron instead shatters his shield (and still lands).
+    if (card._cogVP && this._cogResistsFreeze(card)) {
+      this.log(`  [COG INVASION] ${card.name} resists the freeze.`);
+      return;
+    }
     const turns = Math.max(1, n || 1);
     this.tryApplyDebuff(source, card, 'Freeze', () => {
       card.frozenTurns = (card.frozenTurns || 0) + turns;
@@ -17560,6 +17581,193 @@ const Game = {
     return (pick && tt.players && tt.players[pick]) ? pick : null;
   },
 
+  // ============================================================
+  // COG INVASION — the VP engine (Toontown)
+  // ============================================================
+  // Four Vice Presidents, each a persistent off-board 10-HP entity (state._cog).
+  // Each rolls 12.5% every round to first appear; once active it sends its Cog
+  // out every 2 rounds (alternating sides, NO cap) and, every 3rd round, drains
+  // 2 HP from both players and heals itself. Killing a Cog pays 1 Gag, a VP pays
+  // 2, from a no-dupes-until-exhausted bag per player. Gated: only runs when the
+  // match is the Cog Invasion event, or _cogForce is set for testing.
+  _COG_VP_ROLL: 0.125,
+  _COG_VP_MAX_HP: 10,
+  _COG_ORDER: ['vp', 'cfo', 'cj', 'chairman'],
+  _COG_VP_DEFS: {
+    vp:       { name: 'The V.P.',     cog: 'Mr. Hollywood' },
+    cfo:      { name: 'The C.F.O.',   cog: 'Robber Baron' },
+    cj:       { name: 'The C.J.',     cog: 'Big Wig' },
+    chairman: { name: 'The Chairman', cog: 'The Big Cheese' },
+  },
+  _cogEnabled() {
+    const s = this.state;
+    return !!(s && (s._cogForce || s._matchEventName === 'Cog Invasion'));
+  },
+  _cogInit() {
+    const s = this.state;
+    const vps = {};
+    this._COG_ORDER.forEach(k => {
+      vps[k] = { key: k, name: this._COG_VP_DEFS[k].name, cog: this._COG_VP_DEFS[k].cog,
+                 hp: this._COG_VP_MAX_HP, maxHp: this._COG_VP_MAX_HP,
+                 active: false, dead: false, firstRound: null, lastSpawnRound: null,
+                 lastDrainRound: null, nextSide: 'player' };
+    });
+    s._cog = { active: true, vps, gagBag: { player: [], ai: [] } };
+    this.log('[COG INVASION] The Cogs are on the move — four executives eye the board.');
+  },
+  _maybeCogInvasion(round) {
+    const s = this.state;
+    if (!s || !this._cogEnabled()) return;
+    if (!s._cog || !s._cog.active) this._cogInit();
+    this._cogTick(round | 0);
+  },
+  _cogTick(round) {
+    const s = this.state, c = s._cog;
+    if (!c) return;
+    this._COG_ORDER.forEach(k => {
+      const vp = c.vps[k];
+      if (!vp || vp.dead) return;
+      if (!vp.active) {
+        if (this.rng() < this._COG_VP_ROLL) {
+          vp.active = true; vp.firstRound = round; vp.lastSpawnRound = round; vp.lastDrainRound = round;
+          this.log(`[COG INVASION] ${vp.name} arrives!`);
+          this._cogSpawnCog(vp, round);
+        }
+        return;
+      }
+      // Active: send a Cog out every 2 rounds (no cap).
+      if (vp.lastSpawnRound == null || (round - vp.lastSpawnRound) >= 2) {
+        this._cogSpawnCog(vp, round);
+        vp.lastSpawnRound = round;
+      }
+      // Every 3rd round since arrival: drain 2 HP from both players, heal to full.
+      if (vp.lastDrainRound == null) vp.lastDrainRound = vp.firstRound;
+      const since = round - (vp.firstRound || round);
+      if (since > 0 && since % 3 === 0 && vp.lastDrainRound !== round) {
+        vp.lastDrainRound = round;
+        this._cogDrain(vp);
+      }
+    });
+    // C.J. → Big Wig's live +1 ATK per ally on its side is recomputed here.
+    this._cogRefreshBigWig();
+    if (typeof UI !== 'undefined' && UI.render) { try { UI.render(); } catch (e) {} }
+  },
+  _cogSpawnCog(vp, round) {
+    const side = vp.nextSide;
+    const open = this.getOpenLanes(side);
+    if (!open.length) {
+      this.log(`  [COG INVASION] ${vp.name} finds no open lane on the ${side} side — spawn wasted.`);
+      return null;
+    }
+    const laneIdx = open[Math.floor(this.rng() * open.length)];
+    const def = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(d => d.name === vp.cog) : null;
+    if (!def) return null;
+    const cog = this.createCardInstance(def, side);
+    cog._cogSpawnRound = round;
+    cog._cogVP = vp.key;
+    cog._cogBaseAttack = cog.attack;   // C.J. buff is added on top of this
+    if (cog.statsEnteredRound == null) cog.statsEnteredRound = round;
+    this.state.lanes[laneIdx][side] = cog;
+    vp.nextSide = (side === 'player') ? 'ai' : 'player';   // alternate for next copy
+    this.log(`  [COG INVASION] ${vp.cog} drops into lane ${laneIdx + 1} (${side} side).`);
+    if (this.emitFX) { try { this.emitFX('envReveal', { lane: laneIdx, owner: side, name: vp.cog }); } catch (e) {} }
+    return cog;
+  },
+  _cogDrain(vp) {
+    ['player', 'ai'].forEach(side => { this.damagePlayer(side, 2, false, { name: vp.name, cog: true }); });
+    vp.hp = vp.maxHp;
+    this.log(`[COG INVASION] ${vp.name} drains 2 health from both players and heals to full.`);
+  },
+  // C.J. → Big Wig: +1 ATK per ally on Big Wig's own side, recomputed live off
+  // the stored base. Only while The C.J. lives; on his death it settles to base.
+  _cogRefreshBigWig() {
+    const c = this.state._cog; if (!c) return;
+    const cj = c.vps.cj;
+    this.getAllCardsOnBoard().forEach(card => {
+      if (card._cogVP !== 'cj') return;
+      const base = (card._cogBaseAttack != null) ? card._cogBaseAttack : card.attack;
+      if (cj && !cj.dead) {
+        const allies = this.getAllCardsOf(card.owner).filter(a => a.currentHealth > 0 && a.id !== card.id).length;
+        card.attack = base + allies;
+      } else {
+        card.attack = base;
+      }
+    });
+  },
+  // A VP takes damage (routed from the VP-targeting UI). A kill awards 2 Gags to
+  // the attacker's side and stops the VP forever; its Cogs keep fighting.
+  _cogDamageVP(vpKey, amount, byOwner) {
+    const c = this.state && this.state._cog;
+    if (!c || !c.vps[vpKey]) return;
+    const vp = c.vps[vpKey];
+    if (vp.dead) return;
+    vp.hp = Math.max(0, vp.hp - (amount | 0));
+    this.log(`  [COG INVASION] ${vp.name} takes ${amount} — ${vp.hp}/${vp.maxHp} left.`);
+    if (vp.hp <= 0) {
+      vp.dead = true; vp.active = false;
+      this.log(`[COG INVASION] ${vp.name} is defeated! ${vp.cog} loses its protection.`);
+      this._cogRefreshBigWig();
+      this._cogDrawGag(byOwner || 'player', 2);
+    }
+    if (typeof UI !== 'undefined' && UI.render) { try { UI.render(); } catch (e) {} }
+  },
+  // Draw n Gags into a side's trick hand, no dupes until the 7-Gag bag empties.
+  _cogDrawGag(owner, n) {
+    const s = this.state, c = s && s._cog;
+    if (!c || typeof GAG_DEFS === 'undefined') return;
+    if (!c.gagBag) c.gagBag = { player: [], ai: [] };
+    const holder = s[owner];
+    if (!holder) return;
+    if (!Array.isArray(holder.trickHand)) holder.trickHand = [];
+    for (let i = 0; i < (n | 0); i++) {
+      if (!c.gagBag[owner] || !c.gagBag[owner].length) {
+        c.gagBag[owner] = GAG_DEFS.map(g => g.name);
+        this.shuffle(c.gagBag[owner]);
+      }
+      const name = c.gagBag[owner].shift();
+      const def = GAG_DEFS.find(g => g.name === name);
+      if (!def) continue;
+      holder.trickHand.push({ ...def, id: nextCardId++ });
+      this.log(`  [GAG] ${this.seatLabel ? this.seatLabel(owner) : owner} earns ${name}!`);
+    }
+  },
+  // §2.5 protections, read from the damage / freeze paths while the VP lives.
+  // Returns true if the incoming hit on this Cog should be fully blocked.
+  _cogBlocksDamage(card) {
+    const c = this.state && this.state._cog;
+    if (!c || !card || !card._cogVP) return false;
+    const vp = c.vps[card._cogVP];
+    if (!vp || vp.dead) return false;
+    // The V.P. → Mr. Hollywood: the first attack he takes each round deals none.
+    if (card._cogVP === 'vp') {
+      if (card._cogHitRound !== (this.state.round || 1)) { card._cogHitRound = (this.state.round || 1); return true; }
+    }
+    // The C.F.O. → Robber Baron: standing shield blocks all damage until broken
+    // by a Freeze/Stun; reforms 2 rounds later.
+    if (card._cogVP === 'cfo') {
+      const broken = card._cogShieldBrokenRound != null && ((this.state.round || 1) - card._cogShieldBrokenRound) < 2;
+      if (!broken) return true;
+    }
+    return false;
+  },
+  // Freeze/Stun landing on a Cog — breaks Robber Baron's shield, and the Big
+  // Cheese resists for its first 2 rounds. Returns true if the freeze is refused.
+  _cogResistsFreeze(card) {
+    const c = this.state && this.state._cog;
+    if (!c || !card || !card._cogVP) return false;
+    const vp = c.vps[card._cogVP];
+    // The Chairman → The Big Cheese: immune to Freeze/Stun for its first 2 rounds.
+    if (card._cogVP === 'chairman' && vp && !vp.dead) {
+      if (((this.state.round || 1) - (card._cogSpawnRound || 0)) < 2) return true;
+    }
+    // The C.F.O. → Robber Baron: a Freeze/Stun breaks the shield (and still lands).
+    if (card._cogVP === 'cfo' && vp && !vp.dead) {
+      card._cogShieldBrokenRound = (this.state.round || 1);
+      this.log(`  [COG INVASION] Robber Baron's shield shatters!`);
+    }
+    return false;
+  },
+
   // Called at the top of every 2v2 round, next to _maybeBallyhoo.
   _maybeShadowMan(roundNow) {
     const s = this.state;
@@ -19935,6 +20143,7 @@ const Game = {
     this._shadowSettleDuels(tt.round);
     this._maybeShadowMan(tt.round);
     this._maybeHabitatEvent(tt.round);
+    this._maybeCogInvasion(tt.round);
     // Wonder Weapon board effects age at the top of the round, after combat has
     // resolved the previous one.
     try { this.tickStormMarks(); } catch (e) { console.error('[storm mark]', e); }
