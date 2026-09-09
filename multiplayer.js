@@ -364,6 +364,17 @@ const Multiplayer = {
     const ancestors = [];
     const json = JSON.stringify(state, function (key, value) {
       if (typeof value === 'function') return undefined;
+      // NEVER SERIALIZE THE UNDO SNAPSHOT. tt._turnSnap is a whole second copy
+      // of the state (measured at ~170 KB on a live board, larger than the rest
+      // of the state combined) kept only so the HOST can rewind one seat's turn.
+      // It is nulled out of the clone further down, but by then it has already
+      // been stringified AND parsed — so every single broadcast paid to
+      // serialize a 170 KB blob it immediately threw away. Dropping it here in
+      // the replacer skips that work entirely. `_undoRearm` is the 1v1 twin.
+      // This is the single biggest per-broadcast cost, so it is the first thing
+      // to lift the "everything is laggy online" report. (Nothing on the wire
+      // changes — _turnSnap was already stripped before send.)
+      if (key === '_turnSnap' || key === '_undoRearm') return undefined;
       if (value && typeof value === 'object') {
         while (ancestors.length && ancestors[ancestors.length - 1] !== this) ancestors.pop();
         if (ancestors.indexOf(value) !== -1) return undefined; // cycle — drop this back-ref
