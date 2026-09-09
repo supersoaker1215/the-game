@@ -9775,7 +9775,7 @@ const Game = {
     // side that landed the blow; fall back to the opponent of the Cog's side.
     if (card._cogVP && this.state._cog) {
       const winner = (killer && killer.owner) || this.opponent(card.owner);
-      this._cogDrawGag(winner, 1);
+      this._cogDrawGag(winner, 1, (killer && killer._2v2PlayedBy) || null);
     }
     // TOURNAMENT — Chain Reaction: a confirmed death detonates, dealing 1 to
     // every card in the two adjacent lanes (both sides). Routed through the
@@ -17738,13 +17738,13 @@ const Game = {
       const vp = c.vps[vpKey];
       if (!vp || vp.dead) return;
       this.log(`[COG INVASION] ${card.name} turns its swing on ${vp.name} for ${card.attack}!`);
-      this._cogDamageVP(vpKey, card.attack, card.owner);
+      this._cogDamageVP(vpKey, card.attack, card.owner, card._2v2PlayedBy || null);
       card._skipNormalAttack = true;
     });
   },
   // A VP takes damage (routed from the VP-targeting UI). A kill awards 2 Gags to
   // the attacker's side and stops the VP forever; its Cogs keep fighting.
-  _cogDamageVP(vpKey, amount, byOwner) {
+  _cogDamageVP(vpKey, amount, byOwner, bySeat) {
     const c = this.state && this.state._cog;
     if (!c || !c.vps[vpKey]) return;
     const vp = c.vps[vpKey];
@@ -17755,37 +17755,41 @@ const Game = {
       vp.dead = true; vp.active = false;
       this.log(`[COG INVASION] ${vp.name} is defeated! ${vp.cog} loses its protection.`);
       this._cogRefreshBigWig();
-      this._cogDrawGag(byOwner || 'player', 2);
+      this._cogDrawGag(byOwner || 'player', 2, bySeat || null);
     }
     if (typeof UI !== 'undefined' && UI.render) { try { UI.render(); } catch (e) {} }
   },
-  // Draw n Gags into a side's trick hand, no dupes until the 7-Gag bag empties.
-  _cogDrawGag(owner, n) {
+  // Draw n Gags, no dupes until the 7-Gag bag empties. Each Gag lands through
+  // the ordinary "trick hand full — trade one out" flow (_gainTrickWithTrade):
+  // room to spare keeps it, a full hand prompts the human to swap a trick (the
+  // AI auto-trades its cheapest), exactly like earning a trick off the Block
+  // Meter. (Owner: "i want the gags to be trade outable with the tricks if you
+  // are full like how it usually is when you have too many tricks and draw one.")
+  // In 2v2, `seat` names the exact teammate who earned it (and gets its own
+  // no-dupe bag); solo/1v1 fall back to the side.
+  _cogDrawGag(owner, n, seat) {
     const s = this.state, c = s && s._cog;
     if (!c || typeof GAG_DEFS === 'undefined') return;
-    if (!c.gagBag) c.gagBag = { player: [], ai: [] };
-    const holder = s[owner];
-    if (!holder) return;
-    if (!Array.isArray(holder.trickHand)) holder.trickHand = [];
+    if (!c.gagBag) c.gagBag = {};
+    const bagKey = seat || owner;
+    const isAI = seat ? (this._2v2SeatIsAI && this._2v2SeatIsAI(seat))
+                      : !this.isHuman(owner);
     for (let i = 0; i < (n | 0); i++) {
-      if (!c.gagBag[owner] || !c.gagBag[owner].length) {
-        c.gagBag[owner] = GAG_DEFS.map(g => g.name);
-        this.shuffle(c.gagBag[owner]);
+      if (!c.gagBag[bagKey] || !c.gagBag[bagKey].length) {
+        c.gagBag[bagKey] = GAG_DEFS.map(g => g.name);
+        this.shuffle(c.gagBag[bagKey]);
       }
-      const name = c.gagBag[owner].shift();
+      const name = c.gagBag[bagKey].shift();
       const def = GAG_DEFS.find(g => g.name === name);
       if (!def) continue;
-      holder.trickHand.push({ ...def, id: nextCardId++ });
-      // Every Cog kill pays a Gag and there is no cap on that — so the trick
-      // hand must never turn one away. Grow maxTrickHandSize to fit whatever the
-      // player has earned (like Ballyhoo's candies push past 3, but unbounded so
-      // a long invasion can stack more than one over) so no Gag is discarded as
-      // "TRICKS FULL" and every earned Gag renders and is playable. (Owner:
-      // "everytime you kill a cog you get a gag so you shouldnt max it out at 2.")
-      if ((holder.maxTrickHandSize | 0) < holder.trickHand.length) {
-        holder.maxTrickHandSize = holder.trickHand.length;
-      }
-      this.log(`  [GAG] ${this.seatLabel ? this.seatLabel(owner) : owner} earns ${name}!`);
+      this._gainTrickWithTrade(owner, { ...def }, {
+        seat: seat || null, isAI,
+        title: 'Gag earned — trick hand full',
+        desc: `Choose a trick to discard to keep ${name}.`,
+        declineLabel: `Discard ${name}`,
+        onKept: () => this.log(`  [GAG] ${this.seatLabel ? this.seatLabel(owner) : owner} earns ${name}!`),
+        onDecline: () => this.log(`  [GAG] ${name} is discarded — trick hand full.`),
+      });
     }
   },
   // §2.5 protections, read from the damage / freeze paths while the VP lives.
