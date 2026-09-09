@@ -17682,23 +17682,52 @@ const Game = {
     this._cogRefreshBigWig();
     if (typeof UI !== 'undefined' && UI.render) { try { UI.render(); } catch (e) {} }
   },
+  // A Cog goes out to BOTH sides at once (owner). Symmetric, so neither seat is
+  // reinforced ahead of the other.
   _cogSpawnCog(vp, round) {
-    const side = vp.nextSide;
-    const open = this.getOpenLanes(side);
-    if (!open.length) {
-      this.log(`  [COG INVASION] ${vp.name} finds no open lane on the ${side} side — spawn wasted.`);
-      return null;
-    }
-    const laneIdx = open[Math.floor(this.rng() * open.length)];
+    ['player', 'ai'].forEach(side => this._cogSpawnOnSide(vp, round, side));
+  },
+  // The weakest card on a side — lowest cost, then lowest ATK, then lowest HP.
+  // (Owner: "it always choses the lowest cost and lowest atk and health.")
+  _cogWeakestOn(side) {
+    const cards = this.getAllCardsOf(side).filter(c => c && c.currentHealth > 0 && !c.isEnvironment);
+    if (!cards.length) return null;
+    return cards.slice().sort((a, b) => {
+      const ca = (a.baseCost || a.cost || 0), cb = (b.baseCost || b.cost || 0);
+      if (ca !== cb) return ca - cb;
+      const aa = (a.attack | 0), ab = (b.attack | 0);
+      if (aa !== ab) return aa - ab;
+      return (a.currentHealth | 0) - (b.currentHealth | 0);
+    })[0];
+  },
+  _cogSpawnOnSide(vp, round, side) {
     const def = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(d => d.name === vp.cog) : null;
     if (!def) return null;
+    let laneIdx;
+    const open = this.getOpenLanes(side);
+    if (open.length) {
+      laneIdx = open[Math.floor(this.rng() * open.length)];
+    } else {
+      // Side full — the Cog forces its way in: destroy the WEAKEST card on that
+      // side and take its lane. (Owner: "if a side is full it ... choses a card
+      // to destroy and takes its place ... the lowest cost and lowest atk and
+      // health.")
+      const victim = this._cogWeakestOn(side);
+      if (!victim) { this.log(`  [COG INVASION] ${vp.cog} finds nowhere on the ${side} side — spawn wasted.`); return null; }
+      laneIdx = this.findCardLane(victim);
+      if (laneIdx < 0) return null;
+      this.log(`  [COG INVASION] ${vp.cog} muscles in — destroys ${victim.name} on the ${side} side.`);
+      this.killCard(victim, { name: vp.name, cog: true });
+      // handleDeath usually clears the slot; force it in case a death-save kept
+      // the corpse there, so the Cog has a lane to land in.
+      if (this.state.lanes[laneIdx] && this.state.lanes[laneIdx][side]) this.state.lanes[laneIdx][side] = null;
+    }
     const cog = this.createCardInstance(def, side);
     cog._cogSpawnRound = round;
     cog._cogVP = vp.key;
     cog._cogBaseAttack = cog.attack;   // C.J. buff is added on top of this
     if (cog.statsEnteredRound == null) cog.statsEnteredRound = round;
     this.state.lanes[laneIdx][side] = cog;
-    vp.nextSide = (side === 'player') ? 'ai' : 'player';   // alternate for next copy
     this.log(`  [COG INVASION] ${vp.cog} drops into lane ${laneIdx + 1} (${side} side).`);
     if (this.emitFX) { try { this.emitFX('envReveal', { lane: laneIdx, owner: side, name: vp.cog }); } catch (e) {} }
     return cog;
