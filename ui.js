@@ -8125,6 +8125,9 @@ const UI = {
     // rendering — so moving the call can't change which changes are detected.)
     this._safe('animateStatChanges',      () => this.animateStatChanges());
     this._safe('renderPlayerHand',        () => this.renderPlayerHand(s));
+    // ONE RAIL, EVERY EVENT TYPE. Wrapped like every other sub-renderer: a
+    // throw in here must cost this frame's rail, not the whole board.
+    this._safe('eventRail',               () => this._renderEventRail(s));
     this._safe('renderHandMeter',         () => this.renderHandMeter(s));
     this._safe('renderAIHand',            () => this.renderAIHand(s));
     this._safe('renderPlayerTricks',      () => this.renderPlayerTricks(s));
@@ -14011,7 +14014,10 @@ const UI = {
       + `<div class="cog-how">Four executives. Each sends its Cog out every 2 rounds and, left alone, drains 2 HP from both players every 3rd round. Beat a VP to stop its spawns and shed its shield — then claim the Gags.</div>`
       + `<div class="cog-vps">${cards}</div>`
       + (anyAppeared ? '' : `<div class="cog-how cog-how--dim">None have shown themselves yet.</div>`);
-    el.style.display = '';
+    // NOT forced visible any more: the rail states this event in the same
+    // grammar as every other one, and this panel is what opens when you click
+    // that row. Re-showing it here would reopen it on every render.
+    el.style.display = el.classList.contains('is-open') ? '' : 'none';
     // Wire the "send a card" buttons (innerHTML is rebuilt each render).
     el.querySelectorAll('.cog-hit').forEach(btn => {
       btn.onclick = (e) => { e.stopPropagation(); this.cogAttackVP(btn.getAttribute('data-cog')); };
@@ -29296,6 +29302,229 @@ const UI = {
       host.appendChild(panel);
     }
     return panel.querySelector(which === 'body' ? '.cd-body' : '.cd-slot');
+  },
+
+  // ===================== THE EVENT RAIL =====================
+  // ONE RAIL, EVERY EVENT TYPE. Before this, the things an event does were
+  // announced in three different places and in three different shapes: an
+  // environment showed a counter on its own card, a collapsed lane showed a
+  // number under the lane, and a boss spawn showed nothing at all once its
+  // arrival banner had gone. Three surfaces, three grammars, and no single
+  // place that answered "what is currently acting on this board".
+  //
+  // Every row is the same three parts, with no exceptions:
+  //   TICK   3px bar, the ONLY thing carrying the event's type colour, so a
+  //          rail of eight still reads as one list rather than a fruit salad.
+  //   NAME   12px sentence case. Never uppercase — uppercase belongs to the
+  //          rail's own labels, and if rows shout too, nothing is a heading.
+  //   CLOCK  rounds remaining plus a segment meter; PERMANENT in grey replaces
+  //          both when the event has no end.
+  //
+  // Red is deliberately NOT a type colour. It means the opposing player
+  // everywhere else in this game, so an event never uses it — a hostile event
+  // is orange (hazard) or purple (boss set).
+  _EVENT_TYPES: {
+    boss:     { cls: 'ev-boss',     rgb: '176, 97, 255'  },   // #b061ff
+    modifier: { cls: 'ev-modifier', rgb: '255, 209, 102' },   // #ffd166
+    hazard:   { cls: 'ev-hazard',   rgb: '255, 122, 24'  },   // #ff7a18
+    boon:     { cls: 'ev-boon',     rgb: '38, 255, 156'  },   // #26ff9c
+  },
+  _EVENT_MAX_ROWS: 6,
+
+  // Collect everything currently acting on the board into ONE shape, so the
+  // renderer never has to know where a given event came from.
+  _eventRailModel(s) {
+    const out = [];
+    if (!s || !s.lanes) return out;
+    const seen = Object.create(null);
+
+    s.lanes.forEach((ln, i) => {
+      if (!ln) return;
+      // A collapsed lane is the clearest hazard there is: it hits one named
+      // lane and it ends.
+      if (ln.destroyed && (ln.destroyedTurns | 0) > 0) {
+        out.push({
+          id: 'lane' + i, type: 'hazard',
+          name: 'Lane ' + (i + 1) + ' collapse',
+          left: ln.destroyedTurns | 0, max: Math.max(ln.destroyedTurns | 0, 2),
+        });
+      }
+      const env = ln._env;
+      if (env && (env.currentHealth == null || env.currentHealth > 0)) {
+        // An environment sits on the side it acts AGAINST (owner's note when
+        // the art was flipped: "the picture should be on the side its
+        // against"). So one pointed at you is a hazard and one pointed at them
+        // opens something up for you.
+        const againstMe = (env.owner === 'ai');
+        const turns = env._envTurns;
+        const perm = !(turns > 0);
+        out.push({
+          id: 'env' + i + (env.name || ''), type: againstMe ? 'hazard' : 'boon',
+          name: env.name || 'Environment',
+          lane: i + 1,
+          left: perm ? null : (turns | 0), max: perm ? 0 : Math.max(turns | 0, 4),
+          permanent: perm,
+        });
+      }
+    });
+
+    // A BOSS SET IS THE ONE TYPE THAT EXPANDS, because it is the only one whose
+    // detail is a LIST rather than a number: several named enemies, each with
+    // its own HP, and you need all of them to know what you are facing.
+    //
+    // The first draft of this grouped cards by a `_eventSpawnOf` tag — which
+    // NOTHING in the engine sets. It would have been dead code that looked
+    // like a feature. The real boss set is the Cog Invasion, which already
+    // keeps four VPs with hp/maxHp in s._cog, and which already had a panel of
+    // its very own in the corner. That panel is the reason this rail exists:
+    // it was one event type rendered in a shape no other event shared.
+    const cog = s._cog;
+    if (cog && cog.active && cog.vps) {
+      const order = (typeof Game !== 'undefined' && Game._COG_ORDER) || ['vp', 'cfo', 'cj', 'chairman'];
+      const members = order.map(k => cog.vps[k]).filter(Boolean).map(vp => ({
+        key: Object.keys(cog.vps).find(k => cog.vps[k] === vp),
+        name: vp.name,
+        // Drop the leading article first. Without it every VP initialled to
+        // "TH" — four identical chips down the open row, which is worse than
+        // no chip at all because it looks like data.
+        initials: String(vp.name || '').replace(/^the\s+/i, '')
+                    .replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase(),
+        hp: vp.dead ? 0 : (vp.hp | 0),
+        dead: !!vp.dead,
+        live: !!vp.active && !vp.dead,
+      }));
+      if (members.length) {
+        out.push({
+          id: 'cog', type: 'boss', name: 'Cog Invasion', boss: true,
+          note: 'Drains 2 HP', left: null, permanent: true, members,
+        });
+      }
+    }
+
+    return out.filter(e => (seen[e.id] ? false : (seen[e.id] = true)));
+  },
+
+  // The Cog panel starts closed now that the rail states the event. It was a
+  // permanently open block in the corner of the board — the only event type
+  // with a panel of its own, which is exactly the non-uniformity this rail
+  // exists to remove.
+  _toggleCogPanel() {
+    const el = document.getElementById('cog-panel');
+    if (!el) return;
+    const open = el.classList.toggle('is-open');
+    el.style.display = open ? '' : 'none';
+  },
+
+  // Render the rail. Three stacking rules, all of them about keeping the rail a
+  // fixed, readable object rather than a growing log:
+  //   ONE OPEN AT A TIME  the newest event opens itself and collapses whatever
+  //                       was open; everything else is a 34px row.
+  //   SIX ROWS MAX        past six, the oldest collapse into "+N more", so the
+  //                       rail never scrolls during a turn.
+  //   EXPIRY IS VISIBLE   an ended event drops to the bottom, struck through
+  //                       with its round number, for one round only — you get
+  //                       to SEE that the thing that was hurting you stopped.
+  _renderEventRail(s) {
+    const host = document.body;
+    if (!host) return;
+    let model = [];
+    try { model = this._eventRailModel(s) || []; } catch (e) { model = []; }
+    let rail = document.getElementById('event-rail');
+
+    // Expiry bookkeeping: anything that was in the model last render and is not
+    // in it now gets one round on the bottom of the rail, struck through.
+    const ids = model.map(e => e.id);
+    const prev = this._eventRailPrev || [];
+    const round = (s && s.round) | 0;
+    if (!this._eventRailGone) this._eventRailGone = [];
+    prev.forEach(p => {
+      if (ids.indexOf(p.id) < 0 && !this._eventRailGone.some(g => g.id === p.id)) {
+        this._eventRailGone.push({ id: p.id, name: p.name, type: p.type, round });
+      }
+    });
+    this._eventRailGone = this._eventRailGone.filter(g => (round - g.round) < 1);
+    this._eventRailPrev = model.map(e => ({ id: e.id, name: e.name, type: e.type }));
+
+    if (!model.length && !this._eventRailGone.length) { if (rail) rail.remove(); return; }
+    if (!rail) {
+      rail = document.createElement('aside');
+      rail.id = 'event-rail';
+      host.appendChild(rail);
+    }
+    const esc = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    const T = this._EVENT_TYPES;
+
+    // The newest event is the open one. It is also the one you have had least
+    // time to read, which is the whole reason it opens rather than the oldest.
+    const openId = model.length ? model[model.length - 1].id : null;
+    const MAX = this._EVENT_MAX_ROWS;
+    const shown = model.slice(-MAX);
+    const hidden = model.length - shown.length;
+
+    const meter = (e) => {
+      if (e.permanent || e.left == null) return '';
+      const n = Math.max(1, e.max || e.left);
+      return `<span class="ev-meter" aria-hidden="true">${
+        Array.from({ length: n }, (_, i) =>
+          `<span class="ev-seg${i < e.left ? ' is-on' : ''}"></span>`).join('')}</span>`;
+    };
+    const clock = (e) => e.permanent || e.left == null
+      ? `<span class="ev-clock is-perm">Permanent</span>`
+      : `<span class="ev-clock">${e.left} left</span>`;
+
+    const rows = shown.map(e => {
+      const t = T[e.type] || T.hazard;
+      const isOpen = e.boss && e.id === openId;
+      const body = (isOpen && e.members) ? `
+        <div class="ev-open">
+          <div class="ev-open-head">
+            <span class="ev-open-note">${esc(e.note || 'Boss set')}</span>
+            <span class="ev-open-round">Round ${round}</span>
+          </div>
+          ${meter(e)}
+          <div class="ev-members">${e.members.map(m => `
+            <div class="ev-member${m.dead ? ' is-dead' : ''}${m.live ? ' is-live' : ''}">
+              <span class="ev-ini">${esc(m.initials)}</span>
+              <span class="ev-mname">${esc(m.name)}</span>
+              <span class="ev-mhp">${m.dead ? '\u2715' : m.hp}</span>
+            </div>`).join('')}</div>
+        </div>` : '';
+      // THE BOSS ROW IS A DOOR, NOT A REPLACEMENT. The Cog panel carries things
+      // the rail deliberately does not: the rules of the event, and the
+      // "send a card at this VP" action. Deleting it to get uniformity would
+      // have traded a real control for a tidier column. So the rail states the
+      // event in the same grammar as everything else, and clicking it opens
+      // the panel that can actually be used.
+      const door = e.boss ? ` role="button" tabindex="0" onclick="UI._toggleCogPanel()"`
+                          + ` onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();UI._toggleCogPanel();}"` : '';
+      return `<div class="ev-row ${t.cls}${isOpen ? ' is-open' : ''}${e.boss ? ' is-door' : ''}" style="--ev-rgb:${t.rgb}"${door}>
+        <div class="ev-line">
+          <span class="ev-tick" aria-hidden="true"></span>
+          <span class="ev-name">${esc(e.name)}</span>
+          ${clock(e)}
+        </div>
+        ${isOpen ? '' : meter(e)}
+        ${body}
+      </div>`;
+    }).join('');
+
+    const more = hidden > 0
+      ? `<div class="ev-more">+${hidden} more</div>` : '';
+    const gone = this._eventRailGone.map(g => {
+      const t = T[g.type] || T.hazard;
+      return `<div class="ev-row ev-expired" style="--ev-rgb:${t.rgb}">
+        <div class="ev-line">
+          <span class="ev-tick" aria-hidden="true"></span>
+          <span class="ev-name">${esc(g.name)}</span>
+          <span class="ev-clock">R${g.round}</span>
+        </div></div>`;
+    }).join('');
+    const goneBlock = gone ? `<div class="ev-gone"><span class="ev-gone-label">Expired</span>${gone}</div>` : '';
+
+    rail.innerHTML =
+      `<div class="ev-head"><span class="ev-head-label">Events</span>` +
+      `<span class="ev-head-count">${model.length} active</span></div>` +
+      `<div class="ev-list">${rows}${more}</div>${goneBlock}`;
   },
 
   // THE OPTION TILES ARE TOLD HOW BIG THEY ACTUALLY ARE.

@@ -50049,3 +50049,127 @@ body.in-match:not(.board-v2) .board {
   padding-top: 0 !important;
   flex: 1 1 auto;
 }
+
+/* ============================================================
+   THE EVENT RAIL — one rail, every event type
+   ------------------------------------------------------------
+   Every row is the same three parts, no exceptions:
+     TICK   a 3px bar, and the ONLY thing carrying the event's type colour.
+            That is what lets a rail of eight events still read as one list
+            instead of eight competing objects.
+     NAME   12px sentence case, #dbe7ee. Never uppercase — uppercase belongs
+            to the rail's own labels, and if the rows shout too then nothing
+            on the rail is a heading.
+     CLOCK  rounds remaining plus a segment meter; PERMANENT in grey replaces
+            both when the event has no end.
+
+   Red is NOT a type colour here. It means the opposing player everywhere else
+   in this game, so an event never uses it — a hostile event is orange
+   (hazard) or purple (boss set).
+   ============================================================ */
+#event-rail {
+  position: fixed;
+  right: 18px;
+  top: var(--event-rail-top, 46%);
+  width: 200px;
+  z-index: 180;
+  pointer-events: none;
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+}
+.ev-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 8px;
+}
+.ev-head-label, .ev-head-count, .ev-gone-label {
+  font-size: 10px; letter-spacing: 0.28em; text-transform: uppercase;
+  color: var(--mp-text-3, #6c7f8b);
+}
+.ev-list { display: flex; flex-direction: column; gap: 6px; }
+
+/* ---- the row ------------------------------------------------------------- */
+.ev-row {
+  background: rgba(8, 12, 17, 0.92);
+  border: 1px solid rgba(140,170,190,0.10);
+  overflow: hidden;
+}
+.ev-line {
+  display: flex; align-items: center; gap: 9px;
+  height: 34px;                      /* every collapsed row is a 34px row */
+  padding: 0 10px 0 0;
+}
+.ev-tick {
+  width: 3px; align-self: stretch; flex: 0 0 3px;
+  background: rgb(var(--ev-rgb));
+  box-shadow: 0 0 6px rgba(var(--ev-rgb), 0.55);
+}
+.ev-name {
+  flex: 1 1 auto; min-width: 0;
+  font-size: 12px; letter-spacing: 0.01em; color: #dbe7ee;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  text-transform: none;              /* sentence case, never uppercase */
+}
+.ev-clock {
+  font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: rgb(var(--ev-rgb)); white-space: nowrap;
+}
+.ev-clock.is-perm { color: var(--mp-text-3, #6c7f8b); }
+.ev-meter { display: flex; gap: 2px; padding: 0 10px 7px 12px; }
+.ev-seg { height: 2px; flex: 1 1 auto; background: rgba(140,170,190,0.18); }
+.ev-seg.is-on { background: rgb(var(--ev-rgb)); box-shadow: 0 0 4px rgba(var(--ev-rgb), 0.5); }
+
+/* ---- the one open row ----------------------------------------------------
+   A boss set is the only type that expands, because it is the only one whose
+   detail is a LIST rather than a number — several named enemies, each with its
+   own HP, and you need all of them to know what you are facing. */
+.ev-row.is-open {
+  border-color: rgba(var(--ev-rgb), 0.55);
+  box-shadow: 0 0 12px rgba(var(--ev-rgb), 0.16);
+}
+.ev-row.is-open .ev-name {
+  text-transform: uppercase; letter-spacing: 0.10em; font-weight: 700;
+  color: #ffffff;
+}
+.ev-open { padding: 0 10px 8px 12px; }
+.ev-open-head { display: flex; justify-content: space-between; margin-bottom: 6px; }
+.ev-open-note, .ev-open-round {
+  font-size: 9px; letter-spacing: 0.20em; text-transform: uppercase;
+  color: var(--mp-text-3, #6c7f8b);
+}
+.ev-members { display: flex; flex-direction: column; margin-top: 7px; }
+.ev-member {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 0; border-top: 1px solid rgba(140,170,190,0.10);
+}
+.ev-ini {
+  width: 18px; height: 15px; flex: 0 0 18px; display: grid; place-items: center;
+  font-size: 8px; letter-spacing: 0.04em; color: rgb(var(--ev-rgb));
+  border: 1px solid rgba(var(--ev-rgb), 0.45);
+}
+.ev-mname { flex: 1 1 auto; min-width: 0; font-size: 11px; color: #dbe7ee;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ev-mhp { font-size: 11px; color: rgb(var(--ev-rgb)); }
+
+/* ---- past six rows, and what has ended ---------------------------------- */
+.ev-more {
+  font-size: 10px; letter-spacing: 0.20em; text-transform: uppercase;
+  color: var(--mp-text-off, #5c6f7c); padding: 4px 0 0 12px;
+}
+.ev-gone { margin-top: 12px; }
+.ev-gone .ev-row { opacity: 0.5; background: none; border-color: transparent; }
+.ev-gone .ev-name { text-decoration: line-through; color: var(--mp-text-off, #5c6f7c); }
+.ev-gone .ev-clock { color: var(--mp-text-off, #5c6f7c); }
+.ev-gone .ev-tick { box-shadow: none; opacity: 0.6; }
+
+/* The rail is a readout, not a control surface — it must never eat a click
+   meant for the board behind it. */
+#event-rail * { pointer-events: none; }
+@media (max-width: 1100px) { #event-rail { display: none; } }
+
+/* The boss row is the one interactive row — it opens the panel that carries
+   the event's rules and its "send a card at this VP" action. Everything else
+   on the rail stays a readout. */
+#event-rail .ev-row.is-door { pointer-events: auto; cursor: pointer; }
+#event-rail .ev-row.is-door:hover { border-color: rgba(var(--ev-rgb), 0.7); }
+.ev-member.is-dead { opacity: 0.45; }
+.ev-member.is-dead .ev-mname { text-decoration: line-through; }
+.ev-member.is-live .ev-ini { background: rgba(var(--ev-rgb), 0.16); }

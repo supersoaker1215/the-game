@@ -10525,7 +10525,18 @@ const Game = {
       ['player', 'ai'].forEach(side => {
         const c = lane[side];
         if (c) {
-          if (lane.destroyed) report('destLane:' + c.name, `${c.name} occupies DESTROYED lane ${i + 1} (limbo class)`);
+          // LIVING cards only, which is what the limbo class actually is: a card
+          // that survived a collapse is untargetable (the void has no lane) yet
+          // still swings in combat. A card at 0 HP in a collapsed lane is not
+          // that — it is a corpse awaiting a death queued on the stack, and
+          // evictVoidSurvivors skips it for exactly the same reason.
+          //
+          // The two rules disagreed, and the invariant was the one that was
+          // wrong: it reported every corpse the stack had not drained yet. That
+          // is why 2v2 fuzz showed 4/60 games "failing" on a class the engine
+          // deliberately allows — prompts pause the stack drain, so a corpse
+          // sitting in a void at the check is normal, not stranded.
+          if (lane.destroyed && c.currentHealth > 0) report('destLane:' + c.name, `${c.name} occupies DESTROYED lane ${i + 1} (limbo class)`);
           if (seenInstances.has(c)) report('dupRef:' + c.name, `${c.name} referenced by two slots (lanes ${seenInstances.get(c)} and ${i + 1})`);
           seenInstances.set(c, i + 1);
           // Registry identity — two DIFFERENT objects must never share an id
