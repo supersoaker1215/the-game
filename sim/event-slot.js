@@ -110,6 +110,61 @@ t('ES-8 eventSlotNow counts down and names the event', function () {
   eq('gone on the next slot boundary', Game.eventSlotNow(), null);
 });
 
+t('ES-9 up next names what is queued and counts down to it', function () {
+  Game.init();
+  Game.state.round = 3;
+  Game._eventSlotClaim(3, 'MC Ballyhoo', 'boon');
+  Game.state._shadow = { shows: true, appeared: false, appearAt: 5 };
+  var seen = [];
+  for (var r = 3; r <= 6; r++) {
+    Game.state.round = r;
+    var n = Game.eventUpNext();
+    seen.push(n.name + ':' + n.inRounds);
+  }
+  // Due on 5, but the slot is held until 6 — so the countdown is to when it can
+  // ACTUALLY start, not to when it was drawn. A timer that promised round 5 and
+  // then did nothing would be worse than no timer.
+  eq('countdown', seen.join(' '), 'The Shadow Man:3 The Shadow Man:2 The Shadow Man:1 The Shadow Man:0');
+});
+
+t('ES-10 with nothing drawn it says WHEN, not WHAT', function () {
+  Game.init();
+  Game.state.round = 4;
+  Game.state._ballyhoo = null; Game.state._shadow = null; Game.state._habitats = [];
+  var n = Game.eventUpNext();
+  // The draw has not happened. Naming an event here would be inventing a
+  // prediction the game has not made; the round the clock is due is real.
+  eq('unnamed', n.name, null);
+  eq('but a real round', n.inRounds > 0, true);
+});
+
+t('ES-11 a Cog VP arrival is never predicted', function () {
+  // It is a 12.5% roll every round — there is no round on which it is "due",
+  // so there is no honest countdown to it.
+  var src = read('game.js');
+  var fn = src.slice(src.indexOf('eventUpNext() {'));
+  fn = fn.slice(0, fn.indexOf('\n  },'));
+  eq('_cog is not consulted', /_cog\b/.test(fn), false);
+});
+
+t('ES-12 the rail keeps the row at zero — the seam', function () {
+  // At inRounds 0 the event is due but has not claimed the slot yet. Dropping
+  // the row there made it vanish for exactly the moment it was arriving.
+  var ui = read('ui.js');
+  eq('rendered at zero', /if \(upNext && upNext\.inRounds >= 0\)/.test(ui), true);
+  eq('and reads "now"', /upNext\.inRounds > 0 \? 'in ' \+ upNext\.inRounds : 'now'/.test(ui), true);
+});
+
+t('ES-13 rail rows are reused, or nothing can transition', function () {
+  var ui = read('ui.js');
+  // innerHTML on the whole rail replaces every node, and a brand-new element
+  // has nothing to transition FROM — the promotion would pop.
+  eq('rows are keyed', /data-ev-id/.test(ui), true);
+  eq('and reused rather than rebuilt', /if \(el\.dataset\.h !== def\.html\)/.test(ui), true);
+  // The entrance must land at CREATION only, never on a re-render.
+  eq('entrance is one-shot', /el\.classList\.add\('is-arriving'\)/.test(ui), true);
+});
+
 // ---- run ----------------------------------------------------
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];

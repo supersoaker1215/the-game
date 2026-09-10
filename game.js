@@ -18578,6 +18578,56 @@ const Game = {
     s._eventSlot = { name: name, kind: kind || 'event', start: round | 0 };
     this.log(`[EVENT] ${name} holds the board for ${this._EVENT_LEN} rounds.`);
   },
+  // WHAT IS COMING, AND WHEN. The rail shows the current event counting down
+  // and the next one waiting behind it, so an event ending is a hand-off
+  // rather than a gap: the row that was counting down disappears and the one
+  // that was waiting takes its place. (Owner: "you see the current event and
+  // the next event coming up with a timer countdown, once the event is over it
+  // disappears from the event bar and is replaced with the upcoming event.")
+  //
+  // Two kinds of answer, and the difference is honest rather than cosmetic:
+  //   NAMED    something is already drawn and waiting for the slot — we know
+  //            exactly what it is, so say so.
+  //   UNNAMED  nothing is drawn yet, but the event clock is due on a known
+  //            round. We know WHEN, not WHAT, and claiming otherwise would be
+  //            inventing a prediction the draw has not made.
+  // A Cog VP arrival is deliberately absent from both: it is a 12.5% roll per
+  // round, so there is no round at which it is "due" and no honest countdown.
+  eventUpNext() {
+    const s = this.state;
+    if (!s) return null;
+    const round = s.round | 0;
+    const slot = this._eventSlotFor(round);
+    // The earliest the slot can free up.
+    const freeAt = slot ? ((slot.start | 0) + this._EVENT_LEN) : round;
+
+    let best = null;
+    const consider = (name, kind, appearAt) => {
+      if (appearAt == null) return;
+      const at = Math.max(appearAt | 0, freeAt);
+      if (!best || at < best.at) best = { name, kind, at };
+    };
+    const b = s._ballyhoo;
+    if (b && b.shows && !b.fired) consider('MC Ballyhoo', 'boon', b.appearAt);
+    const sh = s._shadow;
+    if (sh && sh.shows && !sh.appeared) consider('The Shadow Man', 'modifier', sh.appearAt);
+    (Array.isArray(s._habitats) ? s._habitats : []).forEach(h => {
+      if (h && h.shows && !h.fired) consider(h.place || h.name, 'hazard', h.appearAt);
+    });
+
+    if (!best) {
+      // Nothing drawn yet — but the clock is. Find the next round the event
+      // draw is due, which is a real, knowable number even though the outcome
+      // is not.
+      let r = Math.max(round + 1, this._EVENT_FIRST_ROUND);
+      for (let i = 0; i < 64 && !this._eventRoundDue(r); i++) r++;
+      const at = Math.max(r, freeAt);
+      return { name: null, kind: 'modifier', at, inRounds: Math.max(0, at - round) };
+    }
+    return { name: best.name, kind: best.kind, at: best.at,
+             inRounds: Math.max(0, best.at - round) };
+  },
+
   // What the rail shows. Null when the board is between events.
   eventSlotNow() {
     const round = (this.state && this.state.round) | 0;

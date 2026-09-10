@@ -50181,3 +50181,42 @@ body.in-match:not(.board-v2) .board {
 .ev-member.is-dead { opacity: 0.45; }
 .ev-member.is-dead .ev-mname { text-decoration: line-through; }
 .ev-member.is-live .ev-ini { background: rgba(var(--ev-rgb), 0.16); }
+
+/* ---- the hand-off: current event out, upcoming event in ------------------
+   The rail shows what is playing and what is queued behind it. When the
+   current event's clock runs out its row leaves and the waiting one is
+   promoted into its place — so an event ending reads as a hand-off, not as a
+   gap that something later fills. (Owner: "once the event is over it
+   disappears from the event bar and is replaced with the upcoming event, very
+   seamless.")
+
+   These transitions only exist because the rail now REUSES its row nodes.
+   Rebuilding innerHTML every render replaces every element, and a brand-new
+   element has nothing to transition FROM — the promotion would pop. */
+#event-rail .ev-row {
+  transition: opacity 260ms var(--ease-out-soft, cubic-bezier(.22,1,.36,1)),
+              border-color 260ms ease,
+              background 260ms ease,
+              transform 260ms var(--ease-out-soft, cubic-bezier(.22,1,.36,1));
+}
+/* Queued, not running: same row, less weight. Nothing about it MOVES when it
+   is promoted — only its weight changes, which is what makes the swap read as
+   one object arriving rather than two objects trading places. */
+#event-rail .ev-row.ev-next {
+  opacity: 0.42;
+  background: rgba(8, 12, 17, 0.55);
+  border-style: dashed;
+}
+#event-rail .ev-row.ev-next .ev-tick { box-shadow: none; opacity: 0.7; }
+#event-rail .ev-row.ev-next .ev-clock { color: var(--mp-text-3, #6c7f8b); }
+/* A row that has just been created starts collapsed and settles open, so a new
+   event slides the rail rather than jumping it. Applied for exactly one frame
+   pair at creation, never on a re-render. */
+#event-rail .ev-row.is-arriving {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+@media (prefers-reduced-motion: reduce) {
+  #event-rail .ev-row { transition: none; }
+  #event-rail .ev-row.is-arriving { opacity: 1; transform: none; }
+}

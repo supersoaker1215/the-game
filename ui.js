@@ -29568,7 +29568,7 @@ const UI = {
       ? `<span class="ev-clock is-perm">Permanent</span>`
       : `<span class="ev-clock">${e.left} left</span>`;
 
-    const rows = shown.map(e => {
+    const rowDefs = shown.map(e => {
       const t = T[e.type] || T.hazard;
       const isOpen = e.boss && e.id === openId;
       const body = (isOpen && e.members) ? `
@@ -29593,16 +29593,51 @@ const UI = {
       // the panel that can actually be used.
       const door = e.boss ? ` role="button" tabindex="0" onclick="UI._toggleCogPanel()"`
                           + ` onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();UI._toggleCogPanel();}"` : '';
-      return `<div class="ev-row ${t.cls}${isOpen ? ' is-open' : ''}${e.boss ? ' is-door' : ''}" style="--ev-rgb:${t.rgb}"${door}>
-        <div class="ev-line">
+      return {
+        id: e.id,
+        cls: `ev-row ${t.cls}${isOpen ? ' is-open' : ''}${e.boss ? ' is-door' : ''}`,
+        rgb: t.rgb,
+        door: door,
+        html: `<div class="ev-line">
           <span class="ev-tick" aria-hidden="true"></span>
           <span class="ev-name">${esc(e.name)}</span>
           ${clock(e)}
         </div>
         ${isOpen ? '' : meter(e)}
-        ${body}
-      </div>`;
-    }).join('');
+        ${body}`,
+      };
+    });
+
+    // ---- UP NEXT --------------------------------------------------------
+    // The hand-off is the point: the row that was counting down goes, and the
+    // one that was waiting takes its place. Rendered as a real row in the same
+    // three-part grammar — dimmed, and with the clock reading "in N" instead
+    // of "N left" — so when it is promoted nothing about it moves except its
+    // weight.
+    let upNext = null;
+    try { upNext = (typeof Game !== 'undefined' && Game.eventUpNext) ? Game.eventUpNext() : null; } catch (e) { upNext = null; }
+    // `>= 0`, not `> 0`, and that is the seam this whole feature is about. At
+    // inRounds 0 the event is DUE this round but has not claimed the slot yet
+    // (the engine fires it on the round tick). Dropping the row at 0 made it
+    // vanish for exactly the moment it was supposed to be arriving — a gap
+    // where the hand-off should be. It reads "now" instead and is replaced by
+    // its own live row a beat later.
+    if (upNext && upNext.inRounds >= 0) {
+      const tn = T[upNext.kind] || T.modifier;
+      rowDefs.push({
+        id: 'upnext',
+        cls: 'ev-row ev-next ' + tn.cls,
+        rgb: tn.rgb,
+        door: '',
+        // An unnamed one is honest about what it knows: the clock is due on a
+        // known round, the DRAW has not happened, so it says when and not what.
+        html: `<div class="ev-line">
+          <span class="ev-tick" aria-hidden="true"></span>
+          <span class="ev-name">${upNext.name ? esc(upNext.name) : 'Next event'}</span>
+          <span class="ev-clock">${upNext.inRounds > 0 ? 'in ' + upNext.inRounds : 'now'}</span>
+        </div>`,
+      });
+    }
 
     const more = hidden > 0
       ? `<div class="ev-more">+${hidden} more</div>` : '';
@@ -29617,10 +29652,56 @@ const UI = {
     }).join('');
     const goneBlock = gone ? `<div class="ev-gone"><span class="ev-gone-label">Expired</span>${gone}</div>` : '';
 
-    rail.innerHTML =
-      `<div class="ev-head"><span class="ev-head-label">Events</span>` +
-      `<span class="ev-head-count">${model.length} active</span></div>` +
-      `<div class="ev-list">${rows}${more}</div>${goneBlock}`;
+    // ---- SEAMLESS: reuse the row nodes, do not rebuild them --------------
+    // innerHTML on the whole rail every render replaces every node, so nothing
+    // can transition — a promoted row would pop rather than settle, and any
+    // entrance animation would restart on every unrelated re-render. Rows are
+    // keyed by id and updated in place; only genuinely new ones are created.
+    if (!rail.firstChild) {
+      rail.innerHTML =
+        `<div class="ev-head"><span class="ev-head-label">Events</span>` +
+        `<span class="ev-head-count"></span></div>` +
+        `<div class="ev-list"></div><div class="ev-tail"></div>`;
+    }
+    const countEl = rail.querySelector('.ev-head-count');
+    const listEl  = rail.querySelector('.ev-list');
+    const tailEl  = rail.querySelector('.ev-tail');
+    const nextCount = model.length + ' active';
+    if (countEl.textContent !== nextCount) countEl.textContent = nextCount;
+
+    const keep = new Set();
+    rowDefs.forEach(def => {
+      keep.add(def.id);
+      let el = listEl.querySelector(`:scope > [data-ev-id="${CSS.escape(def.id)}"]`);
+      if (!el) {
+        el = document.createElement('div');
+        el.setAttribute('data-ev-id', def.id);
+        // `is-arriving` only ever lands on a node the moment it is created, so
+        // the entrance plays once per event rather than once per render.
+        el.classList.add('is-arriving');
+        listEl.appendChild(el);
+        requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('is-arriving')));
+      }
+      if (el.className !== def.cls) el.className = def.cls;
+      if (el.style.getPropertyValue('--ev-rgb') !== def.rgb) el.style.setProperty('--ev-rgb', def.rgb);
+      if (def.door && !el.hasAttribute('role')) {
+        el.setAttribute('role', 'button'); el.setAttribute('tabindex', '0');
+        el.onclick = () => this._toggleCogPanel();
+      } else if (!def.door && el.hasAttribute('role')) {
+        el.removeAttribute('role'); el.removeAttribute('tabindex'); el.onclick = null;
+      }
+      if (el.dataset.h !== def.html) { el.innerHTML = def.html; el.dataset.h = def.html; }
+    });
+    Array.from(listEl.children).forEach(el => {
+      if (!keep.has(el.getAttribute('data-ev-id'))) el.remove();
+    });
+    // Order the DOM to match, moving only what is actually out of place.
+    rowDefs.forEach((def, i) => {
+      const el = listEl.querySelector(`:scope > [data-ev-id="${CSS.escape(def.id)}"]`);
+      if (el && listEl.children[i] !== el) listEl.insertBefore(el, listEl.children[i] || null);
+    });
+    const tailHtml = `${more}${goneBlock}`;
+    if (tailEl.dataset.h !== tailHtml) { tailEl.innerHTML = tailHtml; tailEl.dataset.h = tailHtml; }
   },
 
   // THE OPTION TILES ARE TOLD HOW BIG THEY ACTUALLY ARE.
