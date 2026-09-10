@@ -1106,6 +1106,13 @@ const CANDY_DEFS = [
        'onAnyCardDamaged', 'onBlockMeterFired', 'onRevive', 'onDiscard', 'onMoved']
         .forEach(h => { fresh[h] = null; });
       fresh.passive = null;
+      // Its rules text goes too — the card comes back a blank, so its tile can't
+      // still promise an ability that will never fire. (Owner: "when back in hand
+      // it should lose the text it has and say lost to Blowaway candy.") The
+      // abilities[] chips are cleared for the same reason.
+      fresh.desc = 'Lost to Bloway Candy.';
+      fresh.abilities = [];
+      fresh.baseAbilities = [];
       // Back to the seat that owned it, not just their side — same routing
       // Phantom Zone uses, for the same reason.
       const _tt = G.state.twoVTwo, _saved = G._2v2CurrentActingPlayer;
@@ -1131,26 +1138,17 @@ if (typeof window !== 'undefined') window.CANDY_DEFS = CANDY_DEFS;
 const GAG_DEFS = [
   {
     name: "High Dive", cost: 2, _isGag: true, track: 'Toon-Up',
-    desc: "Heal one ally to full, or heal all allies for 2 (your choice).",
+    desc: "Give an ally +2 Max Health.",
     canPlay(G, owner) { return G.getAlliesOf(owner).some(a => a.currentHealth > 0); },
     play(G, owner) {
       const allies = G.getAlliesOf(owner).filter(a => a.currentHealth > 0);
-      if (!allies.length) { G.log('High Dive: no ally to heal.'); return; }
-      const one = { name: 'Heal One to Full', desc: 'Restore one ally to full health', id: 'one' };
-      const all = { name: 'Heal All for 2', desc: 'Every ally recovers 2 health', id: 'all' };
-      G.promptCardChoice(owner, [one, all], 'High Dive', 'Heal one ally to full, or all allies for 2',
-        (mode) => {
-          if (mode && mode.id === 'all') {
-            allies.forEach(a => { a.currentHealth = Math.min(a.maxHealth, a.currentHealth + 2); });
-            G.log('High Dive: the whole team recovers 2 health!');
-            return;
-          }
-          G.promptCardChoice(owner, allies, 'High Dive', 'Choose an ally to heal to full',
-            (t) => { if (t) { t.currentHealth = t.maxHealth; G.log(`High Dive: ${t.name} is healed to full!`); } },
-            cs => cs.slice().sort((a, b) => (b.maxHealth - b.currentHealth) - (a.maxHealth - a.currentHealth))[0]);
-        },
-        // AI: heal-all is the safe general pick.
-        cs => cs[1]);
+      if (!allies.length) { G.log('High Dive: no ally to lift.'); return; }
+      G.promptCardChoice(owner, allies, 'High Dive', 'Choose an ally to give +2 Max Health',
+        // buffCard raises maxHealth AND currentHealth by 2, permanently — a real
+        // Max Health gain, not a heal that caps at the old max. (Owner: "make the
+        // High dive give 2 max health.")
+        (t) => { if (t) { G.buffCard(t, 0, 2); G.log(`High Dive: ${t.name} gains +2 Max Health!`); } },
+        cs => cs.slice().sort((a, b) => (b.attack | 0) - (a.attack | 0))[0]);
     }
   },
   {

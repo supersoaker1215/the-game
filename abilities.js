@@ -1867,23 +1867,25 @@ const CARD_ABILITIES = {
   // Cog's signature and (for three of them) folds in Power Trip. Their VP's
   // protection (§2.5) is enforced from the damage path in game.js while the VP
   // lives; here is only what the Cog itself does on its turn.
+  // Cogs now fire their SIGNATURE the moment they land (onPlay), and their
+  // shared Power Trip stays on the combat step (onBeforeAttack) — the Cog also
+  // swings normally, so Power Trip is a bonus rather than a replacement. (Owner:
+  // "the first ability thats not power trip happens when played.")
   "Mr. Hollywood": {
-    onBeforeAttack(G, self) {
-      if (self.isFrozen || self.isFeared || self.isMindControlled) return;
-      self._skipNormalAttack = true;
-      _cogPowerTrip(G, self);
+    onPlay(G, self, lane) {
       const t = _cogTarget(G, self);
       if (!t) return;
       G.log(`  [BEGUILE] Mr. Hollywood dazzles ${t.name} — 3 damage and Stun.`);
       G.dealDamage(t, 3, self);
       if (t.currentHealth > 0) G.freezeCard(t, self, 1);   // Stun == freeze in this engine
+    },
+    onBeforeAttack(G, self) {
+      if (self.isFrozen || self.isFeared || self.isMindControlled) return;
+      _cogPowerTrip(G, self);
     }
   },
   "Robber Baron": {
-    onBeforeAttack(G, self) {
-      if (self.isFrozen || self.isFeared || self.isMindControlled) return;
-      self._skipNormalAttack = true;
-      _cogPowerTrip(G, self);
+    onPlay(G, self, lane) {
       const t = _cogTarget(G, self);
       if (!t) return;
       G.log(`  [EMBEZZLE] Robber Baron shakes down ${t.name} — 3 damage, steals 1 Energy.`);
@@ -1914,13 +1916,14 @@ const CARD_ABILITIES = {
           if (mine) mine.usedEnergy = Math.max(0, (mine.usedEnergy | 0) - 1);
         }
       } catch (e) {}
+    },
+    onBeforeAttack(G, self) {
+      if (self.isFrozen || self.isFeared || self.isMindControlled) return;
+      _cogPowerTrip(G, self);
     }
   },
   "Big Wig": {
-    onBeforeAttack(G, self) {
-      if (self.isFrozen || self.isFeared || self.isMindControlled) return;
-      self._skipNormalAttack = true;
-      _cogPowerTrip(G, self);
+    onPlay(G, self, lane) {
       const t = _cogTarget(G, self);
       if (!t) return;
       G.log(`  [FIRED!] Big Wig fires ${t.name} — 3 damage, then a transfer.`);
@@ -1933,12 +1936,14 @@ const CARD_ABILITIES = {
           G.moveCard(t, from, to);
         }
       }
+    },
+    onBeforeAttack(G, self) {
+      if (self.isFrozen || self.isFeared || self.isMindControlled) return;
+      _cogPowerTrip(G, self);
     }
   },
   "The Big Cheese": {
-    onBeforeAttack(G, self) {
-      if (self.isFrozen || self.isFeared || self.isMindControlled) return;
-      self._skipNormalAttack = true;
+    onPlay(G, self, lane) {
       // No Power Trip — the Chairman's Cog trades the group hit for a bigger one.
       const t = _cogTarget(G, self);
       if (!t) return;

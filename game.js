@@ -17634,12 +17634,32 @@ const Game = {
   // Change both together to retime it. (Owner: "i want the music playing the
   // whole time the VP is talking.")
   _COG_REVEAL_MS: 6760,
+  // Did MC Ballyhoo or the Shadow Man make their entrance THIS round? Both run
+  // just before the Cog tick in the round seam, so their appear-round is already
+  // stamped by the time this is asked. Used to keep a VP from arriving on the
+  // same round (two marquee reveals at once). (Owner.)
+  _cogOtherEventThisRound(round) {
+    const s = this.state;
+    const b = s && s._ballyhoo, sh = s && s._shadow;
+    if (b && b.fired && b.appearAt === round) return true;
+    if (sh && sh.appeared && sh.appearAt === round) return true;
+    return false;
+  },
   _cogAnnounceVP(vp, vpKey) {
+    // Lock plays for the length of the reveal so a card/trick sound can't pile on
+    // top of the boss music — the board reopens the instant the hold lifts.
+    // (Owner: "during the random events cards or tricks cant be played because
+    // the sounds overlap ... once its done with its sounds then the cards open
+    // back up.") The shared event hold already greys the board and has the 30s
+    // safety ceiling, so this can never strand the table.
+    try { if (this._armEventHold) this._armEventHold(this._COG_REVEAL_MS + 300); } catch (e) {}
     try {
       if (typeof UI === 'undefined' || !UI.showCardReveal) { this._cogPlayTheme(vpKey); return; }
       const blurb = (UI._COG_VP_BLURB && UI._COG_VP_BLURB[vpKey]) || '';
-      const desc = `Sends ${vp.cog} to both sides every 2 rounds and, left alone, drains 2 health from both players every 3rd round. `
-        + blurb + ` Beat ${vp.name} (10 HP) to stop it — click it in the panel on the right and send one of your cards' swings at it.`;
+      // KEY POINTS ONLY — short enough to read in the ~7s the panel is up.
+      // (Owner: "i cant read all of that that quick, make it key points.")
+      const desc = `Spawns ${vp.cog} both sides every 3 rounds. Drains 2 HP from all every 3rd round. `
+        + blurb + ` Kill it (10 HP) to stop it.`;
       UI.showCardReveal(vp.name, desc, null, true, 'COG INVASION', {
         holdMs: this._COG_REVEAL_MS,
         onShow: () => { try { this._cogPlayTheme(vpKey); } catch (e) {} },
@@ -17686,28 +17706,34 @@ const Game = {
   _cogTick(round) {
     const s = this.state, c = s._cog;
     if (!c) return;
+    // ONE BOSS AT A TIME. A new VP can't arrive while another is still standing —
+    // the next only rolls once the current one is defeated. (Owner: "another big
+    // boss cant spawn until the previus one has been defeated.")
+    let bossOut = this._COG_ORDER.some(k => c.vps[k] && c.vps[k].active && !c.vps[k].dead);
     this._COG_ORDER.forEach(k => {
       const vp = c.vps[k];
       if (!vp || vp.dead) return;
       if (!vp.active) {
-        if (this.rng() < this._COG_VP_ROLL) {
+        // #6 — a VP never arrives the same round as MC Ballyhoo or the Shadow
+        // Man; two marquee reveals at once is "too much going on". (Owner.)
+        if (!bossOut && !this._cogOtherEventThisRound(round) && this.rng() < this._COG_VP_ROLL) {
+          bossOut = true;   // claim the slot so a second VP can't also arrive this tick
           vp.active = true; vp.firstRound = round; vp.lastSpawnRound = round; vp.lastDrainRound = round;
           this.log(`[COG INVASION] ${vp.name} arrives!`);
-          this._cogAnnounceVP(vp, k);   // reveal + theme as it steps out
+          this._cogAnnounceVP(vp, k);   // reveal + theme + play-lock as it steps out
           this._cogSpawnCog(vp, round);
         }
         return;
       }
-      // Active: send a Cog out every 2 rounds (no cap).
-      if (vp.lastSpawnRound == null || (round - vp.lastSpawnRound) >= 2) {
-        this._cogSpawnCog(vp, round);
-        vp.lastSpawnRound = round;
-      }
-      // Every 3rd round since arrival: drain 2 HP from both players, heal to full.
-      if (vp.lastDrainRound == null) vp.lastDrainRound = vp.firstRound;
+      // Active: every 3rd round since arrival a live VP sends its Cog out to both
+      // sides AND drains 2 HP from both players. Spawn and steal ride the same
+      // 3-round clock now. (Owner: "make cogs spawn every 3 rounds along with the
+      // health steal for all the bosses.")
       const since = round - (vp.firstRound || round);
-      if (since > 0 && since % 3 === 0 && vp.lastDrainRound !== round) {
+      if (since > 0 && since % 3 === 0 && vp.lastSpawnRound !== round) {
+        vp.lastSpawnRound = round;
         vp.lastDrainRound = round;
+        this._cogSpawnCog(vp, round);
         this._cogDrain(vp);
       }
     });
@@ -17763,6 +17789,11 @@ const Game = {
     this.state.lanes[laneIdx][side] = cog;
     this.log(`  [COG INVASION] ${vp.cog} drops into lane ${laneIdx + 1} (${side} side).`);
     if (this.emitFX) { try { this.emitFX('envReveal', { lane: laneIdx, owner: side, name: vp.cog }); } catch (e) {} }
+    // Fire the Cog's signature the moment it lands — Cogs are seated by the
+    // engine, not playCard, so nothing else would run their onPlay. (Owner: "the
+    // first ability thats not power trip happens when played.") _runHook wraps it
+    // so a throw can never break the spawn.
+    if (cog.onPlay) this._runHook(cog, 'onPlay', this, cog, laneIdx);
     return cog;
   },
   _cogDrain(vp) {

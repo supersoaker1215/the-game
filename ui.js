@@ -13971,11 +13971,12 @@ const UI = {
   // Four Vice-President health bars with a plain-language line on what each one
   // is doing and how to fight it. Clicking a live VP lets you send one of your
   // cards' swings at it this round (reuses the card-choice tray).
+  // Short, scannable — one key point each (owner: "make it key points").
   _COG_VP_BLURB: {
-    vp:       'Shields Mr. Hollywood: his first hit each round is ignored.',
-    cfo:      'Shields Robber Baron: all damage blocked until a Freeze/Stun breaks it.',
-    cj:       'Buffs Big Wig: +1 ATK for every ally on his side of the board.',
-    chairman: 'Shields the Big Cheese: immune to Freeze/Stun for its first 2 rounds.',
+    vp:       'Mr. Hollywood ignores the 1st hit each round.',
+    cfo:      'Robber Baron: shielded until Frozen/Stunned.',
+    cj:       'Big Wig: +1 ATK per ally on his side.',
+    chairman: 'Big Cheese: Freeze/Stun-proof for 2 rounds.',
   },
   _renderCogPanel(s) {
     let el = document.getElementById('cog-panel');
