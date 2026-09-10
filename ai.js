@@ -698,6 +698,17 @@ const AI = {
 
   playCards(owner = 'ai', onComplete) {
     if (Game.isMultiplayer && Game.isMultiplayer()) { if (onComplete) onComplete(); return; }
+    // WAIT OUT A RANDOM-EVENT HOLD, DON'T STALL ON IT. While MC Ballyhoo / the
+    // Shadow Man / a Cog VP is doing its reveal the board is locked so plays
+    // can't stack sound on the music. The AI must not fire under that lock — but
+    // it must also not just RETURN, which would strand its whole turn (the
+    // "after the event the AI stalled out" bug). Reschedule and retry: the hold
+    // has a hard 30s ceiling, so this always resumes, and the moment it lifts the
+    // AI takes its turn. Covers every current and future random event.
+    if (Game.ballyhooLocked && Game.ballyhooLocked()) {
+      Game._schedule(() => this.playCards(owner, onComplete), 400);
+      return;
+    }
     const s = Game.state;
     const opp = Game.opponent(owner);
     // BWL intercept: if the opponent has a live Batman Who Laughs and our
@@ -1894,6 +1905,13 @@ const AI = {
 
   playTricks(owner = 'ai', onComplete) {
     if (Game.isMultiplayer && Game.isMultiplayer()) { if (onComplete) onComplete(); return; }
+    // Same event-hold wait as playCards — never cast under a random-event lock,
+    // and reschedule rather than return so the trick phase can't stall after an
+    // event. (Owner: "the next player or the AI stalls out.")
+    if (Game.ballyhooLocked && Game.ballyhooLocked()) {
+      Game._schedule(() => this.playTricks(owner, onComplete), 400);
+      return;
+    }
     // Pause-then-cast loop: thinking dots show first, then the AI
     // commits its best trick (re-evaluated per step against fresh
     // board state). Matches the _runAIQueue pattern — user sees the

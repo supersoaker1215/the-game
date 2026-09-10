@@ -14025,10 +14025,14 @@ const UI = {
       + `<div class="cog-how">Four executives. Each sends its Cog out every 2 rounds and, left alone, drains 2 HP from both players every 3rd round. Beat a VP to stop its spawns and shed its shield — then claim the Gags.</div>`
       + `<div class="cog-vps">${cards}</div>`
       + (anyAppeared ? '' : `<div class="cog-how cog-how--dim">None have shown themselves yet.</div>`);
-    // NOT forced visible any more: the rail states this event in the same
-    // grammar as every other one, and this panel is what opens when you click
-    // that row. Re-showing it here would reopen it on every render.
-    el.style.display = el.classList.contains('is-open') ? '' : 'none';
+    // ALWAYS ON SCREEN WHILE A VP IS ALIVE. This is not a passive event readout —
+    // the VPs are enemies you have to be able to reach and kill, so the panel
+    // with their health bars and Attack buttons must stay up the whole time one
+    // is active, not hide behind an event-rail click. (Owner, emphatically: the
+    // VPs "never stay on off to the side and have an option to be attacked ...
+    // they are unkillable.") It still also opens from the rail (is-open).
+    const anyAttackable = order.some(k => c.vps[k] && c.vps[k].active && !c.vps[k].dead);
+    el.style.display = (anyAttackable || el.classList.contains('is-open')) ? '' : 'none';
     // Wire the "send a card" buttons (innerHTML is rebuilt each render).
     el.querySelectorAll('.cog-hit').forEach(btn => {
       btn.onclick = (e) => { e.stopPropagation(); this.cogAttackVP(btn.getAttribute('data-cog')); };

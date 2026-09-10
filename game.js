@@ -17652,7 +17652,12 @@ const Game = {
     // the sounds overlap ... once its done with its sounds then the cards open
     // back up.") The shared event hold already greys the board and has the 30s
     // safety ceiling, so this can never strand the table.
-    try { if (this._armEventHold) this._armEventHold(this._COG_REVEAL_MS + 300); } catch (e) {}
+    // UI-GUARDED, like Ballyhoo's and the Shadow Man's holds: a wall-clock lock
+    // only makes sense with a screen. In the headless sim there is no reveal and
+    // no _schedule delay, so arming it there would spin the AI's retry loop.
+    if (typeof UI !== 'undefined' && UI.showCardReveal && this._armEventHold) {
+      try { this._armEventHold(this._COG_REVEAL_MS + 300); } catch (e) {}
+    }
     try {
       if (typeof UI === 'undefined' || !UI.showCardReveal) { this._cogPlayTheme(vpKey); return; }
       const blurb = (UI._COG_VP_BLURB && UI._COG_VP_BLURB[vpKey]) || '';
