@@ -15633,7 +15633,11 @@ const Game = {
   // read by createCardInstance's stamp, by the postCombat tick and by the
   // Enclosure's "final toll" copy, so the rule, the countdown pip and the card
   // text can never disagree.
-  ENV_TURNS: 4,
+  // THREE, like every other event. An environment that outlived the event slot
+  // by a round was still acting on the board while the next event's movie had
+  // already started — the exact overlap the slot exists to remove.
+  // (Owner: "each event should only last 3 turns, same with enviroments".)
+  ENV_TURNS: 3,
 
   createCardInstance(def, owner) {
     // Defensive coercion — if a def arrives with NaN/undefined stats
@@ -17375,9 +17379,9 @@ const Game = {
     const s = this.state;
     if (!h || h.fired || !h.shows) return;
     if ((roundNow | 0) < (h.appearAt != null ? h.appearAt : this._EVENT_FIRST_ROUND)) return;
-    // One event at a time — a habitat waits its turn behind any live reveal.
+    // One event at a time — a habitat waits its turn behind the live slot.
     // h.fired stays false, so it retries next round. (Owner.)
-    if (this._eventInProgress()) return;
+    if (!this._eventSlotOpen(roundNow)) return;
     const name = h.place || h.name;
     if (!name) { h.fired = true; return; }
     const def = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(d => d.name === name) : null;
@@ -17399,6 +17403,10 @@ const Game = {
     const pick = free.slice();
     this.shuffle(pick);
     h.fired = true;
+    // Claimed only on the round it actually LANDS, not when it was scheduled —
+    // a habitat can wait several rounds for two clear lanes, and holding the
+    // slot while it waited would have blocked every other event for nothing.
+    this._eventSlotClaim(roundNow, name, 'hazard');
     this._placeEventEnvironment('player', pick[0], name);
     this._placeEventEnvironment('ai', pick[1], name);
     this._announceHabitatEvent(h, name, def);
@@ -17761,9 +17769,16 @@ const Game = {
       if (!vp.active) {
         // #6 — a VP never arrives the same round as MC Ballyhoo or the Shadow
         // Man; two marquee reveals at once is "too much going on". (Owner.)
-        if (!bossOut && !this._cogOtherEventThisRound(round) && !this._eventInProgress() && this.rng() < this._COG_VP_ROLL) {
+        // The ARRIVAL claims the slot — that reveal is its own little movie.
+        // Its later waves deliberately do NOT claim: a wave is the boss acting,
+        // not a new event starting, and since a VP sends one every three rounds
+        // for as long as it lives, claiming per wave would hold the slot for
+        // the rest of the match and silently delete MC Ballyhoo, the Shadow Man
+        // and every habitat from any game an invasion turned up in.
+        if (!bossOut && !this._cogOtherEventThisRound(round) && this._eventSlotOpen(round) && this.rng() < this._COG_VP_ROLL) {
           bossOut = true;   // claim the slot so a second VP can't also arrive this tick
           vp.active = true; vp.firstRound = round; vp.lastSpawnRound = round; vp.lastDrainRound = round;
+          this._eventSlotClaim(round, vp.name + ' arrives', 'boss');
           this.log(`[COG INVASION] ${vp.name} arrives!`);
           this._cogAnnounceVP(vp, k);   // reveal + theme + play-lock as it steps out
           this._cogSpawnCog(vp, round);
@@ -17998,10 +18013,11 @@ const Game = {
     const r = roundNow | 0;
 
     if (!sh.appeared && r >= sh.appearAt) {
-      // One event at a time — hold his entrance while another is on screen.
+      // One event at a time — hold his entrance while the slot is taken.
       // sh.appeared stays false, so he tries again next round. (Owner.)
-      if (this._eventInProgress()) return;
+      if (!this._eventSlotOpen(r)) return;
       sh.appeared = true;
+      this._eventSlotClaim(r, 'The Shadow Man', 'modifier');
       sh.stats = {};
       // ONE WEAPON PER CHALLENGE, DECIDED WHEN HE NAMES THEM. (Owner: "the
       // weapons will be randomly decided which weapon goes to each challenge.")
@@ -18520,6 +18536,57 @@ const Game = {
   // per round from the round seam and leaves its own scheduled flag unfired when
   // blocked, so a deferred event simply gets its shot on a later round instead
   // of being lost.
+  // ============================================================
+  // THE EVENT SLOT — one event, three rounds, no overlap
+  // ============================================================
+  // Every event already gated on _eventInProgress() and retried next round,
+  // which is the right SHAPE — but that guard is a MILLISECOND presentation
+  // lock (a few seconds while a reveal plays). It stops two events colliding on
+  // screen; it does nothing about two events being ACTIVE across rounds. So MC
+  // Ballyhoo could land on top of a habitat that was still running, and an
+  // environment could sit under a Shadow Man challenge, and neither was "its
+  // own little movie".
+  //
+  // The slot is that missing duration. One event holds the board for
+  // _EVENT_LEN rounds; nothing else may start until it lets go. Slots line up
+  // on the same 3-round beat the event clock already used, so the schedule
+  // reads 0, 3, 6, 9, 12 — each its own self-contained event.
+  // (Owner: "each event should only last 3 turns, same with environments,
+  // events shouldnt overlap ... the events all follow the same path.")
+  _EVENT_LEN: 3,
+
+  // The live slot, or null once its three rounds are up. Derived from the round
+  // rather than expired by a tick, so it cannot get stuck if a round seam is
+  // missed — the same reasoning as the Batman lock's round-number marker.
+  _eventSlotFor(round) {
+    const sl = this.state && this.state._eventSlot;
+    if (!sl || sl.start == null) return null;
+    return (((round | 0) - (sl.start | 0)) < this._EVENT_LEN) ? sl : null;
+  },
+  // May an event START this round? Both gates: nothing holding the slot, and no
+  // reveal currently on screen. The second is still worth keeping — it is what
+  // stops two announcements sharing the same three seconds.
+  _eventSlotOpen(round) {
+    return !this._eventSlotFor(round) && !this._eventInProgress();
+  },
+  // ONE DOOR. Every event start goes through here, which is what makes them
+  // "follow the same path": the same duration, the same overlap rule, and one
+  // place the rail can read to know what is playing.
+  _eventSlotClaim(round, name, kind) {
+    const s = this.state;
+    if (!s) return;
+    s._eventSlot = { name: name, kind: kind || 'event', start: round | 0 };
+    this.log(`[EVENT] ${name} holds the board for ${this._EVENT_LEN} rounds.`);
+  },
+  // What the rail shows. Null when the board is between events.
+  eventSlotNow() {
+    const round = (this.state && this.state.round) | 0;
+    const sl = this._eventSlotFor(round);
+    if (!sl) return null;
+    return { name: sl.name, kind: sl.kind, start: sl.start,
+             left: this._EVENT_LEN - (round - (sl.start | 0)), max: this._EVENT_LEN };
+  },
+
   _eventInProgress() {
     return !!(this.eventHoldActive && this.eventHoldActive());
   },
@@ -18549,10 +18616,11 @@ const Game = {
     // >= and not ===, so a skipped round (or a seam that misses a tick) still
     // gets him out rather than losing him for the whole match.
     if ((roundNow | 0) < (b.appearAt != null ? b.appearAt : this._BALLYHOO_FIRST_ROUND)) return;
-    // Another event is still on screen — wait. b.fired stays false, so he tries
-    // again next round. One event at a time. (Owner.)
-    if (this._eventInProgress()) return;
+    // The slot is held — wait. b.fired stays false, so he tries again next
+    // round. One event at a time, for three rounds. (Owner.)
+    if (!this._eventSlotOpen(roundNow)) return;
     b.fired = true;
+    this._eventSlotClaim(roundNow, 'MC Ballyhoo', 'boon');
 
     // One candy per player, all different, dealt at random. With four seats
     // that is the whole set; in 1v1 two of the four turn up and which two is

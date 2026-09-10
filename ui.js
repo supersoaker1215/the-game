@@ -29443,6 +29443,27 @@ const UI = {
       }
     });
 
+    // THE LIVE EVENT SLOT — MC Ballyhoo, the Shadow Man, a habitat landing.
+    // These used to have no row at all: they announced themselves with a banner
+    // and then ran for three rounds with nothing on screen saying they were
+    // still going. The rail is where "what is acting on this board" is
+    // answered, so they belong in it like everything else, in the same
+    // three-part grammar. (Owner: "the shadowman needs to go into the event
+    // section on the right, same with MC, the events all follow the same path.")
+    //
+    // Read from Game.eventSlotNow() rather than from each event's own state,
+    // which is the point of the slot: one door in, one place to read.
+    const slot = (typeof Game !== 'undefined' && Game.eventSlotNow) ? Game.eventSlotNow() : null;
+    if (slot) {
+      out.push({
+        id: 'slot' + slot.start + slot.name,
+        type: (slot.kind === 'boss' || slot.kind === 'hazard' || slot.kind === 'boon' || slot.kind === 'modifier')
+              ? slot.kind : 'modifier',
+        name: slot.name,
+        left: slot.left, max: slot.max,
+      });
+    }
+
     // A BOSS SET IS THE ONE TYPE THAT EXPANDS, because it is the only one whose
     // detail is a LIST rather than a number: several named enemies, each with
     // its own HP, and you need all of them to know what you are facing.

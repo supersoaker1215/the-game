@@ -135,6 +135,10 @@ echo "=== cog-ladder.js (which Cog spawns is a function of turn) ==="
 run_suite sim/cog-ladder.js
 
 echo ""
+echo "=== event-slot.js (one event, three rounds, no overlap) ==="
+run_suite sim/event-slot.js
+
+echo ""
 if [ "$FAIL" -ne 0 ]; then
   echo "❌ TESTS FAILED — see suites above."
   exit 1

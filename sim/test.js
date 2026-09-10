@@ -9337,11 +9337,16 @@ test('Redraw refuses a trick whose own pile is empty, without spending anything'
 // or killed it, and the Enclosure was the worst case: its toll came round every
 // turn forever, the bot pays while it can afford to, and energy refills BEFORE
 // upkeep runs, so on the AI's side the gate never opened and never left.
-// Owner: "all environments stay on the field for 4 turns."
+// Owner: "all environments stay on the field for 4 turns", later revised to
+// THREE so an environment cannot outlive the event slot it arrived in —
+// "each event should only last 3 turns, same with enviroments". The number is
+// the owner's to change, so this reads Game.ENV_TURNS instead of pinning a
+// literal; what is actually being tested is that the clock RUNS and expires,
+// and that it matches the shared event length.
 // ============================================================
 test('Every environment fades after Game.ENV_TURNS rounds', function () {
   var G = freshGame();
-  assertEq(G.ENV_TURNS, 4, 'four rounds is the rule');
+  assertEq(G.ENV_TURNS, G._EVENT_LEN, 'an environment lasts exactly one event slot');
   var env = G._placeEventEnvironment('player', 2, 'Boiler Room');
   assert(env, 'the environment is seated');
   assertEq(env._envTurns, G.ENV_TURNS, 'and it arrives with a full clock');
@@ -9373,7 +9378,7 @@ test('Each environment runs its own clock', function () {
   G._tickEnvironments();
   G._tickEnvironments();
   var yours = G._placeEventEnvironment('ai', 4, 'Boiler Room');
-  assertEq(mine._envTurns, 2, 'the older one is halfway through');
+  assertEq(mine._envTurns, G.ENV_TURNS - 2, 'the older one is two rounds in');
   assertEq(yours._envTurns, G.ENV_TURNS, 'the new one starts fresh');
   G._tickEnvironments();
   G._tickEnvironments();
