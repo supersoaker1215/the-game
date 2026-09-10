@@ -13926,8 +13926,15 @@ const UI = {
       el = document.createElement('div');
       el.id = 'shadow-tracker';
       el.className = 'shadow-tracker';
-      document.body.appendChild(el);
+      // DOCKED, like the VP panel and the rail. It was the last right-hand
+      // panel still positioning itself — fixed, draggable, its own top — which
+      // is the same arrangement that had the VP panel running straight through
+      // the event rail. It could not collide today only because it never
+      // happened to be up at the same time as a VP. (Owner: "dock the shadowman
+      // in the event section with the tracker there.")
+      this._rightColumn().appendChild(el);
     }
+    { const _c = this._rightColumn(); if (el.parentNode !== _c) _c.appendChild(el); }
     const slots = (Game._shadowSeats ? Game._shadowSeats() : ['player', 'ai']);
     const rows = [
       ['kills',   '\u{1F480}', 'Cards Killed'],
@@ -14018,6 +14025,11 @@ const UI = {
       el.className = 'cog-panel';
       this._rightColumn().appendChild(el);
     }
+    // Not only at creation: an element built before the column existed keeps
+    // whatever parent it was born with, which is how the Shadow tracker stayed
+    // loose on its first run after being docked.
+    const _col = this._rightColumn();
+    if (el.parentNode !== _col) _col.appendChild(el);
     const order = (Game._COG_ORDER || ['vp', 'cfo', 'cj', 'chairman']);
     // ONLY THE BOSS ON THE FIELD RIGHT NOW. It is one-boss-at-a-time, so the
     // panel shows just the VP that is currently active — not the whole roster of
@@ -29578,6 +29590,7 @@ const UI = {
       rail.id = 'event-rail';
       this._rightColumn().appendChild(rail);
     }
+    { const _c = this._rightColumn(); if (rail.parentNode !== _c) _c.appendChild(rail); }
     const esc = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
     const T = this._EVENT_TYPES;
 

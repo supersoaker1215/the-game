@@ -50282,3 +50282,44 @@ body.in-match:not(.board-v2) .board {
   margin: 2px 0 6px;
 }
 @media (max-width: 1100px) { #right-col { display: none; } }
+
+/* ---- the column lives in the BOARD's band, not the viewport's -------------
+   It ran top 58 to bottom 984 while the player bar starts at 707, so 277px of
+   it — the last VP rows and the "next event" line — sat behind the HUD and the
+   hand. (Owner circled exactly that.)
+
+   --decision-top / --decision-bottom are already published from the board
+   section's own rect by the layout solver, and are what the decision column
+   docks against. Using the same two numbers means this column cannot drift out
+   of step with the board the way a hand-picked offset would. */
+#right-col {
+  top: var(--decision-top, 58px);
+  bottom: auto;
+  height: calc(var(--decision-bottom, 92vh) - var(--decision-top, 58px));
+  width: 184px;                    /* a little smaller — owner */
+}
+/* The Shadow Man's tracker joins the column, last: the VP you can hit is the
+   thing you act on, the events are what is happening, and his scoreboard is a
+   readout of a race already in progress. */
+#right-col > .shadow-tracker {
+  order: 2;
+  position: static !important;
+  left: auto !important; right: auto !important; top: auto !important; bottom: auto !important;
+  transform: none !important;
+  width: 100% !important;
+  max-height: 34% !important;
+  margin: 0 !important;
+  overflow-y: auto;
+  flex: 0 1 auto;
+  cursor: default;                 /* docked, so no drag handle to imply */
+}
+
+/* ---- a little smaller, throughout ---------------------------------------- */
+#right-col > .cog-panel { padding: 8px 9px 9px !important; font-size: 92%; }
+#right-col .cog-vp-art { height: 84px !important; }
+#right-col .cog-hit { padding: 6px 8px !important; font-size: 11px !important; }
+#right-col .ev-line { height: 30px; }
+#right-col .ev-name { font-size: 11px; }
+#right-col .ev-member { padding: 3px 0; }
+#right-col .ev-mname, #right-col .ev-mhp { font-size: 10px; }
+#right-col .ev-how { font-size: 9px; }

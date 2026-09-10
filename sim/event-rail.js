@@ -26,6 +26,14 @@ var UI_CODE = UI.replace(/^\s*\/\/.*$/gm, '');
 
 var pass = 0, fails = [];
 function check(name, cond, detail) { if (cond) pass++; else fails.push(name + (detail ? ' — ' + detail : '')); }
+// Every rule for a selector, in order — a selector authored more than once
+// (sizing in one block, layout in another) cannot be judged from just the last.
+function allRuleBodies(sel) {
+  var re = new RegExp('(^|[};])\\s*' + sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\{([^{}]*)\\}', 'gm');
+  var m, out = [];
+  while ((m = re.exec(BARE))) out.push(m[2]);
+  return out;
+}
 function ruleBody(sel) {
   var re = new RegExp('(^|[};])\\s*' + sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\{([^{}]*)\\}', 'gm');
   var m, last = null;
@@ -95,7 +103,7 @@ check('the rail cannot eat a click meant for the board',
 check('both dock in one column, so overlap is impossible',
       /_rightColumn\(\)\.appendChild\(el\)/.test(UI) && /_rightColumn\(\)\.appendChild\(rail\)/.test(UI),
       'a panel that appends to document.body is positioning itself against the others by hand');
-var colPanel = ruleBody('#right-col > .cog-panel');
+var colPanel = allRuleBodies('#right-col > .cog-panel').join(' ');
 check('the picture is FIRST in the column',
       !!colPanel && /order:\s*0/.test(colPanel),
       'set by order, not DOM position — the rail mounts earlier in the render ' +
@@ -115,6 +123,37 @@ check('but the VP is still reachable there',
       'the owner was emphatic that a VP must never sit off to the side unattackable');
 check('and the rules are in the event tab instead',
       /how: 'Each executive sends its Cog out/.test(UI) && /ev-how/.test(UI));
+
+// ---- 9. the column lives in the BOARD's band --------------------------------
+// It ran top 58 to bottom 984 while the player bar starts at 707, so 277px of
+// it — the last VP rows and the "next event" line — sat behind the HUD and the
+// hand. --decision-top / --decision-bottom are published from the board
+// section's own rect by the layout solver and are what the decision column
+// already docks against; sharing them is what stops this column drifting out
+// of step with the board the way a hand-picked offset would.
+var colRule = ruleBody('#right-col');
+check('the column is bound to the board band, not the viewport',
+      !!colRule && /--decision-top/.test(colRule) && /--decision-bottom/.test(colRule),
+      colRule ? colRule.replace(/\s+/g, ' ').trim().slice(0, 80) : 'no rule');
+
+// ---- 10. the Shadow Man docks too ------------------------------------------
+// It was the last right-hand panel still positioning itself — fixed,
+// draggable, its own top. It could not collide today only because it never
+// happened to be up at the same time as a VP. (Owner: "dock the shadowman in
+// the event section with the tracker there.")
+check('the tracker is a child of the column',
+      /el\.className = 'shadow-tracker';[\s\S]{0,600}this\._rightColumn\(\)\.appendChild\(el\)/.test(UI),
+      'the tracker still appends to document.body');
+check('and it is laid out, not positioned',
+      /#right-col > \.shadow-tracker \{[^}]*position: static/.test(BARE));
+
+// EVERY panel re-parents on each render, not only at creation. An element
+// built before the column existed keeps whatever parent it was born with —
+// which is exactly what left the tracker loose on its first run after docking.
+check('panels re-parent, so one built earlier cannot stay loose',
+      (UI.match(/parentNode !== _c\) _c\.appendChild|parentNode !== _col\) _col\.appendChild/g) || []).length >= 3,
+      'found ' + ((UI.match(/parentNode !== _c\) _c\.appendChild|parentNode !== _col\) _col\.appendChild/g) || []).length) +
+      ' of the 3 right-hand panels re-parenting');
 
 print('event-rail: ' + pass + ' passed, ' + fails.length + ' failed');
 if (fails.length) { print('Failures:'); fails.forEach(function (f) { print('  - ' + f); }); }
