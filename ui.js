@@ -13987,6 +13987,26 @@ const UI = {
     cj:       'Its Cog gains +1 ATK per ally on its side.',
     chairman: 'Its Cog is Freeze/Stun-proof for 2 rounds.',
   },
+  // ONE COLUMN ON THE RIGHT, NOT THREE FLOATING PANELS.
+  // The VP panel, the event rail and the Shadow Man's tracker were each
+  // position:fixed against the right edge with their own top and their own
+  // z-index, so they were only ever "not overlapping" by luck — and when a VP
+  // arrived they stopped being lucky: the panel ran y267-594 and the rail
+  // y396-669, one straight through the other, with the portrait and a tooltip
+  // on top of both. (Owner: "look how messy that is on the right.")
+  //
+  // They are flow children of one column now. Overlap is not something to be
+  // tuned; it is impossible.
+  _rightColumn() {
+    let col = document.getElementById('right-col');
+    if (!col) {
+      col = document.createElement('div');
+      col.id = 'right-col';
+      document.body.appendChild(col);
+    }
+    return col;
+  },
+
   _renderCogPanel(s) {
     let el = document.getElementById('cog-panel');
     const c = s && s._cog;
@@ -13996,7 +14016,7 @@ const UI = {
       el = document.createElement('div');
       el.id = 'cog-panel';
       el.className = 'cog-panel';
-      document.body.appendChild(el);
+      this._rightColumn().appendChild(el);
     }
     const order = (Game._COG_ORDER || ['vp', 'cfo', 'cj', 'chairman']);
     // ONLY THE BOSS ON THE FIELD RIGHT NOW. It is one-boss-at-a-time, so the
@@ -14028,13 +14048,18 @@ const UI = {
         + art
         + `<div class="cog-vp-cog">Cog: ${this._esc ? this._esc(vp.cog) : vp.cog}</div>`
         + (vp.dead ? '' : `<div class="cog-hpbar"><div class="cog-hpfill" style="width:${pct}%"></div></div>`)
-        + `<div class="cog-vp-blurb">${statusText}</div>`
         + hint
         + `</div>`;
     }).join('');
-    el.innerHTML = `<div class="cog-title">COG INVASION</div>`
-      + `<div class="cog-how">Four executives. Each sends its Cog out every 2 rounds and, left alone, drains 2 HP from both players every 3rd round. Beat a VP to stop its spawns and shed its shield — then claim the Gags.</div>`
-      + `<div class="cog-vps">${cards}</div>`
+    // THE PICTURE, THE HEALTH AND THE WAY TO HIT IT. Nothing else.
+    // The title and the four-line "how the invasion works" paragraph used to
+    // live here, permanently, above the board — three panels' worth of prose
+    // competing with the thing it was describing. The rules are reference, not
+    // status: they belong behind the event tab, which is where the rail's boss
+    // row opens them. What has to be on screen at all times is what you ACT on.
+    // (Owner: "the picture should be top right, then to see the description you
+    // go to the event tab.")
+    el.innerHTML = `<div class="cog-vps">${cards}</div>`
       + (anyAppeared ? '' : `<div class="cog-how cog-how--dim">None have shown themselves yet.</div>`);
     // ALWAYS ON SCREEN WHILE A VP IS ALIVE. This is not a passive event readout —
     // the VPs are enemies you have to be able to reach and kill, so the panel
@@ -29493,6 +29518,12 @@ const UI = {
         out.push({
           id: 'cog', type: 'boss', name: 'Cog Invasion', boss: true,
           note: 'Drains 2 HP', left: null, permanent: true, members,
+          // The rules live HERE now, in the event tab, rather than as a
+          // permanent paragraph over the board. Reference, read once; the
+          // panel top-right keeps only what you act on.
+          how: 'Each executive sends its Cog out every 3 rounds and drains 2 HP '
+             + 'from both players. Beat a VP to stop its spawns and shed its '
+             + 'shield, then claim the Gags.',
         });
       }
     }
@@ -29545,7 +29576,7 @@ const UI = {
     if (!rail) {
       rail = document.createElement('aside');
       rail.id = 'event-rail';
-      host.appendChild(rail);
+      this._rightColumn().appendChild(rail);
     }
     const esc = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
     const T = this._EVENT_TYPES;
@@ -29577,6 +29608,7 @@ const UI = {
             <span class="ev-open-note">${esc(e.note || 'Boss set')}</span>
             <span class="ev-open-round">Round ${round}</span>
           </div>
+          ${e.how ? `<div class="ev-how">${esc(e.how)}</div>` : ''}
           ${meter(e)}
           <div class="ev-members">${e.members.map(m => `
             <div class="ev-member${m.dead ? ' is-dead' : ''}${m.live ? ' is-live' : ''}">

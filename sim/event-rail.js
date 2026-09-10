@@ -86,5 +86,35 @@ check('the rail cannot eat a click meant for the board',
       /#event-rail \* \{ pointer-events: none; \}/.test(BARE) &&
       /#event-rail \.ev-row\.is-door \{ pointer-events: auto/.test(BARE));
 
+// ---- 7. one column on the right, and the picture is at the top ------------
+// The VP panel, the rail and the Shadow tracker were each position:fixed with
+// their own top and z-index, so they were only ever "not overlapping" by luck.
+// When a VP arrived they stopped being lucky: measured, the panel ran y267-594
+// and the rail y396-669 — straight through each other, with a portrait and a
+// tooltip over both. (Owner: "look how messy that is on the right.")
+check('both dock in one column, so overlap is impossible',
+      /_rightColumn\(\)\.appendChild\(el\)/.test(UI) && /_rightColumn\(\)\.appendChild\(rail\)/.test(UI),
+      'a panel that appends to document.body is positioning itself against the others by hand');
+var colPanel = ruleBody('#right-col > .cog-panel');
+check('the picture is FIRST in the column',
+      !!colPanel && /order:\s*0/.test(colPanel),
+      'set by order, not DOM position — the rail mounts earlier in the render ' +
+      'pipeline, so whichever happened to mount first would otherwise decide it');
+check('the column itself is a layout, not a surface',
+      /#right-col \{[^}]*pointer-events: none/.test(BARE));
+
+// ---- 8. what is ALWAYS on screen is what you act on -----------------------
+// The title and the four-line "how the invasion works" paragraph used to sit
+// permanently over the board. Rules are reference, read once; status is what
+// you act on. The rules moved behind the event tab.
+check('the always-on panel carries no prose',
+      !/cog-title">COG INVASION/.test(UI) && !/Four executives\. Each sends/.test(UI),
+      'the invasion rules are still printed in the always-on panel');
+check('but the VP is still reachable there',
+      /class="cog-hit"/.test(UI),
+      'the owner was emphatic that a VP must never sit off to the side unattackable');
+check('and the rules are in the event tab instead',
+      /how: 'Each executive sends its Cog out/.test(UI) && /ev-how/.test(UI));
+
 print('event-rail: ' + pass + ' passed, ' + fails.length + ' failed');
 if (fails.length) { print('Failures:'); fails.forEach(function (f) { print('  - ' + f); }); }

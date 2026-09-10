@@ -50220,3 +50220,65 @@ body.in-match:not(.board-v2) .board {
   #event-rail .ev-row { transition: none; }
   #event-rail .ev-row.is-arriving { opacity: 1; transform: none; }
 }
+
+/* ============================================================
+   ONE RIGHT-HAND COLUMN               (ui.js `_rightColumn`)
+   ------------------------------------------------------------
+   The VP panel, the event rail and the Shadow Man's tracker were each
+   position:fixed against the right edge with their own `top` and their own
+   z-index, so they were only ever "not overlapping" by luck. When a VP arrived
+   they stopped being lucky: the panel ran y267-594 and the rail y396-669, one
+   straight through the other, with a portrait and a tooltip on top of both.
+   (Owner: "look how messy that is on the right.")
+
+   They are flow children of one column now. Overlap is not tuned here — it is
+   impossible.
+   ============================================================ */
+#right-col {
+  position: fixed;
+  right: 18px;
+  top: 58px;
+  bottom: 16px;
+  width: 200px;
+  z-index: 180;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: none;        /* the column is a layout, not a surface */
+  overflow: hidden;
+}
+#right-col > * { pointer-events: auto; }
+
+/* The VP panel keeps only what you ACT on — picture, health, and the way to
+   hit it. It is first in the column, so the picture is top right. */
+#right-col > .cog-panel {
+  /* FIRST IN THE COLUMN — "the picture should be top right". Set with `order`
+     rather than by DOM position, because the rail is created earlier in the
+     render pipeline than the panel and whichever happens to mount first would
+     otherwise decide the layout. */
+  order: 0;
+  position: static !important;
+  right: auto !important; top: auto !important;
+  transform: none !important;
+  width: 100% !important;
+  max-height: none !important;
+  flex: 0 0 auto;
+  margin: 0 !important;
+}
+/* The rail takes the room under it and scrolls only if it genuinely overruns. */
+#right-col > #event-rail {
+  order: 1;
+  position: static !important;
+  right: auto !important; top: auto !important;
+  width: 100% !important;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+/* The invasion's rules, in the event tab where reference belongs. */
+.ev-how {
+  font-size: 10px; line-height: 1.45; color: var(--mp-text-2, #8fa3ae);
+  margin: 2px 0 6px;
+}
+@media (max-width: 1100px) { #right-col { display: none; } }
