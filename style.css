@@ -42610,17 +42610,20 @@ body.low-fx .badge-asleep { animation: none; }
 .twov2-tk-head { padding-bottom: 4px; gap: 5px; }
 /* (the vertical numbers live on the base rules further down — declaring them
    here would be dead, since those rules come later in the file) */
-.twov2-tk-title { font-size: 9px; letter-spacing: 0.06em; }
-.twov2-tk-round { font-size: 9px; padding: 0 4px; }
-.twov2-tk-row { gap: 3px; }
+/* Every tracker font multiplies by --tk-scale (set per-panel in
+   _2v2TrackerApplyGeom from the width) so resizing grows the TEXT, not just the
+   box. Defaults to 1 when unset (never resized). */
+.twov2-tk-title { font-size: calc(9px * var(--tk-scale, 1)); letter-spacing: 0.06em; }
+.twov2-tk-round { font-size: calc(9px * var(--tk-scale, 1)); padding: 0 4px; }
+.twov2-tk-row { gap: calc(3px * var(--tk-scale, 1)); }
 /* SIZED TO THE LONGEST REAL STRINGS, not to a round number. Measured: the name
    line needs 77px for "I luv Sy (you)" and the play line 68px for "Cards +
    Tricks", and at the first pass (146px, 12px names) the body had 66px and cut
    both. The chip pays for the new mic out of its own padding and ordinal rather
    than out of the words. */
-.twov2-tk-chip { gap: 5px; }
-.twov2-tk-name { font-size: 11px; }
-.twov2-tk-ord { width: 15px; height: 15px; font-size: 9px; }
+.twov2-tk-chip { gap: calc(5px * var(--tk-scale, 1)); }
+.twov2-tk-name { font-size: calc(11px * var(--tk-scale, 1)); }
+.twov2-tk-ord { width: calc(15px * var(--tk-scale, 1)); height: calc(15px * var(--tk-scale, 1)); font-size: calc(9px * var(--tk-scale, 1)); }
 
 
 /* ---- VOICE, INSIDE THE RAIL --------------------------------------------
@@ -42630,7 +42633,7 @@ body.low-fx .badge-asleep { animation: none; }
   display: flex; align-items: center; gap: 6px;
   margin-top: 4px; padding-top: 4px;
   border-top: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.18);
-  font: 700 9px/1 'Rajdhani', system-ui, sans-serif;
+  font: 700 calc(9px * var(--tk-scale, 1))/1 'Rajdhani', system-ui, sans-serif;
   letter-spacing: 0.10em; text-transform: uppercase;
   color: rgba(var(--theme-rgb, 79,195,247), 0.75);
 }
@@ -42662,7 +42665,7 @@ body.low-fx .badge-asleep { animation: none; }
    Present only for someone actually in the call: no glyph means "not on
    voice", which is a different fact from "on voice, silent". */
 .twov2-tk-mic { flex: 0 0 auto; line-height: 0; color: rgba(var(--theme-rgb, 79,195,247), 0.45); }
-.twov2-tk-mic .tkm { width: 12px; height: 12px; display: block; overflow: visible; }
+.twov2-tk-mic .tkm { width: calc(12px * var(--tk-scale, 1)); height: calc(12px * var(--tk-scale, 1)); display: block; overflow: visible; }
 .twov2-tk-mic .tkm-body { fill: currentColor; }
 .twov2-tk-mic .tkm-arc, .twov2-tk-mic .tkm-stem {
   fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round;
@@ -42773,14 +42776,14 @@ body.low-fx .badge-asleep { animation: none; }
      label is a fixed vocabulary of three phrases, so it never needs the air a
      variable string would — and an ellipsis on a three-word set is worse than
      tight tracking on it. */
-  font-size: 8px; letter-spacing: 0.02em; text-transform: uppercase;
+  font-size: calc(8px * var(--tk-scale, 1)); letter-spacing: 0.02em; text-transform: uppercase;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   font-weight: 600;
   color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 78%, #e8f5ff);
   text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.45);
 }
 .twov2-tk-now {
-  position: absolute; top: -6px; right: -4px; font-size: 8px; font-weight: 700; letter-spacing: 0.08em;
+  position: absolute; top: -6px; right: -4px; font-size: calc(8px * var(--tk-scale, 1)); font-weight: 700; letter-spacing: 0.08em;
   color: var(--tkc, #4fc3f7); background: #000;
   border: 1px solid var(--tkc, #4fc3f7);
   padding: 1px 5px; border-radius: 4px;
@@ -42791,7 +42794,7 @@ body.low-fx .badge-asleep { animation: none; }
    collapsed tab the player can still open. */
 @media (max-width: 900px) {
   .twov2-tracker { width: 150px; }
-  .twov2-tk-name { font-size: 11px; }
+  .twov2-tk-name { font-size: calc(11px * var(--tk-scale, 1)); }
 }
 
 /* ============================================================

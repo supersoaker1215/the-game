@@ -7882,6 +7882,12 @@ const UI = {
       // intercept, the FX drain. A single null reference near the top therefore
       // did not look like a crash, it looked like the game silently skipping
       // your turn. _safe logs it and lets the rest of the frame paint.
+      // COG INVASION PANEL — rendered here, BEFORE every 2v2 early-return, so the
+      // VP health bars always show and stay attackable in 2v2 (the per-board
+      // calls below could be skipped on a combat/overlay frame, which is why the
+      // C.F.O. "wasn't there to attack"). It is position:fixed and self-gates on
+      // state._cog, so painting it on every mode's frame is free when off.
+      this._safe('cogPanel(2v2)', () => this._renderCogPanel(s));
       if (is2v2OnlineGame) { this._safe('2v2OnlineBoard', () => this._render2v2OnlineBoard(s)); this.renderInlineChoiceFallback(s); _redraw2v2(); _fit2v2(); return; }
       if (is2v2LocalGame)  { this._safe('2v2LocalGame',  () => this._render2v2LocalGame(s));  this.renderInlineChoiceFallback(s); _redraw2v2(); _fit2v2(); return; }
       this._safe('2v2Overlay', () => this.render2v2(s)); this.renderInlineChoiceFallback(s); _redraw2v2(); _fit2v2(); return;
@@ -14330,6 +14336,16 @@ const UI = {
     el.style.left = Math.min(Math.max(g.left, 4), maxL) + 'px';
     el.style.top  = Math.min(Math.max(g.top, 4), maxT) + 'px';
     if (g.w) el.style.width = g.w + 'px';
+    // SCALE THE TEXT WITH THE BOX. Resizing used to grow only the width, so a
+    // bigger panel just meant wider rows with more empty space and the same tiny
+    // text. Every font-size in the tracker is now multiplied by --tk-scale (see
+    // style.css), derived from the width against the 158px base, so making it
+    // bigger makes the WHOLE thing bigger. Clamped so it stays readable and never
+    // runs away. (Owner: "i want the whole thing to get bigger and not have a ton
+    // of empty space.")
+    const TK_BASE_W = 158;
+    const tkScale = Math.max(0.85, Math.min(2.4, (g.w ? g.w / TK_BASE_W : 1)));
+    el.style.setProperty('--tk-scale', tkScale.toFixed(3));
     // A collapsed panel is just its header — holding the expanded height would
     // leave a tall empty box, the opposite of getting out of the way.
     if (g.h && !el.classList.contains('is-collapsed')) {
