@@ -14110,7 +14110,13 @@ const UI = {
         this.render();
       },
       cards => cards.slice().sort((a, b) => (b.attack | 0) - (a.attack | 0))[0],
-      { localOnly: true, forcePrompt: true });
+      // NO forcePrompt / NO tray. The attackers are cards standing on your own
+      // board, so the pick belongs THERE: they glow gold and you click the one
+      // you want, instead of a lane-tall card filling the Decision box. With one
+      // eligible attacker the choice auto-commits (nothing to pick between); with
+      // several, only the board copies light up. (Owner: the send-a-card prompt
+      // was too big — "make it smaller.")
+      { localOnly: true });
     this.render();
   },
 
