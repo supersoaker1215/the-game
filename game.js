@@ -17375,6 +17375,9 @@ const Game = {
     const s = this.state;
     if (!h || h.fired || !h.shows) return;
     if ((roundNow | 0) < (h.appearAt != null ? h.appearAt : this._EVENT_FIRST_ROUND)) return;
+    // One event at a time — a habitat waits its turn behind any live reveal.
+    // h.fired stays false, so it retries next round. (Owner.)
+    if (this._eventInProgress()) return;
     const name = h.place || h.name;
     if (!name) { h.fired = true; return; }
     const def = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(d => d.name === name) : null;
@@ -17721,7 +17724,7 @@ const Game = {
       if (!vp.active) {
         // #6 — a VP never arrives the same round as MC Ballyhoo or the Shadow
         // Man; two marquee reveals at once is "too much going on". (Owner.)
-        if (!bossOut && !this._cogOtherEventThisRound(round) && this.rng() < this._COG_VP_ROLL) {
+        if (!bossOut && !this._cogOtherEventThisRound(round) && !this._eventInProgress() && this.rng() < this._COG_VP_ROLL) {
           bossOut = true;   // claim the slot so a second VP can't also arrive this tick
           vp.active = true; vp.firstRound = round; vp.lastSpawnRound = round; vp.lastDrainRound = round;
           this.log(`[COG INVASION] ${vp.name} arrives!`);
@@ -17831,10 +17834,21 @@ const Game = {
     this.getAllCardsOnBoard().forEach(card => {
       if (!card._cogAttackVP) return;
       const vpKey = card._cogAttackVP;
-      delete card._cogAttackVP;
-      if (card.currentHealth <= 0 || this.isActionLocked(card) || (card.attack | 0) <= 0) return;
       const vp = c.vps[vpKey];
-      if (!vp || vp.dead) return;
+      // The VP is gone (dead) or the card is — drop the aim, nothing to hit.
+      if (!vp || vp.dead || card.currentHealth <= 0 || (card.attack | 0) <= 0) {
+        delete card._cogAttackVP;
+        return;
+      }
+      // The card is aimed but CAN'T swing this round (frozen/stunned/locked).
+      // Keep the aim so it lands the moment the card is free again, instead of
+      // silently eating the order and never damaging the VP. (Owner: "i clicked
+      // to send a card at the chairman and ... it never damaged him.")
+      if (this.isActionLocked(card)) {
+        this.log(`  [COG INVASION] ${card.name} can't swing yet (locked) — it stays aimed at ${vp.name}.`);
+        return;
+      }
+      delete card._cogAttackVP;
       this.log(`[COG INVASION] ${card.name} turns its swing on ${vp.name} for ${card.attack}!`);
       this._cogDamageVP(vpKey, card.attack, card.owner, card._2v2PlayedBy || null);
       card._skipNormalAttack = true;
@@ -17938,6 +17952,9 @@ const Game = {
     const r = roundNow | 0;
 
     if (!sh.appeared && r >= sh.appearAt) {
+      // One event at a time — hold his entrance while another is on screen.
+      // sh.appeared stays false, so he tries again next round. (Owner.)
+      if (this._eventInProgress()) return;
       sh.appeared = true;
       sh.stats = {};
       // ONE WEAPON PER CHALLENGE, DECIDED WHEN HE NAMES THEM. (Owner: "the
@@ -18442,6 +18459,25 @@ const Game = {
     return true;
   },
 
+  // ONE EVENT AT A TIME, EVER. No random event may begin while another is still
+  // on screen. Two reveals arming their holds in the same round-start stacked
+  // TWO expiry callbacks on the shared lock; the first fired early and ran
+  // resumeCombatIfWaiting()/_pendingPhaseEnd mid-phase — which is the "it skips
+  // my turn and does random combat in the middle of the turn" the owner hit.
+  // Cog Invasion runs every match, so without this gate it collides with the
+  // rolled event (Ballyhoo / Shadow / a habitat) on the rounds they coincide.
+  // (Owner: "when there is a random event already in progress another random
+  // event should NOT be able to activate until the other one is done ... Mario
+  // Party BO3 and toontown should never fire at the same time.")
+  //
+  // "In progress" = a reveal/hold is live right now. Each runner is called once
+  // per round from the round seam and leaves its own scheduled flag unfired when
+  // blocked, so a deferred event simply gets its shot on a later round instead
+  // of being lost.
+  _eventInProgress() {
+    return !!(this.eventHoldActive && this.eventHoldActive());
+  },
+
   // Called at the top of every round in BOTH modes. Cheap and idempotent —
   // fires at most once per match.
   _maybeBallyhoo(roundNow) {
@@ -18467,6 +18503,9 @@ const Game = {
     // >= and not ===, so a skipped round (or a seam that misses a tick) still
     // gets him out rather than losing him for the whole match.
     if ((roundNow | 0) < (b.appearAt != null ? b.appearAt : this._BALLYHOO_FIRST_ROUND)) return;
+    // Another event is still on screen — wait. b.fired stays false, so he tries
+    // again next round. One event at a time. (Owner.)
+    if (this._eventInProgress()) return;
     b.fired = true;
 
     // One candy per player, all different, dealt at random. With four seats

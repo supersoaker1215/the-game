@@ -13996,8 +13996,16 @@ const UI = {
       document.body.appendChild(el);
     }
     const order = (Game._COG_ORDER || ['vp', 'cfo', 'cj', 'chairman']);
-    const anyAppeared = order.some(k => c.vps[k] && (c.vps[k].active || c.vps[k].dead));
-    const cards = order.map(k => {
+    // ONLY THE BOSS ON THE FIELD RIGHT NOW. It is one-boss-at-a-time, so the
+    // panel shows just the VP that is currently active — not the whole roster of
+    // four with three "watching" placeholders. When it falls and the next one
+    // arrives, the panel swaps to that one. (Owner: "i only want the health for
+    // the certain boss to show up not all of them at once ... since im fighting
+    // the chairman only he should be up there and if someone else comes then
+    // just them and their health should show.")
+    const shown = order.filter(k => c.vps[k] && c.vps[k].active && !c.vps[k].dead);
+    const anyAppeared = shown.length > 0;
+    const cards = shown.map(k => {
       const vp = c.vps[k]; if (!vp) return '';
       const pct = Math.max(0, Math.min(100, Math.round((vp.hp / (vp.maxHp || 10)) * 100)));
       const state = vp.dead ? 'dead' : vp.active ? 'active' : 'waiting';
@@ -14031,7 +14039,7 @@ const UI = {
     // is active, not hide behind an event-rail click. (Owner, emphatically: the
     // VPs "never stay on off to the side and have an option to be attacked ...
     // they are unkillable.") It still also opens from the rail (is-open).
-    const anyAttackable = order.some(k => c.vps[k] && c.vps[k].active && !c.vps[k].dead);
+    const anyAttackable = shown.length > 0;
     el.style.display = (anyAttackable || el.classList.contains('is-open')) ? '' : 'none';
     // Wire the "send a card" buttons (innerHTML is rebuilt each render).
     el.querySelectorAll('.cog-hit').forEach(btn => {
