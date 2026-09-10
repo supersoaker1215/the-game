@@ -17618,6 +17618,41 @@ const Game = {
     cj:       { name: 'The C.J.',     cog: 'Big Wig' },
     chairman: { name: 'The Chairman', cog: 'The Big Cheese' },
   },
+  // ---- THE COG LADDER ------------------------------------------------------
+  // WHICH Cog goes out is a function of TURN, not of which VP is out. Before
+  // this, every VP had exactly one Cog (`_COG_VP_DEFS[k].cog`) and sent that
+  // same 4/6 body every three rounds from the moment it arrived — so the event
+  // opened at full strength and never escalated. A Flunky and a Big Cheese are
+  // not the same threat and the event never showed the difference.
+  //
+  // Keyed on the EVENT's own clock (rounds since this VP arrived), which is
+  // what "turn 0" means and what lines the rungs up 1:1 with the 3-round spawn
+  // cadence: 0, 3, 6, 9, 12+. Change `since` to the absolute match round below
+  // if the ladder should instead track the whole game rather than each boss.
+  _COG_LADDER: [
+    { turn: 0,  cogs: ['Flunky', 'Short Change'] },
+    { turn: 3,  cogs: ['Name Dropper', 'Bloodsucker'] },
+    { turn: 6,  cogs: ['Downsizer', 'Money Bags'] },
+    { turn: 9,  cogs: ['The Mingler', 'Legal Eagle'] },
+    { turn: 12, cogs: ['Robber Baron', 'The Big Cheese'] },   // 12+ stays here
+  ],
+  // The rung for a given point on the event's clock. Anything past the last
+  // listed turn stays on the last rung — the ladder tops out, it does not wrap.
+  _cogRungFor(turn) {
+    const L = this._COG_LADDER;
+    let rung = L[0];
+    for (let i = 0; i < L.length; i++) if ((turn | 0) >= L[i].turn) rung = L[i];
+    return rung;
+  },
+  // ONE ROLL, BOTH SIDES. The pick happens HERE and not inside the per-side
+  // spawn, because the owner's rule is that both seats face the same Cog —
+  // rolling per side would hand one player a Flunky and the other a Short
+  // Change off the same wave, which is a fairness leak dressed as variety.
+  _cogPickForTurn(turn) {
+    const rung = this._cogRungFor(turn);
+    return rung.cogs[Math.floor(this.rng() * rung.cogs.length)];
+  },
+
   // One battle theme per VP, played when it first arrives ("when they are
   // talking"). The Chairman — the top boss — gets the Final Floor boss theme.
   _COG_VP_THEME: { vp: 'cogThemeVp', cfo: 'cogThemeCfo', cj: 'cogThemeCj', chairman: 'cogThemeChairman' },
@@ -17694,7 +17729,9 @@ const Game = {
     const s = this.state;
     const vps = {};
     this._COG_ORDER.forEach(k => {
-      vps[k] = { key: k, name: this._COG_VP_DEFS[k].name, cog: this._COG_VP_DEFS[k].cog,
+      // `cog` starts on the ladder's first rung, not on this VP's old fixed Cog:
+      // it is now "what this VP is currently sending", rewritten at every spawn.
+      vps[k] = { key: k, name: this._COG_VP_DEFS[k].name, cog: this._COG_LADDER[0].cogs[0],
                  hp: this._COG_VP_MAX_HP, maxHp: this._COG_VP_MAX_HP,
                  active: false, dead: false, firstRound: null, lastSpawnRound: null,
                  // Random starting side per VP so the Cogs (neutral bodies that
@@ -17750,8 +17787,17 @@ const Game = {
     if (typeof UI !== 'undefined' && UI.render) { try { UI.render(); } catch (e) {} }
   },
   // A Cog goes out to BOTH sides at once (owner). Symmetric, so neither seat is
-  // reinforced ahead of the other.
+  // reinforced ahead of the other — and now the SAME Cog on both, picked once
+  // from the ladder rung this wave has reached.
+  //
+  // `vp.cog` is updated rather than read: it is what the VP panel prints, what
+  // the spawn/defeat lines name, and what the FX event carries, so writing the
+  // current pick to it keeps all six of those consumers correct without any of
+  // them having to learn about the ladder.
   _cogSpawnCog(vp, round) {
+    const since = (round | 0) - ((vp.firstRound == null ? round : vp.firstRound) | 0);
+    vp.cog = this._cogPickForTurn(since);
+    this.log(`  [COG INVASION] Turn ${since} of the invasion — ${vp.name} sends ${vp.cog} to both sides.`);
     ['player', 'ai'].forEach(side => this._cogSpawnOnSide(vp, round, side));
   },
   // The weakest card on a side — lowest cost, then lowest ATK, then lowest HP.

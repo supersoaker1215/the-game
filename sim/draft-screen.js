@@ -52,11 +52,24 @@ check('card height is a FLOOR, so a long card is not clipped',
       !!cardBox && /min-height:\s*var\(--read-card-h\)/.test(cardBox) && /max-height:\s*none/.test(cardBox),
       'pinning the height clipped Thor\'s second ability under the stat row');
 
-// ---- 4 · health is white-cored, never red ---------------------------------
-var hpPip = ruleBody('.draft-card .stat-hp::before');
-check('the health pip is not red',
-      !!hpPip && !/#ff6b6b|255,\s*107,\s*107/.test(hpPip) && /--portrait-frame-rgb/.test(hpPip),
-      'red is the opponent everywhere else — their row, their frames, their lobby seat');
+// ---- 4 · attack and health must READ APART --------------------------------
+// HISTORY, so this is not flipped back by citing the older instruction. The
+// mock's caption asked for "health white-cored like attack, since red means
+// the opposing side everywhere else", and that shipped: both pips took the
+// frame colour. The owner then REVERSED it on sight — with both corners green
+// you could not tell attack from health at a glance, which costs more than the
+// colour collision did. Attack is the board's green pip, health the board's
+// red pip, the same pair the hand and board already use.
+//
+// So what is pinned here is the REQUIREMENT, not either answer: the two pips
+// must differ. That holds whichever palette wins next.
+var hpPip  = ruleBody('.draft-card .stat-hp::before');
+var atkPip = ruleBody('.draft-card .stat-atk::before');
+check('attack and health pips are distinguishable',
+      !!hpPip && !!atkPip && hpPip.replace(/\s/g, '') !== atkPip.replace(/\s/g, ''),
+      'both corners the same colour means the two stats do not read apart');
+check('health takes the board\'s red pip', !!hpPip && /#ff6b6b/i.test(hpPip));
+check('attack takes the board\'s green pip', !!atkPip && /#3dff9e/i.test(atkPip));
 
 // ---- 5 · picks rail is chips, not five card-shaped containers --------------
 var tile = ruleBody('.draft-rail-left .dpr-slot .dpr-tile');

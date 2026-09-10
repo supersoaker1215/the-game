@@ -377,24 +377,78 @@ const CARD_DEFS = [
   // game.js), never drafted or drawn — _spawnOnly keeps them out of every pool.
   // All four are 3-cost 4/6 bodies; the variety is in their signature attack
   // (fired in place of a normal swing via onBeforeAttack) and the shared Power
-  // Trip that three of them fire every 3rd round. Their VP's protection (§2.5)
-  // is applied from the damage path in game.js while that VP is alive.
+  // Trip that three of them fire every 3rd round.
+  //
+  // THE PROTECTION IS NOT ON THESE CARDS, and that is deliberate. It keys on
+  // `card._cogVP` — WHICH VP SENT the Cog — not on the Cog's name, and since
+  // the ladder lets any VP send any Cog, a card that named one VP was wrong in
+  // three cases out of four: a Big Cheese sent by the C.J. gets +1 ATK per
+  // ally, not Freeze immunity. The attack belongs to the card; the protection
+  // belongs to the sender, and the VP panel states it there (UI._COG_VP_BLURB).
   { name: "Mr. Hollywood", cost: 3, attack: 4, health: 6, type: "villain",
     _spawnOnly: true, _cog: 'vp',
     abilities: [],
-    desc: "Beguile: Deal 3 damage to an enemy and Stun it 1 round. Power Trip (every 3rd round): 2 damage to all enemies. While The V.P. lives: the first attack Mr. Hollywood takes each round deals no damage." },
+    desc: "Beguile: Deal 3 damage to an enemy and Stun it 1 round. Power Trip (every 3rd round): 2 damage to all enemies." },
   { name: "Robber Baron", cost: 3, attack: 4, health: 6, type: "villain",
     _spawnOnly: true, _cog: 'cfo',
     abilities: [],
-    desc: "Embezzle: Deal 3 damage to an enemy and steal 1 Energy from its owner. Power Trip (every 3rd round): 2 damage to all enemies. While The C.F.O. lives: shielded from all damage until hit by Freeze or Stun; the shield reforms after 2 rounds." },
+    desc: "Embezzle: Deal 3 damage to an enemy and steal 1 Energy from its owner. Power Trip (every 3rd round): 2 damage to all enemies." },
   { name: "Big Wig", cost: 3, attack: 4, health: 6, type: "villain",
     _spawnOnly: true, _cog: 'cj',
     abilities: [],
-    desc: "Fired!: Deal 3 damage to an enemy, then bounce it to a random empty lane. Power Trip (every 3rd round): 2 damage to all enemies. While The C.J. lives: +1 ATK for every ally on Big Wig's side of the board." },
+    desc: "Fired!: Deal 3 damage to an enemy, then bounce it to a random empty lane. Power Trip (every 3rd round): 2 damage to all enemies." },
   { name: "The Big Cheese", cost: 3, attack: 4, health: 6, type: "villain",
     _spawnOnly: true, _cog: 'chairman',
     abilities: [],
-    desc: "Glower Power: Deal 5 damage to an enemy and knock it down (Stun 1). While The Chairman lives: immune to Freeze and Stun for its first 2 rounds on the board." },
+    desc: "Glower Power: Deal 5 damage to an enemy and knock it down (Stun 1)." },
+
+  // ---- THE LADDER ----------------------------------------------------------
+  // The four above are the LEVEL-8 Cogs, one per department, and until now they
+  // were the only ones that existed — so whichever VP was out sent the same
+  // 4/6 body every three rounds from the moment it arrived. A Flunky and a Big
+  // Cheese are not the same threat, and the event never showed the difference.
+  //
+  // These eight fill the rungs below, so a VP's Cogs escalate over the event's
+  // life (Game._COG_LADDER pairs them by turn). Two per rung, one from each of
+  // two departments, so the pair reads as a choice rather than a variant.
+  //
+  // Deliberately VANILLA. The level-8 four earn their signature attacks by
+  // being the top of the ladder; giving the lower rungs invented abilities
+  // would be designing gameplay that was not asked for, and would flatten the
+  // very escalation these exist to create. Stats ramp 1/2 -> 2/3 -> 3/4 -> 3/5
+  // and land exactly on the 4/6 the level-8 Cogs already are.
+  { name: "Flunky", cost: 1, attack: 1, health: 2, type: "villain",
+    _spawnOnly: true, _cog: 'ladder',
+    abilities: [],
+    desc: "A Bossbot's first rung. Sent out to fill a lane and little else." },
+  { name: "Short Change", cost: 1, attack: 1, health: 2, type: "villain",
+    _spawnOnly: true, _cog: 'ladder',
+    abilities: [],
+    desc: "A Cashbot's first rung. Counts coins; loses count." },
+  { name: "Name Dropper", cost: 1, attack: 2, health: 3, type: "villain",
+    _spawnOnly: true, _cog: 'ladder',
+    abilities: [],
+    desc: "A Sellbot who knows someone who knows someone." },
+  { name: "Bloodsucker", cost: 1, attack: 2, health: 3, type: "villain",
+    _spawnOnly: true, _cog: 'ladder',
+    abilities: [],
+    desc: "A Lawbot billing by the hour, and the hour is long." },
+  { name: "Downsizer", cost: 2, attack: 3, health: 4, type: "villain",
+    _spawnOnly: true, _cog: 'ladder',
+    abilities: [],
+    desc: "A Bossbot with a list, and your name is on it." },
+  { name: "Money Bags", cost: 2, attack: 3, health: 4, type: "villain",
+    _spawnOnly: true, _cog: 'ladder',
+    abilities: [],
+    desc: "A Cashbot heavy enough to be a problem on its own." },
+  { name: "The Mingler", cost: 2, attack: 3, health: 5, type: "villain",
+    _spawnOnly: true, _cog: 'ladder',
+    abilities: [],
+    desc: "A Sellbot working the room. Everyone leaves poorer." },
+  { name: "Legal Eagle", cost: 2, attack: 3, health: 5, type: "villain",
+    _spawnOnly: true, _cog: 'ladder',
+    abilities: [],
+    desc: "A Lawbot circling. It has already found the clause." },
 
   { name: "Davy Jones", cost: 5, attack: 3, health: 6, type: "villain",
     abilities: [],

@@ -131,6 +131,10 @@ echo "=== event-rail.js (one rail, every event type) ==="
 run_suite sim/event-rail.js
 
 echo ""
+echo "=== cog-ladder.js (which Cog spawns is a function of turn) ==="
+run_suite sim/cog-ladder.js
+
+echo ""
 if [ "$FAIL" -ne 0 ]; then
   echo "❌ TESTS FAILED — see suites above."
   exit 1

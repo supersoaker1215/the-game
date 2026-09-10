@@ -13978,11 +13978,14 @@ const UI = {
   // is doing and how to fight it. Clicking a live VP lets you send one of your
   // cards' swings at it this round (reuses the card-choice tray).
   // Short, scannable — one key point each (owner: "make it key points").
+  // "ITS COG", not a named one. The protection keys on which VP sent the Cog,
+  // and the ladder lets any VP send any Cog — so naming Mr. Hollywood here read
+  // as a promise about one card when it is a property of this executive.
   _COG_VP_BLURB: {
-    vp:       'Mr. Hollywood ignores the 1st hit each round.',
-    cfo:      'Robber Baron: shielded until Frozen/Stunned.',
-    cj:       'Big Wig: +1 ATK per ally on his side.',
-    chairman: 'Big Cheese: Freeze/Stun-proof for 2 rounds.',
+    vp:       'Its Cog ignores the 1st hit each round.',
+    cfo:      'Its Cog is shielded until Frozen/Stunned.',
+    cj:       'Its Cog gains +1 ATK per ally on its side.',
+    chairman: 'Its Cog is Freeze/Stun-proof for 2 rounds.',
   },
   _renderCogPanel(s) {
     let el = document.getElementById('cog-panel');
