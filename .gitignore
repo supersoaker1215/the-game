@@ -18,3 +18,7 @@ proto-*.html
 # painting with its proposed border around it: useful to LOOK at when the
 # colours change, not something the game loads.
 card-art-accent-sheet.png
+
+# Python bytecode from sim/tools scripts
+__pycache__/
+*.pyc
