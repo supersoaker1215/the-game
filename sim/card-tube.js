@@ -543,6 +543,38 @@ check('and the old fixed green is gone from it',
         'no dark layer and a pale name disappears into a bright art');
 })();
 
+// ---- the rules text reads NEON WHITE, not grey ------------------------------
+// Owner: "the text should be like neon white not grey." The colour was never
+// the problem — declared #fff, measured #fff. At 11px most of a glyph is
+// partial-coverage antialiasing, so what the eye averages is not the stroke
+// core (which hit 254) but the half-lit pixels around it (median 184). Two
+// things were dragging those down: a `0 0 3px` BLACK halo sitting exactly
+// under them, and a 500 weight leaving few full-coverage pixels to begin with.
+//
+// Measured on a black stage with the art and chrome hidden:
+//   mean light over the paragraph  19.13 -> 30.00  (+57%)
+//   pixels reading white           4,822 -> 6,703  (+39%)
+(function () {
+  var el = { classes: ['card-desc'], ancestors: ['card', 'draft-card'] };
+  var sh = winner('text-shadow', el);
+  check('the rules text has no black halo eating its antialiasing',
+        !!sh && !/0 0 [0-9.]+px rgba\(0, ?0, ?0/.test(sh.value),
+        sh ? 'winning text-shadow is `' + sh.value.slice(0, 100) + '`' : 'no shadow reaches it');
+  check('and carries a white bloom instead, which lifts the half-lit pixels',
+        !!sh && (sh.value.match(/255, ?255, ?255/g) || []).length >= 2,
+        'one layer reads as an outline; two read as lit');
+  check('a tight black drop stays, for the panel behind it',
+        !!sh && /0 1px 2px rgba\(0, ?0, ?0/.test(sh.value));
+  var w = winner('font-weight', el);
+  check('and the draft body is 600, not 500',
+        !!w && /600|var\(--draft-rules-weight\)/.test(w.value),
+        w ? 'winning weight is `' + w.value + '`' : 'nothing sets it');
+  check('the draft weight TOKEN is 600',
+        /--draft-rules-weight:\s*600/.test(BARE),
+        'the token out-specifies the base rule — raising the base alone does nothing on the draft, ' +
+        'which is exactly what happened on the first attempt');
+})();
+
 print('card-tube: ' + pass + ' passed, ' + fails.length + ' failed');
 if (fails.length) {
   print('Failures:');

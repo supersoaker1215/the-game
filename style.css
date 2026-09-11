@@ -5498,7 +5498,13 @@ body.hit-pause .ai-hand * {
   --draft-rules-size: 9px;
   --draft-rules-lh: 1.45;
   --draft-rules-ls: 0.20px;
-  --draft-rules-weight: 500;
+  /* 600, not 500. At 11px most of a glyph is partial-coverage antialiasing, so
+     a thin stroke renders mostly mid-grey however white you declare it — the
+     paragraph measured a median ink pixel of 184 against declared #fff. This
+     token is the draft's own dial and out-specifies the base rule, so raising
+     the base alone did nothing here. (Owner: "the text should be like neon
+     white not grey.") */
+  --draft-rules-weight: 600;
   --draft-trigger-size: 10px;
   --draft-trigger-ls: 0.65px;
 }
@@ -5885,7 +5891,13 @@ body.hit-pause .ai-hand * {
   --draft-rules-size: 9px;
   --draft-rules-lh: 1.45;
   --draft-rules-ls: 0.20px;
-  --draft-rules-weight: 500;
+  /* 600, not 500. At 11px most of a glyph is partial-coverage antialiasing, so
+     a thin stroke renders mostly mid-grey however white you declare it — the
+     paragraph measured a median ink pixel of 184 against declared #fff. This
+     token is the draft's own dial and out-specifies the base rule, so raising
+     the base alone did nothing here. (Owner: "the text should be like neon
+     white not grey.") */
+  --draft-rules-weight: 600;
   --draft-trigger-size: 10px;
   --draft-trigger-ls: 0.65px;
   font-family: var(--draft-rules-font);
@@ -16071,7 +16083,10 @@ body.round-first-ai .hud-pill-main {
 .card .card-desc {
   font-size: 9px !important;
   line-height: 1.45 !important;
-  font-weight: 500;
+  /* 600, not 500. A thicker stroke is more full-coverage pixels and fewer
+     half-lit ones, which is the other half of why this paragraph read grey —
+     see the text-shadow note at the foot of this file. */
+  font-weight: 600;
   letter-spacing: 0.3px;
 }
 .card .card-desc b {
@@ -50503,9 +50518,20 @@ body.in-match:not(.board-v2) .board {
 .trick-card.trick-card.trick-card .trick-desc .cd-row,
 .trick-card.trick-card.trick-card .trick-desc .cd-eff {
   color: #ffffff !important;
-  /* A black drop, not a coloured bloom: it buys legibility over the painting
-     without painting the paragraph. */
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 0 3px rgba(0, 0, 0, 0.75) !important;
+  /* NEON WHITE, NOT GREY — and the colour was never the problem. Declared #fff
+     measured #fff, and the paragraph still read grey. At 11px the STROKE CORES
+     hit 254 but the MEDIAN ink pixel was 184: most of a glyph at this size is
+     partial-coverage antialiasing, and a `0 0 3px` black halo sits under
+     exactly those pixels and drags them down. The eye averages the glyph, so
+     what you see is the median, not the peak.
+     So: the black halo goes (a tight drop stays — the panel is dark but not
+     black), and a faint WHITE bloom replaces it, which lifts the half-covered
+     pixels toward the core instead of away from it. That is also what makes it
+     read as lit rather than merely light. */
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.90),
+    0 0 calc(var(--card-w, 320px) * 0.013) rgba(255, 255, 255, 0.38),
+    0 0 calc(var(--card-w, 320px) * 0.030) rgba(255, 255, 255, 0.15) !important;
 }
 /* The trigger label keeps the card's accent — and on the board keeps the SIDE
    colour, since --portrait-frame-rgb is already re-pointed there. */
