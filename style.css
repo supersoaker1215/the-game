@@ -31208,12 +31208,33 @@ body.combat-anticipate::after  { content: none !important; }
      • cost 7-8  → silver  (240, 245, 250)
      • cost 9-10 → gold    (var(--gold-rgb))
    ---------------------------------------------------------------- */
-/* BOARD — CORRECTED 01: the hand ladder. Four tiers, four hues, each unique
-   to this set — the board's six ownership colours never reuse one of them. */
-.card.cost-0,  .card.cost-1, .card.cost-2,  .card.cost-3  { --rarity-rgb: var(--rar-green); }
-.card.cost-4,  .card.cost-5, .card.cost-6                { --rarity-rgb: var(--rar-blue);  }
-.card.cost-7,  .card.cost-8                              { --rarity-rgb: var(--rar-white); }
-.card.cost-9,  .card.cost-10                             { --rarity-rgb: var(--rar-gold);  }
+/* THE BORDER COMES FROM THE CARD'S OWN PAINTING, NOT FROM ITS COST.
+   ------------------------------------------------------------------
+   What was here: four cost tiers, four hues —
+     .card.cost-0..3 green / .cost-4..6 blue / .cost-7..8 white / .cost-9..10 gold
+   Two things wrong with it, and the owner named both at once ("get rid of the
+   rarity neon highlights ... i want each card to have a border that compliments
+   their card art"):
+
+     • It gave 259 paintings exactly FOUR borders. Measured on the live draft:
+       48 card appearances, 4 distinct values.
+     • It said the card's COST, which is already printed in the corner in a
+       number — so the loudest colour on the card was the one carrying the
+       information you least needed, and none of it was about the card.
+
+   --art-rgb is set inline per card by UI.makeCardEl / UI.makeTrickEl from
+   card-art-accent.js (see UI._artAccentFor). The fallback is the steel a
+   monochrome painting gets, which is also the right answer for a card with no
+   art at all — 8 of the ladder Cogs are in that state today.
+
+   NOT TOUCHED: the board's ownership colours. A card in play still takes the
+   player's accent or the opponent's red (.card.ally-card / .card.enemy-card
+   below), because that is not decoration — it is how you tell whose card you
+   are looking at, and the owner asked for it directly: "when Batman is in hand
+   it's gold, but when he's played on board it's the neon highlight the player
+   has chosen." The art border is what he wears everywhere the side is already
+   obvious: hand, draft, codex, deck builder, inspect. */
+.card { --rarity-rgb: var(--art-rgb, 150, 170, 190); }
 
 /* ----------------------------------------------------------------
    SIMPLIFIED PORTRAIT — MINIMAL CHROME, NO EFFECTS LAYER STACK
@@ -49346,7 +49367,14 @@ body.in-match:not(.board-v2) .board {
   --own-green:    38, 255, 156;    /* #26ff9c */
   --own-ice:      169, 214, 255;   /* #a9d6ff */
   --own-gold:     255, 209, 102;   /* #ffd166  warm amber */
-  /* -- card rarity, four only ----------------------------------------- */
+  /* -- card rarity, four only ------------------------------------------
+     NOTHING READS THESE ANY MORE, and that is deliberate rather than rot.
+     They were the four cost-tier border colours (1-3 / 4-6 / 7-8 / 9-10) and
+     the owner has replaced that whole idea: a card's border now comes from
+     its own painting (--art-rgb, see the block at "THE BORDER COMES FROM THE
+     CARD'S OWN PAINTING"). They stay declared because they are part of the
+     BOARD-CORRECTED palette spec he supplied, so the spec still reads whole
+     — but wiring anything back onto them puts the cost tiers back. */
   --rar-green:    38, 255, 156;    /* #26ff9c  pairs with board green */
   --rar-blue:     61, 139, 255;    /* #3d8bff  cooler + deeper than board cyan */
   --rar-white:    255, 255, 255;   /* #ffffff  pure, against board ice white */

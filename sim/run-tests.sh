@@ -145,6 +145,9 @@ run_suite sim/seat-purse.js
 echo "=== max-health-floor.js (maxHealth is capacity, never 0) ==="
 run_suite sim/max-health-floor.js
 
+echo "=== art-accent.js (a card's border comes from its own art) ==="
+run_suite sim/art-accent.js
+
 echo ""
 if [ "$FAIL" -ne 0 ]; then
   echo "❌ TESTS FAILED — see suites above."

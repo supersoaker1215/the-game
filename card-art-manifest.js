@@ -543,3 +543,25 @@ window.CARD_ART_GRADE = {
     "Yoda 2.png": 0.92,
     "Yoda.png": 1.06,
 };
+
+// =============================================================================
+// CARD ART ACCENT — HAND OVERRIDES
+// =============================================================================
+// The card's border colour normally comes from its own painting, computed in
+// card-art-accent.js (GENERATED — regenerate with sim/tools/card-art-accent.py).
+// Anything listed here wins over that, and nothing regenerates this file.
+//
+// WHY IT EXISTS. The generator answers "which hue occupies the most
+// chroma-weighted area of this picture". A person answers "what colour is the
+// character". Those usually agree and sometimes do not: Carnage is a red
+// symbiote lit blue, and the blue really does cover more of the painting — a
+// centre-weighted vote up to 0.80 does not move him, so it is not a background
+// ring that can be weighted away. Telling subject from setting needs saliency,
+// which is a lot of machinery for a border colour, so the escape hatch is a
+// list instead.
+//
+// Key by FILE (preferred — follows art variants) or by card NAME. Value is an
+// "r,g,b" string. Keep it short: every entry here is a place the generated
+// answer was overruled, and a long list means the generator needs fixing.
+//   'Carnage.png': '240,58,60',
+window.CARD_ART_ACCENT_OVERRIDE = {};

@@ -13,3 +13,8 @@ art-originals/
 # Local design prototype — not shipped
 proto-metal.html
 proto-*.html
+
+# Proof sheet from sim/tools/card-art-accent.py --sheet. A 2MB render of every
+# painting with its proposed border around it: useful to LOOK at when the
+# colours change, not something the game loads.
+card-art-accent-sheet.png
