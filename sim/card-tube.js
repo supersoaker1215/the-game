@@ -355,34 +355,44 @@ check('and the old fixed green is gone from it',
       !/\.card-inspect-play-btn\s*\{[^}]*--rtc:\s*110,\s*245,\s*139/.test(BARE),
       'both declarations are present — the later one wins, but the dead one will confuse the next reader');
 
-// ---- health is a CIRCLE, attack stays a reticle -----------------------------
-// Owner: "make the health square a circle", then, on seeing a solid ring: "the
-// health circle should be dotted or lined like the damage square." A closed
-// loop next to four separate strokes reads as a different LANGUAGE rather than
-// a different shape, so the ring is four arcs with four gaps — same grammar as
-// the reticle, different silhouette.
+// ---- the stat marks ARE the border ----------------------------------------
+// Owner: "i want both of the health and damage to match the border width and
+// colour exactly, and the numbers are green for damage and red for health."
 //
-// Both readouts were the same four-corner-bracket mask in two colours, so
-// COLOUR was the only thing telling them apart — the weakest carrier there is,
-// and the first thing lost to a colourblind player, a busy painting behind the
-// numeral, or a 55px board tile. Shape costs nothing here because the brackets
-// were already a mask.
+// It was inverted — the MARKS carried green and red while the NUMERALS were
+// white, so the colour that means "attack / health" was spent on the frame
+// around the number rather than on the number. And that frame did not match
+// the card's border either: an SVG mask at stroke-width 10 of a 100 viewBox
+// rendered 4px over a 40px badge, against a 2.2px card border.
+//
+// "EXACTLY" is why this is a BORDER and not a mask. A mask's stroke is a
+// fraction of the badge, and the badge does not scale with --cf-stroke, so any
+// number chosen there is right at exactly one size. A real border uses the
+// same VALUE the frame uses, so the two cannot drift at any surface.
 (function () {
-  var atk = winner('--stat-line', { classes: ['stat-atk', 'stat-circle'], ancestors: ['card'] });
-  var hp  = winner('--stat-line', { classes: ['stat-hp', 'stat-circle'], ancestors: ['card'] });
-  check('health draws a SEGMENTED ring, not a solid loop',
-        !!hp && /<circle/.test(hp.value) && /stroke-dasharray/.test(hp.value),
-        hp ? 'health still draws `' + hp.value.slice(0, 70) + '`' : 'nothing sets health\'s shape');
-  check('attack keeps the corner reticle', !!atk && !/<circle/.test(atk.value) && /M0,26/.test(atk.value),
-        atk ? 'attack now draws `' + atk.value.slice(0, 70) + '`' : 'nothing sets attack\'s shape');
-  check('so the two differ by SHAPE, not only colour',
-        !!atk && !!hp && atk.value !== hp.value);
-  // preserveAspectRatio is 'none' on this mask, so a circle in a square viewBox
-  // over a non-square badge would render as an ellipse.
-  check('and the badge stays square, or the ring becomes an ellipse',
-        /--stat-h:\s*\d+px/.test(BARE) &&
-        /\.stat-circle\s*\{[^}]*width:\s*var\(--stat-h[^}]*height:\s*var\(--stat-h/.test(BARE),
-        'the ring is masked with preserveAspectRatio=none — an unequal box stretches it');
+  var mark = winner('border-top-width', { classes: ['stat-atk'], ancestors: ['card'] })
+          || winner('border', { classes: ['stat-atk'], ancestors: ['card'] });
+  check('the stat mark is drawn as a border, at the frame\'s own width',
+        /\.stat-atk::before[\s\S]{0,400}border:\s*var\(--cf-stroke\)/.test(BARE),
+        'a mask stroke is a fraction of the badge — it can only match at one card size');
+  check('and in the frame\'s own colour',
+        /\.stat-atk::before[\s\S]{0,400}solid rgb\(var\(--cf-rgb/.test(BARE),
+        'the mark should be the border, not a second palette');
+  check('the segments are MASKED OUT of it, not drawn into it',
+        /--stat-seg-mask:\s*conic-gradient/.test(BARE) &&
+        /\.stat-atk::before[\s\S]{0,400}mask: var\(--stat-seg-mask\)/.test(BARE),
+        'drawing the segments would put the stroke width back in the mask');
+  check('one mask serves both marks, so they stay one family',
+        /\.card \.stat-atk::before, \.card \.stat-hp::before/.test(BARE));
+  check('health is the round one', /\.stat-hp::before[^{]*\{[^}]*border-radius:\s*50%/.test(BARE),
+        'shape is what tells them apart when colour cannot');
+  // and the meaning moves to the numerals
+  var atk = winner('color', { classes: ['stat-atk'], ancestors: ['card'] });
+  var hp  = winner('color', { classes: ['stat-hp'],  ancestors: ['card'] });
+  check('the damage numeral is green', !!atk && /#3dff9e/i.test(atk.value),
+        atk ? 'winning colour is ' + atk.value : 'nothing reaches it');
+  check('the health numeral is red',   !!hp  && /#ff6b6b/i.test(hp.value),
+        hp ? 'winning colour is ' + hp.value : 'nothing reaches it');
 })();
 
 // ---- the energy banner wraps OVER the corner --------------------------------
@@ -425,25 +435,10 @@ check('and the old fixed green is gone from it',
         clip ? 'winning clip is `' + clip.value.slice(0, 90) + '`' : 'no clip reaches the banner');
 })();
 
-// ---- the health ring's dash pattern has to CLOSE ---------------------------
-// r=45 in a 100 viewBox is a circumference of 282.74. Four arcs and four gaps
-// must fill it exactly, or the pattern walks round the ring and the gaps stop
-// sitting square to the badge — which looks like a rendering fault rather than
-// a design. Asserting the arithmetic because it is the kind of number someone
-// tunes by eye later and leaves not quite closing.
-(function () {
-  var hp = winner('--stat-line', { classes: ['stat-hp', 'stat-circle'], ancestors: ['card'] });
-  var m = hp && /stroke-dasharray='([\d.]+) ([\d.]+)'/.exec(hp.value);
-  check('the ring has a dash pattern at all', !!m, hp ? 'value: ' + hp.value.slice(0, 80) : 'no rule');
-  if (m) {
-    var arc = parseFloat(m[1]), gap = parseFloat(m[2]);
-    var circumference = 2 * Math.PI * 45;
-    var err = Math.abs((arc + gap) * 4 - circumference);
-    check('four arcs and four gaps close the circle (err ' + err.toFixed(3) + 'px)', err < 0.05,
-          'arc ' + arc + ' + gap ' + gap + ' times 4 = ' + ((arc + gap) * 4).toFixed(2) +
-          ', circumference ' + circumference.toFixed(2));
-  }
-})();
+// (The health ring's dash-pattern arithmetic used to be pinned here. It went
+// with the SVG mask: the ring is a masked BORDER now, so there is no dash
+// pattern to keep closed — the conic mask's wedges are angles, which cannot
+// fail to add up. One fewer number to keep in step.)
 
 // ---- the glow lives on the container, and the pass that puts it there -------
 // Owner, against a reference card: "i just feel like i want more glow" -> "do

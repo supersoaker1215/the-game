@@ -50606,37 +50606,7 @@ body.in-match:not(.board-v2) .board {
 /* (the value itself is set at .card-inspect-play-btn's own rule, ~line 32158 —
    nothing to override here.) */
 
-/* ============================================================
-   HEALTH IS A SEGMENTED RING, ATTACK STAYS A RETICLE
-   ------------------------------------------------------------
-   Owner: "make the health square a circle", then, seeing it: "the health
-   circle should be dotted or lined like the damage square."
 
-   Both readouts were the same four-corner-bracket mask in two colours, so
-   COLOUR was the only thing telling them apart — the weakest carrier there is,
-   and the first thing lost to a colourblind player, a busy painting behind the
-   numeral, or a 55px board tile.
-
-   A SOLID ring was the first pass and it read as a different LANGUAGE, not a
-   different shape — the attack mark is four strokes with air between them, and
-   a closed loop next to it looks like it came from another set. So the ring is
-   four arcs with four gaps, the gaps landing at the compass points exactly
-   where the square's gaps land at its mid-edges. Same grammar, different
-   shape: you can tell them apart in the dark, and they still belong together.
-
-   THE NUMBERS. r=45 in a 100 viewBox, so the circumference is 282.74. Four
-   arcs of 52 with gaps of 18.69 fills it exactly (4 x 70.69 = 282.74), and the
-   dashoffset puts a gap — not an arc — at 3 o'clock, which is where an SVG
-   circle starts. Change the arc length and the gap has to be re-derived or the
-   pattern walks round the ring and the gaps stop being square to the badge.
-
-   preserveAspectRatio is 'none' on this mask, so the badge must stay square or
-   the ring renders as an ellipse. .stat-circle sets width and height from the
-   same --stat-h, which is what keeps that true.
-   ============================================================ */
-.stat-hp {
-  --stat-line: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><circle cx='50' cy='50' r='45' fill='none' stroke='black' stroke-width='10' stroke-linecap='butt' stroke-dasharray='52 18.69' stroke-dashoffset='61.34'/></svg>");
-}
 
 /* ============================================================
    THE ENERGY BANNER WRAPS OVER THE CORNER
@@ -50802,3 +50772,53 @@ body.in-match:not(.board-v2) .board {
 /* body.low-fx is the battery/perf escape hatch — a per-card blur pass is
    exactly the kind of thing it exists to switch off. */
 body.low-fx .card-glow-host { filter: none !important; }
+
+
+/* ============================================================
+   THE STAT MARKS ARE THE BORDER — SAME WIDTH, SAME COLOUR
+   ------------------------------------------------------------
+   Owner: "i want both of the health and damage to match the border width and
+   colour exactly, and the numbers are green for damage and red for health."
+
+   It was inverted. The MARKS were green and red and the NUMERALS were white —
+   so the colour that meant "attack / health" was spent on the frame around the
+   number instead of on the number, and the frame did not match the card's own
+   border either: an SVG mask with stroke-width 10 in a 100 viewBox, rendering
+   4px over a 40px badge against a 2.2px card border.
+
+   "EXACTLY" IS WHY THIS IS A BORDER AND NOT A MASK. A mask's stroke is a
+   fraction of the badge, and the badge does not scale with --cf-stroke, so any
+   number picked there is only right at one size. Drawing a real border makes
+   the width the SAME VALUE the card's frame uses — var(--cf-stroke) — so they
+   cannot drift, at any surface or any card width.
+
+   The segments are then MASKED OUT of that border rather than drawn into it,
+   which is what keeps the stroke exact: one conic gradient, four wedges kept
+   at the diagonals and four gaps at the compass points. The same mask serves
+   both marks — the square keeps its four corners, the circle keeps four arcs —
+   so they read as one family in two shapes, which is what makes them tell
+   apart at a glance without relying on colour (see the note this replaces).
+
+   The numerals carry the meaning now: green for damage, red for health, the
+   same two the prose deltas use.
+   ============================================================ */
+.card, .trick-card {
+  --stat-seg-mask: conic-gradient(from 0deg,
+    transparent 0 15deg,    #000 15deg 75deg,
+    transparent 75deg 105deg,  #000 105deg 165deg,
+    transparent 165deg 195deg, #000 195deg 255deg,
+    transparent 255deg 285deg, #000 285deg 345deg,
+    transparent 345deg 360deg);
+}
+.card .stat-atk::before, .card .stat-hp::before,
+.trick-card .stat-atk::before, .trick-card .stat-hp::before {
+  background: none !important;
+  border: var(--cf-stroke) solid rgb(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250))) !important;
+  -webkit-mask: var(--stat-seg-mask) !important;
+          mask: var(--stat-seg-mask) !important;
+  /* the old green/red drop-shadows went with the old colours */
+  filter: none !important;
+}
+.card .stat-hp::before, .trick-card .stat-hp::before { border-radius: 50% !important; }
+.card .stat-atk, .trick-card .stat-atk { color: #3dff9e !important; }
+.card .stat-hp,  .trick-card .stat-hp  { color: #ff6b6b !important; }
