@@ -524,6 +524,51 @@ check('and the old fixed green is gone from it',
         digit ? 'winning text-shadow is `' + digit.value.slice(0, 120) + '`' : 'no digit rule');
 })();
 
+// ---- the badge row is four across, and nothing is silently dropped ---------
+// Owner: "the icons need to be the same size, and it needs to have a row of 4
+// and then a row of 1 in between the hexagons for the icons."
+//
+// FOUR IS MEASURED, not chosen. Rendering all 141 card defs through makeCardEl
+// and counting badges: 0->71 cards, 1->40, 2->19, 3->6, 4->ZERO, 5->5. Nothing
+// emits 4 and nothing emits more than 5, so a four-wide row makes 5 the only
+// multi-row case and it reads 4 + 1 — the trailing badge centred, which is
+// where the gap between the two stat hexes is.
+(function () {
+  var row = winner('flex-wrap', { classes: ['status-badges'], ancestors: ['card', 'ally-card'] });
+  check('the badge row wraps', !!row && /wrap/.test(row.value), row ? row.value : 'nothing reaches the row');
+  // The basis is what sets the column count. Thirds capped the row at 3 x 2 =
+  // six slots behind overflow:hidden, and that rule's own comment records
+  // Dr. Manhattan emitting eleven badges with five "destroyed without a trace".
+  // Four across x two rows is eight slots against a real maximum of five.
+  var basis = winner('flex', { classes: ['status-badge'], ancestors: ['card', 'ally-card'] });
+  check('and a badge is a QUARTER of it, not a third',
+        !!basis && /\/ 4/.test(basis.value) && !/\/ 3\b/.test(basis.value),
+        basis ? 'winning flex is `' + basis.value + '`' : 'nothing reaches the badge');
+  // Exact arithmetic does not survive a fractional content box: four items and
+  // three gaps sum to exactly 100%, and the rounded total came out 108.6px
+  // inside 108.29px, so the fourth wrapped and the board read 3 + 1 + 1 while
+  // an identically sized enemy tile got 4 + 1 on sub-pixel luck.
+  check('with a sub-pixel allowance, or the fourth wraps',
+        !!basis && /-\s*0\.5px/.test(basis.value),
+        basis ? 'winning flex is `' + basis.value + '`' : 'no basis');
+  // Same trap on the height cap: it was exactly two badge heights plus a gap,
+  // and two rows measured 50.37px against a 50.15px cap.
+  var cap = winner('max-height', { classes: ['status-badges'], ancestors: ['card', 'ally-card'] });
+  check('the row fits two rows with a pixel to spare',
+        !!cap && /1\.42 \* 2/.test(cap.value) && /\+ 1px/.test(cap.value),
+        cap ? 'winning max-height is `' + cap.value + '`' : 'no cap');
+  // ICONS THE SAME SIZE. --sb-i is --sb-card * --sb-share, and --sb-card on the
+  // board used to be a flat 140px (the phone-only container-query override
+  // never matched on desktop) while the card painted 116px: 17.2% of the card
+  // against the hand's 14.23%.
+  check('the board tile sizes its badges from its MEASURED width',
+        /\.board \.card \{ --sb-card: var\(--card-w\); \}/.test(BARE),
+        'a flat px value opts that tile out of the --sb-share system');
+  check('and the estimate it replaced is gone',
+        !/--sb-card:\s*calc\(\(100cqw/.test(BARE),
+        'the container-query guess never matched above 520px');
+})();
+
 // ---- the energy banner wraps OVER the corner --------------------------------
 // Owner: "remove the 2 lines i circled for every card on the energy banner,
 // this will make it seem like its wrapped around giving depth."

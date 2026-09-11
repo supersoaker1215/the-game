@@ -39368,9 +39368,19 @@ body.low-fx .card-frost::after {
   --sb-num: calc(var(--sb-i) * 0.86);
 }
 .trick-card { --sb-card: 132px; }
-@container (max-width: 520px) {
-  .board .card { --sb-card: calc((100cqw - 14px) / 6 - 4px); }
-}
+/* THE BOARD TILE READS ITS MEASURED WIDTH, not an estimate of it.
+   This used to be `@container (max-width: 520px) { .board .card { --sb-card:
+   calc((100cqw - 14px) / 6 - 4px) } }` — phone-only, and an arithmetic guess at
+   the lane solve rather than the answer. On every wider viewport it never
+   matched, so a desktop board tile fell back to the flat 140px above while the
+   card actually painted 116px: badge icons came out 17.2% of the card against
+   the hand's 14.23%, which is the "icons need to be the same size" report.
+   Exactly the bug the comment above this block already describes for the hand
+   ("left every wider viewport falling back to the 140px board default") — the
+   board just had no measured width to read at the time. It does now:
+   --board-card-w is written by UI._fitBoardToViewport and --card-w follows it.
+   Measured after: board 14.1% / hand 14.2% of their own card. */
+.board .card { --sb-card: var(--card-w); }
 
 /* THE HAND AND TRICK TILES SIZE THEMSELVES FROM THEIR OWN WIDTH.
    These used to be flat numbers inside the phone-only container query — 92px
@@ -51196,3 +51206,64 @@ body.low-fx .card-glow-host { filter: none !important; }
 }
 .card.card .stat-atk { left:  var(--stat-side) !important; }
 .card.card .stat-hp  { right: var(--stat-side) !important; }
+
+/* ============================================================
+   THE BADGE ROW IS FOUR ACROSS, AND THE FIFTH SITS BETWEEN THE HEXES
+   ------------------------------------------------------------
+   Owner: "the icons need to be the same size, and it needs to have a row of 4
+   and then a row of 1 in between the hexagons for the icons."
+
+   FOUR IS THE RIGHT NUMBER, and that is measurable rather than a matter of
+   taste. Rendering all 141 card defs through makeCardEl and counting badges:
+
+       0 badges ... 71 cards      3 badges ...  6 cards
+       1 badge  ... 40 cards      4 badges ...  0 cards
+       2 badges ... 19 cards      5 badges ...  5 cards   <- the maximum
+
+   Nothing in the game emits 4, and nothing emits more than 5. So a four-wide
+   row means the ONLY multi-row case that exists is 5, and it reads 4 + 1 —
+   exactly what was asked for, and the single trailing badge lands centred,
+   which is where the gap between the two stat hexes is.
+
+   IT REPLACES A THREE-WIDE ROW whose own comment is worth keeping in mind:
+   `flex: 0 0 calc((100% - var(--sb-gap) * 2) / 3)` was "locked to a third of
+   the row, so exactly three fit per row", capped at 3 x 2 = SIX slots with
+   overflow:hidden — and that comment records Dr. Manhattan emitting eleven
+   badges with five "destroyed without a trace". At four across and two rows
+   the cap is eight slots against a real maximum of five, so nothing is ever
+   silently dropped again.
+
+   THE -0.5px IS LOAD-BEARING. `calc((100% - gap * 3) / 4)` is exact on paper —
+   four items and three gaps sum to exactly 100% — but 100% resolves against a
+   fractional content box and the rounded total came out 108.6px inside 108.29px.
+   The fourth badge wrapped, giving 3 + 1 + 1 on the board while an
+   identically-sized enemy tile got 4 + 1 purely on sub-pixel luck. Same class
+   of trap as the `min-width: 0` note on the old thirds rule.
+
+   THE CAP GETS A PIXEL OF TOLERANCE for the same reason: the ally row's
+   max-height was `--sb-i * 2.84 + --sb-gap`, which is precisely two badge
+   heights plus one gap, and two rows measured 50.37px against a 50.15px cap —
+   clipped by 0.22px. One shared cap, one shared badge height, +1px of slack.
+
+   One rule for all four surfaces, per the standing card rule. */
+.card.ally-card .status-badges,
+.card.enemy-card .status-badges,
+.player-hand-section .hand-cards .card .status-badges,
+.trick-cards .trick-card .status-badges {
+  --sb-gap: calc(var(--sb-pad) * 1.1);
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: center;
+  align-content: flex-start;
+  gap: var(--sb-gap);
+  height: auto !important;
+  max-height: calc(var(--sb-i) * 1.42 * 2 + var(--sb-gap) + 1px) !important;
+}
+.card.ally-card .status-badge,
+.card.enemy-card .status-badge,
+.player-hand-section .hand-cards .card .status-badge,
+.trick-cards .trick-card .status-badge {
+  flex: 0 0 calc((100% - var(--sb-gap) * 3) / 4 - 0.5px) !important;
+  min-width: 0;
+  height: calc(var(--sb-i) * 1.42) !important;
+}
