@@ -50611,6 +50611,14 @@ body.in-match:not(.board-v2) .board {
 .card.card .cf-band, .card.card.draft-card .cf-band,
 .card.card.enc-card .cf-band, .trick-card.trick-card .cf-band {
   z-index: 9 !important;
+  /* THE CHAMFER LINE STAYS. I took it out for one commit — the banner ran to
+     (0,0) and its own edge covered it — reading "make it look like its
+     wrapping around the card" as "a ribbon hides the outline it lies on".
+     Owner, immediately: "no i want the line at the end." So the banner's
+     fourth edge is pulled back in by one stroke measured along the diagonal
+     (a 45-degree cut offset by one stroke moves its endpoints along the edges
+     by sqrt2 of that stroke), which leaves the chamfer drawn by the ring and
+     the banner sitting just inside it. */
   clip-path: polygon(
     calc(var(--chamfer) + var(--cf-stroke) * var(--sqrt2)) 0px,
     calc(var(--band-out)) 0px,
@@ -50619,8 +50627,23 @@ body.in-match:not(.board-v2) .board {
 }
 .card .cf-band-diag,
 .trick-card .cf-band-diag { z-index: 10; }
+/* THE OUTLINE IS CONTINUOUS, AND THAT REVERSES THE BLOCK ABOVE.
+   That pass lifted the banner over the frame so the frame's top and left
+   segments stopped crossing it — "remove the 2 lines ... make it seem like its
+   wrapped around". What it actually produced, visible once the corner is
+   magnified, is a CHAMFER HANGING IN SPACE: the cut line with a gap either
+   side of it where those segments used to run, blunt-ended at both tips. The
+   owner circled exactly those two tips, and then, when I answered by removing
+   the chamfer too: "no i want the line at the end."
+   So the ring goes back on top and the outline runs unbroken — left edge,
+   chamfer, top edge — with the banner lying INSIDE it. The wrap reads from the
+   banner being tucked under a continuous frame rather than from the frame
+   being cut away, which is the thing the first attempt got backwards.
+   The cost digit stays above everything, or it goes under the plate. */
+.card .cf-frame,
+.trick-card .cf-frame { z-index: 11 !important; }
 .card .card-cost,
-.trick-card .card-cost { z-index: 11; }
+.trick-card .card-cost { z-index: 12; }
 
 /* ============================================================
    THE BORDER LINE, MEASURED AGAINST THE REFERENCE

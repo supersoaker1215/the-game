@@ -400,20 +400,29 @@ check('and the old fixed green is gone from it',
   var diag  = winner('z-index', { classes: ['cf-band-diag'], ancestors: ['card'] });
   var cost  = winner('z-index', { classes: ['card-cost'],    ancestors: ['card'] });
   var n = function (d) { return d ? parseInt(d.value, 10) : NaN; };
-  check('the banner sits ABOVE the frame, so it hides the two stubs',
-        n(band) > n(frame),
-        'band z=' + n(band) + ' frame z=' + n(frame) + ' — the frame still draws across the banner');
-  check('the cost digit stays above the banner',
-        n(cost) > n(band),
-        'cost z=' + n(cost) + ' band z=' + n(band) + ' — the digit goes under the plate');
-  check('and the banner\'s own edge line stays on top of it',
+  // THE OUTLINE IS CONTINUOUS. Lifting the banner over the frame was tried and
+  // reversed: it stopped the frame's top and left segments crossing the banner,
+  // which left the chamfer hanging in space with a gap either side and a blunt
+  // end at each tip. Owner: "no i want the line at the end." The ring sits on
+  // top, the outline runs left edge -> chamfer -> top edge unbroken, and the
+  // banner lies inside it.
+  check('the frame is ABOVE the banner, so the outline is unbroken',
+        n(frame) > n(band) && n(frame) > n(diag),
+        'frame z=' + n(frame) + ' band z=' + n(band) + ' diag z=' + n(diag) +
+        ' — a frame under the banner leaves the chamfer detached at both ends');
+  check('the cost digit stays above everything',
+        n(cost) > n(frame),
+        'cost z=' + n(cost) + ' frame z=' + n(frame) + ' — the digit goes under the plate');
+  check('and the banner\'s own edge line stays above the plate',
         n(diag) > n(band));
-  // The chamfer must survive: the banner's fourth edge is pulled in by one
-  // stroke measured along the diagonal, or the banner's own edge covers it.
+  // THE CHAMFER LINE IS KEPT. It was removed for one commit — the banner ran
+  // to (0,0) and covered it — and the owner reversed that on sight: "no i want
+  // the line at the end." So the banner's fourth edge stays pulled in by one
+  // stroke measured along the diagonal, and the ring still draws the cut.
   var clip = winner('clip-path', { classes: ['cf-band'], ancestors: ['card'] });
   check('the chamfer line is not swallowed by the banner',
         !!clip && /--chamfer\)\s*\+\s*var\(--cf-stroke\)\s*\*\s*var\(--sqrt2\)/.test(clip.value),
-        clip ? 'winning clip is `' + clip.value.slice(0, 80) + '`' : 'no clip reaches the banner');
+        clip ? 'winning clip is `' + clip.value.slice(0, 90) + '`' : 'no clip reaches the banner');
 })();
 
 // ---- the health ring's dash pattern has to CLOSE ---------------------------
