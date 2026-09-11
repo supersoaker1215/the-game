@@ -23912,11 +23912,27 @@ body.killing-blow-cinema::after {
    Subliminal "the board is lit by your attention" effect — pure
    AAA detail. Disabled in reduced-motion. */
 .board { position: relative; }
-.board::after {
-  content: '';
+/* MOVED OFF `.board::after` ONTO ITS OWN LEAF.
+   --bx/--by have to be readable by whatever paints the gradient, and a
+   pseudo-element can only inherit them from its own element — so painting this
+   on `.board::after` forced the per-frame write onto #board, whose ~342
+   descendants then re-resolved style on every frame the cursor moved. An empty
+   div costs one leaf instead. Measured with the light actually painting, cursor
+   moving, interleaved over 3 pairs: 28.6ms -> 10.9ms of render phase per frame,
+   p90 36.1 -> 13.0, frames in 2.5s 44 -> 75. (Measure it with --b-light forced
+   to 1 — synthetic mousemove never fires mouseenter, and timing it with the
+   gradient not painting understates the cost by an order of magnitude.)
+   It also un-contests `.board::after`, which three separate features were
+   sharing: this light, `.board.board-undo-flash::after` and
+   `body.round-tick .board::after`. Both of those out-specified the light while
+   they were active, so the light was INVISIBLE during an undo flash and during
+   a round tick. That is preserved verbatim below rather than quietly fixed —
+   it is a behaviour change either way, and nobody asked for it.
+   z-index 2 and not 1: see the note in ui.js installBoardCursorLight. */
+.board-cursor-light {
   position: absolute; inset: 0;
   pointer-events: none;
-  z-index: 1;
+  z-index: 2;
   background: radial-gradient(circle 220px at var(--bx, 50%) var(--by, 50%),
     rgba(255,255,255,0.07) 0%,
     rgba(255,255,255,0.025) 35%,
@@ -23940,6 +23956,10 @@ body.killing-blow-cinema::after {
   will-change: transform;
   transform: translateZ(0);
 }
+/* The two effects that used to clobber this one on the shared pseudo-element.
+   Keeping them clobbering it means this commit changes cost, not looks. */
+.board.board-undo-flash .board-cursor-light,
+body.round-tick .board-cursor-light { opacity: 0; }
 
 /* (4) ROUND-END BEAM SWEEP — between rounds, a soft horizontal
    beam sweeps the board top-to-bottom. Punctuates the match
@@ -23978,6 +23998,7 @@ body.killing-blow-cinema::after {
   body.killing-blow-cinema::before,
   body.killing-blow-cinema::after       { display: none; }
   .board::after                         { display: none; }
+  .board-cursor-light                   { display: none; }
   .board.round-sweep::before            { display: none; }
 }
 

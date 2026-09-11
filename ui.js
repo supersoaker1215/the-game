@@ -36020,11 +36020,42 @@ const UI = {
 
   // ===================== CURSOR-ANCHORED BOARD LIGHT =====================
   // Tracks the cursor's position over the board (rAF-throttled) and
-  // updates two CSS variables — --bx, --by — which the .board::after
-  // overlay uses to anchor a soft 7% radial brightness boost. Fades in
-  // when the cursor enters the board area, out when it leaves. Pure
-  // CSS interpolation does the heavy lifting; the JS just streams
-  // coordinates and toggles a fade var. Idempotent install.
+  // updates two CSS variables — --bx, --by — which a soft 7% radial
+  // brightness boost is anchored to. Fades in when the cursor enters the
+  // board area, out when it leaves. Pure CSS interpolation does the heavy
+  // lifting; the JS just streams coordinates and toggles a fade var.
+  // Idempotent install.
+  //
+  // THE VARS GO ON AN OVERLAY LEAF, NOT ON #board.
+  // They used to be written on #board itself, because the light was painted by
+  // `.board::after` and a pseudo-element can only inherit a custom property
+  // from the element it belongs to. But a custom property written on an element
+  // invalidates style for that element's WHOLE subtree, and #board has ~342
+  // descendants — so every frame the cursor moved re-resolved style for the
+  // entire board. Measured on a full 6-lane board with the light actually
+  // painting, cursor moving constantly, conditions interleaved over 3 pairs:
+  //
+  //     render phase / frame ...... 28.6ms -> 10.9ms   (p90 36.1 -> 13.0)
+  //     frames in 2.5s ................. 44 -> 75      (~18fps -> ~30fps)
+  //
+  // MEASURE IT WITH THE LIGHT ON. A first pass put the cost at 1.5ms, which was
+  // wrong by an order of magnitude: synthetic mousemove events never fire
+  // mouseenter, so --b-light stayed 0, the gradient never painted, and only the
+  // bare style-invalidation was being timed. Force --b-light to 1 — that is the
+  // state the board is always in while the cursor is over it.
+  //
+  // The fix is to give the light its own element with no children of its own.
+  // Writing --bx there invalidates one leaf. The element survives renders:
+  // renderBoard's smart wipe only removes .round-watermark and .board-mote
+  // children (verified — a probe child lived through three renders), and an
+  // isConnected re-append guards the case where that ever changes.
+  //
+  // z-index 2, not the 1 the pseudo-element carried. ::after is always the LAST
+  // child, so at z-index 1 it tied with the lanes (also 1) and won on DOM
+  // order. renderBoard re-appends lanes, which MOVES them to the end, so a real
+  // div at z-index 1 would have fallen behind them. 2 is above every lane, mote
+  // (1) and the watermark (0) regardless of order, and still below a hovered
+  // lane (50) — which is exactly where the pseudo-element sat.
   installBoardCursorLight() {
     if (this._boardCursorLightInstalled) return;
     if (!this._hasFinePointer()) return;  // cursor-anchored — touch would lock the light at the tap point
@@ -36032,6 +36063,17 @@ const UI = {
     const board = document.getElementById('board');
     if (!board) return;
     this._boardCursorLightInstalled = true;
+    // The overlay that actually paints the light. Nothing else ever goes
+    // inside it — that is the entire point.
+    let lightEl = board.querySelector(':scope > .board-cursor-light');
+    if (!lightEl) {
+      lightEl = document.createElement('div');
+      lightEl.className = 'board-cursor-light';
+      lightEl.setAttribute('aria-hidden', 'true');
+      board.appendChild(lightEl);
+    }
+    this._boardCursorLightEl = lightEl;
+    const ensure = () => { if (!lightEl.isConnected) board.appendChild(lightEl); return lightEl; };
     let pendingX = 50, pendingY = 50, raf = null;
     // PERF FIX: cache the board rect and only recompute on resize.
     // Previously getBoundingClientRect() ran on EVERY mousemove (60-
@@ -36054,8 +36096,9 @@ const UI = {
     window.addEventListener('scroll', invalidateRect, { passive: true });
     const flush = () => {
       raf = null;
-      board.style.setProperty('--bx', pendingX + '%');
-      board.style.setProperty('--by', pendingY + '%');
+      const el = ensure();
+      el.style.setProperty('--bx', pendingX + '%');
+      el.style.setProperty('--by', pendingY + '%');
     };
     board.addEventListener('mousemove', (e) => {
       if (UI.isLowFx()) return;   // probe can trip after install
@@ -36067,10 +36110,10 @@ const UI = {
     board.addEventListener('mouseenter', () => {
       // Recompute on enter — board could have moved (round transition).
       invalidateRect();
-      board.style.setProperty('--b-light', '1');
+      ensure().style.setProperty('--b-light', '1');
     });
     board.addEventListener('mouseleave', () => {
-      board.style.setProperty('--b-light', '0');
+      ensure().style.setProperty('--b-light', '0');
     });
   },
 

@@ -170,6 +170,65 @@ t('PC-5 the element --mx was steering still does not exist', function () {
   eq('no .background-grid / .grid-bg is created in ui.js or index.html', made, false);
 });
 
+t('PC-6 the board cursor light writes on a leaf, not on #board', function () {
+  // Same bug as PC-2, one level down: --bx/--by used to be written on #board
+  // (342 descendants) because the light was painted by `.board::after`, and a
+  // pseudo-element can only inherit a custom property from its own element.
+  // Measured with the light actually painting, cursor moving, interleaved over
+  // 3 pairs: 28.6ms -> 10.9ms of render phase per frame, p90 36.1 -> 13.0,
+  // frames in 2.5s 44 -> 75.
+  var open = UISRC.indexOf('\n  installBoardCursorLight(');
+  eq('installBoardCursorLight found', open > 0, true);
+  var brace = UISRC.indexOf('{', open), depth = 0, i = brace;
+  for (; i < UISRC.length; i++) {
+    var ch = UISRC.charAt(i);
+    if (ch === '{') depth++;
+    else if (ch === '}') { depth--; if (depth === 0) break; }
+  }
+  var body = UISRC.slice(brace, i + 1);
+  eq('it never sets a custom property on the board element',
+     /\bboard\.style\.setProperty\(\s*['"]--/.test(body), false);
+  eq('it creates the overlay leaf', /class[NL]?a?m?e? *= *'board-cursor-light'|'board-cursor-light'/.test(body), true);
+  eq('and re-attaches it if a render ever drops it', /isConnected/.test(body), true);
+  // Every var the light uses must land on the leaf.
+  ['--bx', '--by', '--b-light'].forEach(function (v) {
+    var onLeaf = new RegExp("(el|lightEl|ensure\\(\\))\\.style\\.setProperty\\('" + v + "'").test(body);
+    eq(v + ' is written on the leaf', onLeaf, true);
+  });
+});
+
+t('PC-7 the CSS paints the light on that leaf, with its layer and its gates', function () {
+  var CSS_RAW = read('style.css');
+  var CSS = CSS_RAW.replace(/\/\*[\s\S]*?\*\//g, function (c) { return c.replace(/[^\n]/g, ' '); });
+  eq('.board-cursor-light rule exists', CSS.indexOf('.board-cursor-light {') > 0, true);
+  // The cursor-light gradient must NOT be back on the shared pseudo-element —
+  // `.board::after` is contested by the undo flash and the round tick.
+  var afterIdx = CSS.indexOf('.board::after {');
+  var afterBlock = afterIdx > 0 ? CSS.slice(afterIdx, afterIdx + 400) : '';
+  eq('the radial light is not on .board::after', /radial-gradient\(circle 220px/.test(afterBlock), false);
+  // Balanced block, not a fixed window — the blanked FLICKER-FIX comment inside
+  // this rule is long enough that a slice() missed the tail declarations.
+  var li = CSS.indexOf('.board-cursor-light {');
+  var lb = (function (start) {
+    var d = 0, j = CSS.indexOf('{', start);
+    for (var k = j; k < CSS.length; k++) {
+      var c = CSS.charAt(k);
+      if (c === '{') d++;
+      else if (c === '}') { d--; if (d === 0) return CSS.slice(start, k + 1); }
+    }
+    return CSS.slice(start, start + 2000);
+  })(li);
+  eq('the leaf paints the 220px radial', /radial-gradient\(circle 220px at var\(--bx/.test(lb), true);
+  eq('the leaf keeps its own compositor layer', /transform: translateZ\(0\)/.test(lb), true);
+  eq('the leaf sits at z-index 2 (see the note for why not 1)', /z-index: 2/.test(lb), true);
+  eq('it stays click-through', /pointer-events: none/.test(lb), true);
+  // The two effects that used to clobber it on the shared pseudo-element must
+  // still clobber it, or this becomes a look change instead of a cost change.
+  eq('undo flash still hides it', /\.board\.board-undo-flash \.board-cursor-light/.test(CSS), true);
+  eq('round tick still hides it', /body\.round-tick \.board-cursor-light/.test(CSS), true);
+  eq('reduced motion still hides it', /\.board-cursor-light +\{ display: none; \}/.test(CSS), true);
+});
+
 // ---- run ----------------------------------------------------
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];
