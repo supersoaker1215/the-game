@@ -22919,10 +22919,17 @@ body.low-fx .tron-derez { display: none !important; }
   transition: box-shadow 240ms var(--ease-snap), border-color 240ms var(--ease-snap);
 }
 
-/* === T4.2 BACKGROUND GRID PARALLAX — JS sets --grid-px-x/y on
-   the body based on cursor position. The existing body::after
-   grid uses these vars to shift slightly opposite the cursor,
-   adding subtle depth. */
+/* === T4.2 BACKGROUND GRID PARALLAX — INERT, TWICE OVER.
+   1. Nothing writes --grid-px-x/y any more (the per-mousemove <body> writer in
+      ui.js installPolishLayer was removed — see the note there for why).
+   2. Even when they were written, this did nothing: `body::after` is authored
+      FOUR times in this file, and the LAST one (search "z-index: 1" near the
+      universal button reset) sets the `background` SHORTHAND, which resets
+      background-position to 0% 0% and takes the 48px grid with it. Measured
+      live: --grid-px-x was 1.72px while the computed background-position read
+      "0% 0%".
+   Kept for the record. Same rule if it ever comes back: a dedicated element,
+   and write the var on THAT, never on <body>. === */
 body::after {
   /* Append parallax offsets to the existing background-position.
      Falls back to (0, 0) when JS hasn't set the vars. */
@@ -30076,9 +30083,17 @@ body.turn-player .hud-phase {
 .game-over-title.glitch { animation: gameOverGlitch 380ms steps(8, end); }
 
 /* ---- #7 Mouse-parallax background grid ----
-   The body's existing grid is shifted by --mx / --my custom
-   props that ui.js installs on a passive mousemove listener.
-   ~5-6px max travel — subtle depth without distraction. */
+   INERT. --mx / --my are no longer written by anything: the mousemove
+   listener that wrote them on <body> was removed (ui.js, installTronFlare),
+   because a custom property written on <body> invalidates style for the whole
+   document on every frame the cursor moves, and this selector matches NOTHING
+   — `.background-grid` and `body > .grid-bg` appear in this file and nowhere
+   else in the repo, so no such element is ever created. The rule is kept only
+   so the intent is on record.
+   IF YOU BRING THIS BACK: create the grid element, and write the var ON THAT
+   ELEMENT. Never on <body>. Measured cost of the <body> version while moving
+   the cursor: +3.5ms of style+paint per frame on the draft screen, +16.4ms on
+   the board. */
 body {
   --mx: 0px;
   --my: 0px;

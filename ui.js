@@ -34000,23 +34000,34 @@ const UI = {
       return r;
     };
 
-    // ---- T4.2 BACKGROUND GRID PARALLAX ---------------------------------
-    // Throttled mousemove on document — set body.style.--grid-px-x/y
-    // based on cursor position normalized to viewport. Subtle ±6px
-    // shift gives a mild parallax depth cue without being distracting.
-    if (!reduceMotion && finePointer && !this.isLowFx()) {  // mouse-only; a tap would leave the grid offset frozen
-      let lastMove = 0;
-      document.addEventListener('mousemove', (e) => {
-        if (UI.isLowFx()) return;   // probe can trip after install
-        const now = performance.now();
-        if (now - lastMove < 30) return;
-        lastMove = now;
-        const xN = (e.clientX / window.innerWidth)  - 0.5;
-        const yN = (e.clientY / window.innerHeight) - 0.5;
-        document.body.style.setProperty('--grid-px-x', (-xN * 12) + 'px');
-        document.body.style.setProperty('--grid-px-y', (-yN * 12) + 'px');
-      }, { passive: true });
-    }
+    // ---- T4.2 BACKGROUND GRID PARALLAX — REMOVED, IT MOVED NOTHING -----
+    // Owner: "its when i move my mouse constantly over draft cards".
+    //
+    // This wrote --grid-px-x/y on <body> on every mousemove (throttled to
+    // 30ms). A custom property written on <body> invalidates style for the
+    // WHOLE subtree, so every one of those writes cost a document-wide recalc
+    // — 942 elements on the draft screen, 2,091 on the board.
+    //
+    // And it moved nothing. Its only consumer is `body::after`'s
+    // background-position (style.css ~22926), and `body::after` is authored
+    // FOUR times; the last one (style.css ~27480) sets the `background`
+    // SHORTHAND, which resets background-position to 0% 0% and takes the 48px
+    // grid with it. Verified empirically rather than by reading the cascade:
+    // slamming --grid-px-x/y to 400px changed ZERO computed styles across
+    // every element plus the body/html pseudo-elements, on the main menu, the
+    // draft screen, and the board (including body.turn-player, the one state
+    // where body::after is actually visible at opacity 0.55).
+    //
+    // Measured render phase (style+layout+paint) while moving the cursor
+    // constantly, with this and the --mx/--my writer below both gone:
+    //     draft screen ....... 4.7ms -> 1.2ms per frame (idle floor 0.9ms)
+    //     match board ....... 24.1ms -> 7.8ms per frame (idle floor 1.8ms)
+    // 24.1ms was already over the 16.7ms frame budget, on a fast machine.
+    //
+    // The CSS is left in place and inert — nothing writes the vars now, so
+    // nothing invalidates. If this effect is ever wanted for real, it must be
+    // re-authored on a DEDICATED leaf element that owns the grid, and the var
+    // written there, never on <body>. See [[css-audit-traps]].
 
     // ---- T4.3 END-OF-ROUND ECHO ----------------------------------------
     // Fires when startRound runs (i.e. AFTER the previous round's
@@ -36165,37 +36176,24 @@ const UI = {
     this._tronFlareHooked = true;
     if (this._reducedMotion && this._reducedMotion()) return;
 
-    // Mouse-parallax: smooth pointer-tracked offset on body, read by
-    // CSS to translate the background grid. Listener is passive so
-    // it never blocks scroll; throttled via rAF so high-DPI mice
-    // don't ddos style recalc.
-    let pendingMx = 0, pendingMy = 0, rafScheduled = false;
-    const setParallax = () => {
-      rafScheduled = false;
-      document.body.style.setProperty('--mx', pendingMx.toFixed(1) + 'px');
-      document.body.style.setProperty('--my', pendingMy.toFixed(1) + 'px');
-    };
-    window.addEventListener('mousemove', (e) => {
-      // Mouse-parallax only — a synthetic tap on touch would leave the bg
-      // permanently drifted. (The chromatic-hit / afterimage / glitch FX
-      // below are gameplay-driven and stay active on every device.)
-      if (!UI._hasFinePointer()) return;
-      // Writing a custom property on <body> invalidates style for the whole
-      // subtree; on a weak compositor that's a per-mousemove repaint of the
-      // entire board. Skipped in low-fx.
-      if (UI.isLowFx()) return;
-      const cx = window.innerWidth / 2;
-      const cy = window.innerHeight / 2;
-      // Clamp to ±5px, multiply by -1 so background drifts AGAINST
-      // the cursor (depth illusion: closer thing follows cursor,
-      // farther background pushes opposite).
-      pendingMx = ((cx - e.clientX) / cx) * 5;
-      pendingMy = ((cy - e.clientY) / cy) * 5;
-      if (!rafScheduled) {
-        rafScheduled = true;
-        requestAnimationFrame(setParallax);
-      }
-    }, { passive: true });
+    // MOUSE-PARALLAX — REMOVED, IT MOVED NOTHING.
+    // This wrote --mx/--my on <body> once per frame for as long as the cursor
+    // was moving. Its own comment already warned what that costs: "Writing a
+    // custom property on <body> invalidates style for the whole subtree; on a
+    // weak compositor that's a per-mousemove repaint of the entire board."
+    // It was right, and rAF-throttling does not help — the write still lands
+    // every frame, so the document-wide recalc still happens every frame.
+    //
+    // The element it was steering does not exist. The only consumer is
+    // `.background-grid, body > .grid-bg` (style.css ~30086), and nothing in
+    // this repo has ever created either — the two class names appear in
+    // style.css and nowhere else, not in any .js and not in index.html. So
+    // this drove a transform on a selector that matches zero elements.
+    // Confirmed the same empirical way as the grid writer above: --mx/--my
+    // slammed to 400px moved nothing, on any screen.
+    //
+    // See the T4.2 block in installPolishLayer for the measured numbers and
+    // for what re-adding either of these correctly would have to look like.
 
     // Chromatic-aberration flash on hit. Wrap applyCombatDamage so any
     // landed combat hit pulses .hit-chrom on the target card element.

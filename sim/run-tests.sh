@@ -153,6 +153,10 @@ echo "=== forecast-batch.js (hover forecast measures first, builds second) ==="
 run_suite sim/forecast-batch.js
 
 echo ""
+echo "=== pointer-cost.js (no <body> custom-prop write on every mousemove) ==="
+run_suite sim/pointer-cost.js
+
+echo ""
 if [ "$FAIL" -ne 0 ]; then
   echo "❌ TESTS FAILED — see suites above."
   exit 1
