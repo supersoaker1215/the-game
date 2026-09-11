@@ -641,6 +641,52 @@ check('and the old fixed green is gone from it',
         'a dimmed 1px rule on a dark panel is not a subtle signal, it is an invisible one');
 })();
 
+// ---- the reference card, traced ---------------------------------------------
+// Owner supplied a reference and asked for it copied side by side. Every number
+// is measured off that image (card body 533x1259) and expressed over 533 in
+// --card-w, which is the unit the rest of the sheet scales by:
+//     hex badge 101x109px -> 0.190w, 1.08:1     label 10px -> 0.019w
+//     chip 127x34px -> 0.238w x 0.064w          divider 1px rgb(40,45,51)
+//     energy plate rgb(67,70,76) -> rgb(50,54,60)
+(function () {
+  // 1 · hexagons, still stroked at the frame's own width
+  check('the stat mark is a hexagon', /--stat-hex:\s*polygon\(evenodd/.test(BARE),
+        'the reference badge is a hex, not a square or a circle');
+  check('traced as ONE ring polygon, so the stroke stays var(--cf-stroke)',
+        /--stat-hex[\s\S]{0,600}var\(--cf-stroke\) \* 1\.1547/.test(BARE),
+        'insetting a pointy-top hexagon by t moves each vertex 1.1547t along its radius — ' +
+        'a mask or an SVG stroke would be a fraction of the badge and drift with it');
+  check('and the badge is 0.190 of the card width',
+        /--stat-h:\s*calc\(var\(--card-w\) \* 0\.190\)/.test(BARE),
+        '101 / 533 in the reference');
+  // 1b · the labels are DETAIL, so only the reading surfaces get them
+  check('ATK / HP labels exist', /content:\s*'ATK'/.test(BARE) && /content:\s*'HP'/.test(BARE));
+  check('…on the reading surfaces only',
+        /\.card\.card\.draft-card \.stat-atk[^,]*::after/.test(BARE) &&
+        !/^\.card \.stat-atk:not[^{]*::after/m.test(BARE),
+        'a 10px label under a 21px board tile badge is noise — the hexagon is the design, ' +
+        'the label is the detail (owner\'s hand/board rule)');
+  // 2 · the keyword chip
+  check('the keyword chip is a bordered pill, centred',
+        /\.card\.card\.draft-card \.status-badge[\s\S]{0,300}border: 1px solid rgba\(var\(--cf-rgb/.test(BARE) &&
+        /\.status-badges[\s\S]{0,160}justify-content: center/.test(BARE));
+  // 3 · the divider
+  check('the rules divider runs the full width at the reference\'s value',
+        /border-top: 1px solid rgb\(40, 45, 51\)/.test(BARE),
+        'sampled off the reference, not picked');
+  // 4 · the energy plate
+  // RESOLVED, not grepped. Two older .cf-band rules still declare the
+  // translucent fill this replaces; they lose on order, and a text search finds
+  // them anyway and reports a bug that does not exist. Ask which one WINS.
+  var plate = winner('background', { classes: ['cf-band'], ancestors: ['card'] });
+  check('the energy plate is the reference\'s steel, not black',
+        !!plate && /rgb\(70, ?74, ?80\)/.test(plate.value) && /rgb\(44, ?48, ?54\)/.test(plate.value),
+        plate ? 'winning background is `' + plate.value.slice(0, 90) + '`' : 'nothing reaches the plate');
+  check('and it is fully opaque, which is why the black was chosen',
+        !!plate && !/rgba\([^)]*0\.\d+\s*\)/.test(plate.value),
+        'a translucent plate let the frame\'s own border read through it — that was the original bug');
+})();
+
 print('card-tube: ' + pass + ' passed, ' + fails.length + ' failed');
 if (fails.length) {
   print('Failures:');

@@ -50886,3 +50886,129 @@ body.low-fx .card-glow-host { filter: none !important; }
 .trick-card .card-name-overlay::after {
   background: rgb(var(--rarity-tier-rgb)) !important;
 }
+
+
+/* ============================================================
+   THE REFERENCE CARD — HEX BADGES, CHIP, DIVIDER, ENERGY PLATE
+   ------------------------------------------------------------
+   Owner supplied a reference and asked for it traced side by side. Every
+   number below is measured off that image, not chosen: the card body is
+   533x1259, so anything sized here is its measurement over 533 expressed in
+   --card-w, which is the unit the rest of this sheet already scales by.
+
+       hex badge      101 x 109 px   -> 0.190w wide, 1.08 : 1
+       hex stroke       3 px         (the card border there is 5)
+       label height    10 px         -> 0.019w, with a 13px gap above
+       keyword chip   127 x  34 px   -> 0.238w x 0.064w, exactly centred
+       divider          1 px         rgb(40,45,51), full interior width
+       chamfer         38 px along the top edge -> 7.1% of the width
+       energy plate    rgb(67,70,76) at the corner -> rgb(50,54,60) inboard
+   ============================================================ */
+
+/* ---- 1 · the stat marks become hexagons ----------------------------------
+   A RING TRACED AS ONE POLYGON, which is the same construction the card's own
+   frame uses (see "THE BORDER IS ONE OBJECT"): the outer hexagon, then the
+   inner one, with `evenodd` punching the hole. That is what keeps the stroke
+   EXACTLY var(--cf-stroke) — the owner's standing rule for these marks — where
+   a mask or an SVG stroke would be a fraction of the badge and drift with it.
+
+   The inner hexagon's offsets are the geometry, not guesses. Insetting a
+   regular pointy-top hexagon by t moves each vertex toward the centre along
+   its own radius by t / cos(30deg) = 1.1547t, which lands the top and bottom
+   vertices 1.1547t in and the four side vertices t in horizontally and
+   0.5774t vertically. */
+.card, .trick-card {
+  --stat-h: calc(var(--card-w) * 0.190);
+  --stat-hex: polygon(evenodd,
+    50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%,
+    50% calc(var(--cf-stroke) * 1.1547),
+    calc(100% - var(--cf-stroke)) calc(25% + var(--cf-stroke) * 0.5774),
+    calc(100% - var(--cf-stroke)) calc(75% - var(--cf-stroke) * 0.5774),
+    50% calc(100% - var(--cf-stroke) * 1.1547),
+    var(--cf-stroke) calc(75% - var(--cf-stroke) * 0.5774),
+    var(--cf-stroke) calc(25% + var(--cf-stroke) * 0.5774));
+}
+.card .stat-circle, .trick-card .stat-circle {
+  height: calc(var(--stat-h) * 1.08) !important;   /* the reference's 101:109 */
+  font-size: calc(var(--stat-h) * 0.52) !important;
+}
+.card .stat-atk::before, .card .stat-hp::before,
+.trick-card .stat-atk::before, .trick-card .stat-hp::before {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: rgb(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250))) !important;
+  -webkit-mask: none !important;
+          mask: none !important;
+  -webkit-clip-path: var(--stat-hex) !important;
+          clip-path: var(--stat-hex) !important;
+}
+/* ---- 1b · ATK / HP labels, on the READING surfaces only ------------------
+   The owner's detail rule: hand and board show fewer things, not smaller
+   versions of everything. A 10px label under a 21px board tile badge is noise,
+   so the label is the DETAIL and the hexagon is the design. ::after is the
+   stat-roll arrow's when a card is rolling, so this stands aside for it. */
+.card.card.draft-card .stat-atk:not(.stat-rolled-up):not(.stat-rolled-down)::after,
+.card-inspect-modal .card.card .stat-atk:not(.stat-rolled-up):not(.stat-rolled-down)::after {
+  content: 'ATK';
+}
+.card.card.draft-card .stat-hp:not(.stat-rolled-up):not(.stat-rolled-down)::after,
+.card-inspect-modal .card.card .stat-hp:not(.stat-rolled-up):not(.stat-rolled-down)::after {
+  content: 'HP';
+}
+.card.card.draft-card .stat-circle::after,
+.card-inspect-modal .card.card .stat-circle::after {
+  position: absolute;
+  top: 100%;
+  left: 0; right: 0;
+  margin-top: calc(var(--card-w) * 0.024);
+  font-family: var(--font-mono);
+  font-size: calc(var(--card-w) * 0.019);
+  letter-spacing: 0.18em;
+  font-weight: 600;
+  text-align: center;
+  color: rgba(var(--cf-rgb), 0.85);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+  pointer-events: none;
+}
+
+/* ---- 2 · the keyword chip ------------------------------------------------
+   One centred pill with a hairline border, rather than a row of tags. */
+.card.card.draft-card .status-badges,
+.card-inspect-modal .card.card .status-badges {
+  justify-content: center !important;
+  gap: calc(var(--card-w) * 0.018) !important;
+}
+.card.card.draft-card .status-badge,
+.card-inspect-modal .card.card .status-badge {
+  background: transparent !important;
+  border: 1px solid rgba(var(--cf-rgb), 0.55) !important;
+  border-radius: 0 !important;
+  padding: calc(var(--card-w) * 0.012) calc(var(--card-w) * 0.030) !important;
+  letter-spacing: 0.16em !important;
+  text-transform: uppercase !important;
+  box-shadow: none !important;
+}
+
+/* ---- 3 · the rules divider runs the full width --------------------------- */
+.card.card.draft-card .card-desc,
+.card-inspect-modal .card.card .card-desc {
+  border-top: 1px solid rgb(40, 45, 51) !important;
+  padding-top: calc(var(--card-w) * 0.030) !important;
+}
+
+/* ---- 4 · the energy corner is a steel plate, not a black one -------------
+   THIS REVERSES "THE RIBBON IS ONE BLACK PLATE": that pass made the fill pure
+   #000 because the old tinted gradient let the frame's own border read through
+   it, and because every other panel interior in this game is black. The
+   reference makes the plate the one lit surface on the card — sampled
+   rgb(67,70,76) at the corner falling to rgb(50,54,60) inboard — which is what
+   makes the number read as stamped on metal rather than cut out of the card.
+   Fully opaque, so the reason the black was chosen still holds. */
+.card .cf-band, .trick-card .cf-band,
+.card.card .cf-band, .card.card.draft-card .cf-band,
+.card.card.enc-card .cf-band, .trick-card.trick-card .cf-band {
+  background: linear-gradient(135deg,
+    rgb(70, 74, 80) 0%,
+    rgb(56, 60, 66) 46%,
+    rgb(44, 48, 54) 100%) !important;
+}
