@@ -51015,35 +51015,42 @@ body.low-fx .card-glow-host { filter: none !important; }
   padding-top: calc(var(--card-w) * 0.030) !important;
 }
 
-/* ---- 4 · the energy corner is a steel plate, not a black one -------------
-   THIS REVERSES "THE RIBBON IS ONE BLACK PLATE": that pass made the fill pure
-   #000 because the old tinted gradient let the frame's own border read through
-   it, and because every other panel interior in this game is black. The
-   reference makes the plate the one lit surface on the card — sampled
-   rgb(67,70,76) at the corner falling to rgb(50,54,60) inboard — which is what
-   makes the number read as stamped on metal rather than cut out of the card.
-   Fully opaque, so the reason the black was chosen still holds. */
+/* ---- 4 · the energy corner is GLASS — the painting runs under it ---------
+   Owner, on the circled corner: "for the corner i want the art underneath no
+   black, but i want a border color fill at like 15%." Then, looking at 15%:
+   "where the black wedge over the art was just have it fill with the border
+   color 50" / "50%". So the painting still runs under it, but the pane is a
+   half-strength wash of the card's colour rather than a faint tint.
+
+   THIS RETIRES THE OPAQUE PLATE, and with it the argument that kept it opaque
+   through three passes ("a see-through plate lets the frame's own border read
+   straight through it, which is the bug that made this black in the first
+   place"). That argument was TRUE WHEN IT WAS WRITTEN and is not true now: the
+   frame used to sit under the plate, so a translucent plate showed its border
+   as a line running through the corner. The z-order has since been inverted —
+   band 9, diag 10, frame 11, cost 12 — so `.cf-frame` paints ON TOP of the band
+   and cannot read through it at any alpha. Verified live: with the band at
+   alpha 0.15 the ring's top and left segments are unbroken, exactly as before.
+
+   So the corner is now a tinted pane of glass over the card's own painting.
+   `.card-portrait` already spans this area (its box starts above and left of
+   the band's), so there is art to show — nothing else had to move.
+
+   The ONE thing that did have to move is the digit. The black plate was what
+   guaranteed its contrast, and the numeral carried only a white hairline and an
+   accent bloom — no dark shadow at all. Forced against a pure-white portrait it
+   very nearly disappeared. It gets the dark core the card NAME already uses, in
+   the block at the end of this file; on dark art that core is invisible, so
+   nothing about the normal case changes. */
 .card .cf-band, .trick-card .cf-band,
 .card.card .cf-band, .card.card.draft-card .cf-band,
 .card.card.enc-card .cf-band, .trick-card.trick-card .cf-band {
-  /* AND IT IS THE CARD'S OWN COLOUR. The traced steel was the reference's, and
-     the owner's next look corrected it: "the energy corner is filled with each
-     card's unique border colour." Same value the frame, the glow, the name and
-     the stat marks read, so the corner joins them instead of being the one
-     neutral object on the card. Still fully opaque — that was the reason the
-     plate stopped being translucent in the first place, and it still holds —
-     and still a gradient, because a flat fill at this size reads as a sticker.
-     Darkened toward the inboard end so the digit keeps its contrast. */
-  /* AND AT A QUARTER STRENGTH. Full-strength it was a slab that out-shouted the
-     frame it belongs to. Owner: "the fill needs to be like 25%." Mixed toward
-     black rather than dropped to alpha 0.25 — the plate has to stay OPAQUE,
-     because a see-through one lets the frame's own border read straight through
-     it, which is the bug that made this black in the first place. Same look,
-     none of that back. */
-  background: linear-gradient(135deg,
-    color-mix(in srgb, rgb(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250))) 13%, #000) 0%,
-    color-mix(in srgb, rgb(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250))) 10%, #000) 52%,
-    color-mix(in srgb, rgb(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250))) 7%, #000) 100%) !important;
+  /* Flat, not a gradient. The gradient existed to fake depth on an opaque
+     slab and to keep the inboard end dark enough for the digit; with the
+     painting showing through, the art supplies both and a second gradient on
+     top of it only muddies the tint. Still the card's own colour — the same
+     value the frame, the glow, the name and the stat marks all read. */
+  background: rgba(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250)), 0.50) !important;
 }
 
 
@@ -51073,4 +51080,39 @@ body.low-fx .card-glow-host { filter: none !important; }
     0 0 3px  rgba(0, 0, 0, 0.95),
     0 0 calc(var(--card-w) * 0.022) rgba(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250)), 0.80),
     0 0 calc(var(--card-w) * 0.048) rgba(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250)), 0.38) !important;
+}
+
+/* ============================================================
+   THE ENERGY DIGIT KEEPS A DARK CORE (2026-09-11)
+   ------------------------------------------------------------
+   Paired with the glass corner above. The digit used to sit on an opaque black
+   plate, so it only ever needed to be bright: `.card .card-cost` carried
+   `0 0 1px rgba(255,255,255,0.7), 0 0 8px rgba(var(--cf-rgb),0.8)` — a white
+   hairline and a coloured bloom, and nothing dark. Once the plate became glass
+   the digit sits on the PAINTING, and against a bright one a warm-white glyph
+   with a white halo is very close to invisible. Forced against a pure-white
+   portrait, the "2" on Spawn read as a faint smudge.
+
+   The fix is the recipe the card NAME already uses (--cn-glow): a tight dark
+   core first, then the existing hairline and bloom on top. On dark art the core
+   contributes nothing — the normal case is unchanged — and on bright art it is
+   the only thing holding the glyph together.
+
+   ONE RULE FOR EVERY SURFACE, per the owner's standing card rule: the same
+   treatment everywhere, only the detail level differs. `.trick-card .card-cost`
+   owns its shadow at (0,2,0) WITH !important, so this has to carry !important
+   too and sit later in the file — the same specificity lesson the draft rules
+   weight and the stat-mark colour both cost a pass to learn. */
+.card .card-cost,
+.card.card .card-cost,
+.card.card.draft-card .card-cost,
+.card.card.enc-card .card-cost,
+.trick-card .card-cost,
+.trick-card.trick-card .card-cost,
+.card-inspect-modal .card.card .card-cost {
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.95),
+    0 0 3px rgba(0, 0, 0, 0.90),
+    0 0 1px rgba(255, 255, 255, 0.70),
+    0 0 8px rgba(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250)), 0.80) !important;
 }

@@ -439,19 +439,40 @@ check('and the old fixed green is gone from it',
   check('the rules divider runs the full width at the reference\'s own value',
         /border-top: 1px solid rgb\(40, 45, 51\)/.test(BARE),
         'sampled off the reference, not picked');
+  // THE ENERGY CORNER IS GLASS. Owner: "for the corner i want the art
+  // underneath no black, but i want a border color fill at like 15%."
+  //
+  // THIS REVERSES the three assertions that used to stand here — that the plate
+  // was a gradient, mixed to about a tenth toward #000, and fully OPAQUE. That
+  // last one had a real argument behind it ("a see-through plate lets the
+  // frame's own border read straight through it") and it was true when it was
+  // written: the frame sat UNDER the band then. The z-order has since inverted
+  // to band 9 / diag 10 / frame 11 / cost 12, pinned by the block below, so
+  // `.cf-frame` paints on top and cannot read through at any alpha. Verified
+  // live at alpha 0.15: the ring's top and left segments stay unbroken.
   var plate = winner('background', { classes: ['cf-band'], ancestors: ['card'] });
   check('the energy plate takes the card\'s own colour',
-        !!plate && /var\(--cf-rgb/.test(plate.value) && /linear-gradient/.test(plate.value),
+        !!plate && /var\(--cf-rgb/.test(plate.value),
         plate ? 'winning background is `' + plate.value.slice(0, 90) + '`' : 'nothing reaches the plate');
-  // …at a QUARTER strength, mixed toward black rather than dropped to alpha:
-  // the plate has to stay OPAQUE or the frame's border reads through it, which
-  // is the bug that made it black to begin with. ("the fill needs to be like 25%")
-  check('the plate is mixed to about a tenth',
-        !!plate && /\)\)? (7|8|9|1[0-5])%, #000\)/.test(plate.value),
+  check('the plate is GLASS — the painting reads through it',
+        !!plate && /rgba\(var\(--cf-rgb/.test(plate.value) && !/#000/.test(plate.value),
         plate ? 'winning background is `' + plate.value.slice(0, 110) + '`' : 'no plate rule');
-  check('and it stays opaque',
-        !!plate && !/rgba\([^)]*0\.\d+\s*\)/.test(plate.value),
-        'a see-through plate lets the frame\'s own border read straight through it');
+  // 15% first, then the owner looked at it: "just have it fill with the border
+  // color 50" / "50%". Half strength, not a tint.
+  check('at about 50%',
+        !!plate && /,\s*0?\.(4[5-9]|5[0-5])0?\s*\)/.test(plate.value),
+        plate ? 'winning background is `' + plate.value.slice(0, 110) + '`' : 'no plate rule');
+  // The black plate was what guaranteed the digit's contrast — it carried only
+  // a white hairline and a coloured bloom, no dark shadow at all, and against a
+  // forced pure-white portrait it very nearly disappeared. Glass means the digit
+  // now sits on the art, so it needs the dark core the card NAME already uses.
+  var digit = winner('text-shadow', { classes: ['card-cost'], ancestors: ['card'] });
+  check('and the digit keeps a dark core, so it survives bright art',
+        !!digit && /rgba\(0,\s*0,\s*0,\s*0?\.9/.test(digit.value),
+        digit ? 'winning text-shadow is `' + digit.value.slice(0, 120) + '`' : 'nothing reaches the digit');
+  check('without losing its accent bloom',
+        !!digit && /var\(--cf-rgb/.test(digit.value),
+        digit ? 'winning text-shadow is `' + digit.value.slice(0, 120) + '`' : 'no digit rule');
 })();
 
 // ---- the energy banner wraps OVER the corner --------------------------------
