@@ -398,8 +398,17 @@ check('and the old fixed green is gone from it',
         'height = width x 2/sqrt3, or the ring\'s inset is uneven');
   // 0.190 was 101/533 traced off the reference. Owner, on the shipped card:
   // "i would rather them be smaller and a little more space from the edge."
-  check('and it is 0.175 of the card width', /--stat-h:\s*calc\(var\(--card-w\) \* 0\.175\)/.test(BARE),
+  // 0.190 -> 0.160 -> 0.175 -> 0.219, the last step being "the hexagons can be
+  // 25% bigger" (0.175 * 1.25).
+  check('and it is 0.219 of the card width', /--stat-h:\s*calc\(var\(--card-w\) \* 0\.219\)/.test(BARE),
         'one multiplier, so every surface moves together');
+  // The hexes grow INWARD too, and the gap between them is where the fifth
+  // status badge sits. --stat-side is deliberately unchanged, so the margin is
+  // now carried by the badge box being padding around a smaller glyph.
+  // Measured on the real 5-badge cards: glyph clears by 3.5px left, 1.6px right.
+  check('and --stat-side was left alone, so the edge spacing survives',
+        /--stat-side:\s*calc\(var\(--card-w\) \* 0\.16\)/.test(BARE),
+        'shrinking it to hold the gap would undo the "more space from the edge" ask');
 
   // THE SAME SIZE IN HAND AND ON BOARD, and the fix for that is NOT a size rule.
   // Both surfaces already ran the same --stat-h; --card-w itself was wrong on a
@@ -522,6 +531,30 @@ check('and the old fixed green is gone from it',
   check('without losing its accent bloom',
         !!digit && /var\(--cf-rgb/.test(digit.value),
         digit ? 'winning text-shadow is `' + digit.value.slice(0, 120) + '`' : 'no digit rule');
+})();
+
+// ---- rarity is not printed under an inspected card -------------------------
+// Owner, striking out the COMMON chip under the inspected card: "get rid of the
+// rarity beneath the card." Continues the same sweep as "the rarity line by the
+// name should be the border colour, no rarity line anymore".
+// Removed from BOTH inspect surfaces, card and trick, because the standing card
+// rule is one treatment everywhere. _cardRarityLabel survives: the DRAFT foot
+// still prints it, and there it sits beside the cost-curve note, which is that
+// row's whole purpose.
+(function () {
+  var UISRC = read('ui.js').replace(/\/\*[\s\S]*?\*\//g, function (c) { return c.replace(/[^\n]/g, ' '); })
+                           .replace(/\/\/[^\n]*/g, '');
+  check('no inspect surface builds a rarity ribbon',
+        !/className\s*=\s*`card-inspect-rarity/.test(UISRC),
+        'the chip is gone from the card inspect AND the trick inspect');
+  check('but the label helper survives for the draft foot',
+        /_cardRarityLabel\s*\(/.test(UISRC) && /draft-foot-rarity/.test(UISRC),
+        'the draft foot still states rarity beside the curve note');
+  // .rarity-tier-N is still stamped on every card by makeCardEl and read by the
+  // name bars, so the tier itself must stay derivable.
+  check('and the tier class is still stamped on the card',
+        /classList\.add\('rarity-tier-'/.test(UISRC),
+        'the name bars read the tier');
 })();
 
 // ---- the badge row is four across, and nothing is silently dropped ---------

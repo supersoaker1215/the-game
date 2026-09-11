@@ -591,11 +591,16 @@ const UI = {
     };
     requestAnimationFrame(() => requestAnimationFrame(_settleFit));
     setTimeout(_settleFit, 260);
-    const rarity = this._cardRarityLabel(card);
-    const ribbon = document.createElement('div');
-    ribbon.className = `card-inspect-rarity rarity-tier-${rarity.tier}`;
-    ribbon.textContent = rarity.label;
-    modal.appendChild(ribbon);
+    // THE RARITY RIBBON IS GONE. Owner, striking out the COMMON chip under the
+    // inspected card: "get rid of the rarity beneath the card."
+    // Continues the same sweep as "the rarity line by the name should be the
+    // border colour, no rarity line anymore" — rarity is draft-time
+    // information, and this surface is where you read a card you already have.
+    // _cardRarityLabel stays: the DRAFT foot still prints it, and there it is
+    // doing real work (it sits beside the cost-curve note, which is the whole
+    // point of that row). The `.card-inspect-rarity` CSS is left in place and
+    // inert rather than deleted — `.rarity-tier-N` is still stamped on every
+    // card by makeCardEl and read by the name bars.
     // TAP-TO-PLAY. Not everyone drags — so a hand card you're inspecting gets a
     // Play button right in the view. Tapping it keeps the card SELECTED and
     // drops you back on the board with its open lanes lit, so a second tap on a
@@ -34836,17 +34841,15 @@ const UI = {
       if (p && fullUrl) p.style.setProperty('--portrait-bg', `url('${fullUrl.replace(/'/g, '%27')}')`);
       tModal.appendChild(tile);
     }
-    // And the rarity ribbon, so a trick reports its tier like a card does —
-    // tricks have no printed rarity, so _cardRarityLabel derives it from cost.
-    // This ribbon is now the ONLY place a trick's tier is stated; the corner
-    // pips it used to duplicate are gone.
-    {
-      const r = this._cardRarityLabel(def);
-      const ribbon = document.createElement('div');
-      ribbon.className = `card-inspect-rarity rarity-tier-${r.tier}`;
-      ribbon.textContent = r.label;
-      tModal.appendChild(ribbon);
-    }
+    // The rarity ribbon is gone here too, for the same reason and to keep the
+    // two inspect surfaces identical — the standing card rule is one treatment
+    // everywhere, and leaving it on tricks alone would make the trick inspect
+    // the only place in the game still printing a tier chip.
+    // WORTH KNOWING: the comment this replaces said this ribbon was "the ONLY
+    // place a trick's tier is stated", the corner pips it used to duplicate
+    // having been removed earlier. So a trick's tier is now not stated
+    // anywhere. That is a deliberate consequence of the owner's instruction,
+    // not an oversight; one line brings it back if it is missed.
     document.body.appendChild(backdrop);
     if (this.sfx) {
       try {

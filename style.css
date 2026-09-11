@@ -50940,13 +50940,21 @@ body.low-fx .card-glow-host { filter: none !important; }
    vertices 1.1547t in and the four side vertices t in horizontally and
    0.5774t vertically. */
 .card, .trick-card {
-  /* 0.190 -> 0.160 -> 0.175. Owner, on the circled stat row: "i would rather
-     them be smaller and a little more space from the edge", then on the result:
-     "make the hexagons a little bigger, and closer to each other." 0.160 went
-     one step too far; this lands between the two. One multiplier, so every
-     surface moves together and hand and board stay identical shares of their
-     own card. */
-  --stat-h: calc(var(--card-w) * 0.175);
+  /* 0.190 -> 0.160 -> 0.175 -> 0.219. Owner, across three looks at the same
+     row: "i would rather them be smaller and a little more space from the
+     edge", then "make the hexagons a little bigger, and closer to each other",
+     then "i think the hexagons can be 25% bigger". 0.175 * 1.25 = 0.219. One
+     multiplier, so every surface moves together and hand and board stay
+     identical shares of their own card.
+     --stat-side is deliberately NOT changed with it. The hexes grow inward as
+     well as outward, so the gap between them narrows from 32.4px to 22.6px on
+     a hand tile, and that gap is where the fifth status badge sits. Measured
+     with the real 5-badge cards: the badge BOX now exactly meets both hexes,
+     but the visible glyph clears them by 3.5px on the left and 1.6px on the
+     right, because the box is padding around a smaller icon. Holding the gap
+     instead would have meant pulling the hexes back toward the card edge and
+     undoing the "more space from the edge" ask two steps earlier. */
+  --stat-h: calc(var(--card-w) * 0.219);
   /* EACH LOOP CLOSES ITSELF. `polygon()` is ONE path — listing the outer six
      points and then the inner six does not make two rings, it makes a single
      twelve-sided figure with a seam running from the last outer point to the
