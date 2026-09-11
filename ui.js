@@ -22578,7 +22578,9 @@ const UI = {
     // The first pass did stamp --art-rgb here, and it was dead — tricks pin
     // --rarity-rgb to the purple, so nothing read it. A variable nothing reads
     // is worse than no variable.
-    return `<div class="${cls}" data-trick-name="${trick.name}"${onclick}>
+    const _tr = this._cardRarityLabel ? this._cardRarityLabel(trick) : null;
+    const _trCls = (_tr && _tr.tier) ? ' rarity-tier-' + _tr.tier : '';
+    return `<div class="${cls}${_trCls}" data-trick-name="${trick.name}"${onclick}>
       ${trick.cost != null ? `<span class="card-cost">${trick.cost}</span>` : ''}
       <div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay"><span class="cn-text">${trick.name}</span></div><i class="pt-shine" aria-hidden="true"></i></div>
       ${badges}
@@ -25921,6 +25923,16 @@ const UI = {
     // look up sounds via this attribute, so every card element — hand,
     // board, draft, hover-magnify — needs it set.
     if (card.name) el.setAttribute('data-card-name', card.name);
+    // THE CARD CARRIES ITS RARITY. It always had one — _cardRarityLabel derives
+    // the tier from an explicit `rarity` field or from cost — but only the
+    // inspect ribbon and the draft foot ever asked for it, so nothing on the
+    // card itself could be coloured by it. Owner: "the name bars are the rarity
+    // of the card." One class here and the bars (and anything else that wants
+    // it later) can read the tier on every surface.
+    try {
+      const _r = this._cardRarityLabel ? this._cardRarityLabel(card) : null;
+      if (_r && _r.tier) el.classList.add('rarity-tier-' + _r.tier);
+    } catch (e) {}
     // …and the card's border colour, taken from its own painting. On the CARD,
     // not the portrait: --rarity-rgb cascades down from here to the frame, the
     // rim glow, the divider and the rules chrome, and a custom property set on

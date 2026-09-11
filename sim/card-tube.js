@@ -610,6 +610,37 @@ check('and the old fixed green is gone from it',
         'a pure-white override on one surface is the thing this replaced');
 })();
 
+// ---- the name bars carry RARITY ---------------------------------------------
+// Owner, against a reference card: "the name bars are the rarity of the card."
+//
+// They were rgba(var(--cf-rgb), 0.42) — the card's own accent at 42%, a dimmer
+// copy of a colour already carried by the frame, the glow, the name and both
+// stat marks. Five things saying one thing, while the card's RARITY (which it
+// has always had, and which only the inspect ribbon and the draft foot ever
+// showed) said nothing anywhere on the card itself.
+(function () {
+  var UIJS = read('ui.js');
+  check('the card element carries its rarity tier',
+        /makeCardEl\(card, inHand, side, opts\)[\s\S]{0,2000}rarity-tier-' \+ _r\.tier/.test(UIJS),
+        'nothing on the card could be coloured by rarity until it did');
+  check('and so does a trick',
+        /_trCls[\s\S]{0,200}rarity-tier-/.test(UIJS));
+  var bar = winner('background', { classes: ['card-name-overlay'], ancestors: ['card'] });
+  check('the bars read the rarity colour, not the card accent',
+        /card-name-overlay::before[\s\S]{0,220}rgb\(var\(--rarity-tier-rgb\)\)/.test(BARE),
+        'they should not be a fifth copy of --cf-rgb');
+  // all four tiers, matching the ribbon that labels them
+  [['1','127, 207, 155'], ['2','92, 184, 255'],
+   ['3','184, 140, 255'], ['4','255, 194,  71']].forEach(function (t) {
+    check('tier ' + t[0] + ' has its colour',
+          new RegExp('rarity-tier-' + t[0] + '[^{]*\\{[^}]*' + t[1].replace(/\s+/g, '\\s*')).test(BARE),
+          'the card and its rarity label must agree');
+  });
+  check('and the bars are not dimmed to 42%',
+        !/card-name-overlay::before[\s\S]{0,220}rgba\([^)]*0\.42\)/.test(BARE),
+        'a dimmed 1px rule on a dark panel is not a subtle signal, it is an invisible one');
+})();
+
 print('card-tube: ' + pass + ' passed, ' + fails.length + ' failed');
 if (fails.length) {
   print('Failures:');

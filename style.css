@@ -50850,3 +50850,39 @@ body.low-fx .card-glow-host { filter: none !important; }
 }
 .card .stat-atk, .trick-card .stat-atk { color: #3dff9e !important; }
 .card .stat-hp,  .trick-card .stat-hp  { color: #ff6b6b !important; }
+
+
+/* ============================================================
+   THE NAME BARS ARE THE CARD'S RARITY
+   ------------------------------------------------------------
+   Owner, against a reference card: "the name bars are the rarity of the card."
+
+   The two short rules either side of the name were rgba(var(--cf-rgb), 0.42) —
+   the card's own accent at 42%, i.e. a dimmer copy of a colour already carried
+   by the frame, the glow, the name and both stat marks. Five things saying one
+   thing, and the card's RARITY — which it has always had, and which only the
+   inspect ribbon and the draft foot ever showed — said nowhere on the card.
+
+   So the bars carry it. Four tiers, the same four colours the rarity ribbon
+   already uses, so the card and its label agree:
+       COMMON      green    RARE      blue
+       SUPER-RARE  purple   LEGENDARY gold
+   UI.makeCardEl / makeTrickEl stamp `rarity-tier-N` (the tier comes from an
+   explicit `rarity` field, or from cost), so this reaches every surface at once
+   — same one-recipe rule as the name itself.
+
+   Full opacity, not 42%: at this size the bars are two 1px rules, and a dimmed
+   1px line on a dark panel is not a subtle signal, it is an invisible one.
+   ============================================================ */
+.card, .trick-card                  { --rarity-tier-rgb: 127, 207, 155; }
+.card.rarity-tier-1, .trick-card.rarity-tier-1 { --rarity-tier-rgb: 127, 207, 155; }
+.card.rarity-tier-2, .trick-card.rarity-tier-2 { --rarity-tier-rgb:  92, 184, 255; }
+.card.rarity-tier-3, .trick-card.rarity-tier-3 { --rarity-tier-rgb: 184, 140, 255; }
+.card.rarity-tier-4, .trick-card.rarity-tier-4 { --rarity-tier-rgb: 255, 194,  71; }
+
+.card .card-name-overlay::before,
+.card .card-name-overlay::after,
+.trick-card .card-name-overlay::before,
+.trick-card .card-name-overlay::after {
+  background: rgb(var(--rarity-tier-rgb)) !important;
+}
