@@ -463,6 +463,37 @@ check('and the old fixed green is gone from it',
         atk ? 'winning colour is ' + atk.value : 'nothing reaches it');
   check('the health numeral takes the card colour', !!hp && /var\(--cf-rgb/.test(hp.value),
         hp ? 'winning colour is ' + hp.value : 'nothing reaches it');
+
+  // THE TWO NUMERALS SIT ON ONE LINE. Both marks are the same --stat-h box at
+  // the same top and the same bottom, so a centre-aligned flex glyph in each
+  // lands on the same y — UNLESS one of them carries padding. padding-bottom on
+  // a centre-aligned flex box moves its content up by HALF the padding, and the
+  // shield used to carry calc(var(--stat-h) * 0.2347) so its digit sat on the
+  // shield's 39.84% area centroid rather than the box's 50%. Each digit was
+  // then centred on its own shape and the pair was not level with itself.
+  // Measured on the codex card: ATK ink centre 710.90, HP ink centre 702.68 —
+  // 8.22px apart, exactly half that padding. Owner, drawing a line across both:
+  // "i need the numbers to be straight across even with each other."
+  //
+  // RESOLVE THE CASCADE, DO NOT GREP — the 0.2347 figure still appears in the
+  // prose above the rule explaining why it was removed, so a text test passes
+  // happily on a file that ships the split.
+  var zeroPad = function (d) {
+    if (!d) return true;                     // nothing reaches it = no offset
+    var v = d.value.replace(/!important/, '').trim();
+    return v === '0' || v === '0px' || v === '0%';
+  };
+  [ { label: 'in hand / on board', anc: ['card'] },
+    { label: 'on the read cards',  anc: ['card', 'enc-card', 'draft-card'] }
+  ].forEach(function (surface) {
+    var ap = winner('padding-bottom', { classes: ['stat-atk'], ancestors: surface.anc });
+    var hp2 = winner('padding-bottom', { classes: ['stat-hp'], ancestors: surface.anc });
+    check('neither stat numeral is nudged off the shared box centre ' + surface.label,
+          zeroPad(ap) && zeroPad(hp2),
+          'winning padding-bottom is atk `' + (ap ? ap.value : 'none') +
+          '`, hp `' + (hp2 ? hp2.value : 'none') +
+          '` — padding on one of the pair splits the digits vertically by half of it');
+  });
   // AND SO DOES ITS GLOW. Changing the colour and leaving the text-shadow is
   // how a green halo survived behind an orange numeral for two commits: the old
   // shadow still carried rgba(61,255,158) behind attack and rgba(255,107,107)
@@ -680,12 +711,18 @@ check('and the old fixed green is gone from it',
   check('and HP wears the shield',
         !!hpClip && /--stat-shield/.test(hpClip),
         'last clip-path on .stat-hp::before is `' + hpClip + '`');
-  // A shield's mass sits higher than a hexagon's (centroid 39.84% vs 50%), so a
-  // box-centred glyph reads low. padding-bottom on a centre-aligned flex box
-  // lifts content by HALF the padding: 2 x 0.1016 x 1.1547 = 0.2347.
-  check('and the HP numeral is centred on the SHAPE, not the box',
-        /padding-bottom: calc\(var\(--stat-h\) \* 0\.2347\)/.test(BARE),
-        'a shield tapers, so its centroid is above the box centre');
+  // THE SHAPES DIFFER, THE DIGITS DO NOT. This used to assert the opposite —
+  // that the HP numeral carried `padding-bottom: calc(var(--stat-h) * 0.2347)`
+  // to ride the shield's 39.84% centroid instead of the box's 50%. That is
+  // sound for one mark in isolation and wrong for the pair: it put the two
+  // digits 8.22px apart on the codex card. Owner: "i need the numbers to be
+  // straight across even with each other." Only the SILHOUETTE distinguishes
+  // the two marks now; the digits share one line. The live assertion is in the
+  // stat-pair block above (it resolves the cascade rather than grepping, which
+  // matters here because 0.2347 still appears in style.css prose).
+  check('and the shield is the only thing that distinguishes the marks',
+        !/padding-bottom: calc\(var\(--stat-h\) \* 0\.2347\)/.test(BARE),
+        'the 0.2347 lift is back — that is an 8.22px vertical split between the two digits');
 })();
 
 // ---- rarity is not printed under an inspected card -------------------------

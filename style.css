@@ -51326,15 +51326,39 @@ body.low-fx .card-glow-host { filter: none !important; }
    --cf-stroke outline, the same colour, the same position — so the pair still
    reads as one set. Only the silhouette says which is which.
 
-   THE NUMERAL IS CENTRED ON THE SHAPE, NOT THE BOX. A hexagon's area centroid
-   is the box centre, so a flex-centred glyph looks right inside it. A shield
-   tapers to a point, so its mass sits higher: centroid y = 39.84% of the box
-   against the hexagon's 50%. Left alone the digit read 10.16% of the box too
-   low. padding-bottom on a centre-aligned flex box moves its content up by
-   HALF the padding, so the correction is 2 x 0.1016 x 1.1547 = 0.2347 of
-   --stat-h. It cannot move the outline: `::before` is absolutely positioned at
-   `inset: 0`, which resolves against the padding box, and padding lives inside
-   that box. Measured after: glyph centre 39.83% against a centroid of 39.84%.
+   THE NUMERALS ARE LEVEL WITH EACH OTHER, NOT CENTRED ON THEIR OWN SHAPES.
+   This block used to do the opposite, and the reasoning was sound in
+   isolation: a hexagon's area centroid IS the box centre, while a shield
+   tapers to a point so its mass sits higher — centroid y = 39.84% of the box
+   against the hexagon's 50%. So the HP digit was lifted 10.16% of the box with
+   a padding-bottom (a centre-aligned flex box moves its content up by HALF its
+   padding, hence 2 x 0.1016 x 1.1547 = 0.2347 of --stat-h).
+
+   Centring each glyph on its own shape is exactly what put them at different
+   heights. Measured on the codex card: ATK ink centre 710.90, HP ink centre
+   702.68 — the HP digit sat 8.22px high, which is half of its 16.45px padding
+   to the pixel. Owner, drawing a line across both: "imagine the lines are
+   straight across i need the numbers to be straight across even with each
+   other."
+
+   So the padding is gone and both digits sit at the centre of their boxes,
+   which are identical (same --stat-h, same top, same bottom) — that shared box
+   centre IS the line. The pair now reads as one scoreline.
+
+   WHAT THIS COSTS, written down so it is not rediscovered as a bug: the HP
+   digit now sits 10.16% of the box below the shield's centre of mass. It is
+   still well inside the shield's flat body — the taper does not begin until
+   55% and the glyph's ink ends around 65% — but the shield does carry more
+   empty area above its number than below. That is the trade the owner asked
+   for, and the alternative was worse: levelling on the shield's centroid
+   instead pushes the ATK digit visibly high inside a symmetric hexagon.
+   Both were rendered on the real card and compared before choosing.
+
+   There is no third option that satisfies both. For a flat-topped shield with
+   a point at the bottom, the centroid is at or above the box centre for every
+   shoulder height (it reaches 50% only when the point vanishes and the shape
+   is a rectangle), so no reshaping makes "centred on the shape" and "level
+   with the hexagon" the same line.
    ============================================================ */
 .card .stat-hp::before, .trick-card .stat-hp::before,
 .card.card .stat-hp::before, .card.card.draft-card .stat-hp::before,
@@ -51346,7 +51370,11 @@ body.low-fx .card-glow-host { filter: none !important; }
 .card .stat-hp, .trick-card .stat-hp, .card.card .stat-hp,
 .card.card.draft-card .stat-hp, .card.card.enc-card .stat-hp,
 .card-inspect-modal .card.card .stat-hp, .trick-card.trick-card .stat-hp {
-  padding-bottom: calc(var(--stat-h) * 0.2347) !important;
+  /* Held at 0 rather than deleted: the selector list is the same one the
+     clip-path above needs, and an explicit 0 with the same weight is what
+     stops a future "nudge the shield digit" edit from quietly reintroducing
+     the 8.22px split. The digits are level BECAUSE neither box has padding. */
+  padding-bottom: 0 !important;
 }
 
 /* ============================================================
