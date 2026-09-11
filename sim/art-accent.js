@@ -168,18 +168,75 @@ t('AA-7 the BOARD keeps its ownership colours', function () {
      CSS.indexOf('  --portrait-frame-rgb: var(--rarity-rgb'), true);
 });
 
-t('AA-8 there is an escape hatch, and it is empty', function () {
+// The override map used to be asserted EMPTY. It is not any more — Superman is
+// in it — so the invariant moved to the two things that actually matter: the
+// hatch still wins over the generated map, and it stays SHORT. A long list
+// means the generator needs fixing rather than the list needing another row.
+function overrideEntries() {
+  var MAN = readOr('card-art-manifest.js', '');
+  var at = MAN.indexOf('window.CARD_ART_ACCENT_OVERRIDE = {');
+  if (at < 0) return null;
+  var body = MAN.slice(at + 'window.CARD_ART_ACCENT_OVERRIDE = {'.length);
+  body = body.slice(0, body.indexOf('\n};'));
+  // Comment bodies in here carry example rows ('Carnage.png': '240,58,60') and
+  // measured values; blank them or they get counted as live entries. This is
+  // the trap art-accent.js was already bitten by once.
+  body = body.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  var out = {}, re = /'([^']+)'\s*:\s*'(\d+\s*,\s*\d+\s*,\s*\d+)'/g, m;
+  while ((m = re.exec(body))) out[m[1]] = m[2];
+  return out;
+}
+
+t('AA-8 the escape hatch exists, wins, and stays short', function () {
   // The generator reports the dominant hue by area; a person names the hue of
-  // the SUBJECT. Carnage is the case that separates them. The hatch must exist
-  // and must start empty — a long list means the generator needs fixing rather
-  // than the list needing another row.
+  // the SUBJECT. Carnage and Superman are the cases that separate them.
   var MAN = readOr('card-art-manifest.js', '');
   eq('the override map exists', /window\.CARD_ART_ACCENT_OVERRIDE = \{/.test(MAN), true);
   eq('the helper consults it FIRST',
      /CARD_ART_ACCENT_OVERRIDE[\s\S]{0,220}window\.CARD_ART_ACCENT\b/.test(UISRC), true);
-  var body = MAN.slice(MAN.indexOf('window.CARD_ART_ACCENT_OVERRIDE = {'));
-  body = body.slice(0, body.indexOf('}'));
-  eq('and it starts empty', /'/.test(body), false);
+  var ov = overrideEntries();
+  eq('it parses', ov !== null, true);
+  var n = Object.keys(ov).length;
+  // Ten is not a magic number, it is a smell threshold: past it the honest fix
+  // is the generator, not another row.
+  eq('and it is still short (' + n + ' entries)', n <= 10, true);
+});
+
+t('AA-9 every override is a legible line on black, same floor as the generated set', function () {
+  // An override skips the generator entirely, so it also skips AA-4. Hand-set
+  // colours are exactly the ones that can be too dark or too washed, so hold
+  // them to the same floor rather than trusting the hand that wrote them.
+  var ov = overrideEntries() || {};
+  var bad = [];
+  Object.keys(ov).forEach(function (k) {
+    var p = ov[k].split(',').map(Number);
+    var luma = 0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2];
+    if (luma < 90) bad.push(k + ' ' + ov[k] + ' luma ' + luma.toFixed(0) + ' (too dark)');
+    var mx = Math.max.apply(null, p), mn = Math.min.apply(null, p);
+    if (mx - mn < 40) bad.push(k + ' ' + ov[k] + ' (grey — the thing an override exists to avoid)');
+  });
+  eq('all legible and chromatic', bad.length ? bad.join(' | ') : 0, 0);
+});
+
+t('AA-10 Superman is red, and it is the override doing it', function () {
+  // Owner: "i want supermans border to be the red in the art". His default
+  // painting is ~95% black with one glowing S, so the generator's chroma ramp
+  // bottomed out and handed him steel (188,169,171) off a hue it had already
+  // read correctly as red.
+  var ov = overrideEntries() || {};
+  var val = ov['Superman'] || ov['Superman 3.jpg'];
+  eq('Superman is overridden', !!val, true);
+  var p = String(val).split(',').map(Number);
+  eq('and the override is RED — red channel dominant',
+     p[0] > p[1] + 60 && p[0] > p[2] + 60, true);
+  // Keyed by NAME so it survives a variant switch; _artAccentFor falls back
+  // from file to name, so a name key covers every variant he has.
+  eq('the resolver falls back from file key to name key',
+     /ov\[file\]\s*\|\|\s*ov\[name\]/.test(UISRC), true);
+  // The generated map must still hold the OLD value — proving the override is
+  // what changes the border, not a regenerated accent file.
+  eq('the generated map still reports the steel it derived',
+     MAP['Superman 3.jpg'], '188,169,171');
 });
 
 // ---- run ----------------------------------------------------

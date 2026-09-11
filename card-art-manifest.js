@@ -667,4 +667,34 @@ window.CARD_ART_GRADE = {
 // "r,g,b" string. Keep it short: every entry here is a place the generated
 // answer was overruled, and a long list means the generator needs fixing.
 //   'Carnage.png': '240,58,60',
-window.CARD_ART_ACCENT_OVERRIDE = {};
+window.CARD_ART_ACCENT_OVERRIDE = {
+  // SUPERMAN — owner: "i want supermans border to be the red in the art".
+  // Keyed by NAME, not file, so it holds across both of his variants.
+  //
+  // The generator got the HUE right and lost it on SATURATION. 'Superman 3.jpg'
+  // is a near-black painting whose only colour is the glowing S and the red rim
+  // light on his face: measured, just 2.2% of its pixels carry any chroma, so
+  // chroma_frac came out 0.0151, the sat ramp bottomed out at the 0.12 floor and
+  // the border fell through to steel — 188,169,171, a washed beige that reads as
+  // dirt on a black card. The hue it found was 355 deg, i.e. it knew the picture
+  // was red all along.
+  //
+  // So this is not a hand-picked colour. The red population of the painting was
+  // binned the same way the generator bins hue (peak, not mean — a magenta tail
+  // drags a mean) and the peak ran through the shipped neon() at the vividness a
+  // colourful painting would have earned:
+  //
+  //     Superman 3.jpg   red peak 353.7 deg   ->  neon()  ->  240,57,76
+  //     Superman.png     red peak 347.6 deg   ->  neon()  ->  241,63,100
+  //
+  // Six degrees apart, so one entry serves both paintings rather than two, and
+  // the value below is the one taken from the art that is actually on screen
+  // (Superman 3.jpg is first in CARD_ART_VARIANTS). Proved side by side against
+  // both paintings before it was written down.
+  //
+  // The same steel collapse is sitting on 15 other files (Bane, Han Solo,
+  // Freddy Fazbear, Venom 2 ...). Fixing it properly means teaching the
+  // generator that a small intense subject on black is not a monochrome image,
+  // which re-derives all 259 borders — a much larger change than one card.
+  'Superman': '240,57,76',
+};
