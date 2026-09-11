@@ -41140,7 +41140,25 @@ body.on-main-menu #clb-build-badge { display: block; }
    let the card drift out of its lane the first time I tried this. The offsets
    below ARE that authored triple: slot = card + 14, lane = card + 20.
    Fallback is the authored 140px, so nothing moves if the script has not run. */
-body.in-match .card-slot > .card { width: var(--board-card-w, 140px) !important; }
+body.in-match .card-slot > .card {
+  width: var(--board-card-w, 140px) !important;
+  /* AND --card-w FOLLOWS IT. This is the bug behind "these need to be the same
+     size in hand and on board". The fit pass sets the board card's WIDTH from
+     --board-card-w and always has, but --card-w — the variable every design
+     element on the card scales from — stayed at the authored 140px. So a board
+     card painted 101px wide while its badges, chamfer and inset were all being
+     computed against 140: a constant 1.386x oversize, which is the "wrong
+     reference" signature (a CONSTANT error, not a drifting one).
+     Measured, hex width as a share of the card it sits on:
+         hand ....... 20.9px on 110px = 19.0%
+         board ...... 26.6px on 101px = 26.3%   <- the report
+     With this line both read 16.0% (see the --stat-h change lower down).
+     The stroke does not move: --cf-stroke is max(2.2px, card-w * 0.006) and was
+     already pinned to its 2.2px floor at BOTH widths. What does move is the
+     chamfer (10.1px -> 7.3px) and --cf-inset (4.5px -> 3.2px), which were
+     oversized by the same 1.386x and are now proportionally right. */
+  --card-w: var(--board-card-w, 140px);
+}
 body.in-match .card-slot {
   width: calc(var(--board-card-w, 140px) + 14px);
   /* Height follows the card's 92/182 aspect plus the slot's own 6+4 padding —
@@ -50912,7 +50930,11 @@ body.low-fx .card-glow-host { filter: none !important; }
    vertices 1.1547t in and the four side vertices t in horizontally and
    0.5774t vertically. */
 .card, .trick-card {
-  --stat-h: calc(var(--card-w) * 0.190);
+  /* 0.190 -> 0.160. Owner, on the circled stat row: "i would rather them be
+     smaller and a little more space from the edge." One multiplier, so every
+     surface shrinks together and hand and board stay identical shares of their
+     own card. */
+  --stat-h: calc(var(--card-w) * 0.160);
   /* EACH LOOP CLOSES ITSELF. `polygon()` is ONE path — listing the outer six
      points and then the inner six does not make two rings, it makes a single
      twelve-sided figure with a seam running from the last outer point to the
@@ -51116,3 +51138,45 @@ body.low-fx .card-glow-host { filter: none !important; }
     0 0 1px rgba(255, 255, 255, 0.70),
     0 0 8px rgba(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250)), 0.80) !important;
 }
+
+/* ============================================================
+   THE STAT ROW: ONE SIZE ON EVERY SURFACE, AND FURTHER OFF THE EDGE
+   ------------------------------------------------------------
+   Owner, circling the ATK/HP hexes on the same card in hand and on the board:
+   "these need to be the same size in hand and on board, i would rather them be
+   smaller and a little more space from the edge."
+
+   THE SIZE MISMATCH WAS NOT A SIZE RULE. Both surfaces already ran the same
+   `--stat-h: calc(var(--card-w) * N)`; what differed was --card-w itself, which
+   on a board card said 140px while the card painted 101px. That is fixed where
+   the board's width is set (search --board-card-w), not here, because every
+   other element keyed to --card-w was wrong by the same factor. `.board .card
+   { --stat-h: 16px }` also exists and is NOT the cause — it lives inside a
+   phone-only media query and never applies on desktop. Checking that before
+   overriding it saved a pointless !important.
+
+   --stat-side IS NAMED because two rules need it. The bottom offset subtracts
+   the side offset (the HP hex has to clear the bottom-right chamfer, and the
+   further in it sits horizontally the sooner it clears), so a copied literal
+   would silently decouple the two the first time either is tuned — which the
+   comment on --stat-bottom says has already happened four times.
+
+   Measured, before -> after:
+       hand ..... hex 20.9 -> 17.6px,  edge gap 13.3 -> 16.0px,  19.0% -> 16.0%
+       board .... hex 26.6 -> 16.2px,  edge gap 10.7 -> 10.8px,  26.3% -> 16.0%
+
+   `.card.card` and !important, not the tidy `.card`: the standing lift is
+   `.card.card .stat-circle { ... !important }`, and this file records four
+   correct rules that shipped inert for exactly that reason. The read surfaces
+   (draft / codex / inspect) keep their own wider 0.10 inset at (0,3,0) — more
+   detail on the big card is the standing rule, not an inconsistency. */
+.card.card {
+  --stat-side: calc(var(--card-w) * 0.055);
+  --stat-bottom: max(
+    calc(var(--chamfer) * 1.15 + var(--card-w) * 0.034),
+    calc(var(--cf-inset) + var(--chamfer)
+         - var(--stat-side) + var(--card-w) * 0.018)
+  );
+}
+.card.card .stat-atk { left:  calc(var(--cf-inset) + var(--stat-side)) !important; }
+.card.card .stat-hp  { right: calc(var(--cf-inset) + var(--stat-side)) !important; }

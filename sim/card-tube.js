@@ -396,8 +396,41 @@ check('and the old fixed green is gone from it',
   check('the badge is a REGULAR hexagon, at the specificity that wins',
         /\.card\.card\.draft-card \.stat-circle[\s\S]{0,300}height: calc\(var\(--stat-h\) \* 1\.1547\)/.test(BARE),
         'height = width x 2/sqrt3, or the ring\'s inset is uneven');
-  check('and it is 0.190 of the card width', /--stat-h:\s*calc\(var\(--card-w\) \* 0\.190\)/.test(BARE),
-        '101 / 533 measured off the reference');
+  // 0.190 was 101/533 traced off the reference. Owner, on the shipped card:
+  // "i would rather them be smaller and a little more space from the edge."
+  check('and it is 0.160 of the card width', /--stat-h:\s*calc\(var\(--card-w\) \* 0\.160\)/.test(BARE),
+        'one multiplier, so every surface shrinks together');
+
+  // THE SAME SIZE IN HAND AND ON BOARD, and the fix for that is NOT a size rule.
+  // Both surfaces already ran the same --stat-h; --card-w itself was wrong on a
+  // board card, reading the authored 140px while the card painted 101px from
+  // --board-card-w. Measured hex share of its own card: hand 19.0%, board 26.3%
+  // — a constant 1.386x, the "wrong reference" signature. With --card-w tied to
+  // the painted width both read 16.0%.
+  check('a board card\'s --card-w follows its PAINTED width',
+        /body\.in-match \.card-slot > \.card\s*\{[\s\S]{0,1400}--card-w:\s*var\(--board-card-w/.test(BARE),
+        'without this the hexes, chamfer and inset are all sized off 140px on a 101px card');
+  // The phone-only override is NOT the cause and must not be blamed for it —
+  // it lives inside a media query and never applies on desktop. Pinned so the
+  // next reader does not "fix" the wrong rule.
+  check('and the 16px board override is still phone-only',
+        /@media[^{]*\{[\s\S]*?\.board \.card \{ --stat-h: 16px; \}/.test(BARE),
+        'if this escapes its media query it WOULD become the cause');
+
+  // --stat-side is named because --stat-bottom subtracts it: the HP hex has to
+  // clear the bottom-right chamfer, and the further in it sits horizontally the
+  // sooner it clears. A copied literal decouples them the first time either is
+  // tuned, which the --stat-bottom comment says has already happened four times.
+  check('the stat inset is defined once, as --stat-side',
+        /--stat-side:\s*calc\(var\(--card-w\) \* 0\.055\)/.test(BARE),
+        'more space from the edge, one definition');
+  check('and the bottom offset subtracts that same variable',
+        /--stat-bottom:[\s\S]{0,260}-\s*var\(--stat-side\)/.test(BARE),
+        'a literal here silently decouples the two');
+  check('both edges read it',
+        /\.card\.card \.stat-atk \{ left:\s*calc\(var\(--cf-inset\) \+ var\(--stat-side\)\)/.test(BARE) &&
+        /\.card\.card \.stat-hp\s+\{ right:\s*calc\(var\(--cf-inset\) \+ var\(--stat-side\)\)/.test(BARE),
+        'left and right must stay symmetric');
   // the numerals joined everything else
   var atk = winner('color', { classes: ['stat-atk'], ancestors: ['card'] });
   var hp  = winner('color', { classes: ['stat-hp'],  ancestors: ['card'] });
