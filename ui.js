@@ -14011,6 +14011,7 @@ const UI = {
       col.id = 'right-col';
       document.body.appendChild(col);
     }
+    this._applyRightColBox(col);   // re-assert a dragged position every render
     return col;
   },
 
@@ -14145,8 +14146,16 @@ const UI = {
         return;
       }
       if (!(ev.target.closest && ev.target.closest('.sh-title'))) return;
+      // DRAG THE WHOLE COLUMN, not the box alone. The Shadow Man tracker is now
+      // a flow child of #right-col (docked so the right-hand panels can never
+      // overlap again), so setting left/top on the box itself moves nothing —
+      // it is position:static in the column. The title bar therefore grips the
+      // column: the VP panel, the event rail and the scoreboard travel together
+      // and stay non-overlapping wherever they are put. (Owner: "i cant move the
+      // shadow man box.")
+      const col = this._rightColumn();
       const box = this._shadowBox();
-      const r = el.getBoundingClientRect();
+      const r = col.getBoundingClientRect();
       const startX = ev.clientX, startY = ev.clientY;
       const baseX = (box.x != null) ? box.x : r.left;
       const baseY = (box.y != null) ? box.y : r.top;
@@ -14156,7 +14165,7 @@ const UI = {
         const x = Math.max(0, Math.min(window.innerWidth - 60, baseX + (e.clientX - startX)));
         const y = Math.max(0, Math.min(window.innerHeight - 40, baseY + (e.clientY - startY)));
         this._shadowBox({ x, y });
-        this._applyShadowTrackerBox(el);
+        this._applyRightColBox(col);
       };
       const up = () => {
         el.classList.remove('sh-dragging');
@@ -14181,22 +14190,29 @@ const UI = {
     return box;
   },
   _applyShadowTrackerBox(el) {
+    // SCALE ONLY. The tracker is docked in #right-col now, so its own position
+    // is the column's job (_applyRightColBox); the resize button still scales
+    // just this panel through --sh-scale, which every font-size and width here
+    // multiplies by, so the text re-lays-out crisply rather than raster-scaling.
+    el.style.setProperty('--sh-scale', String(this._shadowBox().scale || 1));
+  },
+  // The right column's remembered position, applied as inline left/top so it
+  // overrides the stylesheet's fixed right/top anchor. Set only once the user has
+  // dragged it (box.x/y present); until then the column keeps its authored place.
+  _applyRightColBox(col) {
+    col = col || document.getElementById('right-col');
+    if (!col) return;
     const box = this._shadowBox();
-    const scale = box.scale || 1;
-    // The size goes through a CSS variable that every font-size and width in
-    // the panel multiplies by, so the text is LAID OUT bigger and re-rendered
-    // crisply. transform is left to positioning alone — scaling with it only
-    // stretched the pixels of text drawn at the old size.
-    el.style.setProperty('--sh-scale', String(scale));
-    if (box.x != null && box.y != null) {
-      el.style.left = box.x + 'px';
-      el.style.top = box.y + 'px';
-      el.style.transform = 'none';                 // no vertical centring once moved
-      el.style.transformOrigin = 'top left';
-    } else {
-      el.style.transform = 'translateY(-50%)';
-      el.style.transformOrigin = 'left center';
-    }
+    if (box.x == null || box.y == null) return;    // never moved — leave the CSS anchor
+    col.style.left = box.x + 'px';
+    col.style.top = box.y + 'px';
+    col.style.right = 'auto';
+    col.style.bottom = 'auto';
+    // The authored height is calc(board-bottom − board-top); once the column is
+    // lifted off that anchor, let it size to its content and cap it at the
+    // viewport so a low drop can't run off the bottom.
+    col.style.height = 'auto';
+    col.style.maxHeight = Math.max(120, window.innerHeight - box.y - 12) + 'px';
   },
 
   _render2v2TurnTracker(s, tt) {
