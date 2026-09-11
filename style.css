@@ -32150,15 +32150,20 @@ body.round-tick .board::after {
    the same "filled rounded box" this project has removed everywhere else.
    Owner: "i like this but needs to be tron themed."
 
-   Same placement, same prominence, same green; the FORM is now the reticle.
-   Green is kept deliberately rather than swapped for theme cyan: it is the
-   palette's existing confirm/win colour (it matches .lf-cell.lf-win), and it
-   is what separates "commit this play" from every other themed control on
-   screen. pointer-events explicit because the modal stops click-through. */
+   Same placement, same prominence; the FORM is the reticle.
+
+   IT TAKES THE BOARD'S ACCENT. This was pinned to 110,245,139 — the palette's
+   confirm/win green, kept deliberately so "commit this play" separated itself
+   from every themed control on screen. The owner reversed that on sight: "the
+   tap to play should be the neon highlight of the board." The cost of the old
+   call was that on a purple or orange board this one button stayed green and
+   read as belonging to a different screen. Changed HERE rather than overridden
+   later, so there is no dead declaration for the next reader to trip on.
+   pointer-events explicit because the modal stops click-through. */
 .card-inspect-play-btn {
   pointer-events: auto;
   margin-top: 2px;
-  --rtc: 110,245,139;
+  --rtc: var(--theme-rgb, 0, 229, 255);
 }
 /* Bigger card inside the modal — the same .card markup as on
    board, but resized via `zoom` so the LAYOUT BOX scales with the
@@ -50413,3 +50418,96 @@ body.in-match:not(.board-v2) .board {
 .trick-card.trick-draft .card-portrait {
   flex: 0 0 auto !important;
 }
+
+/* ============================================================
+   THE RULES TEXT IS FOR READING — ONE NEUTRAL VOICE, EVERYWHERE
+   ------------------------------------------------------------
+   Owner, on the tap-to-play card: "i just want the text cleaned up, it seems
+   like theres a blue tint over the text that shouldnt happen."
+
+   TWO THINGS WERE TINTING IT, and only one of them was colour.
+
+   1 · `.card-desc` resolves its colour from --portrait-frame-rgb, so the prose
+       took whatever the card's frame was. That was already fixed ONCE, for the
+       draft, on the owner's earlier note — "the card said its tier in the
+       frame, in the cost orb, in the pips AND in the prose you actually have to
+       read" — but scoped to `.draft-card`, so the hand, the board and the
+       tap-to-play card kept the tint. Now that the frame carries the card's ART
+       colour it is more obvious, not more wrong: it was always spending
+       contrast on a fact stated three times elsewhere.
+
+   2 · THE HALO, which is what he actually saw. `.card.ally-card .card-desc`
+       carries `0 0 5px` + `0 0 10px` of --portrait-frame-rgb, and on an ally
+       card that resolves to the THEME — cyan. A 10px cyan bloom under 9px mono
+       type is a blue wash over the whole paragraph, and it sat there whatever
+       the card's own colour was. Measured on Batman: an orange-framed card with
+       rgba(0,229,255) at 0.82 and 0.74 under every letter.
+
+   So: one voice, #c9d6de, and a plain black drop for legibility instead of a
+   coloured bloom. This is the same value the draft has been using, so the
+   surfaces now agree instead of the draft being the odd one out.
+
+   WHAT KEEPS ITS COLOUR, because there the colour is doing work rather than
+   decorating:
+     • .cd-trig — the trigger labels (On Play / While Active / When Destroyed).
+       They mark where one ability ends and the next begins.
+     • .kw and the keyword spans — they are the highlights the body voice is
+       there to set off.
+     • the stat deltas' sign colours.
+   ============================================================ */
+/* THE TRIPLE CLASS IS LOAD-BEARING. `.card.card.draft-card .card-desc` owns
+   this at (0,4,0) + !important, so the (0,2,0) this was first written at lost
+   outright on the draft — sim/card-tube.js resolved the cascade and said so,
+   which is exactly the bug class that suite exists for. `.card.card.card` is
+   (0,4,0) and later in the file, so it wins by order rather than by escalating
+   into an arms race. */
+.card.card.card .card-desc,
+.card.card.card .card-desc .cd-row,
+.card.card.card .card-desc .cd-eff,
+.trick-card.trick-card.trick-card .trick-desc,
+.trick-card.trick-card.trick-card .trick-desc .cd-row,
+.trick-card.trick-card.trick-card .trick-desc .cd-eff {
+  color: #c9d6de !important;
+  /* A black drop, not a coloured bloom: it buys legibility over the painting
+     without painting the paragraph. */
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 0 3px rgba(0, 0, 0, 0.75) !important;
+}
+/* The trigger label keeps the card's accent — and on the board keeps the SIDE
+   colour, since --portrait-frame-rgb is already re-pointed there. */
+/* NO text-shadow here on purpose. The draft and inspect surfaces already own
+   the trigger's glow at (0,5,0) + !important — a declaration here would be
+   dead there and live on the hand and board, which is how one label ends up
+   looking like two different labels on two screens. Inheritance from
+   .card-desc above covers the surfaces that rule does not reach. */
+.card.card.card .card-desc .cd-trig,
+.trick-card.trick-card.trick-card .trick-desc .cd-trig {
+  color: rgb(var(--portrait-frame-rgb, var(--own-green))) !important;
+}
+/* health stops being red in the prose — it is a number in a sentence here, not
+   a stat readout (the readouts keep their green/red, see the draft block). */
+.card.card.card .card-desc .stat-num-hp { color: #c9d6de !important; }
+/* The scanline wash behind the rules block took the frame colour too, which is
+   the same tint one layer down. Neutral, and fainter. */
+.card.card.card .card-desc {
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent 0px,
+    transparent 2px,
+    rgba(201, 214, 222, 0.028) 2px,
+    rgba(201, 214, 222, 0.028) 3px
+  ) !important;
+}
+
+/* ============================================================
+   "PLAY — TAP A LANE" TAKES THE BOARD'S NEON
+   ------------------------------------------------------------
+   Owner: "the tap to play should be the neon highlight of the board."
+
+   It was pinned to 110,245,139 — a fixed green, chosen to match the
+   leaderboard's win cell. That made it the one control on screen that ignored
+   the accent the player picked: on a purple board it was still green, and it
+   read as belonging to some other screen. It is the commit action for the card
+   you are looking at, so it belongs in the board's own colour.
+   ============================================================ */
+/* (the value itself is set at .card-inspect-play-btn's own rule, ~line 32158 —
+   nothing to override here.) */

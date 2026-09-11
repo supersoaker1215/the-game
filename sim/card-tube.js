@@ -270,6 +270,68 @@ check('--cf-hairline ships OFF (0)', tokenDefault && tokenDefault[1].trim() === 
         'an inset layer has no negative spread — it fills the lane with the card\'s own frame colour');
 });
 
+// ---- the rules text is for READING -----------------------------------------
+// Owner, on the tap-to-play card: "i just want the text cleaned up it seems
+// like theres a blue tint over the text that shouldnt happen."
+//
+// TWO layers were tinting it and only one was colour. `.card-desc` resolved
+// both its COLOUR and a 5px+10px text-shadow from --portrait-frame-rgb, and on
+// an ally card that var points at the THEME — so a 10px cyan bloom sat under
+// every letter of every rules paragraph whatever the card's own colour was.
+// Measured on Batman: an ORANGE-framed card with rgba(0,229,255) at 0.82 and
+// 0.74 under its text.
+//
+// This belongs in this suite specifically: it is the same bug class the file
+// exists for. A neutral colour had already been authored for the draft and it
+// looked fixed in the file — but scoped to `.draft-card`, so the hand, the
+// board and the tap-to-play card kept the tint. Only resolving the cascade for
+// each surface says which rule actually wins.
+var SURFACES = [
+  { name: 'hand card',    classes: ['card-desc'], ancestors: ['card', 'hand-card'] },
+  { name: 'board ally',   classes: ['card-desc'], ancestors: ['card', 'ally-card'] },
+  { name: 'board enemy',  classes: ['card-desc'], ancestors: ['card', 'enemy-card'] },
+  { name: 'draft card',   classes: ['card-desc'], ancestors: ['card', 'draft-card'] },
+  { name: 'tap-to-play',  classes: ['card-desc'], ancestors: ['card', 'inspect-card', 'card-inspect-modal'] },
+];
+SURFACES.forEach(function (sf) {
+  var el = { classes: sf.classes, ancestors: sf.ancestors };
+  var c = winner('color', el);
+  check('rules text is neutral on the ' + sf.name,
+        !!c && /#c9d6de/i.test(c.value),
+        c ? 'winning colour is `' + c.value + '` from `' + c.sel + '`'
+          : 'no colour rule reaches it at all');
+  var sh = winner('text-shadow', el);
+  // A shadow is allowed — it is what keeps 9px type legible over a painting —
+  // but it must be BLACK. The tell is whether it resolves a frame/theme var.
+  check('and its glow is black, not a colour, on the ' + sf.name,
+        !!sh && !/var\(--portrait-frame-rgb|var\(--theme-rgb|var\(--rarity-rgb/.test(sh.value),
+        sh ? 'winning text-shadow is `' + sh.value.slice(0, 90) + '` from `' + sh.sel + '`'
+           : 'no text-shadow rule reaches it');
+});
+
+// The TRIGGER label is the one thing in the paragraph that keeps its colour,
+// because there the colour is structural — it marks where one ability ends and
+// the next begins. If this ever goes neutral the abilities run together.
+(function () {
+  var trig = { classes: ['cd-trig'], ancestors: ['card', 'hand-card', 'card-desc'] };
+  var c = winner('color', trig);
+  check('the trigger label still carries the card\'s accent',
+        !!c && /--portrait-frame-rgb|--cf-rgb/.test(c.value),
+        c ? 'winning colour is `' + c.value + '`' : 'nothing reaches the trigger label');
+})();
+
+// ---- the commit button wears the board's neon ------------------------------
+// Owner: "the tap to play should be the neon highlight of the board." It was
+// pinned to a fixed green (110,245,139, borrowed from the leaderboard's win
+// cell), which made it the one control on screen that ignored the accent the
+// player picked.
+check('"Play — tap a lane" takes the board accent, not a fixed green',
+      /\.card-inspect-play-btn\s*\{[^}]*--rtc:\s*var\(--theme-rgb/.test(BARE),
+      'the play button still hard-codes its colour');
+check('and the old fixed green is gone from it',
+      !/\.card-inspect-play-btn\s*\{[^}]*--rtc:\s*110,\s*245,\s*139/.test(BARE),
+      'both declarations are present — the later one wins, but the dead one will confuse the next reader');
+
 print('card-tube: ' + pass + ' passed, ' + fails.length + ' failed');
 if (fails.length) {
   print('Failures:');
