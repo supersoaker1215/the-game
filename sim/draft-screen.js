@@ -34,7 +34,7 @@ check('the numbered round pips are not used by the draft header',
 // ---- 2 · body neutral, trigger labels keep the accent ----------------------
 var body = ruleBody('.draft-card .card-desc,\n.draft-card .card-desc .cd-row,\n.draft-card .card-desc .cd-eff');
 if (!body) body = (BARE.match(/\.draft-card \.card-desc[^{]*\{([^{}]*)\}/) || [])[1];
-check('rules body is neutral #c9d6de', !!body && /#c9d6de/i.test(body),
+check('rules body is a crisp white', !!body && /#ffffff/i.test(body),
       body ? body.replace(/\s+/g, ' ').trim().slice(0, 70) : 'no rule');
 var trig = ruleBody('.draft-card .card-desc .cd-trig');
 check('trigger labels keep the frame accent',

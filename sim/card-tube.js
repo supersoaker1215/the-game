@@ -81,9 +81,27 @@ function declarations(prop) {
   var out = [], re = /([^{}]+)\{([^{}]*)\}/g, m, n = 0;
   while ((m = re.exec(BARE))) {
     var body = m[2];
-    var d = new RegExp('(?:^|[;{\\s])' + prop + '\\s*:([^;]*)').exec(body);
+    var d = new RegExp('(?:^|[;{\\s])' + prop + '\\s*:').exec(body);
     if (!d) continue;
-    var value = d[1].replace(/\s+/g, ' ').trim();
+    // NOT `[^;]*`. A value can legally CONTAIN a semicolon — an inline SVG mask
+    // is `url("data:image/svg+xml;utf8,<svg .../>")`, and stopping at the first
+    // one truncated it to `url("data:image/svg+xml`, which made every assertion
+    // about the shape of a masked badge silently unanswerable. Walk instead,
+    // tracking quotes and paren depth, and stop at a semicolon that is actually
+    // a declaration terminator.
+    var value = (function (str, from) {
+      var depth = 0, q = null, out = '';
+      for (var k = from; k < str.length; k++) {
+        var ch = str[k];
+        if (q) { out += ch; if (ch === q && str[k - 1] !== '\\') q = null; continue; }
+        if (ch === '"' || ch === "'") { q = ch; out += ch; continue; }
+        if (ch === '(') depth++;
+        else if (ch === ')') depth--;
+        else if (ch === ';' && depth === 0) break;
+        out += ch;
+      }
+      return out;
+    })(body, d.index + d[0].length).replace(/\s+/g, ' ').trim();
     var important = /!important/.test(value);
     m[1].split(',').forEach(function (sel) {
       sel = sel.replace(/\s+/g, ' ').trim();
@@ -281,6 +299,11 @@ check('--cf-hairline ships OFF (0)', tokenDefault && tokenDefault[1].trim() === 
 // Measured on Batman: an ORANGE-framed card with rgba(0,229,255) at 0.82 and
 // 0.74 under its text.
 //
+// AND THE VOICE IS WHITE, not the #c9d6de this first shipped with. Owner:
+// "have the text you changed for each card be a crisp white." #c9d6de is a
+// blue-GREY — against a black card it still read as a tint, only a quieter
+// one, which is the same complaint one notch down.
+//
 // This belongs in this suite specifically: it is the same bug class the file
 // exists for. A neutral colour had already been authored for the draft and it
 // looked fixed in the file — but scoped to `.draft-card`, so the hand, the
@@ -296,8 +319,8 @@ var SURFACES = [
 SURFACES.forEach(function (sf) {
   var el = { classes: sf.classes, ancestors: sf.ancestors };
   var c = winner('color', el);
-  check('rules text is neutral on the ' + sf.name,
-        !!c && /#c9d6de/i.test(c.value),
+  check('rules text is crisp white on the ' + sf.name,
+        !!c && /#fff(fff)?\b/i.test(c.value),
         c ? 'winning colour is `' + c.value + '` from `' + c.sel + '`'
           : 'no colour rule reaches it at all');
   var sh = winner('text-shadow', el);
@@ -331,6 +354,62 @@ check('"Play — tap a lane" takes the board accent, not a fixed green',
 check('and the old fixed green is gone from it',
       !/\.card-inspect-play-btn\s*\{[^}]*--rtc:\s*110,\s*245,\s*139/.test(BARE),
       'both declarations are present — the later one wins, but the dead one will confuse the next reader');
+
+// ---- health is a CIRCLE, attack stays a reticle -----------------------------
+// Owner: "make the health square a circle."
+//
+// Both readouts were the same four-corner-bracket mask in two colours, so
+// COLOUR was the only thing telling them apart — the weakest carrier there is,
+// and the first thing lost to a colourblind player, a busy painting behind the
+// numeral, or a 55px board tile. Shape costs nothing here because the brackets
+// were already a mask.
+(function () {
+  var atk = winner('--stat-line', { classes: ['stat-atk', 'stat-circle'], ancestors: ['card'] });
+  var hp  = winner('--stat-line', { classes: ['stat-hp', 'stat-circle'], ancestors: ['card'] });
+  check('health draws a ring', !!hp && /<circle/.test(hp.value),
+        hp ? 'health still draws `' + hp.value.slice(0, 70) + '`' : 'nothing sets health\'s shape');
+  check('attack keeps the corner reticle', !!atk && !/<circle/.test(atk.value) && /M0,26/.test(atk.value),
+        atk ? 'attack now draws `' + atk.value.slice(0, 70) + '`' : 'nothing sets attack\'s shape');
+  check('so the two differ by SHAPE, not only colour',
+        !!atk && !!hp && atk.value !== hp.value);
+  // preserveAspectRatio is 'none' on this mask, so a circle in a square viewBox
+  // over a non-square badge would render as an ellipse.
+  check('and the badge stays square, or the ring becomes an ellipse',
+        /--stat-h:\s*\d+px/.test(BARE) &&
+        /\.stat-circle\s*\{[^}]*width:\s*var\(--stat-h[^}]*height:\s*var\(--stat-h/.test(BARE),
+        'the ring is masked with preserveAspectRatio=none — an unequal box stretches it');
+})();
+
+// ---- the energy banner wraps OVER the corner --------------------------------
+// Owner: "remove the 2 lines i circled for every card on the energy banner,
+// this will make it seem like its wrapped around giving depth."
+//
+// THIS REVERSES an earlier decision in the same file ("THE FRAME PAINTS OVER
+// THE RIBBON"), which raised the frame to z-index 8 precisely so its top and
+// left segments would cross the ribbon — "exactly the line that was missing".
+// Those are the two lines. Both halves of the argument are kept in style.css;
+// this pins which one is live, so the reversal cannot be undone by accident.
+(function () {
+  var band  = winner('z-index', { classes: ['cf-band'],      ancestors: ['card'] });
+  var frame = winner('z-index', { classes: ['cf-frame'],     ancestors: ['card'] });
+  var diag  = winner('z-index', { classes: ['cf-band-diag'], ancestors: ['card'] });
+  var cost  = winner('z-index', { classes: ['card-cost'],    ancestors: ['card'] });
+  var n = function (d) { return d ? parseInt(d.value, 10) : NaN; };
+  check('the banner sits ABOVE the frame, so it hides the two stubs',
+        n(band) > n(frame),
+        'band z=' + n(band) + ' frame z=' + n(frame) + ' — the frame still draws across the banner');
+  check('the cost digit stays above the banner',
+        n(cost) > n(band),
+        'cost z=' + n(cost) + ' band z=' + n(band) + ' — the digit goes under the plate');
+  check('and the banner\'s own edge line stays on top of it',
+        n(diag) > n(band));
+  // The chamfer must survive: the banner's fourth edge is pulled in by one
+  // stroke measured along the diagonal, or the banner's own edge covers it.
+  var clip = winner('clip-path', { classes: ['cf-band'], ancestors: ['card'] });
+  check('the chamfer line is not swallowed by the banner',
+        !!clip && /--chamfer\)\s*\+\s*var\(--cf-stroke\)\s*\*\s*var\(--sqrt2\)/.test(clip.value),
+        clip ? 'winning clip is `' + clip.value.slice(0, 80) + '`' : 'no clip reaches the banner');
+})();
 
 print('card-tube: ' + pass + ' passed, ' + fails.length + ' failed');
 if (fails.length) {

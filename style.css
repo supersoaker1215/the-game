@@ -50023,14 +50023,17 @@ body.in-match:not(.board-v2) .board {
    contrast, and it was spending it on a fact already stated three times.
    The trigger labels stay accented, because there the colour is doing
    structural work — it marks where one ability ends and the next begins. */
+/* (kept in step with the sheet-wide rule at the bottom of this file, which
+   out-specifies it — two different neutrals would be a trap for whoever reads
+   only one of them.) */
 .draft-card .card-desc,
 .draft-card .card-desc .cd-row,
-.draft-card .card-desc .cd-eff { color: #c9d6de !important; }
+.draft-card .card-desc .cd-eff { color: #ffffff !important; }
 .draft-card .card-desc .cd-trig {
   color: rgb(var(--portrait-frame-rgb, var(--own-green))) !important;
 }
 /* the inline stat deltas keep their sign colours, but health stops being red */
-.draft-card .card-desc .stat-num-hp { color: #c9d6de !important; }
+.draft-card .card-desc .stat-num-hp { color: #ffffff !important; }
 
 /* ---- 4 · attack is GREEN, health is RED, so the two stats read apart --------
    Owner reversed the earlier "both pips take the frame colour" call: on the
@@ -50443,9 +50446,14 @@ body.in-match:not(.board-v2) .board {
        the card's own colour was. Measured on Batman: an orange-framed card with
        rgba(0,229,255) at 0.82 and 0.74 under every letter.
 
-   So: one voice, #c9d6de, and a plain black drop for legibility instead of a
-   coloured bloom. This is the same value the draft has been using, so the
-   surfaces now agree instead of the draft being the odd one out.
+   So: one voice and a plain black drop for legibility instead of a coloured
+   bloom.
+
+   AND THE VOICE IS WHITE. The first pass used #c9d6de, which is what the draft
+   had been using — but that is a blue-GREY, and against a black card it still
+   reads as a tint, just a quieter one. Owner: "have the text you changed for
+   each card be a crisp white." #fff. The draft's older #c9d6de block below is
+   updated to match rather than left to disagree with this one.
 
    WHAT KEEPS ITS COLOUR, because there the colour is doing work rather than
    decorating:
@@ -50467,7 +50475,7 @@ body.in-match:not(.board-v2) .board {
 .trick-card.trick-card.trick-card .trick-desc,
 .trick-card.trick-card.trick-card .trick-desc .cd-row,
 .trick-card.trick-card.trick-card .trick-desc .cd-eff {
-  color: #c9d6de !important;
+  color: #ffffff !important;
   /* A black drop, not a coloured bloom: it buys legibility over the painting
      without painting the paragraph. */
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 0 3px rgba(0, 0, 0, 0.75) !important;
@@ -50485,7 +50493,7 @@ body.in-match:not(.board-v2) .board {
 }
 /* health stops being red in the prose — it is a number in a sentence here, not
    a stat readout (the readouts keep their green/red, see the draft block). */
-.card.card.card .card-desc .stat-num-hp { color: #c9d6de !important; }
+.card.card.card .card-desc .stat-num-hp { color: #ffffff !important; }
 /* The scanline wash behind the rules block took the frame colour too, which is
    the same tint one layer down. Neutral, and fainter. */
 .card.card.card .card-desc {
@@ -50511,3 +50519,90 @@ body.in-match:not(.board-v2) .board {
    ============================================================ */
 /* (the value itself is set at .card-inspect-play-btn's own rule, ~line 32158 —
    nothing to override here.) */
+
+/* ============================================================
+   HEALTH IS A CIRCLE, ATTACK STAYS A RETICLE
+   ------------------------------------------------------------
+   Owner: "make the health square a circle."
+
+   Both readouts were the same object — four corner brackets — in two colours,
+   which made colour the ONLY thing separating them. That is the same complaint
+   that got the two pips split into green and red in the first place ("you could
+   not tell attack from health at a glance"), and colour alone is the weakest
+   way to carry it: it is the first thing lost to a colourblind player, to a
+   dark painting behind the numeral, and to a 55px board tile.
+
+   Shape is the stronger signal, and it costs nothing — the brackets are already
+   drawn by a mask (--stat-line), so health just gets a different path. Attack
+   keeps the reticle; health becomes a ring.
+
+   THE VIEWBOX HAS TO STAY SQUARE AND SO DOES THE BOX. `preserveAspectRatio`
+   is 'none' on this mask, so a circle in a 100x100 viewBox stretched over a
+   non-square badge would render as an ellipse. The badge is --stat-h on both
+   sides, so the two agree; r=45 with stroke-width 10 keeps the ring's outer
+   edge on the same 100-unit bounds the brackets use, which is what makes the
+   two readouts sit on the same optical size.
+   ============================================================ */
+.stat-hp {
+  --stat-line: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><circle cx='50' cy='50' r='45' fill='none' stroke='black' stroke-width='10'/></svg>");
+}
+
+/* ============================================================
+   THE ENERGY BANNER WRAPS OVER THE CORNER
+   ------------------------------------------------------------
+   Owner: "remove the 2 lines i circled for every card on the energy banner,
+   this will make it seem like its wrapped around giving depth."
+
+   The banner was a closed pentagon: the chamfer, a stub of the card's TOP
+   frame line, the long inner diagonal, and a stub of the card's LEFT frame
+   line. Those last two are the lines — and they were there because the banner
+   sat UNDER the frame (z-index 6 against the frame's 8) and stopped short of
+   it (inset by --band-off, 3.84px, against a 1.744px stroke), so the frame
+   drew straight across the banner's two open ends and closed the shape.
+
+   A ribbon folded over a corner does not show the edge it is lying on. So the
+   banner goes ABOVE the frame and reaches out to the frame's outer edge on
+   those two sides — it now OCCLUDES the stubs rather than being interrupted by
+   them, which is the depth.
+
+   WHAT IT MUST NOT SWALLOW, and both were lost in the first two attempts:
+     • the chamfer line. The banner's fourth edge stays pulled in by one stroke
+       measured along the diagonal (--cf-stroke * --sqrt2), so the chamfer
+       still draws instead of being covered by the banner's own edge.
+     • the cost digit, which sits at z-index 7 and went under the banner the
+       moment the banner went to 9. It goes above both.
+
+   (A first attempt trimmed the inner diagonal instead, on the theory that its
+   end caps were overshooting. They were not — the diagonal is exactly
+   --band-out * sqrt2, the band's own hypotenuse — and trimming it just opened
+   a gap at each end. Rendered side by side at 9x, which is the only way a
+   1.7px line settles an argument like this.)
+
+   THIS REVERSES "THE FRAME PAINTS OVER THE RIBBON" (~line 46434), and the
+   reversal is the owner's: that pass raised the frame to z-index 8 so its top
+   and left segments would cross the ribbon's outer corner — "exactly the line
+   that was missing." Those are the two lines. Looking at the result he has
+   asked for the opposite reading, so the ring now stops at the ribbon instead
+   of crossing it. The rule it replaces stays in the file with its reasoning
+   intact, because the argument it makes is a real one and whoever revisits
+   this should see both halves.
+
+   SPECIFICITY IS LOAD-BEARING HERE. The clip is owned at (0,4,0) + !important
+   by `.card.card.draft-card .cf-band`; the first attempt wrote (0,2,0) and
+   silently did nothing at all — the computed clip came back unchanged. Same
+   selector list, later in the file, so it wins on order rather than by
+   escalating. */
+.card .cf-band, .trick-card .cf-band,
+.card.card .cf-band, .card.card.draft-card .cf-band,
+.card.card.enc-card .cf-band, .trick-card.trick-card .cf-band {
+  z-index: 9 !important;
+  clip-path: polygon(
+    calc(var(--chamfer) + var(--cf-stroke) * var(--sqrt2)) 0px,
+    calc(var(--band-out)) 0px,
+    0px calc(var(--band-out)),
+    0px calc(var(--chamfer) + var(--cf-stroke) * var(--sqrt2))) !important;
+}
+.card .cf-band-diag,
+.trick-card .cf-band-diag { z-index: 10; }
+.card .card-cost,
+.trick-card .card-cost { z-index: 11; }
