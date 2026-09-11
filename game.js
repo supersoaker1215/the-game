@@ -20898,6 +20898,24 @@ const Game = {
     this._schedule(run, 500);
   },
 
+  // A SEAT'S PURSE CAN NEVER BE NEGATIVE — enforced at the boundary, and
+  // reported when it bites so a clamp never becomes a place bugs go to hide.
+  //
+  // The seat<->side boundary had THREE writers and they disagreed: two derived
+  // a value with no floor, one clamped (see the Math.max in the 2v2 read-back
+  // further down). That disagreement is the whole defect. An impossible seat
+  // state round-trips through the pair and amplifies:
+  //   unbridge  used = energy - currency   (currency negative -> used > energy)
+  //   bridge    currency = energy - used   (used > energy -> currency negative)
+  // Caught in the act with 4000 fuzzed games: "BRIDGE energy=8 used=9".
+  //
+  // Clamping alone would hide whatever drives it there, so every clamp that
+  // actually fires says so. If a real upstream cause exists it now arrives
+  // named instead of as a fuzz violation nobody can place.
+  _purseFault(where, detail) {
+    this.log(`[BUG] purse out of range at ${where} — ${detail}. Clamped; this should not happen.`);
+  },
+
   _2v2SyncActivePlayer() {
     const s = this.state;
     const tt = s.twoVTwo;
@@ -20909,7 +20927,9 @@ const Game = {
     // Sync hand and energy so existing card-play code works
     s[side].hand      = ap.hand;
     s[side].trickHand = ap.trickHand;
-    s[side].currency  = ap.energy - ap.usedEnergy;
+    const _bridgePurse = (ap.energy | 0) - (ap.usedEnergy | 0);
+    if (_bridgePurse < 0) this._purseFault('bridge', `${ap.energy} energy, ${ap.usedEnergy} used`);
+    s[side].currency  = Math.max(0, _bridgePurse);
     // Block meter and health come from team state
     s[side].health    = tt.teams[ap.team].health;
     s[side].maxHealth = tt.teams[ap.team].maxHealth;
@@ -20971,7 +20991,13 @@ const Game = {
       (tt.players[pk].hand === arr || tt.players[pk].trickHand === arr));
     if (!_foreign(s[side].hand))      ap.hand      = s[side].hand;
     if (!_foreign(s[side].trickHand)) ap.trickHand = s[side].trickHand;
-    ap.usedEnergy = ap.energy - s[side].currency;
+    // Used is bounded by the seat's own energy in both directions: it can never
+    // be negative (a seat has not un-spent) and never exceed what it has.
+    const _spent = (ap.energy | 0) - (s[side].currency | 0);
+    if (_spent < 0 || _spent > (ap.energy | 0)) {
+      this._purseFault('read-back', `${ap.energy} energy, side currency ${s[side].currency}`);
+    }
+    ap.usedEnergy = Math.min(ap.energy | 0, Math.max(0, _spent));
     // Read back team state
     tt.teams[ap.team].health    = s[side].health;
     tt.teams[ap.team].blockMeter = s[side].blockMeter;
@@ -22427,7 +22453,9 @@ const Game = {
     };
     s[side].hand = p.hand;                       // by reference — splices write through
     s[side].trickHand = p.trickHand;
-    s[side].currency = p.energy - (p.usedEnergy || 0);
+    const _p = (p.energy | 0) - (p.usedEnergy || 0);
+    if (_p < 0) this._purseFault('side-sync', `${p.energy} energy, ${p.usedEnergy} used`);
+    s[side].currency = Math.max(0, _p);
     s[side].health = tt.teams[p.team].health;
     s[side].maxHealth = tt.teams[p.team].maxHealth;
     s[side].blockMeter = tt.teams[p.team].blockMeter;

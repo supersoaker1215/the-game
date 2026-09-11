@@ -139,6 +139,10 @@ echo "=== event-slot.js (one event, three rounds, no overlap) ==="
 run_suite sim/event-slot.js
 
 echo ""
+echo "=== seat-purse.js (a seat's purse is never negative) ==="
+run_suite sim/seat-purse.js
+
+echo ""
 if [ "$FAIL" -ne 0 ]; then
   echo "❌ TESTS FAILED — see suites above."
   exit 1
