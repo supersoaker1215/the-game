@@ -50802,54 +50802,11 @@ body.low-fx .card-glow-host { filter: none !important; }
    The numerals carry the meaning now: green for damage, red for health, the
    same two the prose deltas use.
    ============================================================ */
-/* TWO ANGLES, NOT ONE, AND THAT IS NOT A COMPROMISE.
-   The first version used a single conic for both marks, which is tidy and
-   wrong: a conic cuts by ANGLE, and angle maps to arc-length differently on a
-   circle than on a square. Equal angles give a circle even arcs and a square
-   brackets that do not match the ones it replaced — measured, the shared mask
-   left 26% of each edge open where the original SVG left 48%, so the brackets
-   came out half again too long. Owner: "these are a little off."
+/* (The square/circle conic-mask marks lived here. They were replaced by the
+   hexagons at the foot of this file — and they were still being asserted by
+   sim/card-tube.js, which passed against these dead declarations rather than
+   against what paints. Removed so the suite has nothing stale to agree with.) */
 
-   Each angle is derived from the geometry it has to reproduce:
-     RETICLE  the original path painted 0..26 and 74..100 on each edge — a 48%
-              gap centred on the midpoint. At the midpoint the radius is h/2,
-              so atan(0.24h / 0.5h) = 25.64deg either side: a 51.3deg gap and a
-              38.7deg corner wedge.
-     RING     the original dash was arc 52 / gap 18.69 on a 282.74
-              circumference, i.e. 66.2deg and 23.8deg. On a circle angle IS
-              arc-length, so those carry over unchanged.
-   Both still put gaps at the compass points and segments on the diagonals, so
-   the two remain one family — they just measure it in their own units. */
-.card, .trick-card {
-  --stat-seg-square: conic-gradient(from 0deg,
-    transparent 0 25.64deg,       #000 25.64deg 64.36deg,
-    transparent 64.36deg 115.64deg, #000 115.64deg 154.36deg,
-    transparent 154.36deg 205.64deg, #000 205.64deg 244.36deg,
-    transparent 244.36deg 295.64deg, #000 295.64deg 334.36deg,
-    transparent 334.36deg 360deg);
-  --stat-seg-round: conic-gradient(from 0deg,
-    transparent 0 11.9deg,        #000 11.9deg 78.1deg,
-    transparent 78.1deg 101.9deg,  #000 101.9deg 168.1deg,
-    transparent 168.1deg 191.9deg, #000 191.9deg 258.1deg,
-    transparent 258.1deg 281.9deg, #000 281.9deg 348.1deg,
-    transparent 348.1deg 360deg);
-}
-.card .stat-atk::before, .card .stat-hp::before,
-.trick-card .stat-atk::before, .trick-card .stat-hp::before {
-  background: none !important;
-  border: var(--cf-stroke) solid rgb(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250))) !important;
-  -webkit-mask: var(--stat-seg-square) !important;
-          mask: var(--stat-seg-square) !important;
-  /* the old green/red drop-shadows went with the old colours */
-  filter: none !important;
-}
-.card .stat-hp::before, .trick-card .stat-hp::before {
-  border-radius: 50% !important;
-  -webkit-mask: var(--stat-seg-round) !important;
-          mask: var(--stat-seg-round) !important;
-}
-.card .stat-atk, .trick-card .stat-atk { color: #3dff9e !important; }
-.card .stat-hp,  .trick-card .stat-hp  { color: #ff6b6b !important; }
 
 
 /* ============================================================
@@ -50920,14 +50877,23 @@ body.low-fx .card-glow-host { filter: none !important; }
    0.5774t vertically. */
 .card, .trick-card {
   --stat-h: calc(var(--card-w) * 0.190);
+  /* EACH LOOP CLOSES ITSELF. `polygon()` is ONE path — listing the outer six
+     points and then the inner six does not make two rings, it makes a single
+     twelve-sided figure with a seam running from the last outer point to the
+     first inner one. evenodd renders most of that as a ring and leaves a notch
+     at the seam, which is the corner the owner circled twice: "the hex is still
+     not closed." Repeating each loop's first point closes it, which is exactly
+     what `.cf-edge` does for the card's own frame — the construction was right
+     there and I did not copy all of it. */
   --stat-hex: polygon(evenodd,
-    50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%,
+    50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%, 50% 0%,
     50% calc(var(--cf-stroke) * 1.1547),
     calc(100% - var(--cf-stroke)) calc(25% + var(--cf-stroke) * 0.5774),
     calc(100% - var(--cf-stroke)) calc(75% - var(--cf-stroke) * 0.5774),
     50% calc(100% - var(--cf-stroke) * 1.1547),
     var(--cf-stroke) calc(75% - var(--cf-stroke) * 0.5774),
-    var(--cf-stroke) calc(25% + var(--cf-stroke) * 0.5774));
+    var(--cf-stroke) calc(25% + var(--cf-stroke) * 0.5774),
+    50% calc(var(--cf-stroke) * 1.1547));
 }
 /* A REGULAR HEXAGON, AND THAT IS NOT A STYLE CHOICE. The inner outline is
    inset by scaling every vertex toward the centre, which only yields a UNIFORM
@@ -51032,8 +50998,14 @@ body.low-fx .card-glow-host { filter: none !important; }
      plate stopped being translucent in the first place, and it still holds —
      and still a gradient, because a flat fill at this size reads as a sticker.
      Darkened toward the inboard end so the digit keeps its contrast. */
+  /* AND AT A QUARTER STRENGTH. Full-strength it was a slab that out-shouted the
+     frame it belongs to. Owner: "the fill needs to be like 25%." Mixed toward
+     black rather than dropped to alpha 0.25 — the plate has to stay OPAQUE,
+     because a see-through one lets the frame's own border read straight through
+     it, which is the bug that made this black in the first place. Same look,
+     none of that back. */
   background: linear-gradient(135deg,
-    rgb(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250))) 0%,
-    color-mix(in srgb, rgb(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250))) 72%, #000) 52%,
-    color-mix(in srgb, rgb(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250))) 46%, #000) 100%) !important;
+    color-mix(in srgb, rgb(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250))) 30%, #000) 0%,
+    color-mix(in srgb, rgb(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250))) 25%, #000) 52%,
+    color-mix(in srgb, rgb(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250))) 18%, #000) 100%) !important;
 }

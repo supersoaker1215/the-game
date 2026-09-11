@@ -355,62 +355,89 @@ check('and the old fixed green is gone from it',
       !/\.card-inspect-play-btn\s*\{[^}]*--rtc:\s*110,\s*245,\s*139/.test(BARE),
       'both declarations are present — the later one wins, but the dead one will confuse the next reader');
 
-// ---- the stat marks ARE the border ----------------------------------------
-// Owner: "i want both of the health and damage to match the border width and
-// colour exactly, and the numbers are green for damage and red for health."
+// ---- the stat marks: hexagons, at the border's own width -------------------
+// Owner, over three rounds: "match the border width and colour exactly" ->
+// "do the hex badges" -> "the hexes are not fully complete and the numbers
+// inside should be the border colour" -> "the hex is still not closed".
 //
-// It was inverted — the MARKS carried green and red while the NUMERALS were
-// white, so the colour that means "attack / health" was spent on the frame
-// around the number rather than on the number. And that frame did not match
-// the card's border either: an SVG mask at stroke-width 10 of a 100 viewBox
-// rendered 4px over a 40px badge, against a 2.2px card border.
-//
-// "EXACTLY" is why this is a BORDER and not a mask. A mask's stroke is a
-// fraction of the badge, and the badge does not scale with --cf-stroke, so any
-// number chosen there is right at exactly one size. A real border uses the
-// same VALUE the frame uses, so the two cannot drift at any surface.
+// "EXACTLY" is why this is a clip-path ring and not a mask or an SVG stroke.
+// Both of those express thickness as a fraction of the BADGE, and the badge
+// does not scale with --cf-stroke, so any number chosen there is right at one
+// card size and wrong at every other. A traced ring uses the same VALUE the
+// frame uses, so the two cannot drift.
 (function () {
-  var mark = winner('border-top-width', { classes: ['stat-atk'], ancestors: ['card'] })
-          || winner('border', { classes: ['stat-atk'], ancestors: ['card'] });
-  check('the stat mark is drawn as a border, at the frame\'s own width',
-        /\.stat-atk::before[\s\S]{0,400}border:\s*var\(--cf-stroke\)/.test(BARE),
-        'a mask stroke is a fraction of the badge — it can only match at one card size');
-  check('and in the frame\'s own colour',
-        /\.stat-atk::before[\s\S]{0,400}solid rgb\(var\(--cf-rgb/.test(BARE),
-        'the mark should be the border, not a second palette');
-  check('the segments are MASKED OUT of it, not drawn into it',
-        /--stat-seg-square:\s*conic-gradient/.test(BARE) &&
-        /\.stat-atk::before[\s\S]{0,500}mask: var\(--stat-seg-square\)/.test(BARE),
-        'drawing the segments would put the stroke width back in the mask');
-  // TWO ANGLES, NOT ONE. A conic cuts by ANGLE, and angle maps to arc-length
-  // differently on a circle than on a square — so one shared mask gave the
-  // circle even arcs and the square brackets that did not match the ones it
-  // replaced. Measured: 26% of each edge open where the original SVG left 48%,
-  // i.e. brackets half again too long. Owner: "these are a little off."
-  check('the square and the circle get their own angle',
-        /--stat-seg-round:\s*conic-gradient/.test(BARE) &&
-        /\.stat-hp::before[^}]*mask: var\(--stat-seg-round\)/.test(BARE),
-        'one conic for both looks tidy and renders wrong on one of them');
-  check('the square\'s gap reproduces the original 48% of each edge',
-        /transparent 0 25\.64deg/.test(BARE),
-        'atan(0.24h / 0.5h) = 25.64deg either side of each edge midpoint — ' +
-        'measured after: 48% open, all four gaps within 1px');
-  check('the circle keeps the original arc/gap split',
-        /transparent 0 11\.9deg/.test(BARE),
-        'arc 52 / gap 18.69 on a 282.74 circumference is 66.2deg / 23.8deg, and ' +
-        'on a circle angle IS arc-length so it carries over unchanged');
-  check('health is the round one', /\.stat-hp::before[^{]*\{[^}]*border-radius:\s*50%/.test(BARE),
-        'shape is what tells them apart when colour cannot');
-  // and the meaning moves to the numerals
-  // THE NUMERALS TOOK THE CARD COLOUR TOO. They were green and red for two
-  // commits — the owner asked for that, then for this: "the numbers inside
-  // should be the border colour." Everything on the card now reads one token.
+  check('the stat mark is a hexagon', /--stat-hex:\s*polygon\(evenodd/.test(BARE),
+        'the reference badge is a hex, not a square or a circle');
+  check('and the earlier conic-mask marks are GONE, not just overridden',
+        !/--stat-seg-square|--stat-seg-round/.test(BARE),
+        'this suite passed for a commit against those dead declarations rather than ' +
+        'against what paints — which is the exact failure it exists to catch');
+  check('the ring is stroked at var(--cf-stroke)',
+        /--stat-hex[\s\S]{0,900}var\(--cf-stroke\) \* 1\.1547/.test(BARE),
+        'insetting a pointy-top hexagon by t moves each vertex 1.1547t along its radius');
+  // EACH LOOP HAS TO CLOSE ITSELF. `polygon()` is ONE path: the outer six points
+  // followed by the inner six is not two rings, it is a twelve-sided figure
+  // with a seam from the last outer point to the first inner one. evenodd
+  // renders most of that as a ring and leaves a NOTCH at the seam — the corner
+  // the owner circled twice. `.cf-edge` already solved this for the card's own
+  // frame by repeating each loop's first point; I had not copied that half.
+  var hexDef = (/--stat-hex:([\s\S]*?);/.exec(BARE) || [,''])[1].replace(/\s+/g, ' ');
+  check('the OUTER loop closes before the inner one starts',
+        /0% 25%, 50% 0%,/.test(hexDef),
+        'the outer hexagon must return to its first point or the path seams into the inner one');
+  check('and the INNER loop closes too',
+        (hexDef.match(/50% calc\(var\(--cf-stroke\) \* 1\.1547\)/g) || []).length >= 2,
+        'the inner hexagon must repeat its own first point, for the same reason');
+  // THE BOX HAS TO BE REGULAR OR THE STROKE IS NOT UNIFORM. Scaling every vertex
+  // toward the centre only gives an even stroke at height = width x 2/sqrt3.
+  // The badge was landing SQUARE — a (0,4,0) rule pins it to 0.145w both ways
+  // and the traced 1.08 lost at (0,2,0) — so the vertical inset ran 1.1547x the
+  // horizontal: two thin upright edges, four fat diagonals.
+  check('the badge is a REGULAR hexagon, at the specificity that wins',
+        /\.card\.card\.draft-card \.stat-circle[\s\S]{0,300}height: calc\(var\(--stat-h\) \* 1\.1547\)/.test(BARE),
+        'height = width x 2/sqrt3, or the ring\'s inset is uneven');
+  check('and it is 0.190 of the card width', /--stat-h:\s*calc\(var\(--card-w\) \* 0\.190\)/.test(BARE),
+        '101 / 533 measured off the reference');
+  // the numerals joined everything else
   var atk = winner('color', { classes: ['stat-atk'], ancestors: ['card'] });
   var hp  = winner('color', { classes: ['stat-hp'],  ancestors: ['card'] });
   check('the damage numeral takes the card colour', !!atk && /var\(--cf-rgb/.test(atk.value),
         atk ? 'winning colour is ' + atk.value : 'nothing reaches it');
   check('the health numeral takes the card colour', !!hp && /var\(--cf-rgb/.test(hp.value),
         hp ? 'winning colour is ' + hp.value : 'nothing reaches it');
+})();
+
+// ---- the rest of the traced reference ---------------------------------------
+// RESTORED. These nine cases went in with the reference trace and were deleted
+// by my own index-splice in the commit after it — the suite went 535 -> 522 and
+// still passed, because a shorter suite passes just as well as a correct one.
+// Numbers are measured off the reference image (card body 533x1259), expressed
+// over 533 in --card-w.
+(function () {
+  check('ATK / HP labels exist', /content:\s*'ATK'/.test(BARE) && /content:\s*'HP'/.test(BARE));
+  check('…on the reading surfaces only',
+        /\.card\.card\.draft-card \.stat-atk[^,]*::after/.test(BARE),
+        'a 10px label under a 21px board badge is noise — the hexagon is the design, ' +
+        'the label is the detail (the owner\'s hand/board rule)');
+  check('the keyword chip is a bordered pill, centred',
+        /\.card\.card\.draft-card \.status-badge[\s\S]{0,300}border: 1px solid rgba\(var\(--cf-rgb/.test(BARE) &&
+        /\.status-badges[\s\S]{0,160}justify-content: center/.test(BARE));
+  check('the rules divider runs the full width at the reference\'s own value',
+        /border-top: 1px solid rgb\(40, 45, 51\)/.test(BARE),
+        'sampled off the reference, not picked');
+  var plate = winner('background', { classes: ['cf-band'], ancestors: ['card'] });
+  check('the energy plate takes the card\'s own colour',
+        !!plate && /var\(--cf-rgb/.test(plate.value) && /linear-gradient/.test(plate.value),
+        plate ? 'winning background is `' + plate.value.slice(0, 90) + '`' : 'nothing reaches the plate');
+  // …at a QUARTER strength, mixed toward black rather than dropped to alpha:
+  // the plate has to stay OPAQUE or the frame's border reads through it, which
+  // is the bug that made it black to begin with. ("the fill needs to be like 25%")
+  check('the plate is mixed to about a quarter',
+        !!plate && /\)\)? (1[8-9]|2[0-9]|3[0-5])%, #000\)/.test(plate.value),
+        plate ? 'winning background is `' + plate.value.slice(0, 110) + '`' : 'no plate rule');
+  check('and it stays opaque',
+        !!plate && !/rgba\([^)]*0\.\d+\s*\)/.test(plate.value),
+        'a see-through plate lets the frame\'s own border read straight through it');
 })();
 
 // ---- the energy banner wraps OVER the corner --------------------------------
