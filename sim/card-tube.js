@@ -491,9 +491,27 @@ check('and the old fixed green is gone from it',
         /\.card\.card\.draft-card \.stat-atk[^,]*::after/.test(BARE),
         'a 10px label under a 21px board badge is noise — the hexagon is the design, ' +
         'the label is the detail (the owner\'s hand/board rule)');
-  check('the keyword chip is a bordered pill, centred',
-        /\.card\.card\.draft-card \.status-badge[\s\S]{0,300}border: 1px solid rgba\(var\(--cf-rgb/.test(BARE) &&
-        /\.status-badges[\s\S]{0,160}justify-content: center/.test(BARE));
+  // WAS "a bordered pill, centred". Owner, circling the two bordered chips
+  // under an inspected card's name: "the icons dont need to be boxed." The
+  // hand/board/trick rule has said "Boxless: no fill, no border, no pill halo —
+  // the glow IS the chrome" since it was written; the read card was the last
+  // surface still drawing a box around the same glyph.
+  var chipBorder = winner('border', { classes: ['status-badge'], ancestors: ['card', 'draft-card'] });
+  check('the keyword chip is BOXLESS, and still centred',
+        !!chipBorder && /^0$/.test(chipBorder.value.replace(/!important/, '').trim()) &&
+        /\.status-badges[\s\S]{0,160}justify-content: center/.test(BARE),
+        chipBorder ? 'winning border is `' + chipBorder.value + '`' : 'nothing reaches the chip');
+
+  // THE RULES TEXT CANNOT REACH THE STAT ROW. Measured on an inspected
+  // Galactus: the rules box ran to y=746.9 against a hex row starting at
+  // y=716.4, and 3 of 8 text line rects intersected a hexagon. padding-bottom
+  // on the card reserves the band WITHOUT moving the hexes, because
+  // .stat-circle is absolutely positioned and resolves `bottom` against the
+  // containing block's PADDING box. After: 3 -> 0 overlapping lines.
+  var pad = winner('padding-bottom', { classes: ['card', 'draft-card'], ancestors: [] });
+  check('the read card reserves the stat band below its text',
+        !!pad && /var\(--stat-bottom\)/.test(pad.value) && /var\(--stat-h\)/.test(pad.value),
+        pad ? 'winning padding-bottom is `' + pad.value.slice(0, 90) + '`' : 'no reserve');
   check('the rules divider runs the full width at the reference\'s own value',
         /border-top: 1px solid rgb\(40, 45, 51\)/.test(BARE),
         'sampled off the reference, not picked');

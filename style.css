@@ -46246,17 +46246,38 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 }
 
 /* The readout reserve, sized from the readouts. The card's bottom padding is
-   what keeps in-flow content off the absolutely-positioned ATK/HP squares, and
-   it was .261w — a number from when those squares were 32px. They are .145w
-   now, sitting .091w off the bottom, so they occupy .236w and the old reserve
-   cleared them by a hair that the art's flex-grow then ate. Derived from the
-   readout's own geometry instead: its height, its offset, and a gap. */
+   what keeps in-flow content off the absolutely-positioned ATK/HP readouts.
+   It works because `.stat-circle` resolves its `bottom` against the containing
+   block's PADDING box — padding lives inside that box, so this reserves room
+   for the flex column without moving the readouts a pixel.
+
+   NOW ACTUALLY DERIVED, which is what the note here always claimed. It read
+   `0.145w + 0.091w + 0.055w` — height, offset, gap — and those were LITERALS
+   copied from the readout's geometry at the time, not the variables that state
+   it. The same drift the comment was written to fix then happened again: the
+   readout went .145 -> .190 -> .160 -> .175 -> .219 of the card across five
+   passes and this reserve never moved, so the hexes grew up into the rules
+   text. Owner: "the hexagons cannot overlap the tex."
+
+   Measured on an inspected Galactus before this change: the rules box ran to
+   y=746.9 against a hex row starting at y=716.4, and THREE of its eight text
+   line rects intersected a hexagon. After: box bottom 709.1, hex top 716.2
+   (unmoved), overlapping line rects 0, 7.1px of clearance spare.
+
+   Reading --stat-bottom and --stat-h means it cannot drift again — change the
+   readout and the reserve follows. 1.1547 is the hexagon's height/width ratio
+   (2/sqrt3); --stat-h is its WIDTH.
+
+   READ SURFACES ONLY, and that is measured rather than assumed: every hand
+   card was swept for the same collision, including Yoda at 20 line rects and
+   General Grievous at 18 — the two wordiest cards in the game — and none
+   overlaps, 0 of 9. The board hides its rules text entirely. */
 .card.card.draft-card, .card.card.enc-card,
 .card-inspect-modal .card.card,
 .draft-card.trick-draft, .trick-card.trick-draft,
 .rl-pick-cardslot .card.card {
-  padding-bottom: calc(var(--card-w) * 0.145 + var(--card-w) * 0.091
-                       + var(--card-w) * 0.055) !important;
+  padding-bottom: calc(var(--stat-bottom) + var(--stat-h) * 1.1547
+                       + var(--card-w) * 0.03) !important;
 }
 
 /* ============================================================
@@ -51032,17 +51053,28 @@ body.low-fx .card-glow-host { filter: none !important; }
   pointer-events: none;
 }
 
-/* ---- 2 · the keyword chip ------------------------------------------------
-   One centred pill with a hairline border, rather than a row of tags. */
+/* ---- 2 · the keyword chip — BOXLESS, like every other surface -------------
+   Owner, circling the two bordered chips under an inspected card's name: "the
+   icons dont need to be boxed."
+   THIS RETIRES THE HAIRLINE BORDER this block was written for ("one centred
+   pill with a hairline border, rather than a row of tags"), and with it the
+   last disagreement between the read surfaces and the rest of the game: the
+   hand/board/trick rule has said "Boxless: no fill, no border, no pill halo.
+   The glow IS the chrome" since it was written, and the read card was the only
+   place still drawing a box around the same glyph. Standing card rule — one
+   treatment everywhere, only the detail level differs.
+   The padding stays: it is what keeps the chips from touching each other now
+   that nothing separates them. */
 .card.card.draft-card .status-badges,
 .card-inspect-modal .card.card .status-badges {
   justify-content: center !important;
   gap: calc(var(--card-w) * 0.018) !important;
 }
 .card.card.draft-card .status-badge,
+.card.card.enc-card .status-badge,
 .card-inspect-modal .card.card .status-badge {
-  background: transparent !important;
-  border: 1px solid rgba(var(--cf-rgb), 0.55) !important;
+  background: none !important;
+  border: 0 !important;
   border-radius: 0 !important;
   padding: calc(var(--card-w) * 0.012) calc(var(--card-w) * 0.030) !important;
   letter-spacing: 0.16em !important;
@@ -51275,3 +51307,4 @@ body.low-fx .card-glow-host { filter: none !important; }
   min-width: 0;
   height: calc(var(--sb-i) * 1.42) !important;
 }
+
