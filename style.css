@@ -50323,3 +50323,65 @@ body.in-match:not(.board-v2) .board {
 #right-col .ev-member { padding: 3px 0; }
 #right-col .ev-mname, #right-col .ev-mhp { font-size: 10px; }
 #right-col .ev-how { font-size: 9px; }
+
+/* ============================================================
+   THE DRAFT OFFERS ARE THE SAME HEIGHT, AND A TRICK IS SHORTER
+   ------------------------------------------------------------
+   Owner, on a screenshot with Ghost Rider's frame ending above
+   Droideka's: "make the draft cards the same height, and reduce the
+   height for the tricks."
+
+   TWO DIFFERENT CAUSES. They look like one problem and are not.
+
+   1 · THE CHARACTER CARDS. Earlier in this sheet the card's height was
+       deliberately turned into a FLOOR rather than a fixture — pinning
+       it clipped Thor's second ability, and pinning it higher put a dead
+       gap back under every short card. That was the right call about the
+       CARD and the wrong call about the ROW: `height: auto` sizes each
+       card to its own rules, so a card with two lines ends 55px above
+       one with six. Measured: Invisible Woman 618px, Lex Luthor 563px.
+
+       The row already stretches — `.draft-choices` is `align-items:
+       stretch` and both `.draft-offer` wrappers measured 636px. The card
+       is a child of that wrapper, which is a COLUMN, so `stretch` runs
+       across it and does nothing for height; the card sat at its content
+       height with `flex-grow: 0`. Growing it into the wrapper is all
+       this needs, and it keeps the property that mattered: the height is
+       still derived from the tallest card's own rules, so nothing is
+       clipped and there is no constant to get wrong. The art is pinned
+       at 328px, so the slack lands in the rules panel where it belongs.
+
+   2 · THE TRICKS. A separate thing entirely: they were a fixed 640px and
+       96px of that was EMPTY. The card's bottom padding is the readout
+       reserve — the space that keeps in-flow content off the absolutely
+       positioned ATK/HP squares — and a trick HAS NO ATK/HP SQUARES. It
+       was reserving room for a readout it never draws. Zeroing that
+       alone would not have helped, because the trick's art carries
+       `flex: 1 1 auto` and would simply have grown into the space it
+       freed; the art has to stop absorbing slack and sit at its own
+       360/472 aspect, and then the card's height follows its content.
+
+       Measured: 640px -> 523px, dead space below the last ink 96px ->
+       20px. The art is not cropped, it is un-stretched — it was being
+       pulled to 456px against a natural 414px.
+   ============================================================ */
+
+/* 1 · every offer in a row ends level with the tallest one in it */
+.draft-offer > .draft-card { flex: 1 1 auto; }
+.draft-offer > :not(.draft-card) { flex: 0 0 auto; }
+
+/* 2 · a trick reserves nothing for a readout it does not have, and its
+       height follows its content with a card-shaped floor. Same
+       specificity as the reserve rule it answers (0,2,0 + !important),
+       so it wins on file order. */
+.draft-card.trick-draft, .trick-card.trick-draft {
+  padding-bottom: calc(var(--card-w) * 0.055) !important;
+  height: auto !important;
+  min-height: calc(var(--read-card-w) * 1.40) !important;
+  max-height: none !important;
+}
+/* the art stops eating the slack — at its own aspect, not the card's */
+.draft-card.trick-draft .card-portrait,
+.trick-card.trick-draft .card-portrait {
+  flex: 0 0 auto !important;
+}

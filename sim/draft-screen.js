@@ -84,5 +84,51 @@ check('the empty keyword state drops its box',
       !!none && /border:\s*0/.test(none) && /background:\s*none/.test(none),
       'an outlined container promises something is coming; nothing is, until you pick it');
 
+// ---- 7 · every offer in a row ends level -----------------------------------
+// Owner, on a screenshot: "make the draft cards the same height."
+//
+// Case 3 above turned the card's height into a FLOOR on purpose (pinning it
+// clipped Thor), and that is still right — but it means each card sizes to its
+// own rules, so a two-line card ended 55px above a six-line one. Measured:
+// Invisible Woman 618px, Lex Luthor 563px.
+//
+// The row was already `align-items: stretch` and both .draft-offer wrappers
+// measured the full 636px. The card is a child of that wrapper, which is a
+// COLUMN — stretch runs across it and does nothing for height. Growing the
+// card into its wrapper is the whole fix, and it keeps the floor's property:
+// the height still comes from the tallest card's own rules, so there is no
+// constant to get wrong and nothing is clipped. Measured after: 40/40 draws
+// equal, 0 of 80 offers clipped.
+var offerCard = ruleBody('.draft-offer > .draft-card');
+check('the card grows to fill its offer, so a row ends level',
+      !!offerCard && /flex:\s*1 1 auto/.test(offerCard),
+      'without this each card sits at its own content height and a short card ends 55px high');
+check('and the card KEEPS a floor rather than a fixture',
+      !!cardBox && /max-height:\s*none/.test(cardBox),
+      'equal heights must come from the row, not from pinning the card again — that is what clipped Thor');
+
+// ---- 8 · a trick is shorter, because it has no readout to reserve for ------
+// Owner, same screenshot: "reduce the height for the tricks."
+//
+// A separate cause entirely. The trick was a fixed 640px and 96px of that was
+// empty: the card's bottom padding is the READOUT RESERVE, the space that keeps
+// in-flow content clear of the absolutely-positioned ATK/HP squares — and a
+// trick has no ATK/HP squares. It was reserving room for a readout it never
+// draws. Zeroing that alone would not have helped: the trick's art carries
+// `flex: 1 1 auto` and would have grown straight into the space it freed.
+// Measured: 640px -> 523px, dead space below the last ink 96px -> 20px, and the
+// art un-stretched from 456px back to its own 414px aspect (not cropped).
+var trickBox = ruleBody('.draft-card.trick-draft, .trick-card.trick-draft');
+check('a trick sizes to its content, not to a fixed rectangle',
+      !!trickBox && /height:\s*auto/.test(trickBox) && /max-height:\s*none/.test(trickBox),
+      'it was height/min/max all pinned to --read-card-h (640px)');
+check('and it reserves no room for a readout it does not have',
+      !!trickBox && /padding-bottom:\s*calc\(var\(--card-w\) \* 0\.055\)/.test(trickBox),
+      'the shared reserve is 0.145w + 0.091w + 0.055w to clear the ATK/HP squares; a trick has none');
+var trickArt = ruleBody('.draft-card.trick-draft .card-portrait,\n.trick-card.trick-draft .card-portrait');
+check('the trick art stops absorbing the card\'s slack',
+      !!trickArt && /flex:\s*0 0 auto/.test(trickArt),
+      'it is flex:1 1 auto on the read surfaces, which just moves the dead space into the painting');
+
 print('draft-screen: ' + pass + ' passed, ' + fails.length + ' failed');
 if (fails.length) { print('Failures:'); fails.forEach(function (f) { print('  - ' + f); }); }
