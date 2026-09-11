@@ -17825,13 +17825,21 @@ const Game = {
   // KEYED ON THE MATCH ROUND. This was the open question when the ladder went
   // in — the event's own clock, or the whole game's? The owner has answered it:
   // "if it rolls on round 6 only the cogs that i said on round 6 spawn." So
-  // round 1 is rung 0, round 3 is rung 3, round 6 is rung 6, and the rungs line
-  // up 1:1 with the event schedule (1, 3, 6, 9, 12, 15 …) by construction.
-  // ONE rule, read by both spawn paths, so they can never disagree about what
-  // round 6 means.
+  // round 3 is the first rung, round 6 the next, and the rungs line up 1:1 with
+  // the event schedule (3, 6, 9, 12, 15 …) by construction. ONE rule, read by
+  // both spawn paths, so they can never disagree about what round 6 means.
+  //
+  // WHY ROUND 3 HAS FOUR AND EVERY OTHER RUNG HAS TWO. The ladder was authored
+  // as turn 0 Flunky / Short Change, turn 3 Name Dropper / Bloodsucker — and
+  // the event clock does not start until round 3, so the turn-0 rung had no
+  // round that could ever reach it and those two cogs could not spawn at all
+  // (measured: 0 hits in 3000 matches). Owner: "have flunky short change in the
+  // round 3 rotation." So the bottom two rungs are ONE rung now. Nothing else
+  // moved: round 6 is still Downsizer / Money Bags, round 9 still Mingler /
+  // Legal Eagle, round 12+ still Robber Baron / Big Cheese, exactly as given.
+  // The opening rotation is simply the wide one — a 1/2 or a 2/3.
   _COG_LADDER: [
-    { turn: 0,  cogs: ['Flunky', 'Short Change'] },
-    { turn: 3,  cogs: ['Name Dropper', 'Bloodsucker'] },
+    { turn: 3,  cogs: ['Flunky', 'Short Change', 'Name Dropper', 'Bloodsucker'] },
     { turn: 6,  cogs: ['Downsizer', 'Money Bags'] },
     { turn: 9,  cogs: ['The Mingler', 'Legal Eagle'] },
     { turn: 12, cogs: ['Robber Baron', 'The Big Cheese'] },   // 12+ stays here

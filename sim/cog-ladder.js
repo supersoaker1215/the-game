@@ -37,9 +37,14 @@ function eq(label, actual, expected) {
   }
 }
 
+// THE OWNER'S SCHEDULE, as it stands after the round-3 merge. It was authored
+// with a turn-0 rung (Flunky / Short Change) and a separate turn-3 one (Name
+// Dropper / Bloodsucker) — but the event clock never reaches a round below 3,
+// so the turn-0 rung was unreachable and those two cogs could not spawn at all.
+// Owner: "have flunky short change in the round 3 rotation." One wide opening
+// rung; nothing else moved.
 var SCHEDULE = [
-  [0,  ['Flunky', 'Short Change']],
-  [3,  ['Name Dropper', 'Bloodsucker']],
+  [3,  ['Flunky', 'Short Change', 'Name Dropper', 'Bloodsucker']],
   [6,  ['Downsizer', 'Money Bags']],
   [9,  ['The Mingler', 'Legal Eagle']],
   [12, ['Robber Baron', 'The Big Cheese']],
@@ -54,9 +59,10 @@ t('CL-1 the ladder is the owner\'s schedule, rung for rung', function () {
 
 t('CL-2 a rung holds until the next one, and 12+ tops out', function () {
   // Between rungs the previous one stands — the ladder steps, it does not
-  // interpolate.
-  eq('turn 1',  Game._cogRungFor(1).turn,  0);
-  eq('turn 2',  Game._cogRungFor(2).turn,  0);
+  // interpolate. Below round 3 it floors on the opening rung, which no
+  // scheduled event can reach anyway.
+  eq('turn 1',  Game._cogRungFor(1).turn,  3);
+  eq('turn 2',  Game._cogRungFor(2).turn,  3);
   eq('turn 5',  Game._cogRungFor(5).turn,  3);
   eq('turn 11', Game._cogRungFor(11).turn, 9);
   // "12+" — it must not wrap back to Flunky on a long event.
@@ -91,7 +97,7 @@ t('CL-4 the rung is the MATCH ROUND, not the event\'s own clock', function () {
   Game._cogSpawnOnSide = function () { return null; };
   try {
     SCHEDULE.forEach(function (row) {
-      var round = row[0] || 1, allowed = row[1];
+      var round = row[0], allowed = row[1];
       for (var i = 0; i < 12; i++) {
         // firstRound deliberately varied — it must make no difference at all.
         var vp = { key: 'vp', name: 'The V.P.', cog: null, firstRound: 1 + (i % 9) };
@@ -154,36 +160,51 @@ t('CL-8 the rungs line up with the event schedule, round for round', function ()
      [3, 6, 9, 12, 15].every(function (r) { return Game._eventRoundDue(r); }), true);
 });
 
-t('CL-8b RUNG 0 IS UNREACHABLE — Flunky and Short Change can never spawn', function () {
-  // NOT A PASSING GRADE, A FLAG. The owner gave the ladder as turn 0 Flunky /
-  // Short Change, turn 3 Name Dropper / Bloodsucker, and so on — and separately
-  // set the event clock to "no round 1 event 3,6,9,12,15 etc". Both were
-  // explicit, and together they leave the bottom rung with no round that can
-  // reach it: the earliest an event can land is round 3, which is rung 3.
-  //
-  // Measured over 3000 seeded matches: rung 0 landed 0 times.
-  //
-  // This is pinned rather than quietly fixed because the fix is a CONTENT
-  // decision, not a code one — either shift the ladder down a step (round 3
-  // becomes Flunky / Short Change and everything slides) or leave those two as
-  // dev-only bodies. Whichever the owner picks, changing it here would be
-  // rewriting a mapping he stated card by card. If this test ever starts
-  // failing, that decision has been made — update it to match.
-  eq('the earliest event round is 3', Game._EVENT_FIRST_ROUND, 3);
-  eq('and round 3 is already rung 3', Game._cogRungFor(Game._EVENT_FIRST_ROUND).turn, 3);
+t('CL-8b EVERY rung is reachable, and every cog can actually spawn', function () {
+  // THIS TEST USED TO ASSERT THE OPPOSITE. The ladder was authored with a turn-0
+  // rung and the clock starts at round 3, so Flunky and Short Change had no
+  // round that could reach them — 0 hits in 3000 measured matches. It was
+  // flagged rather than patched because the fix was a content decision; the
+  // owner made it ("have flunky short change in the round 3 rotation"), and this
+  // now guards the whole ladder against the same class of orphan.
   var reachable = {};
   for (var r = Game._EVENT_FIRST_ROUND; r <= 60; r++) {
     if (Game._eventRoundDue(r)) reachable[Game._cogRungFor(r).turn] = true;
   }
-  eq('rung 0 is not on any scheduled round', !!reachable[0], false);
-  eq('rungs 3, 6, 9 and 12 all are',
-     [3, 6, 9, 12].every(function (t) { return !!reachable[t]; }), true);
+  Game._COG_LADDER.forEach(function (rung) {
+    eq('rung ' + rung.turn + ' is on a scheduled round', !!reachable[rung.turn], true);
+  });
+  eq('the first rung is the first event round',
+     Game._cogRungFor(Game._EVENT_FIRST_ROUND).turn, Game._COG_LADDER[0].turn);
+
+  // And drive it: every one of the ten cogs comes out of a real wave.
+  var seen = {};
+  var realSpawn = Game._cogSpawnOnSide;
+  Game._cogSpawnOnSide = function () { return null; };
+  try {
+    Game.init();
+    for (var i = 0; i < 4000; i++) {
+      var round = [3, 6, 9, 12, 15][i % 5];
+      var vp = { key: null, name: 'Cog Invasion', cog: null };
+      Game._cogSpawnCog(vp, round);
+      seen[vp.cog] = (seen[vp.cog] || 0) + 1;
+    }
+  } finally { Game._cogSpawnOnSide = realSpawn; }
+  SCHEDULE.forEach(function (row) {
+    row[1].forEach(function (n) {
+      eq(n + ' actually spawns (' + (seen[n] || 0) + ' of 4000)', (seen[n] || 0) > 0, true);
+    });
+  });
+  eq('and nothing spawns that is not on the ladder',
+     Object.keys(seen).every(function (n) {
+       return SCHEDULE.some(function (row) { return row[1].indexOf(n) >= 0; });
+     }), true);
 });
 
 t('CL-9 THE EVENT IS ONE WAVE — one Cog, one on each side, this round\'s rung', function () {
   // "if it rolls on round 6 only the cogs that i said on round 6 spawn the same
   // cog one on each side ez peasy." Driven on a real board, not through a stub.
-  [[3, ['Name Dropper', 'Bloodsucker']],
+  [[3, ['Flunky', 'Short Change', 'Name Dropper', 'Bloodsucker']],
    [6, ['Downsizer', 'Money Bags']],
    [9, ['The Mingler', 'Legal Eagle']],
    [12, ['Robber Baron', 'The Big Cheese']],
