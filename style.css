@@ -31251,6 +31251,35 @@ body.combat-anticipate::after  { content: none !important; }
    obvious: hand, draft, codex, deck builder, inspect. */
 .card { --rarity-rgb: var(--art-rgb, 150, 170, 190); }
 
+/* ============================================================
+   THE CARD NAME IS ONE RECIPE, ON EVERY SURFACE
+   ------------------------------------------------------------
+   Owner: "why are the names not the color like before — remember card design
+   elements are all the same, just some have more detail than others. hand /
+   board less detail; tap, draft and codex the most detail."
+
+   That is the rule, and it is about DETAIL, not about design. A hand tile
+   shows fewer things than a draft card; the things it does show are the same
+   things. So the name's colour and its glow live here, once, and every surface
+   reads them — the only thing that varies is --card-w, which every radius is
+   expressed in, so a 110px tile gets a proportionally smaller version of the
+   same treatment rather than a different one.
+
+   This replaces a hand/board rule that painted the name pure white on the
+   reasoning that "coloured letters over dark art is the lowest-contrast place
+   on the card". That was a real concern and the owner has now answered it
+   twice: he asked for the accent on the read surfaces, looked at it, and asked
+   for the same on the tiles. The two black layers below are what pays for it.
+   ============================================================ */
+.card, .trick-card {
+  --cn-colour: color-mix(in srgb, rgb(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250))) 82%, #ffffff);
+  --cn-glow:
+    0 1px 2px rgba(0, 0, 0, 0.95),
+    0 0 calc(var(--card-w) * 0.012) rgba(0, 0, 0, 0.90),
+    0 0 calc(var(--card-w) * 0.015) rgba(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250)), 0.70),
+    0 0 calc(var(--card-w) * 0.032) rgba(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250)), 0.22);
+}
+
 /* ----------------------------------------------------------------
    SIMPLIFIED PORTRAIT — MINIMAL CHROME, NO EFFECTS LAYER STACK
    ----------------------------------------------------------------
@@ -44052,13 +44081,12 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    letters over dark art is the lowest-contrast place on the card. The name's
    job is to be READ. Pure white now, with the frame colour as a 5px halo, so
    the tier still arrives — just not at the cost of legibility. */
+/* …and it reads the shared recipe now, rather than stating its own. See "THE
+   CARD NAME IS ONE RECIPE" for why the white went. */
 .card .card-portrait .card-name-overlay,
 .card .card-name-overlay .cn-text {
-  color: #ffffff !important;
-  text-shadow:
-    0 1px 3px rgba(0,0,0,0.95),
-    0 0 5px  rgba(var(--frame-rgb), 0.95),
-    0 0 12px rgba(var(--frame-rgb), 0.45) !important;
+  color: var(--cn-colour) !important;
+  text-shadow: var(--cn-glow) !important;
 }
 /* The two overlays that carry information rather than spectacle, moved inside
    the silhouette so the clip cannot eat them. */
@@ -46301,7 +46329,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
      rgb(241,64,105) border printed its name at rgb(248,163,183), a pale pink.
      82% keeps a bright core on the glyph, which is what a neon tube actually
      looks like, while reading unmistakably as the border's hue. */
-  color: color-mix(in srgb, rgb(var(--cf-rgb)) 82%, #ffffff) !important;
+  color: var(--cn-colour) !important;
   /* the fit is off here — see above; --cn-fit is ignored and the name wraps */
   font-size: calc(var(--card-w) * 0.0982) !important;
   white-space: normal !important;
@@ -46329,11 +46357,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
      removed). The letters went soft. Owner: "better but too much outer glow."
      Halved, and the far layer cut by more than half again — enough to read as
      lit, not enough to eat the letterform. Measured after: 2.4 to 1. */
-  text-shadow:
-    0 1px 2px rgba(0,0,0,0.95),
-    0 0 calc(var(--card-w) * 0.012) rgba(0,0,0,0.90),
-    0 0 calc(var(--card-w) * 0.015) rgba(var(--cf-rgb), 0.70),
-    0 0 calc(var(--card-w) * 0.032) rgba(var(--cf-rgb), 0.22) !important;
+  text-shadow: var(--cn-glow) !important;
 }
 
 /* ============================================================

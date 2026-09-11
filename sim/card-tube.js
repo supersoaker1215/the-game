@@ -513,16 +513,23 @@ check('and the old fixed green is gone from it',
 (function () {
   var el = { classes: ['cn-text'], ancestors: ['card', 'draft-card', 'card-name-overlay'] };
   var c = winner('color', el);
-  check('the name is mostly the border colour, not mostly white',
-        !!c && /color-mix\(in srgb, rgb\(var\(--cf-rgb\)\) (8[0-9]|9[0-9]|100)%/.test(c.value),
-        c ? 'winning colour is `' + c.value + '` — under 80% and it reads as white with a tint'
-          : 'nothing reaches the name');
+  check('the name reads the shared recipe', !!c && /var\(--cn-colour\)/.test(c.value),
+        c ? 'winning colour is `' + c.value + '` — it should defer to --cn-colour' : 'nothing reaches the name');
   var sh = winner('text-shadow', el);
+  check('and its glow reads the shared recipe too', !!sh && /var\(--cn-glow\)/.test(sh.value),
+        sh ? 'winning text-shadow is `' + sh.value + '`' : 'no shadow reaches it');
+  // the recipe itself
+  var recipe = /--cn-colour:\s*color-mix\(in srgb, rgb\(var\(--cf-rgb[^)]*\)+\)\s*82%/.test(BARE);
+  check('and the recipe is 82% toward the accent', recipe,
+        'under 80% and the name reads as white with a tint — measured, a crimson ' +
+        'rgb(241,64,105) border used to print its name at rgb(248,163,183)');
+  var glowDef = /--cn-glow:[\s\S]{0,400}?;/.exec(BARE);
+  var gv = glowDef ? glowDef[0] : '';
   check('and its halo carries no white core',
-        !!sh && !/255,\s*255,\s*255/.test(sh.value),
-        sh ? 'winning text-shadow is `' + sh.value.slice(0, 110) + '`' : 'no shadow reaches it');
+        !!gv && !/255,\s*255,\s*255/.test(gv),
+        'the recipe is `' + gv.slice(0, 110) + '`');
   check('the halo is the accent, in two layers',
-        !!sh && (sh.value.match(/--cf-rgb/g) || []).length >= 2,
+        (gv.match(/--cf-rgb/g) || []).length >= 2,
         'one radius reads as an outline; two read as a tube');
   // AND THE RADII ARE THE NAME'S OWN, not the card's. The first pass reused the
   // frame's 0.030/0.070 so the two would "read as one object" — right about the
@@ -531,15 +538,14 @@ check('and the old fixed green is gone from it',
   // Owner: "better but too much outer glow." Measured on a black stage with the
   // painting removed, halo energy per unit of glyph 0.617 -> 0.421, with the
   // glyphs themselves unchanged at 242k/239k.
-  var wide = sh && /--cf-rgb\), 0\.[0-9]+\)\s*$/.test(sh.value.trim());
-  var radii = sh ? (sh.value.match(/var\(--card-w\) \* (0\.\d+)/g) || []) : [];
+  var radii = gv.match(/var\(--card-w\) \* (0\.\d+)/g) || [];
   check('and they are tighter than the card\'s own glow (0.030 / 0.070)',
         radii.length >= 2 && radii.every(function (r) {
           return parseFloat(r.split('* ')[1]) <= 0.035;
         }),
         'radii found: ' + radii.join(', ') + ' — at 27px type anything wider blooms over the glyph');
   check('with black underneath, because the name sits on the painting',
-        !!sh && /rgba\(0,\s*0,\s*0/.test(sh.value),
+        /rgba\(0, ?0, ?0/.test(gv),
         'no dark layer and a pale name disappears into a bright art');
 })();
 
@@ -573,6 +579,25 @@ check('and the old fixed green is gone from it',
         /--draft-rules-weight:\s*600/.test(BARE),
         'the token out-specifies the base rule — raising the base alone does nothing on the draft, ' +
         'which is exactly what happened on the first attempt');
+})();
+
+// ---- one recipe, every surface ---------------------------------------------
+// Owner: "card design elements are all the same, just some have more detail
+// than others — hand/board less detail, tap, draft and codex the most detail."
+// So the name's treatment is defined ONCE and read everywhere; the only thing
+// that varies is --card-w, which every radius is expressed in, so a 110px tile
+// gets a proportionally smaller version of the same thing rather than a
+// different thing. Measured: hand glow radii 1.32/1.65/3.52px against
+// tap-to-view's 3.84/4.8/10.24px, identical colour on both.
+(function () {
+  var hand = winner('color', { classes: ['cn-text'],
+                               ancestors: ['card', 'hand-card', 'card-name-overlay'] });
+  check('the HAND name reads the same recipe as the draft',
+        !!hand && /var\(--cn-colour\)/.test(hand.value),
+        hand ? 'winning colour is `' + hand.value + '`' : 'nothing reaches the hand name');
+  check('so no surface hard-codes white for it',
+        !/\.card \.card-name-overlay \.cn-text \{[^}]*#ffffff/.test(BARE),
+        'a pure-white override on one surface is the thing this replaced');
 })();
 
 print('card-tube: ' + pass + ' passed, ' + fails.length + ' failed');
