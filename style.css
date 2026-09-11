@@ -47864,10 +47864,10 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 @media (max-width: 900px) { .cog-panel { width: 180px; font-size: 92%; } }
 .shadow-tracker .sh-title {
   pointer-events: auto;
-  cursor: grab;
+  cursor: default;            /* stapled — the title is not a handle any more */
   position: relative;
 }
-.shadow-tracker.sh-dragging .sh-title { cursor: grabbing; }
+/* .sh-dragging is dead with the drag itself; the class is never added now. */
 .shadow-tracker .sh-size {
   pointer-events: auto;
   position: absolute; right: -2px; top: 50%; transform: translateY(-50%);
@@ -48475,6 +48475,18 @@ body.in-match #classic-decision:has(.cd-slot > *) { display: flex; }
   z-index: auto !important;
   opacity: 1 !important;
   box-sizing: border-box;
+  /* AND THE WRAPPER IS THE MISSING LINK IN THE HEIGHT CHAIN. The panel's
+     `max-height: 100%` resolves against THIS element, not against .cd-slot —
+     the modal wraps the panel — so leaving this auto-height meant the cap
+     measured 100% of "whatever the panel wants" and the buttons stayed 154px
+     below the fold. Every link from the slot down to the panel has to be
+     definite for the percentage at the bottom to mean anything. */
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
 }
 /* AND THE PANEL INSIDE THEM FITS THE COLUMN. Un-floating the modal was not
    enough: each one wraps its content in a .floating-prompt-panel sized for the
@@ -48505,14 +48517,117 @@ body.in-match #classic-decision:has(.cd-slot > *) { display: flex; }
   min-width: 0 !important;
   box-sizing: border-box;
 }
-/* The choices stack down the column instead of sitting side by side, which is
-   what a 286px width can actually hold. */
+/* THE CHOICES SIT SIDE BY SIDE AGAIN. They were stacked when this column was
+   286px and the panel had the whole gutter height to itself. It shares that
+   height with the Shadow Man scoreboard now, and at 1280x720 the two simply do
+   not both fit while the buttons cost 96px of it — measured, `Keep` fell off
+   the bottom of the panel and the scoreboard lost two of its four rows.
+   Side by side they cost 44px instead of 96, and the column is --decision-w
+   wide (269px at that size), which two buttons hold comfortably.
+   The stack is kept for a genuinely narrow column, where it is still right. */
 #classic-decision .fp-choices {
   display: flex !important;
-  flex-direction: column !important;
+  flex-direction: row !important;
   gap: 8px !important;
 }
-#classic-decision .fp-btn { width: 100% !important; }
+#classic-decision .fp-btn { flex: 1 1 0 !important; width: auto !important; min-width: 0 !important; }
+@media (max-width: 1000px) {
+  #classic-decision .fp-choices { flex-direction: column !important; }
+  #classic-decision .fp-btn { flex: 0 0 auto !important; width: 100% !important; }
+}
+/* AND THE HEADER IS ONE LINE. "Block Meter Triggered" wrapped to three at this
+   width, which is 40px of a strip that is 40px short. */
+#classic-decision .fp-header {
+  padding-bottom: 2px !important;
+  padding-right: 26px !important;   /* the peek-toggle X sits in this corner */
+  min-width: 0;
+}
+#classic-decision .fp-label {
+  font-size: clamp(10px, 1.02vw, 12px) !important;
+  letter-spacing: 0.04em !important;
+  line-height: 1.25 !important;
+  /* Two lines rather than nowrap: nowrap ran the label under the X. Two short
+     lines cost 15px against the three it used to wrap to. */
+  overflow-wrap: anywhere;
+}
+/* ============================================================
+   THE ANSWER IS ALWAYS ON SCREEN (2026-09-11)
+   ------------------------------------------------------------
+   Owner, on the Block Meter offer: "i cant see the play or keep button unless
+   my screen is bigger it all needs to fit on the right side of the board."
+
+   Measured at 1280x720: the panel laid out 512px tall inside a #classic-decision
+   that clips at 440px, so `Play Free` / `Keep` sat 89px past the visible bottom.
+   The panel scrolled, so the buttons existed — but a prompt you have to discover
+   by scrolling is a prompt that looks like it has no answer, and the panel is
+   the only thing on screen that can end the turn.
+
+   The card is the part that can give: it is an illustration of a trick whose
+   rules are printed on it, and it can lose a little height or scroll. The two
+   buttons cannot — they are the whole point of the panel. So the panel is capped
+   at its slot and laid out as a column, the preview takes what is left, and the
+   choices are pinned outside the part that scrolls.
+
+   `min-height: 0` on the body and the preview is the load-bearing half: a flex
+   child refuses to shrink below its content height without it, which is why
+   capping the panel alone did nothing the first time.
+   ============================================================ */
+#classic-decision .floating-prompt-panel {
+  display: flex !important;
+  flex-direction: column !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+#classic-decision .fp-body {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+#classic-decision .fp-header { flex: 0 0 auto !important; }
+#classic-decision .fp-trick-preview {
+  flex: 1 1 auto !important;
+  /* A FLOOR, NOT ZERO. Pinning the buttons made them reachable and let the card
+     above them shrink all the way to a 10px sliver — and the card is what the
+     owner is being asked about ("block meter triggered art here"). 112px is the
+     smallest this preview can be and still read as a card; below that the panel
+     scrolls instead, and the buttons stay pinned outside that scroll. The
+     column's floor for the panel (292px) is this plus the header, the two
+     stacked buttons and the padding, so in the common decision + scoreboard
+     pair nothing has to scroll at all. */
+  /* 80px, and the number is measured rather than chosen. The panel's fixed
+     furniture — header 33, the two buttons 50, 32 of padding and 24 of gaps —
+     is 139px, and the decision panel adds its own head and padding on top. At
+     1280x720 the gutter is 452px and the scoreboard's four rows need 176 of it,
+     which leaves the panel 264 and the card 80. Anything larger here and the
+     buttons get pushed out of a panel that clips, which is the bug this whole
+     block exists to fix. A taller screen has more gutter, the floor stops
+     binding and the card grows on its own. */
+  min-height: min(80px, 100%) !important;
+  overflow-y: auto !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: flex-start !important;
+}
+/* PINNED. Whatever happens above it, the answer stays in view. */
+#classic-decision .fp-choices { flex: 0 0 auto !important; }
+/* AND THE CHAIN ABOVE IT HAS TO BE DEFINITE, or none of the above does anything.
+   `max-height: 100%` on the panel resolves against .cd-slot, and .cd-slot was an
+   auto-height flex item — 100% of "as tall as my content" is not a limit, which
+   is why capping the panel alone left it 577px tall in a 440px box on the first
+   attempt. Giving the slot `flex: 1 1 auto; min-height: 0` makes it exactly as
+   tall as the panel has room for, and the percentage finally means something.
+   #classic-decision keeps its own overflow-y as a backstop; with this it has
+   nothing left to scroll. */
+#classic-decision { min-height: 0; }
+#classic-decision .cd-slot,
+#classic-decision .cd-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 /* The trick preview scales to the column rather than overflowing it. */
 #classic-decision .fp-trick-preview .card,
 #classic-decision .fp-trick-preview .trick-card {
@@ -50390,7 +50505,11 @@ body.in-match:not(.board-v2) .board {
   top: 58px;
   bottom: 16px;
   width: 200px;
-  z-index: 180;
+  /* 500 — the layer the decision panel used to hold on its own. It docks in
+     here now (see _classicDecisionSlot), so the column has to sit where the
+     panel sat or docking it would push a live prompt under the chrome. Still
+     below the full-screen modals at 750. */
+  z-index: 500;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -50446,7 +50565,13 @@ body.in-match:not(.board-v2) .board {
   top: var(--decision-top, 58px);
   bottom: auto;
   height: calc(var(--decision-bottom, 92vh) - var(--decision-top, 58px));
-  width: 184px;                    /* a little smaller — owner */
+  /* ONE GUTTER WIDTH, AND IT IS THE ONE THE BOARD RESERVED. This was a hard
+     184px while the decision panel in the same strip used --decision-w — the
+     width _fitBoardToViewport solves and the lanes are laid out around. Three
+     different widths for one column is how the Shadow Man's scoreboard ended up
+     24px wider than the box clipping it. Same variable, same fallback as the
+     panel, so the strip is one width by construction. */
+  width: var(--decision-w, clamp(232px, 21vw, 330px));
 }
 /* The Shadow Man's tracker joins the column, last: the VP you can hit is the
    thing you act on, the events are what is happening, and his scoreboard is a
@@ -50457,12 +50582,110 @@ body.in-match:not(.board-v2) .board {
   left: auto !important; right: auto !important; top: auto !important; bottom: auto !important;
   transform: none !important;
   width: 100% !important;
-  max-height: 34% !important;
+  /* AND min-width HAS TO GO WITH IT. `width: 100%` cannot beat the authored
+     `min-width: calc(208px * var(--sh-scale))` — min-width wins over width, so
+     the panel stayed 208px inside a 184px column with overflow:hidden and the
+     ENEMY column was clipped off the right. Measured: tracker right edge 1211.7
+     against a column right edge of 1187.7, 24px gone. Owner: "the shadow man
+     leaderboard is getting cut off." The scale still works; it now scales the
+     type inside a box that belongs to the column. */
+  min-width: 0 !important;
+  /* 44%, NOT 34%. Four challenge rows plus the header measure 176px and 34% of
+     a 452px gutter is 154 — the fourth row (Block Damage) sat below the fold of
+     a panel whose whole job is comparing four numbers. 44% clears it, and the
+     panel's floor below was set to what is left so both fit at 1280x720. */
+  max-height: 44% !important;
   margin: 0 !important;
   overflow-y: auto;
   flex: 0 1 auto;
   cursor: default;                 /* docked, so no drag handle to imply */
 }
+
+/* ============================================================
+   THE REVEAL IS A FLOW CHILD TOO (2026-09-11)
+   ------------------------------------------------------------
+   Owner, circling a Shadow Man reveal sitting on top of his own scoreboard:
+   "there should be no overlap the art should fit in the box."
+
+   `.trick-reveal` is `position: fixed; inset: 0` and pushes its card into the
+   gutter, which is where this column already lives. Measured with his challenge
+   up: the reveal card covered #right-col by 78x280px and the scoreboard by
+   102x164px. The gutter's three bands (decision / reveal / notice) never
+   accounted for this column, and the column spans the whole gutter height, so
+   no anchor was going to miss it.
+
+   Docked, the overlap is not tuned — it is impossible, which is the same
+   argument written at the top of this column. It takes the top of the stack
+   while it is up (it is a two-second announcement), and the rail and the
+   scoreboard shrink under it rather than being covered by it: both already
+   scroll internally, and `min-height: 0` is what lets a flex child actually
+   give up space instead of refusing at its content height.
+   ============================================================ */
+/* THE DECISION PANEL IS A FLOW CHILD TOO, and it takes the top of the stack —
+   it is the thing you have to answer. It keeps every one of its authored caps;
+   what it loses is the fixed anchor that let it lie across the rail and the
+   scoreboard. See _classicDecisionSlot for why it is still outside
+   .board-section's stacking context. */
+#right-col > #classic-decision {
+  order: -1;
+  position: static !important;
+  top: auto !important; right: auto !important; left: auto !important; bottom: auto !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  z-index: auto;
+  /* flex/min-height are set together with the other three, below. */
+}
+#right-col > .trick-reveal {
+  order: 0;
+  position: static !important;
+  inset: auto !important;
+  width: 100% !important;
+  height: auto !important;
+  flex: 0 0 auto;
+  padding: 0 !important;
+  gap: 6px;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  z-index: auto;
+}
+/* The card sized itself off the viewport (clamp(112px, 12.5vw, 200px)) because
+   it used to float; in the column it answers to the column — but it KEEPS ITS
+   OWN PROPORTION. Stretching it to the column's full width made it 269x160, and
+   a portrait painting in a squat box is cropped to a letterbox, which is the
+   other half of "the art should fit in the box". So: never wider than the
+   column, never wider than the 200px it was authored at, and its authored 5:7
+   minimum height left alone. */
+#right-col > .trick-reveal .trick-reveal-card {
+  width: min(100%, 200px) !important;
+}
+#right-col > .trick-reveal .tr-label { flex: 0 0 auto; }
+/* WHO GIVES UP ROOM, AND IN WHAT ORDER. Four things want one 452px strip at
+   1280x720, and their natural heights add up to about 840 — so this is not a
+   layout that can satisfy everyone, it is a priority list. Left to a plain
+   `min-height: 0` on all of them they shrank in proportion and the Shadow Man
+   scoreboard came out 39px tall, which is the same complaint the clipping was.
+     - the DECISION keeps a floor. It is the only one that has to be answered,
+       and below ~240px its pinned buttons start eating the card above them.
+     - the SCOREBOARD does not shrink at all. Its own `max-height: 34%` is its
+       size, and being readable is the entire point of a live race.
+     - the REVEAL and the event rail give first. The reveal is a two-second
+       announcement and the rail scrolls, so neither loses anything permanent.
+   The common pairs all fit: decision + scoreboard is 240 + 154 in 452, and
+   reveal + scoreboard is 301 + 154. Only the rare three-at-once compresses the
+   reveal, which is the right thing to lose. */
+/* THE PANEL ABSORBS, THE SCOREBOARD DOES NOT. Letting both shrink meant the
+   flex algorithm split the deficit by base size and the scoreboard — the
+   smaller of the two — kept coming out at 116px, two of its four rows, which is
+   the clipping complaint again in a new place. `flex: 0 0 auto` on the
+   scoreboard takes it out of the negotiation entirely: its own `max-height: 34%`
+   is its size and the panel takes whatever is left. The panel can afford it —
+   its contents are a header, a card and two buttons, and the card is the only
+   one that has to give (it has a 112px floor of its own and scrolls past that,
+   with the buttons pinned outside the scroll). */
+#right-col > #classic-decision { flex: 0 1 auto; min-height: min(262px, 100%); }
+#right-col > .shadow-tracker    { flex: 0 0 auto; }
+#right-col > .trick-reveal,
+#right-col > #event-rail        { flex: 0 1 auto; min-height: 0; }
 
 /* ---- a little smaller, throughout ---------------------------------------- */
 #right-col > .cog-panel { padding: 8px 9px 9px !important; font-size: 92%; }

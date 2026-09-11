@@ -154,6 +154,9 @@ run_suite sim/forecast-batch.js
 echo ""
 echo "=== portrait-refresh.js (a crop edit reaches the cached art node) ==="
 run_suite sim/portrait-refresh.js
+echo ""
+echo "=== gutter-stack.js (everything right of the board is one stack) ==="
+run_suite sim/gutter-stack.js
 
 echo ""
 echo "=== pointer-cost.js (no <body> custom-prop write on every mousemove) ==="

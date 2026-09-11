@@ -14134,7 +14134,7 @@ const UI = {
     const awarded = (sh.awards || []).map(a =>
       `<div class="sh-award">${a.weapon} \u2192 ${nameOf(a.seat)}</div>`).join('');
     el.innerHTML =
-      `<div class="sh-title" title="Drag to move">SHADOW MAN`
+      `<div class="sh-title">SHADOW MAN`
       +   `<button type="button" class="sh-size" title="Resize">\u25F1</button>`
       + `</div>`
       + `<div class="sh-head"><span class="sh-label"></span>${head}</div>`
@@ -14296,52 +14296,29 @@ const UI = {
   // Position and scale are remembered per browser through the same _persistSet
   // the codex filters use, so it stays where it was put.
   _SHADOW_SIZES: [0.8, 1, 1.25],
+  // THE COLUMN IS STAPLED TO THE BOARD. The title bar used to grip #right-col
+  // and drag the whole strip — events, VP panel and scoreboard together —
+  // storing an x/y that _applyRightColBox re-asserted on every render. Owner:
+  // "the evts tab should be stapled into the bo[ard] cant be moved."
+  //
+  // Dragging it was itself a fix ("i cant move the shadow man box"), from when
+  // the tracker was a lone floating panel that could land on top of the event
+  // rail. It is a flow child of the column now, so there is nothing left to get
+  // out of the way OF — and a strip that can be dragged off the gutter the
+  // board reserved for it is a strip that can be dragged into the lanes. The
+  // resize button stays: that scales the type, it does not move anything.
   _wireShadowTracker(el) {
     if (el._shadowWired) return;      // innerHTML is rebuilt every render; the
     el._shadowWired = true;           // handlers must not stack with it
-    // Only the title bar and the size button take pointer events — the body
-    // stays transparent to clicks so the board underneath is still playable.
     el.addEventListener('pointerdown', (ev) => {
       const sizeBtn = ev.target.closest && ev.target.closest('.sh-size');
-      if (sizeBtn) {
-        const cur = this._shadowBox().scale || 1;
-        const sizes = this._SHADOW_SIZES;
-        const next = sizes[(sizes.indexOf(cur) + 1) % sizes.length] || 1;
-        this._shadowBox({ scale: next });
-        this._applyShadowTrackerBox(el);
-        ev.preventDefault(); ev.stopPropagation();
-        return;
-      }
-      if (!(ev.target.closest && ev.target.closest('.sh-title'))) return;
-      // DRAG THE WHOLE COLUMN, not the box alone. The Shadow Man tracker is now
-      // a flow child of #right-col (docked so the right-hand panels can never
-      // overlap again), so setting left/top on the box itself moves nothing —
-      // it is position:static in the column. The title bar therefore grips the
-      // column: the VP panel, the event rail and the scoreboard travel together
-      // and stay non-overlapping wherever they are put. (Owner: "i cant move the
-      // shadow man box.")
-      const col = this._rightColumn();
-      const box = this._shadowBox();
-      const r = col.getBoundingClientRect();
-      const startX = ev.clientX, startY = ev.clientY;
-      const baseX = (box.x != null) ? box.x : r.left;
-      const baseY = (box.y != null) ? box.y : r.top;
-      el.classList.add('sh-dragging');
-      const move = (e) => {
-        // Clamped to the viewport so it can never be dragged out of reach.
-        const x = Math.max(0, Math.min(window.innerWidth - 60, baseX + (e.clientX - startX)));
-        const y = Math.max(0, Math.min(window.innerHeight - 40, baseY + (e.clientY - startY)));
-        this._shadowBox({ x, y });
-        this._applyRightColBox(col);
-      };
-      const up = () => {
-        el.classList.remove('sh-dragging');
-        window.removeEventListener('pointermove', move);
-        window.removeEventListener('pointerup', up);
-      };
-      window.addEventListener('pointermove', move);
-      window.addEventListener('pointerup', up);
-      ev.preventDefault();
+      if (!sizeBtn) return;           // the title bar is no longer a handle
+      const cur = this._shadowBox().scale || 1;
+      const sizes = this._SHADOW_SIZES;
+      const next = sizes[(sizes.indexOf(cur) + 1) % sizes.length] || 1;
+      this._shadowBox({ scale: next });
+      this._applyShadowTrackerBox(el);
+      ev.preventDefault(); ev.stopPropagation();
     });
   },
   _shadowBox(patch) {
@@ -14366,20 +14343,21 @@ const UI = {
   // The right column's remembered position, applied as inline left/top so it
   // overrides the stylesheet's fixed right/top anchor. Set only once the user has
   // dragged it (box.x/y present); until then the column keeps its authored place.
+  // NOTHING TO APPLY ANY MORE — the column is stapled to the gutter the board
+  // reserved, so its position is the stylesheet's. Kept, and kept being called
+  // from _rightColumn, because a saved drag from before this change would
+  // otherwise be re-asserted forever by the inline styles it already wrote:
+  // this clears those and drops the stored coordinates the first time it runs.
   _applyRightColBox(col) {
     col = col || document.getElementById('right-col');
     if (!col) return;
     const box = this._shadowBox();
-    if (box.x == null || box.y == null) return;    // never moved — leave the CSS anchor
-    col.style.left = box.x + 'px';
-    col.style.top = box.y + 'px';
-    col.style.right = 'auto';
-    col.style.bottom = 'auto';
-    // The authored height is calc(board-bottom − board-top); once the column is
-    // lifted off that anchor, let it size to its content and cap it at the
-    // viewport so a low drop can't run off the bottom.
-    col.style.height = 'auto';
-    col.style.maxHeight = Math.max(120, window.innerHeight - box.y - 12) + 'px';
+    if (box.x == null && box.y == null) return;
+    col.style.left = ''; col.style.top = '';
+    col.style.right = ''; col.style.bottom = '';
+    col.style.height = ''; col.style.maxHeight = '';
+    delete box.x; delete box.y;
+    try { if (this._persistSet) this._persistSet('shadowTracker', box); } catch (e) {}
   },
 
   _render2v2TurnTracker(s, tt) {
@@ -26966,6 +26944,36 @@ const UI = {
     }, lead);
   },
 
+  // THE REVEAL JOINS THE COLUMN INSTEAD OF LYING ACROSS IT.
+  //
+  // `.trick-reveal` is `position: fixed; inset: 0` with its card pushed to the
+  // right, which put the card in the gutter — and straight on top of the event
+  // rail and the Shadow Man scoreboard, which are docked there. Measured while
+  // his challenge was up: the reveal card covered #right-col by 78x280px and
+  // the scoreboard itself by 102x164px. Owner, circling the Shadow Man reveal
+  // sitting over his own tracker: "there should be no overlap."
+  //
+  // The gutter was designed for three bands — decision on top, reveal in the
+  // middle, notice at the bottom — and #right-col was never one of them. It is a
+  // fourth occupant spanning the whole height, so there is no band left to give
+  // the reveal: any fixed anchor lands on it. The column's own note already has
+  // the answer for this exact class of bug — "They are flow children of one
+  // column now. Overlap is not tuned here — it is impossible." So the reveal
+  // becomes a flow child too, and the CSS gives it `order: 0` and lets the rail
+  // and the scoreboard shrink under it for the two seconds it is up.
+  //
+  // Classic decision-column only. Board V2 routes reveals through its own
+  // notices rail, and with no column the body is still the right home.
+  _revealHome() {
+    try {
+      const b = document.body;
+      if (b && b.classList.contains('decision-column') && !b.classList.contains('board-v2')) {
+        const col = document.getElementById('right-col');
+        if (col) return col;
+      }
+    } catch (e) {}
+    return document.body;
+  },
   _nextTrickReveal() {
     const item = this._trickRevealQueue.shift();
     if (!item) { this._trickRevealActive = false; return; }
@@ -26985,7 +26993,7 @@ const UI = {
         <i class="tr-sweep" aria-hidden="true"></i>
       </div>
       <div class="tr-label">${item.label ? String(item.label).replace(/</g, '&lt;') : (item.mine ? 'You play a Trick' : this.oppName() + ' plays a Trick')}</div>`;
-    document.body.appendChild(wrap);
+    this._revealHome().appendChild(wrap);
     if (item.onShow) { try { item.onShow(); } catch (e) {} }
     // Hold, then exit + advance the queue. Hold doubled from 1050ms per
     // user feedback ("the new trick screen is too fast — double it").
@@ -29840,8 +29848,26 @@ const UI = {
     // hand card has to go. Leaving the context is the only move that does not
     // trade one occlusion for another. It is fixed-positioned against
     // --decision-top instead, which the solver publishes.
-    const host = document.body;
-    if (!host || !document.querySelector('.board-section')) return null;
+    // ...AND #right-col IS ON <body> TOO, which is what lets the panel dock into
+    // it rather than float over it. The gutter was two stacking systems in one
+    // strip: this panel fixed at the top of it with z-index 500, and the events
+    // rail + Shadow Man scoreboard docked in the column at 180. Measured with
+    // the Block Meter offer open: the panel covered #right-col by 184x261px —
+    // its whole width. Owner: "there should be no overlap ... it all needs to
+    // fit on the right side of the board."
+    // As a flow child it cannot cover them, and the column carries the panel's
+    // old z-index so nothing about the stacking note above changes: the panel is
+    // still outside .board-section's z-index:1 context, still above the rows
+    // below the board, and now it is capped by the column so it can no longer
+    // reach them anyway.
+    if (!document.querySelector('.board-section')) return null;
+    let host = document.body;
+    try {
+      if (document.body.classList.contains('decision-column')) {
+        const col = this._rightColumn && this._rightColumn();
+        if (col) host = col;
+      }
+    } catch (e) {}
     let panel = document.getElementById('classic-decision');
     if (!panel) {
       panel = document.createElement('div');
@@ -29850,6 +29876,8 @@ const UI = {
         '<div class="cd-head"><span class="cd-head-label">Decision</span><span class="cd-head-line"></span></div>' +
         '<div class="cd-slot"></div><div class="cd-body"></div>';
       host.appendChild(panel);
+    } else if (panel.parentNode !== host) {
+      host.appendChild(panel);          // adopt one built before the column existed
     }
     return panel.querySelector(which === 'body' ? '.cd-body' : '.cd-slot');
   },
