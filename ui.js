@@ -17179,8 +17179,23 @@ const UI = {
             ${cropBtns(kind, pid)}
           </div>`;
         };
+        // THE REFERENCE IS GRADED TOO, or the comparison is a lie. Owner: "why
+        // is the card so much dimmer than the art?" Because the card is graded
+        // and this thumbnail was not: every portrait runs
+        // `saturate(0.96) brightness(1.06) brightness(var(--art-grade))`, and
+        // --art-grade is a per-IMAGE normalisation from CARD_ART_GRADE that
+        // exists so a bright painting does not out-shout a dark one across the
+        // set. Wonder Woman sits at 0.80 — the floor of the range — so her card
+        // renders at 1.06 x 0.80 = 0.848 of the raw file. Showing the raw file
+        // next to it made the card look broken when it was doing its job. The
+        // grade is now applied here AND printed on the tag, so the number is
+        // visible instead of inferred.
+        const grade = (typeof window !== 'undefined' && window.CARD_ART_GRADE
+                       && window.CARD_ART_GRADE[file]) || 1;
+        const gradeTag = (grade !== 1)
+          ? `full image · grade ${(+grade).toFixed(2)}` : 'full image · ungraded';
         return `<figure class="gal-thumb">
-          <div class="gal-full-wrap"><img class="gal-full" src="${url}" alt="${file}" loading="lazy"><span class="gal-tag">full image</span></div>
+          <div class="gal-full-wrap"><img class="gal-full" src="${url}" alt="${file}" loading="lazy" style="--art-grade:${grade}"><span class="gal-tag">${gradeTag}</span></div>
           <div class="gal-thumb-tools">
             <div class="gal-order">${up}${dn}${idx === 0 ? '<span class="gal-primary">PRIMARY</span>' : ''}</div>
             ${delBtn}

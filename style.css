@@ -51401,3 +51401,15 @@ body.low-fx .card-glow-host { filter: none !important; }
 }
 .gal-crops { flex-wrap: wrap !important; align-items: flex-start; }
 .gal-thumb { width: auto !important; min-width: calc(var(--read-card-w, 320px) + 24px); }
+
+/* THE GALLERY'S REFERENCE IMAGE CARRIES THE SAME GRADE AS THE CARD.
+   Owner: "why is the card so much dimmer than the art?" Because the portrait
+   runs `saturate(0.96) brightness(1.06) brightness(var(--art-grade))` and this
+   thumbnail ran nothing — so the editor was comparing a graded card against a
+   raw file and the card looked broken while doing exactly its job. Same chain
+   here; the per-image --art-grade is stamped inline from CARD_ART_GRADE.
+   NOT copied: the portrait's ::before vignette and scanlines. Those are card
+   chrome, not grading — the card's own preview beside this one shows them. */
+.gal-full {
+  filter: saturate(0.96) brightness(1.06) brightness(var(--art-grade, 1));
+}
