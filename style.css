@@ -46279,7 +46279,14 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
      shrink-to-fit, which is what this was before. */
   width: var(--cn-ink, auto);
   max-width: 100%;
-  color: color-mix(in srgb, rgb(var(--cf-rgb)) 48%, #ffffff) !important;
+  /* THE NAME WEARS THE BORDER'S COLOUR. Owner, circling HAWKEYE and
+     APOCALYPSE: "the names need to pop and match the neon border."
+     It was a 48% mix toward white, which is not a tint of the accent so much
+     as white with a memory of it — measured on Predator, a crimson
+     rgb(241,64,105) border printed its name at rgb(248,163,183), a pale pink.
+     82% keeps a bright core on the glyph, which is what a neon tube actually
+     looks like, while reading unmistakably as the border's hue. */
+  color: color-mix(in srgb, rgb(var(--cf-rgb)) 82%, #ffffff) !important;
   /* the fit is off here — see above; --cn-fit is ignored and the name wraps */
   font-size: calc(var(--card-w) * 0.0982) !important;
   white-space: normal !important;
@@ -46290,9 +46297,19 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  /* AND THE WHITE CORE GOES. `0 0 1px rgba(255,255,255,0.85)` sat on every
+     glyph edge, and at this size a 1px white halo on a 27px letterform is most
+     of what you see of its colour — it was washing out the 48% mix from the
+     outside while the mix washed it from the inside. The core is the glyph's
+     own colour now, and the halo is the accent at strength, in the same two
+     radii the card's own border glow uses so the two read as one object. The
+     black layers are underneath for legibility: the name sits on the painting,
+     not on a panel. */
   text-shadow:
-    0 0 1px rgba(255,255,255,0.85),
-    0 0 calc(var(--card-w) * 0.0327) rgba(var(--cf-rgb), 0.45) !important;
+    0 1px 2px rgba(0,0,0,0.95),
+    0 0 calc(var(--card-w) * 0.014) rgba(0,0,0,0.90),
+    0 0 calc(var(--card-w) * 0.030) rgba(var(--cf-rgb), 0.95),
+    0 0 calc(var(--card-w) * 0.070) rgba(var(--cf-rgb), 0.55) !important;
 }
 
 /* ============================================================

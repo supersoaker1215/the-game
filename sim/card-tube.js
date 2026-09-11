@@ -500,6 +500,35 @@ check('and the old fixed green is gone from it',
         atk ? 'winning colour is ' + atk.value : 'nothing reaches it');
 })();
 
+// ---- the card name wears the border's colour -------------------------------
+// Owner, circling HAWKEYE and APOCALYPSE on the draft: "the names need to pop
+// and match the neon border."
+//
+// It was a 48% mix toward white — not a tint of the accent so much as white
+// with a memory of it. Measured: a crimson rgb(241,64,105) border printed its
+// name at rgb(248,163,183), a pale pink. And a `0 0 1px` WHITE halo sat on
+// every glyph edge, which at 27px is most of what you see of a letter's
+// colour, so the mix was being washed from the inside and the halo washed it
+// from the outside.
+(function () {
+  var el = { classes: ['cn-text'], ancestors: ['card', 'draft-card', 'card-name-overlay'] };
+  var c = winner('color', el);
+  check('the name is mostly the border colour, not mostly white',
+        !!c && /color-mix\(in srgb, rgb\(var\(--cf-rgb\)\) (8[0-9]|9[0-9]|100)%/.test(c.value),
+        c ? 'winning colour is `' + c.value + '` — under 80% and it reads as white with a tint'
+          : 'nothing reaches the name');
+  var sh = winner('text-shadow', el);
+  check('and its halo carries no white core',
+        !!sh && !/255,\s*255,\s*255/.test(sh.value),
+        sh ? 'winning text-shadow is `' + sh.value.slice(0, 110) + '`' : 'no shadow reaches it');
+  check('the halo is the accent, at the card glow\'s own two radii',
+        !!sh && (sh.value.match(/--cf-rgb/g) || []).length >= 2,
+        'one radius reads as an outline; two read as a tube, which is what the border does');
+  check('with black underneath, because the name sits on the painting',
+        !!sh && /rgba\(0,\s*0,\s*0/.test(sh.value),
+        'no dark layer and a pale name disappears into a bright art');
+})();
+
 print('card-tube: ' + pass + ' passed, ' + fails.length + ' failed');
 if (fails.length) {
   print('Failures:');
