@@ -9270,8 +9270,12 @@ const UI = {
     // is already painted in — while an enemy swing stays red and splash stays
     // orange. Hardcoding red made every arrow look like a threat even when it
     // was your own attack, and it ignored the theme entirely.
+    // opts.themeRGB lets the caller resolve the theme ONCE per plot. _themeRGB
+    // runs getComputedStyle, and this used to run per arrow — in the middle of a
+    // build, where every append before it has already dirtied style, so each call
+    // forced a fresh recalc. Falls back to reading it when no caller supplied it.
     const color = kind === 'splash' ? '#ff9a3c'
-                : opts.mine        ? `rgb(${this._themeRGB()})`
+                : opts.mine        ? `rgb(${opts.themeRGB || this._themeRGB()})`
                 : '#ff5252';
     const startTrim = opts.startTrim != null ? opts.startTrim : 22;
     const endTrim   = opts.endTrim   != null ? opts.endTrim   : 30;
@@ -9309,18 +9313,26 @@ const UI = {
       chevron(2.8, color) +
       chevron(1, '#ffffff', 0.9);
     if (this._forecastSilent) svg.style.animation = 'none';   // render-driven redraw: don't restart the fade (strobe)
-    this._forecastLayer().appendChild(svg);
+    // opts.frag: collect into a DocumentFragment so the whole forecast lands in
+    // ONE append instead of one per arrow. See the batching note on
+    // _showCombatForecast for why that matters.
+    (opts.frag || this._forecastLayer()).appendChild(svg);
   },
   // A "cur → after" pill above a struck target (skull if it dies). Reads the
   // FULL predicted outcome, so it answers "does this survive the whole combat".
-  _forecastBadge(el, card) {
+  // opts.rect  — the caller already measured `el` during its read pass; reusing
+  //              that rect is what keeps the measure out of the middle of a
+  //              build (a rect read after an append forces a synchronous layout).
+  // opts.frag  — collect into a fragment instead of appending straight away.
+  _forecastBadge(el, card, opts) {
+    opts = opts || {};
     const pred = this._combatPredCache;
     const p = pred && pred.byId && pred.byId.get(card.id);
     const cur = card.currentHealth | 0;
     const after = p ? p.hpAfter : cur;
     const dies = p ? !!p.dies : false;
     if (after === cur && !dies) return;   // no net change → the arrow alone says it
-    const r = el.getBoundingClientRect();
+    const r = opts.rect || el.getBoundingClientRect();
     if (!r || r.width === 0) return;
     const b = document.createElement('div');
     b.className = 'forecast-hp ' + (dies ? 'forecast-hp-dies' : (after < cur ? 'forecast-hp-hurt' : 'forecast-hp-heal'));
@@ -9328,10 +9340,11 @@ const UI = {
     b.style.left = (r.left + r.width / 2) + 'px';
     b.style.top = (r.top - 4) + 'px';
     if (this._forecastSilent) b.style.animation = 'none';
-    this._forecastLayer().appendChild(b);
+    (opts.frag || this._forecastLayer()).appendChild(b);
   },
-  _forecastHeroBadge(orb, cur, after) {
-    const r = orb.getBoundingClientRect();
+  _forecastHeroBadge(orb, cur, after, opts) {
+    opts = opts || {};
+    const r = opts.rect || orb.getBoundingClientRect();
     if (!r || r.width === 0) return;
     const b = document.createElement('div');
     // Tagged apart from the per-CARD pills. It anchors to the hero's health
@@ -9343,7 +9356,7 @@ const UI = {
     b.textContent = cur + ' → ' + Math.max(0, after);
     b.style.left = (r.left + r.width / 2) + 'px';
     b.style.top = (r.top - 2) + 'px';
-    this._forecastLayer().appendChild(b);
+    (opts.frag || this._forecastLayer()).appendChild(b);
   },
   _showCombatForecast(cardEl) {
     if (!cardEl || typeof Game === 'undefined' || !Game.combatTargetsOf) return;
@@ -9360,8 +9373,29 @@ const UI = {
     let info;
     try { info = Game.combatTargetsOf(card); } catch (e) { return; }
     if (!info || (!info.targets.length && !info.hitsHero)) return;   // can't attack → nothing
-    this._forecastForId = id;
-    cardEl.classList.add('forecast-source');
+    // ============================================================
+    // READ EVERYTHING, THEN WRITE EVERYTHING
+    // ------------------------------------------------------------
+    // This used to append an arrow, measure the next target, append the next
+    // arrow, measure again — and a getBoundingClientRect that follows a DOM
+    // mutation cannot use the layout Blink already has, so every one of those
+    // measures forced a fresh synchronous layout. Measured on a 3-target card:
+    // the identical rect reads cost 0.0015ms as a batch and ~0.3ms each when
+    // interleaved, and one whole re-plot cost 2.54ms.
+    //
+    // It mattered far more than it looks, because a re-plot is not a once-per-
+    // hover event. The follow loop below re-plots on every frame the hovered
+    // card's rect changes, and the hover magnify animates that rect for its
+    // whole 240ms grow — so a board-card hover ran ~14 re-plots, i.e. ~40ms of
+    // forced layout landing in exactly the 14 frames that were already paying
+    // for the card's own re-raster. That is the hover lag.
+    //
+    // Same output, same node order, same DOM: the only change is that all the
+    // measuring happens first, the nodes are built detached, and the layer gets
+    // ONE append. Measured 1.794ms -> 0.102ms for the same three arrows+badges.
+    // ============================================================
+
+    // ---- PASS 1: READ ONLY. No DOM mutation below this line until PASS 2. ----
     // ARROWS LEAVE THE CARD'S FACING EDGE, not its middle. Starting at the
     // centre put the tail (and its origin node) ON TOP OF the portrait, so the
     // arrow read as something laid over the card rather than something coming
@@ -9373,41 +9407,33 @@ const UI = {
     if (!r0 || r0.width === 0) { this._clearCombatForecast(); return; }
     const up = cardEl.classList.contains('ally-card');
     const from = { x: r0.left + r0.width / 2, y: up ? r0.top : r0.bottom };
+    // Resolved once for the whole plot rather than once per arrow.
+    const themeRGB = this._themeRGB();
     // startTrim 0 lands the tail exactly on the edge; noOriginNode keeps that
     // edge unbroken so the line reads as the card's own border extending out.
-    const edgeOpts = { mine: card.owner === 'player', startTrim: 0, noOriginNode: true };
+    const edgeOpts = { mine: card.owner === 'player', startTrim: 0, noOriginNode: true, themeRGB };
+
+    // One entry per thing that will be drawn, in the order it will be drawn, so
+    // PASS 2 reproduces the original append order exactly.
+    const plan = [];
     info.targets.forEach(t => {
-      if (t.kind === 'self') { this._forecastBadge(cardEl, card); return; }   // feared → self
+      if (t.kind === 'self') { plan.push({ self: true, card, rect: r0 }); return; }   // feared → self
       const tEl = this._fxCardElById(t.card.id);
-      const to = this._fxCenter(tEl);
-      if (!to) return;
-      this._forecastArrow(from, to, t.kind, edgeOpts);
-      tEl.classList.add('forecast-target');
-      this._forecastBadge(tEl, t.card);
+      if (!tEl) return;
+      const r = tEl.getBoundingClientRect();
+      // Same reject as _fxCenter: an unpainted card has no centre to aim at.
+      if (!r || (r.width === 0 && r.height === 0)) return;
+      plan.push({ tEl, rect: r, kind: t.kind, card: t.card,
+                  to: { x: r.left + r.width / 2, y: r.top + r.height / 2 } });
     });
+
+    let hero = null;
     if (info.hitsHero) {
       const heroSide = Game.opponent(card.owner);
       const orb = document.getElementById(heroSide === 'player' ? 'player-hp-fill' : 'ai-hp-fill')
                || document.getElementById(heroSide === 'player' ? 'player-health' : 'ai-health');
       if (orb) {
-        // STRAIGHT AHEAD — a short swing launching out of the card's own lane,
-        // NOT a long diagonal across the whole board to the HP bar. The bar
-        // still carries the "cur → after" number, so the diagonal was only ever
-        // noise cutting across unrelated lanes. Allies sit on the bottom row and
-        // swing upward; enemies sit on top and swing down.
-        const r0 = cardEl.getBoundingClientRect();
-        const up = cardEl.classList.contains('ally-card');
-        const dir = up ? -1 : 1;
-        const originX = r0.left + r0.width / 2;
-        const edgeY = up ? r0.top : r0.bottom;
-        this._forecastArrow(
-          { x: originX, y: edgeY },
-          { x: originX, y: edgeY + dir * 78 },
-          'hero',
-          // startTrim 0 puts the tail exactly on the card edge; noOriginNode
-          // keeps that edge unbroken so the line reads as the border extending.
-          { startTrim: 0, endTrim: 6, noOriginNode: true, mine: up }
-        );
+        const orbRect = orb.getBoundingClientRect();
         const hp = (heroSide === 'player' ? Game.state.player.health : Game.state.ai.health) | 0;
         // Raw card.attack missed Critical and Yoda's combined-force strike.
         // _cardEffectiveAtk is what resolveUncontestedLane uses for a face hit,
@@ -9417,9 +9443,39 @@ const UI = {
         if (Game.yodaShieldCount && Game.yodaShieldCount(heroSide) > 0 && face > 0) {
           face = Math.ceil(face / 2);   // damagePlayer halves for the shield
         }
-        this._forecastHeroBadge(orb, hp, hp - face);
+        hero = { orb, rect: orbRect, hp, after: hp - face };
       }
     }
+
+    // ---- PASS 2: WRITE ONLY. Nothing below measures anything. ----
+    this._forecastForId = id;
+    cardEl.classList.add('forecast-source');
+    const frag = document.createDocumentFragment();
+    edgeOpts.frag = frag;
+    plan.forEach(pl => {
+      if (pl.self) { this._forecastBadge(cardEl, pl.card, { rect: pl.rect, frag }); return; }
+      this._forecastArrow(from, pl.to, pl.kind, edgeOpts);
+      pl.tEl.classList.add('forecast-target');
+      this._forecastBadge(pl.tEl, pl.card, { rect: pl.rect, frag });
+    });
+    if (hero) {
+      // STRAIGHT AHEAD — a short swing launching out of the card's own lane,
+      // NOT a long diagonal across the whole board to the HP bar. The bar
+      // still carries the "cur → after" number, so the diagonal was only ever
+      // noise cutting across unrelated lanes. Allies sit on the bottom row and
+      // swing upward; enemies sit on top and swing down.
+      const dir = up ? -1 : 1;
+      this._forecastArrow(
+        { x: from.x, y: from.y },
+        { x: from.x, y: from.y + dir * 78 },
+        'hero',
+        // startTrim 0 puts the tail exactly on the card edge; noOriginNode
+        // keeps that edge unbroken so the line reads as the border extending.
+        { startTrim: 0, endTrim: 6, noOriginNode: true, mine: up, themeRGB, frag }
+      );
+      this._forecastHeroBadge(hero.orb, hero.hp, hero.after, { rect: hero.rect, frag });
+    }
+    this._forecastLayer().appendChild(frag);
   },
   _installCombatForecast() {
     if (this._forecastInstalled) return;
@@ -34202,6 +34258,7 @@ const UI = {
         // path-update loop so it can be retuned independently.
         let lastX = -1, lastY = -1, lastT = 0;
         let smoothedSpeed = 0;
+        let decayRaf = 0;
         const SPEED_ALPHA = 0.18;        // EMA smoothing
         const SPEED_TO_THICKNESS = 0.012; // px-per-pixel-per-second
         const MIN_THICK = 1.0;
@@ -34220,17 +34277,36 @@ const UI = {
           const thick = Math.max(MIN_THICK, Math.min(MAX_THICK,
             MIN_THICK + smoothedSpeed * SPEED_TO_THICKNESS));
           svg.style.setProperty('--trail-thick', thick.toFixed(2) + 'px');
+          kickDecay();          // cursor moved → there is something to decay again
         }, { passive: true });
         // Decay the speed toward 0 when cursor stops, so trail thins
         // smoothly instead of holding the last fast-motion thickness.
+        //
+        // IT HAS TO STOP. This re-armed itself unconditionally, so it ran at
+        // 60fps for the life of the page — measured 120 writes in 2s with the
+        // cursor sitting perfectly still, every one of them the same settled
+        // "1.00px". Blink skips the invalidation for an unchanged custom
+        // property, so it painted nothing; what it did do is keep the renderer
+        // awake forever and hold a rAF slot on every frame the game had to
+        // share with combat, hover and FX.
+        //
+        // SETTLE THRESHOLD. The value written is toFixed(2) of
+        // MIN_THICK + speed * SPEED_TO_THICKNESS, floored at MIN_THICK — so it
+        // rounds to the floor once speed * 0.012 < 0.005, i.e. speed < 0.417.
+        // Stopping at 0.4 therefore writes the identical sequence of strings
+        // the old loop did and then goes quiet instead of repeating the last
+        // one forever. mousemove re-arms it.
+        const SETTLED_SPEED = 0.4;
         const decay = () => {
+          decayRaf = 0;
           smoothedSpeed *= 0.92;
           const thick = Math.max(MIN_THICK, Math.min(MAX_THICK,
             MIN_THICK + smoothedSpeed * SPEED_TO_THICKNESS));
           svg.style.setProperty('--trail-thick', thick.toFixed(2) + 'px');
-          requestAnimationFrame(decay);
+          if (smoothedSpeed > SETTLED_SPEED) decayRaf = requestAnimationFrame(decay);
         };
-        requestAnimationFrame(decay);
+        function kickDecay() { if (!decayRaf) decayRaf = requestAnimationFrame(decay); }
+        kickDecay();
       }
     }
 

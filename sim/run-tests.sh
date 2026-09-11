@@ -149,6 +149,10 @@ echo "=== art-accent.js (a card's border comes from its own art) ==="
 run_suite sim/art-accent.js
 
 echo ""
+echo "=== forecast-batch.js (hover forecast measures first, builds second) ==="
+run_suite sim/forecast-batch.js
+
+echo ""
 if [ "$FAIL" -ne 0 ]; then
   echo "❌ TESTS FAILED — see suites above."
   exit 1
