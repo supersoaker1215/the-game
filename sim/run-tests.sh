@@ -151,6 +151,9 @@ run_suite sim/art-accent.js
 echo ""
 echo "=== forecast-batch.js (hover forecast measures first, builds second) ==="
 run_suite sim/forecast-batch.js
+echo ""
+echo "=== portrait-refresh.js (a crop edit reaches the cached art node) ==="
+run_suite sim/portrait-refresh.js
 
 echo ""
 echo "=== pointer-cost.js (no <body> custom-prop write on every mousemove) ==="

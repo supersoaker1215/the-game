@@ -185,6 +185,23 @@ const UI = {
     // re-tune.
     return Math.round(z * 100) + '%';
   },
+  // A CROP EDIT HAS TO BUST THE CARD CACHE, AND IT LIVES IN NO CARD FIELD.
+  // Both card caches gate on `_cardVisualSnapshot`, which is built entirely out
+  // of the card's own stats/status. The art crop is not a card field at all —
+  // it lives in localStorage + the manifest — so editing a crop left every
+  // snapshot byte-identical, the hand and board reused their elements whole,
+  // and only surfaces that rebuild from scratch every time (draft, codex, tap,
+  // gallery) ever showed the new framing. Owner: "so n hnad mr freeze hea dis
+  // cut off but in daraft and codex its not ... how are they different?"
+  // One integer in the snapshot is the whole fix: bump it in every art mutator
+  // and each card's snap changes, so the cached element takes the transplant
+  // path and `_preserveCardArt` syncs the new vars onto the live art node.
+  // Deliberately global rather than per-card — an art edit is a once-in-a-while
+  // authoring action, so rebuilding every card is free, and a per-name cache
+  // would need invalidating from all six mutators anyway (the exact coupling
+  // that produced this bug).
+  _artRev: 0,
+  _bumpArtRev() { this._artRev = (this._artRev | 0) + 1; },
   _setArtZoom(name, file, kind, zoom) {
     const k = (kind === 'menu') ? 'menu' : 'card';
     const m = this._artZoomMap(k);
@@ -192,6 +209,7 @@ const UI = {
     if (Math.abs(z - 1) < 0.001) delete m[name + '|' + file];
     else m[name + '|' + file] = Math.round(z * 100) / 100;
     this._persistSet('artZoom_' + k, m);
+    this._bumpArtRev();
     return z;
   },
   _setArtFocal(name, file, kind, pos) {
@@ -200,6 +218,7 @@ const UI = {
     if (pos && pos !== 'center center') m[name + '|' + file] = pos;
     else delete m[name + '|' + file];
     this._persistSet('artFocal_' + k, m);
+    this._bumpArtRev();
   },
   // Gallery Audit — manual REORDER: a per-card ordered list of files in
   // localStorage. _moveArt swaps a variant up/down; getCardArtVariants applies
@@ -221,6 +240,7 @@ const UI = {
     const t = order[i]; order[i] = order[j]; order[j] = t;
     om[name] = order;
     this._persistSet('artOrder', om);
+    this._bumpArtRev();
     this.renderGalleryAudit();
   },
   getCardArtVariant(name) {
@@ -412,6 +432,7 @@ const UI = {
     const sel = this._persistGet('cardArtSelections', null) || {};
     sel[name] = file;
     this._persistSet('cardArtSelections', sel);
+    this._bumpArtRev();
     const bgValue = `url('${this.getCardArtPath(name)}')`;
     document.querySelectorAll('[data-card-name]').forEach(el => {
       if (el.getAttribute('data-card-name') !== name) return;
@@ -5170,6 +5191,7 @@ const UI = {
     this.installUiHoverSfx();
     this.installLongPressInspect();
     this._installCombatForecast();
+    this._installPortraitSnap();
     this.installDrawAnimation();
     this.installTronGridFx();
     // Camera parallax is DELIBERATELY NOT INSTALLED. It leaned the board toward
@@ -7545,6 +7567,50 @@ const UI = {
       const el = nodes[i];
       if (el.style.height !== px) { el.style.height = px; el.style.aspectRatio = 'auto'; }
     }
+  },
+
+  // AND RE-SNAP WHEN THE WIDTH MOVES WITHOUT A RENDER. _snapPortraits derives
+  // each portrait's inline HEIGHT from its width (width x 472/360, rounded to
+  // whole device pixels) and ran only from renderSync. A resize changes nothing
+  // in game state, so no render happens — but the hand/board/draft fits DO
+  // re-solve the card width, and the stale height stayed while
+  // `aspect-ratio: auto` kept CSS from correcting it.
+  //
+  // Measured by dragging the window 1307 -> 420 CSS px with a card in hand:
+  //
+  //     hand card width ......... 106px   ->  88px    (the fits did their job)
+  //     portrait inline height ... 139px   -> 139px    (never re-derived)
+  //     portrait aspect .......... 0.762   -> 0.633    (the art is 0.7627)
+  //     `cover` then clips ....... nothing -> 17% off the SIDES
+  //
+  // Draft and codex never showed it: their portrait height is pinned by an
+  // `!important` rule, so this inline write has never had any effect there.
+  // That asymmetry is the whole of the owner's report — "in hand mr freeze head
+  // is cut off but in draft and codex its not ... how are they different?"
+  // They were different because only one of them was being re-measured.
+  //
+  // INSTALLED UNCONDITIONALLY, and deliberately not beside the other resize
+  // handlers: those live inside _installCombatForecast, which returns early on
+  // anything without a fine hover pointer. Art framing is not a desktop
+  // affordance — a phone rotating is exactly the resize that matters most.
+  //
+  // TWO passes, not one: _fitHandToViewport and _fitBoardToViewport each finish
+  // their width solve inside their own requestAnimationFrame (the hand in a
+  // setTimeout after that), so one frame is not enough to read the final width.
+  // The snap skips every node whose height is already correct, so the trailing
+  // pass costs nothing when the first one already got it right.
+  _installPortraitSnap() {
+    if (this._portraitSnapInstalled) return;
+    this._portraitSnapInstalled = true;
+    const run = () => { try { this._snapPortraits(); } catch (e) {} };
+    this._scheduleSnapPortraits = () => {
+      if (this._snapRaf) cancelAnimationFrame(this._snapRaf);
+      this._snapRaf = requestAnimationFrame(() => { this._snapRaf = 0; run(); });
+      clearTimeout(this._snapTail);
+      this._snapTail = setTimeout(run, 250);
+    };
+    window.addEventListener('resize', this._scheduleSnapPortraits, { passive: true });
+    window.addEventListener('orientationchange', this._scheduleSnapPortraits, { passive: true });
   },
 
   renderSync() {
@@ -16750,6 +16816,7 @@ const UI = {
         const set = this._deletedArtSet();
         set.add(name + '|' + file);
         this._persistSet('deletedArt', [...set]);
+        this._bumpArtRev();
         this.renderGalleryAudit();
       });
   },
@@ -16759,6 +16826,7 @@ const UI = {
         if (!ok) return;
         this._deletedArtCache = new Set();
         this._persistSet('deletedArt', []);
+        this._bumpArtRev();
         this.renderGalleryAudit();
       });
   },
@@ -23244,6 +23312,9 @@ const UI = {
       pdd: pred ? !!pred.dies : false,
       cby: card._charmedByIvy != null ? (card._charmedByIvy | 0) : 0,
       pxp: pxp,
+      // Art-edit revision — see _bumpArtRev. Not a card field; without it a
+      // crop/zoom/variant change never busts the hand or board cache.
+      ar: this._artRev | 0,
     });
   },
 
@@ -23303,6 +23374,22 @@ const UI = {
   // alive (its bitmap already painted) kills the blink while stats / badges /
   // damage-preview siblings still refresh. Call right before the caller's
   // replaceChildren. Presentation-only; no data touched.
+  // THE ART VARS THAT ARE NOT THE URL. `_artFocalCard` stamps three custom
+  // properties beside --portrait-bg: --portrait-pos (the manual crop focal),
+  // --portrait-size (the zoom) and --art-grade (the per-image brightness
+  // normalisation). A crop edit changes ONLY those — the URL is byte-identical,
+  // so the guard above matches and the old node survives carrying the OLD crop,
+  // while every freshly-built surface (draft, codex, tap, gallery) shows the new
+  // one. Owner: "so n hnad mr freeze hea dis cut off but in daraft and codex its
+  // not ... how are they different?" — measured with the focal changed live and
+  // a re-render forced: the canonical builder returned `50% 100%` while the hand
+  // and board nodes both still read `50% 0%`.
+  // Re-swapping the node would fix the crop and bring the blink back, so sync
+  // the properties onto the live node instead: the bitmap stays composited and
+  // the crop is current. Kept as an explicit list, not a wholesale style copy —
+  // the live node also carries the fit loop's imperative height/aspect-ratio,
+  // which fresh does not have and which must not be wiped.
+  _PORTRAIT_ART_VARS: ['--portrait-pos', '--portrait-size', '--art-grade'],
   _preserveCardArt(cached, fresh) {
     if (!cached || !fresh) return;
     const oldP = cached.querySelector(':scope > .card-portrait');
@@ -23312,6 +23399,12 @@ const UI = {
       // Same art → keep the live composited node. Refresh its inner content
       // (name overlay) from fresh in case it ever changes, then substitute the
       // live node into fresh's child list so it survives replaceChildren.
+      this._PORTRAIT_ART_VARS.forEach(v => {
+        const next = newP.style.getPropertyValue(v);
+        if (next === oldP.style.getPropertyValue(v)) return;
+        if (next) oldP.style.setProperty(v, next);
+        else oldP.style.removeProperty(v);
+      });
       oldP.replaceChildren(...newP.childNodes);
       fresh.replaceChild(oldP, newP);
     }
