@@ -50606,3 +50606,79 @@ body.in-match:not(.board-v2) .board {
 .trick-card .cf-band-diag { z-index: 10; }
 .card .card-cost,
 .trick-card .card-cost { z-index: 11; }
+
+/* ============================================================
+   THE BORDER LINE, MEASURED AGAINST THE REFERENCE
+   ------------------------------------------------------------
+   Owner supplied a reference card and asked for the border glow and brightness
+   to be compared against a live hand card, side by side, "essentially i just
+   feel like i want more glow."
+
+   MEASURED, both cards on black, luminance sampled across the left edge and
+   averaged down the card (the reference rescaled to the same body width, so
+   the numbers are comparable):
+
+                        reference      live (before)
+     border line        1.99% of body   0.99%          <- half as thick
+     line peak          L138            L118           <- and dimmer
+     halo area          673             19             <- 3% of the reference
+     halo reach         16px            0px
+
+   THIS BLOCK FIXES THE LINE, which is two of the three. The line is brought to
+   the reference's proportion, and the brightness follows from it: the old line
+   was 1.6px, i.e. thinner than a device pixel at most card sizes, so it was
+   antialiased into a blend with the black behind it — measured rgb(107,113,165)
+   where the accent is rgb(82,137,247). It was not being drawn washed out; it
+   was being drawn too thin to hold its own colour. A line thick enough to land
+   on whole pixels carries the colour it was given.
+
+   After: line 2.22% of body, peak L133, against the reference's 1.99% / L138.
+
+   THE HALO IS NOT FIXED HERE, and see the note below for why. */
+/* THE FLOOR MOVES TOO. --cf-stroke-min is set to 1.6px elsewhere, and the
+   multiplier alone changed nothing on a hand card: 110px * 0.0105 = 1.16px,
+   so max(1.6, 1.16) still returned the old 1.6. Raising only the multiplier
+   would have thickened the big surfaces (draft, inspect) and left the hand —
+   the surface the owner was actually looking at — exactly as it was. */
+.card, .trick-card {
+  --cf-stroke-min: 2.2px;
+  --cf-stroke: max(2.2px, calc(var(--card-w) * 0.0105));
+}
+
+/* ============================================================
+   AND WHY THE GLOW IS STILL MISSING — read this before trying again
+   ------------------------------------------------------------
+   The glow IS authored. Every card carries --card-tube:
+
+     drop-shadow(0 0 3px  rgba(accent, 0.90))
+     drop-shadow(0 0 7px  rgba(accent, 0.45))
+
+   It is in the computed style and it has never painted a single pixel. Proved
+   by cranking it to two 20px FULLY OPAQUE shadows and measuring: the page
+   around the card stayed at luma 0.
+
+   THE CAUSE. `.card.card` carries a clip-path of its own chamfered silhouette
+   (the rule at ~line 46337, which exists so the card's art cannot spill
+   outside the ring). A clip-path clips the FILTERED result — so the
+   drop-shadow generates the halo and the clip then cuts it off flush at the
+   card's edge. Removing the clip takes the halo from 19 to 227 immediately.
+
+   WHAT DOES NOT WORK, all tried and measured rather than reasoned about:
+     · inflating the clip outward by a glow allowance — the card's own black
+       plate then paints into that band. Invisible on a black page, a black
+       box around every card on the board mat.
+     · inflating it AND making .card's background transparent — the plate is
+       what backs the RULES PANEL, which loses its ground.
+     · moving the plate to a ::before inside the silhouette — the card's
+       children are absolutely positioned against it and the layout comes
+       apart.
+     · putting the tube on the card's container instead — the container cannot
+       read --art-rgb, because custom properties inherit down and the accent is
+       set on the card itself.
+
+   WHAT WILL WORK. The glow has to live on an element that is NOT the clipped
+   one and IS below the card in the tree — i.e. makeCardEl has to emit a
+   wrapper, with the accent stamped on it and the card inside. That is a real
+   change to the canonical renderer and every surface that positions a `.card`
+   directly, so it is not something to bolt on at the end of an unrelated pass.
+   ============================================================ */
