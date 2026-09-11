@@ -18742,8 +18742,22 @@ const UI = {
       // ONE CARD PER HOST, OR THE GLOW BELONGS TO THE ROW. `.trick-cards` holds
       // the whole tray and `.hand-cards` the whole hand — stamping those put a
       // single halo around a GROUP, in whichever card happened to be stamped
-      // last. A host has to wrap exactly one card to be that card's host.
-      if (host.children.length !== 1) return;
+      // last. A host has to hold exactly one card to be that card's host.
+      //
+      // COUNT CARDS, NOT CHILDREN. The first version counted children, which
+      // was the same test only for the hand — where the wrapper holds nothing
+      // else. It silently excluded the two surfaces the owner asked for next:
+      // `.draft-offer` holds the card plus its rarity foot (2 children) and
+      // `.card-inspect-modal` holds the card, the rarity label and the Play
+      // button (3). Both hold exactly ONE card, which is the invariant that
+      // actually matters.
+      //
+      // The filter does reach those siblings — a parent's filter composites its
+      // whole subtree and a child cannot opt out. Checked at the worst case a
+      // red-hot halo behind the cyan Play button, and it does not carry: the
+      // radius is 0.08 of the card's width and the label and button sit well
+      // clear of the card's silhouette.
+      if (host.querySelectorAll('.card, .trick-card').length !== 1) return;
       let cs;
       try { cs = getComputedStyle(card); } catch (e) { return; }
       const rgb = (cs.getPropertyValue('--portrait-frame-rgb') || '').trim();

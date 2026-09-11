@@ -459,17 +459,21 @@ check('and the old fixed green is gone from it',
   // the card's art colour, on the board it is the SIDE colour. One read, and
   // the halo says the same thing the frame says on every surface.
   check('it takes the frame colour, so the board keeps its side colours',
-        /_applyCardGlow[\s\S]{0,900}--portrait-frame-rgb/.test(UIJS),
+        /_applyCardGlow[\s\S]{0,3200}--portrait-frame-rgb/.test(UIJS),
         'reading --art-rgb directly would make an enemy card glow in its art colour');
   // Two bugs the first version shipped with, both found by driving it:
-  check('a host must wrap exactly ONE card',
-        /_applyCardGlow[\s\S]{0,900}host\.children\.length !== 1/.test(UIJS),
+  check('a host must hold exactly ONE card',
+        /_applyCardGlow[\s\S]{0,2600}querySelectorAll\('\.card, \.trick-card'\)\.length !== 1/.test(UIJS),
         '.trick-cards holds the whole tray — stamping it put one halo around a GROUP');
+  check('…counted as CARDS, not children, or draft and tap-to-view are excluded',
+        !/host\.children\.length !== 1/.test(UIJS),
+        '.draft-offer has 2 children and .card-inspect-modal has 3, but both hold one card — ' +
+        'a child count silently skipped exactly the two surfaces the owner asked for');
   check('and the idempotency guard checks the CLASS, not just the signature',
         /dataset\.cgSig === sig && host\.classList\.contains\('card-glow-host'\)/.test(UIJS),
         'a render that rewrites className drops the class while the signature survives, so the glow vanished on the first re-render and never came back');
   check('an unplayable card\'s halo dims with it',
-        /_applyCardGlow[\s\S]{0,2600}unplayable/.test(UIJS),
+        /_applyCardGlow[\s\S]{0,3600}unplayable/.test(UIJS),
         'a greyed card glowing at full strength undoes the read');
 })();
 
