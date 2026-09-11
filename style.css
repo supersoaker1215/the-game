@@ -20237,7 +20237,15 @@ body.phase-menu .kb-hints { display: none; }
    them look like the board cards." No aspect-ratio (cards size to
    content), corner-anchored orbs (inherit defaults), corner cost
    diamond (inherits default `top:-8;left:-8`). */
-.encyc-grid .card.hand-card.enc-card {
+/* RE-KEYED OFF .hand-card. The codex tile no longer carries that class (see
+   the codex makeCardEl call in ui.js) — it was the hook a block of codex-ONLY
+   styling hung on, and at (0,4,0) that styling beat the shared read-card
+   rules at (0,3,0), which is why the codex and the draft drifted apart. The
+   SIZING here is not styling and has to survive, so it moves to the class the
+   tile still has. Its own note already said the right thing: "The codex card
+   is the SAME object as the draft card and the tap-to-play card — one token,
+   one size." */
+.encyc-grid .card.enc-card {
   position: relative;
   width: 100%;
   /* Wider + shorter than v1 — user feedback "the cards are too thin
@@ -20262,7 +20270,7 @@ body.phase-menu .kb-hints { display: none; }
   content-visibility: auto;
   contain-intrinsic-size: auto 480px;
 }
-.encyc-grid .card.hand-card.enc-card:hover {
+.encyc-grid .card.enc-card:hover {
   transform: none !important;
 }
 /* Codex-only portrait + description treatment. The codex shows
@@ -20278,43 +20286,11 @@ body.phase-menu .kb-hints { display: none; }
    top margin tucks it under the title so the card reads as one
    continuous unit instead of "title above, picture below, text
    below" three separate strips. */
-.encyc-grid .card.hand-card.enc-card .card-portrait {
-  /* Full-width portrait so the cost square (top-left) and rarity
-     pip (top-right) sit AT the portrait's corners instead of
-     floating in the card body's padding 7% inset away. User
-     feedback: "the energy square on the top left and the rarity
-     square on the top right of the codex cards are still not
-     correctly placed inside the top corners of the portrait."
-     The previous 86% width left a side-margin where the chrome
-     visually orphaned itself against the dark card body. */
-  width: 100%;
-  margin: 0 auto 6px;
-  /* Codex overrides the in-match 5/6 default with the original
-     360/472 (3:4) so the full painting shows in the codex's
-     wider grid cells. In-match cards keep the shorter 5/6 to
-     prevent the "too thin" elongated-strip feel. */
-  aspect-ratio: 360 / 472;
-}
-.encyc-grid .card.hand-card.enc-card .card-desc {
-  /* Body sized to 11 px so the highlight tier (bold + kw at 16 px)
-     reads dominant — see the b + .kw rule below for the full
-     hierarchy rationale. The body still has plenty of room with
-     the new min-height. */
-  font-size: 11px !important;
-  line-height: 1.45 !important;
-  /* Bottom padding clears the 30 px stat orbs (anchored at bottom:8,
-     so they span bottom:8 → bottom:38). The previous 10 px padding
-     let the last line of desc text bleed into the orb's vertical band
-     — user feedback: "text is going into the green and red health and
-     damage symbols." 44 px = orb height (30) + anchor offset (8) +
-     6 px clear gap, so the desc text always ends ABOVE the orbs. */
-  padding: 4px 10px 44px !important;
-}
-.encyc-grid .card.hand-card.enc-card .card-name {
-  /* Title gets a touch more presence in the codex too. */
-  font-size: 14px;
-  letter-spacing: 0.06em;
-}
+/* RETIRED — the codex is the draft card now; the shared read-card rule owns this. */
+
+/* RETIRED — the codex is the draft card now; the shared read-card rule owns this. */
+
+
 /* Codex chrome scale-up — user feedback: "the energy symbol on the
    top left in the codex is not correct. Same with rarity square.
    They're not how it looks on board." The codex card is 220-320px
@@ -20323,25 +20299,12 @@ body.phase-menu .kb-hints { display: none; }
    12px codex body text. Bumping all three keeps the SAME chamfered
    octagon mask and rarity-tinted bold styling — just scaled to read
    correctly at codex card size. */
-.encyc-grid .card.hand-card.enc-card .card-cost {
-  --cost-size: 32px;
-}
-.encyc-grid .card.hand-card.enc-card .stat-circle {
-  width: 30px; height: 30px; font-size: 14px;
-  bottom: 8px;
-}
-.encyc-grid .card.hand-card.enc-card .stat-atk { left: 8px; }
-.encyc-grid .card.hand-card.enc-card .stat-hp  { right: 8px; }
-.encyc-grid .card.hand-card.enc-card .card-desc b,
-.encyc-grid .card.hand-card.enc-card .card-desc .kw {
-  /* Match the 11px codex body exactly — keyword highlights sit in-line, not
-     oversized. User feedback: the kw spans (Bullseye/Freeze/Energy/Sacrificed)
-     at 13px stuck out and didn't match the cards everywhere else. Emphasis now
-     comes from color + weight, not size. Explicit 11px (not `inherit`, which
-     would pick up the 8.5px bold parent when a kw sits inside a bold label). */
-  font-size: 11px;
-  letter-spacing: 0.4px;
-}
+
+
+
+
+/* RETIRED — the codex is the draft card now; the shared read-card rule owns this. */
+
 /* Trick variant — purple, compact, matches in-game trick look. */
 .encyc-grid .trick-card.enc-trick {
   position: relative;
@@ -20753,7 +20716,7 @@ body {
     gap: 10px !important;
     padding: 10px 8px 12px !important;
   }
-  .encyc-grid .card.hand-card.enc-card {
+  .encyc-grid .card.enc-card {
     min-width: 0 !important;      /* release the 220px floor so 2 fit */
     max-width: none !important;
     min-height: 0 !important;     /* no 420px slabs */
@@ -20761,9 +20724,9 @@ body {
     contain-intrinsic-size: auto 240px;
   }
   /* Scale the card internals down with the card so the text still reads. */
-  .encyc-grid .card.hand-card.enc-card .card-portrait { aspect-ratio: 1 / 1; }
-  .encyc-grid .card.hand-card.enc-card .card-name { font-size: 10px; }
-  .encyc-grid .card.hand-card.enc-card .card-desc { font-size: 9px; line-height: 1.25; }
+  
+  
+  
   .encyc-grid .trick-card.enc-trick {
     min-width: 0 !important;
     max-width: none !important;
@@ -46107,13 +46070,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card.card.enc-card   .stat-circle,
 .card-inspect-modal .card.card .stat-circle,
 .rl-pick-cardslot .card.card .stat-circle,
-.encyc-grid .card.hand-card.enc-card .stat-circle {
-  width:  calc(var(--card-w) * 0.145) !important;
-  height: calc(var(--card-w) * 0.145) !important;
-  /* the digit keeps the same share of its plate it had at the old size — 32px
-     box, 22px digit, so ~0.66 — rather than shrinking inside a bigger box. */
-  font-size: calc(var(--card-w) * 0.096) !important;
-}
+
 
 /* ============================================================
    THE CUT EDGE IS THE SAME LINE AS THE STRAIGHT EDGE (2026-08-26)
@@ -50224,13 +50181,19 @@ body.in-match:not(.board-v2) .board {
    rules, not by a constant. So: a floor so a two-line card is still card
    shaped, and no ceiling. The owning rule sets all three of height/min/max
    with !important, so all three have to be answered here. */
-.card.card.draft-card {
+/* + .enc-card: the codex is the SAME read card as the draft (see the
+   THE CODEX IS THE DRAFT CARD block at the end of this file). */
+.card.card.draft-card,
+.card.card.enc-card {
   --read-card-h: calc(var(--read-card-w) * 1.76);
   height: auto !important;
   min-height: var(--read-card-h) !important;
   max-height: none !important;
 }
-.card.card.draft-card .card-portrait {
+/* + .enc-card: the codex is the SAME read card as the draft (see the
+   THE CODEX IS THE DRAFT CARD block at the end of this file). */
+.card.card.draft-card .card-portrait,
+.card.card.enc-card .card-portrait {
   flex: 0 0 328px !important;
   height: 328px !important;
   min-height: 0 !important;
@@ -51070,14 +51033,17 @@ body.low-fx .card-glow-host { filter: none !important; }
    so the label is the DETAIL and the hexagon is the design. ::after is the
    stat-roll arrow's when a card is rolling, so this stands aside for it. */
 .card.card.draft-card .stat-atk:not(.stat-rolled-up):not(.stat-rolled-down)::after,
+.card.card.enc-card .stat-atk:not(.stat-rolled-up):not(.stat-rolled-down)::after,
 .card-inspect-modal .card.card .stat-atk:not(.stat-rolled-up):not(.stat-rolled-down)::after {
   content: 'ATK';
 }
 .card.card.draft-card .stat-hp:not(.stat-rolled-up):not(.stat-rolled-down)::after,
+.card.card.enc-card .stat-hp:not(.stat-rolled-up):not(.stat-rolled-down)::after,
 .card-inspect-modal .card.card .stat-hp:not(.stat-rolled-up):not(.stat-rolled-down)::after {
   content: 'HP';
 }
 .card.card.draft-card .stat-circle::after,
+.card.card.enc-card .stat-circle::after,
 .card-inspect-modal .card.card .stat-circle::after {
   position: absolute;
   top: 100%;
@@ -51106,6 +51072,7 @@ body.low-fx .card-glow-host { filter: none !important; }
    The padding stays: it is what keeps the chips from touching each other now
    that nothing separates them. */
 .card.card.draft-card .status-badges,
+.card.card.enc-card .status-badges,
 .card-inspect-modal .card.card .status-badges {
   justify-content: center !important;
   gap: calc(var(--card-w) * 0.018) !important;
@@ -51124,6 +51091,7 @@ body.low-fx .card-glow-host { filter: none !important; }
 
 /* ---- 3 · the rules divider runs the full width --------------------------- */
 .card.card.draft-card .card-desc,
+.card.card.enc-card .card-desc,
 .card-inspect-modal .card.card .card-desc {
   border-top: 1px solid rgb(40, 45, 51) !important;
   padding-top: calc(var(--card-w) * 0.030) !important;
@@ -51187,6 +51155,7 @@ body.low-fx .card-glow-host { filter: none !important; }
    ============================================================ */
 .card.card .stat-atk, .card.card .stat-hp,
 .card.card.draft-card .stat-atk, .card.card.draft-card .stat-hp,
+.card.card.enc-card .stat-atk, .card.card.enc-card .stat-hp,
 .card-inspect-modal .card.card .stat-atk, .card-inspect-modal .card.card .stat-hp,
 .trick-card.trick-card .stat-atk, .trick-card.trick-card .stat-hp {
   text-shadow:

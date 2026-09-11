@@ -551,6 +551,40 @@ check('and the old fixed green is gone from it',
         digit ? 'winning text-shadow is `' + digit.value.slice(0, 120) + '`' : 'no digit rule');
 })();
 
+// ---- the codex IS the draft card ------------------------------------------
+// Owner: "the codex should be the exact same as the draft card its not fix
+// this." Measured with a node-by-node computed-style diff of the same card on
+// both surfaces: 20 differing nodes before, 3 after — and those 3 are only
+// flex/height, from the codex tile sitting in a grid cell rather than a flex
+// row. Everything that is the card's DESIGN now matches.
+//
+// Extending selector lists one at a time was the wrong fix and was losing: the
+// read-card treatment is spread across dozens of rules plus a long legacy tail
+// of `.draft-card` ones, and every rule that forgets to name .enc-card is a
+// fresh drift. The codex WEARS the class instead, so it cannot drift again.
+(function () {
+  var UISRC = read('ui.js').replace(/\/\*[\s\S]*?\*\//g, function (c) { return c.replace(/[^\n]/g, ' '); })
+                           .replace(/\/\/[^\n]*/g, '');
+  var codexCalls = UISRC.match(/extraClass: 'enc-card[^']*'/g) || [];
+  check('the codex renders at least one card surface', codexCalls.length >= 2,
+        'found ' + codexCalls.length + ' enc-card renders');
+  check('and every codex card also wears draft-card',
+        codexCalls.length >= 2 && codexCalls.every(function (c) { return /draft-card/.test(c); }),
+        codexCalls.join(' | '));
+  // .hand-card was the hook a block of codex-ONLY styling hung on at (0,4,0),
+  // which beat the shared read-card rules at (0,3,0). Dropping it retired all
+  // of them at once; the SIZING they also carried was re-keyed, not deleted.
+  check('the codex no longer stamps .hand-card',
+        (UISRC.match(/noHandClass: true/g) || []).length >= 3,
+        'draft + both codex renders must pass it');
+  check('and no codex styling is keyed off .hand-card any more',
+        !/\.encyc-grid \.card\.hand-card\.enc-card/.test(BARE),
+        'those overrides are what made the codex drift');
+  check('while the codex tile keeps its own SIZING',
+        /\.encyc-grid \.card\.enc-card \{[\s\S]{0,800}--read-card-w/.test(BARE),
+        'one token, one size — the grid cell still has to be filled');
+})();
+
 // ---- ATK keeps the hexagon, HP wears a shield ------------------------------
 // Owner: "have the health hexagon switch to be the same shield icon", then on
 // the first attempt "looks handrawn i needs it pristine" / "sharp edges" /

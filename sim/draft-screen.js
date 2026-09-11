@@ -13,10 +13,28 @@ var UI  = read('ui.js');
 
 var pass = 0, fails = [];
 function check(name, cond, detail) { if (cond) pass++; else fails.push(name + (detail ? ' — ' + detail : '')); }
+// A SELECTOR LIST IS STILL THAT SELECTOR. This used to require `sel` to sit
+// immediately before the `{`, so the moment a rule grew a second selector —
+// `.card.card.draft-card .card-portrait,\n.card.card.enc-card .card-portrait {`
+// when the codex joined the read card — every assertion reading that rule went
+// red while the CSS was correct. Walk the blocks and test the comma-separated
+// LIST for an exact member instead. Still returns the LAST match, so it keeps
+// resolving "later in the file wins" the way it did.
 function ruleBody(sel) {
-  var re = new RegExp('(^|[};])\\s*' + sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\{([^{}]*)\\}', 'gm');
-  var m, last = null;
-  while ((m = re.exec(BARE))) last = m[2];
+  // Callers pass EITHER a single selector or a whole comma list (several do,
+  // with embedded newlines), so both have to resolve. Normalise whitespace on
+  // both sides, then accept a full-list match OR an exact member of the list.
+  var norm = function (t) { return t.replace(/\s+/g, ' ').trim(); };
+  var want = norm(sel);
+  var re = /([^{}]+)\{([^{}]*)\}/g, m, last = null;
+  while ((m = re.exec(BARE))) {
+    var list = norm(m[1]);
+    if (list === want) { last = m[2]; continue; }
+    var parts = list.split(',');
+    for (var i = 0; i < parts.length; i++) {
+      if (norm(parts[i]) === want) { last = m[2]; break; }
+    }
+  }
   return last;
 }
 

@@ -18384,7 +18384,27 @@ const UI = {
           const face = this._synthFace(def, { descOverride: desc, rarity: def._runRarity });
           const el = this.makeCardEl(face, true, 'player', {
             static: true,
-            extraClass: 'enc-card' + (upgrade ? ' enc-card-upgraded' : ''),
+            // noHandClass, same as the draft card. Owner: "the codex should be
+            // the exact same as the draft card its not fix this." The codex
+            // tile was the only read surface still stamped `.hand-card`, and a
+            // whole block of `.encyc-grid .card.hand-card.enc-card` overrides
+            // — written when the codex was meant to look like a HAND card —
+            // keyed off it at (0,4,0) and beat the shared read-card rules at
+            // (0,3,0). Dropping the class retires all of them at once.
+            noHandClass: true,
+            // AND `draft-card`, which is the actual fix. Owner: "the codex
+            // should be the exact same as the draft card its not fix this."
+            // Extending selector lists one at a time was losing: the read-card
+            // treatment is spread over dozens of rules and a long legacy tail
+            // of `.draft-card` ones, and every rule that forgets to name
+            // .enc-card is a fresh drift. Wearing the class makes the codex the
+            // draft card BY CONSTRUCTION, so it cannot drift again. Measured on
+            // a node-by-node computed-style diff of the same card on both
+            // surfaces: 20 differing nodes -> 3, and those 3 are flex/height
+            // from sitting in a grid cell instead of a flex row.
+            // `enc-card` stays for what is genuinely codex — grid sizing, the
+            // suppressed hover lift, the tilt selector.
+            extraClass: 'enc-card draft-card' + (upgrade ? ' enc-card-upgraded' : ''),
           });
           el.setAttribute('title', desc.replace(/"/g, '&quot;'));
           if (upgrade) {
@@ -18408,7 +18428,7 @@ const UI = {
         const keep = new Set(filtered.map(d => d.name));
         const chrome = (d) => d._encLayout === 'card'
           ? this.makeCardEl(this._synthFace(d, { descOverride: d.desc || '' }), true, 'player',
-              { static: true, extraClass: 'enc-card' }).outerHTML
+              { static: true, noHandClass: true, extraClass: 'enc-card draft-card' }).outerHTML
           : this.makeTrickEl(d, { extraClass: 'enc-trick' });
         body = franchises.map(g => {
           const evs = g.events.map(ev => {
