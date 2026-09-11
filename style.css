@@ -51348,3 +51348,56 @@ body.low-fx .card-glow-host { filter: none !important; }
 .card-inspect-modal .card.card .stat-hp, .trick-card.trick-card .stat-hp {
   padding-bottom: calc(var(--stat-h) * 0.2347) !important;
 }
+
+/* ============================================================
+   THE GALLERY CROPS ON THE REAL CARD
+   ------------------------------------------------------------
+   Owner: "the gallery edit needs an overhaul because i need to be able to
+   position the cards in the window of the card ... just have the card there
+   and allow me to crop there so you can see it real time", and on Darth Maul:
+   "it looks good but mauls head is cropped."
+
+   One bug. The card crop preview was a bare rectangle at a hard-coded 3:4, and
+   the card's window is not 3:4 any more:
+       hand / board portrait ....... 0.763
+       read card (draft / codex) ... 0.881   <- the big card in the screenshot
+       the old preview ............. 0.750
+   A head framed to sit just inside that preview is cut on the real card, worst
+   on the read card at 17% off. The preview is now the card itself, so there is
+   no aspect left to keep in sync.
+
+   The card's own portrait IS the crop stage — it carries `.gal-crop` and the
+   data attributes, so the existing drag / wheel / arrow / X / Y / zoom tools
+   work on it untouched.
+   ============================================================ */
+.gal-preview-card {
+  /* AT THE REAL WIDTH, and that is not a detail. The read card's portrait is
+     `flex: 0 0 328px; height: 328px` — a FIXED height against a width that
+     scales — so its window aspect changes with --read-card-w. Shrinking the
+     preview to fit the grid would have reintroduced exactly the bug this
+     replaces: a crop framed in a window the card does not have. Measured at a
+     190px preview the portrait came out 186x328 = 0.567 against the real
+     card's 0.963. So the preview inherits --read-card-w untouched and the grid
+     gives it the room instead. */
+  width: var(--read-card-w) !important;
+  min-width: var(--read-card-w) !important;
+  max-width: var(--read-card-w) !important;
+  margin: 0 auto;
+  cursor: grab;
+}
+.gal-preview-card .card-portrait.gal-crop { cursor: grab; }
+.gal-preview-card .card-portrait.gal-crop.is-dragging { cursor: grabbing; }
+/* The preview is a tool, not a card in play — no lift, no pointer games. */
+.gal-preview-card:hover { transform: none !important; }
+.gal-preview-card,
+.gal-preview-card * { animation: none !important; }
+.gal-crop-area-card {
+  display: flex; flex-direction: column; gap: 6px; align-items: center;
+  /* The old card preview was 112px wide and the column was sized for it. A real
+     card is --read-card-w, so the area sizes to the card and the row wraps
+     rather than letting the card overlap the menu crop beside it. */
+  width: auto !important;
+  flex: 0 0 auto;
+}
+.gal-crops { flex-wrap: wrap !important; align-items: flex-start; }
+.gal-thumb { width: auto !important; min-width: calc(var(--read-card-w, 320px) + 24px); }

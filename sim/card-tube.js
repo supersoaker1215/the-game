@@ -551,6 +551,46 @@ check('and the old fixed green is gone from it',
         digit ? 'winning text-shadow is `' + digit.value.slice(0, 120) + '`' : 'no digit rule');
 })();
 
+// ---- the gallery crops on the real card ------------------------------------
+// Owner: "i need to be able to position the cards in the window of the card ...
+// just have the card there and allow me to crop there so you can see it real
+// time", and on Darth Maul: "it looks good but mauls head is cropped."
+//
+// One bug. The card crop preview was a bare rectangle at a HARD-CODED 3:4 and
+// the card's window is not 3:4 any more. Measured portrait aspect:
+//     hand / board .......... 0.763
+//     read card ............. 0.963 at --read-card-w 320
+//     the old preview ....... 0.750
+// A head framed just inside that preview is cut on the real card. Rendering the
+// actual card removes the guess: there is no aspect left to keep in sync.
+(function () {
+  var UISRC = read('ui.js').replace(/\/\*[\s\S]*?\*\//g, function (c) { return c.replace(/[^\n]/g, ' '); })
+                           .replace(/\/\/[^\n]*/g, '');
+  check('the gallery builds a real card for the card crop',
+        /extraClass: 'draft-card gal-preview-card'/.test(UISRC),
+        'it must be the same object makeCardEl draws everywhere else');
+  check("and the card's own portrait IS the crop stage",
+        /pt\.classList\.add\('gal-crop', 'gal-crop-card'\)/.test(UISRC),
+        'the drag / wheel / arrow tools key off .gal-crop, so the portrait becomes the stage');
+  check('the hard-coded 3:4 preview is gone for the card',
+        !/cropArea\('card', 'Card · 3:4'/.test(UISRC),
+        'that literal is what cropped the head');
+  // .card.card.draft-card .card-portrait sets background-position !important
+  // from var(--portrait-pos), so an inline background-position loses to it.
+  check('the focal write also sets --portrait-pos',
+        /stage\.style\.setProperty\('--portrait-pos', pos\)/.test(UISRC),
+        'an inline background-position cannot beat the card rule');
+  // The stage's parent is the CARD now, so the X/Y row is a sibling of the card.
+  check('and the X/Y row is found from the crop AREA, not the stage parent',
+        /stage\.closest\('\.gal-crop-area'\)/.test(UISRC),
+        'a parentElement lookup silently stopped tracking the drag');
+  // Scaling the preview down would reintroduce the bug: the read portrait is a
+  // FIXED 328px tall against a width that scales, so its aspect moves with it.
+  check('the preview renders at the real read-card width',
+        /\.gal-preview-card \{[\s\S]{0,900}width: var\(--read-card-w\) !important/.test(BARE),
+        'a shrunk preview has a different window than the card');
+})();
+
 // ---- the codex IS the draft card ------------------------------------------
 // Owner: "the codex should be the exact same as the draft card its not fix
 // this." Measured with a node-by-node computed-style diff of the same card on

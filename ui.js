@@ -16789,10 +16789,21 @@ const UI = {
     const stage = document.getElementById(pid);
     if (stage) {
       stage.style.backgroundPosition = pos;
+      // AND the variable, because the stage may BE a real card's portrait now.
+      // `.card.card.draft-card .card-portrait` sets background-position with
+      // !important, reading `var(--portrait-pos, center 20%)` — an inline
+      // background-position loses to it, the variable does not. Harmless on a
+      // plain crop div, load-bearing on a card.
+      stage.style.setProperty('--portrait-pos', pos);
       stage.classList.remove('is-auto');
       const chip = stage.querySelector('.gal-auto');
       if (chip) chip.remove();
-      const row = stage.parentElement && stage.parentElement.querySelector('.gal-num-row');
+      // FROM THE CROP AREA, not the stage's parent. The card stage's parent is
+      // the card itself now, and the X/Y row is a sibling of the CARD — so a
+      // parentElement lookup found nothing and the numbers silently stopped
+      // tracking the drag. closest() is right for both stage shapes.
+      const area = stage.closest('.gal-crop-area');
+      const row = area && area.querySelector('.gal-num-row');
       if (row) {
         const ins = row.querySelectorAll('input');
         if (ins[0] && document.activeElement !== ins[0]) ins[0].value = Math.round(x * 10) / 10;
@@ -16920,7 +16931,8 @@ const UI = {
     if (!ov) return;
     ov.querySelectorAll('.gal-crop').forEach(stage => {
       const o = this._galOverflow(stage);
-      const row = stage.parentElement && stage.parentElement.querySelector('.gal-num-row');
+      const area = stage.closest('.gal-crop-area');
+      const row = area && area.querySelector('.gal-num-row');
       if (!o || !row) return;
       const labels = row.querySelectorAll('.gal-num');
       const mark = (el, has) => {
@@ -17063,12 +17075,84 @@ const UI = {
         const dn = `<button type="button" class="gal-move"${idx === variants.length - 1 ? ' disabled' : ''} title="Move down" onclick="UI._moveArt('${jsName}','${jsFile}',1)">▼</button>`;
         // Two INDEPENDENT crop areas — card (3:4) and menu hero (tall) — each with
         // its own focal + X/Y sliders so the image can be framed differently.
+        // ONE definition of the controls, shared by both crop stages — the
+        // card (a real card) and the menu hero (still a plain rectangle).
+        const isAutoFocal = (focal) => !focal;
+        const numRow = (kind, fp, pid) => `<div class="gal-num-row">
+              <label class="gal-num">X <input type="number" step="0.5" min="0" max="100" value="${fp.x}"
+                onchange="UI._gallerySetFocal('${jsName}','${jsFile}','${kind}','x',this.value,'${pid}')"></label>
+              <label class="gal-num">Y <input type="number" step="0.5" min="0" max="100" value="${fp.y}"
+                onchange="UI._gallerySetFocal('${jsName}','${jsFile}','${kind}','y',this.value,'${pid}')"></label>
+            </div>`;
+        const zoomRow = (kind, z, pid) => `<div class="gal-zoom-row">
+              <button type="button" class="gal-zbtn" title="Zoom out" onclick="UI._galleryZoom('${jsName}','${jsFile}','${kind}',-0.05,'${pid}')">−</button>
+              <input class="gal-zoom-num" type="number" step="1" min="50" max="300" value="${Math.round(z * 100)}" id="${pid}-zn"
+                onchange="UI._gallerySetZoom('${jsName}','${jsFile}','${kind}',this.value,'${pid}')">
+              <span class="gal-zoom-pct">%</span>
+              <button type="button" class="gal-zbtn" title="Zoom in" onclick="UI._galleryZoom('${jsName}','${jsFile}','${kind}',0.05,'${pid}')">+</button>
+            </div>`;
+        const cropBtns = (kind, pid) => `<div class="gal-crop-btns">
+              <button type="button" class="gal-reset" title="Centre the focal point" onclick="UI._gallerySetFocal('${jsName}','${jsFile}','${kind}','both','50','${pid}')">Centre</button>
+              <button type="button" class="gal-reset" onclick="UI._galleryResetCrop('${jsName}','${jsFile}','${kind}')">Reset</button>
+            </div>`;
         const cropArea = (kind, label, cw) => {
           const focal = this._artFocalFor(name, file, kind);
           const size = this._artSizeFor(name, file, kind);
           const z = this._artZoomFor(name, file, kind);
           const fp = parseFocal(focal);
           const pid = `gcrop-${kind}-${ni}-${idx}`;
+          // ---- THE CARD CROP IS CROPPED ON THE REAL CARD ----------------
+          // Owner: "i need to be able to position the cards in the window of
+          // the card ... just have the card there and allow me to crop there
+          // so you can see it real time", and, on Darth Maul: "it looks good
+          // but mauls head is cropped."
+          //
+          // Those are one bug. This preview was a bare rectangle at a HARD-CODED
+          // 3:4, and the real card's window is not 3:4 any more. Measured:
+          //     hand / board portrait ....... 0.763
+          //     read card (draft/codex) ..... 0.881   <- the big card
+          //     this preview ................ 0.750
+          // So a head framed to sit just inside the preview is cut on the card,
+          // and worst on the read card, which is 17% off. Rendering the actual
+          // card through makeCardEl removes the guess entirely — there is no
+          // aspect to keep in sync any more, because it is the same object the
+          // game draws. The drag / wheel / arrow / X / Y / zoom tools are
+          // untouched: they key off `.gal-crop` + the data attributes, so the
+          // portrait simply becomes the stage.
+          if (kind === 'card') {
+            const def = defs.find(d => d.name === name);
+            if (def) {
+              let cardHTML = '';
+              try {
+                const el = this.makeCardEl(this._synthFace(def, {}), true, 'player',
+                  { static: true, noHandClass: true, extraClass: 'draft-card gal-preview-card' });
+                const pt = el.querySelector('.card-portrait');
+                if (pt) {
+                  pt.classList.add('gal-crop', 'gal-crop-card');
+                  if (isAutoFocal(focal)) pt.classList.add('is-auto');
+                  pt.id = pid;
+                  pt.setAttribute('tabindex', '0');
+                  pt.setAttribute('title', 'Drag to reposition · scroll to zoom · arrow keys to nudge (Shift = fine)');
+                  pt.dataset.name = name; pt.dataset.file = file; pt.dataset.kind = 'card';
+                  // This variant's file, not the card's primary — the gallery
+                  // frames each variant independently.
+                  pt.style.setProperty('--portrait-bg', `url('${url}')`);
+                  pt.style.setProperty('--portrait-pos', focal || '50% 50%');
+                  pt.style.backgroundSize = size;
+                  const g = document.createElement('div');
+                  g.className = 'gal-guides'; g.setAttribute('aria-hidden', 'true');
+                  pt.appendChild(g);
+                }
+                cardHTML = el.outerHTML;
+              } catch (e) { cardHTML = ''; }
+              if (cardHTML) return `<div class="gal-crop-area gal-crop-area-card">
+                ${cardHTML}
+                ${numRow(kind, fp, pid)}
+                ${zoomRow(kind, z, pid)}
+                ${cropBtns(kind, pid)}
+              </div>`;
+            }
+          }
           // AUTO = no focal saved for this variant, so it is riding the global
           // fallback rather than being framed. Surfacing it turns an invisible
           // backlog (37 of 58 menu heroes at the time of writing) into a list
@@ -17090,23 +17174,9 @@ const UI = {
               <div class="gal-guides" aria-hidden="true"></div>
               ${safeZone}
             </div>
-            <div class="gal-num-row">
-              <label class="gal-num">X <input type="number" step="0.5" min="0" max="100" value="${fp.x}"
-                onchange="UI._gallerySetFocal('${jsName}','${jsFile}','${kind}','x',this.value,'${pid}')"></label>
-              <label class="gal-num">Y <input type="number" step="0.5" min="0" max="100" value="${fp.y}"
-                onchange="UI._gallerySetFocal('${jsName}','${jsFile}','${kind}','y',this.value,'${pid}')"></label>
-            </div>
-            <div class="gal-zoom-row">
-              <button type="button" class="gal-zbtn" title="Zoom out" onclick="UI._galleryZoom('${jsName}','${jsFile}','${kind}',-0.05,'${pid}')">−</button>
-              <input class="gal-zoom-num" type="number" step="1" min="50" max="300" value="${Math.round(z * 100)}" id="${pid}-zn"
-                onchange="UI._gallerySetZoom('${jsName}','${jsFile}','${kind}',this.value,'${pid}')">
-              <span class="gal-zoom-pct">%</span>
-              <button type="button" class="gal-zbtn" title="Zoom in" onclick="UI._galleryZoom('${jsName}','${jsFile}','${kind}',0.05,'${pid}')">+</button>
-            </div>
-            <div class="gal-crop-btns">
-              <button type="button" class="gal-reset" title="Centre the focal point" onclick="UI._gallerySetFocal('${jsName}','${jsFile}','${kind}','both','50','${pid}')">Centre</button>
-              <button type="button" class="gal-reset" onclick="UI._galleryResetCrop('${jsName}','${jsFile}','${kind}')">Reset</button>
-            </div>
+            ${numRow(kind, fp, pid)}
+            ${zoomRow(kind, z, pid)}
+            ${cropBtns(kind, pid)}
           </div>`;
         };
         return `<figure class="gal-thumb">
@@ -17116,7 +17186,9 @@ const UI = {
             ${delBtn}
           </div>
           <div class="gal-crops">
-            ${cropArea('card', 'Card · 3:4', cardW)}
+            <!-- 'card' renders the REAL card (see cropArea); cardW/label are the
+                 fallback only, for a name with no def or a makeCardEl throw. -->
+            ${cropArea('card', 'Card window', cardW)}
             ${cropArea('menu', 'Menu hero', menuW)}
           </div>
           <div class="gal-thumb-foot">
