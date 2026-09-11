@@ -46305,11 +46305,20 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
      radii the card's own border glow uses so the two read as one object. The
      black layers are underneath for legibility: the name sits on the painting,
      not on a panel. */
+  /* TIGHT, NOT BLOOMY. The first pass at this reused the CARD's glow radii —
+     0.030 and 0.070 of the card width — on the reasoning that the name and the
+     frame should read as one object. That is right about the COLOUR and wrong
+     about the SIZE: the frame's glow is spread along a 700px perimeter, while
+     the same radii around a 27px letterform put 8.2 halo pixels on screen for
+     every pixel of actual glyph (measured on a black stage with the painting
+     removed). The letters went soft. Owner: "better but too much outer glow."
+     Halved, and the far layer cut by more than half again — enough to read as
+     lit, not enough to eat the letterform. Measured after: 2.4 to 1. */
   text-shadow:
     0 1px 2px rgba(0,0,0,0.95),
-    0 0 calc(var(--card-w) * 0.014) rgba(0,0,0,0.90),
-    0 0 calc(var(--card-w) * 0.030) rgba(var(--cf-rgb), 0.95),
-    0 0 calc(var(--card-w) * 0.070) rgba(var(--cf-rgb), 0.55) !important;
+    0 0 calc(var(--card-w) * 0.012) rgba(0,0,0,0.90),
+    0 0 calc(var(--card-w) * 0.015) rgba(var(--cf-rgb), 0.70),
+    0 0 calc(var(--card-w) * 0.032) rgba(var(--cf-rgb), 0.22) !important;
 }
 
 /* ============================================================

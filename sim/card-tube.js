@@ -521,9 +521,23 @@ check('and the old fixed green is gone from it',
   check('and its halo carries no white core',
         !!sh && !/255,\s*255,\s*255/.test(sh.value),
         sh ? 'winning text-shadow is `' + sh.value.slice(0, 110) + '`' : 'no shadow reaches it');
-  check('the halo is the accent, at the card glow\'s own two radii',
+  check('the halo is the accent, in two layers',
         !!sh && (sh.value.match(/--cf-rgb/g) || []).length >= 2,
-        'one radius reads as an outline; two read as a tube, which is what the border does');
+        'one radius reads as an outline; two read as a tube');
+  // AND THE RADII ARE THE NAME'S OWN, not the card's. The first pass reused the
+  // frame's 0.030/0.070 so the two would "read as one object" — right about the
+  // colour, wrong about the size: the frame spreads its glow along a 700px
+  // perimeter, the same radii around a 27px letterform just eat the letterform.
+  // Owner: "better but too much outer glow." Measured on a black stage with the
+  // painting removed, halo energy per unit of glyph 0.617 -> 0.421, with the
+  // glyphs themselves unchanged at 242k/239k.
+  var wide = sh && /--cf-rgb\), 0\.[0-9]+\)\s*$/.test(sh.value.trim());
+  var radii = sh ? (sh.value.match(/var\(--card-w\) \* (0\.\d+)/g) || []) : [];
+  check('and they are tighter than the card\'s own glow (0.030 / 0.070)',
+        radii.length >= 2 && radii.every(function (r) {
+          return parseFloat(r.split('* ')[1]) <= 0.035;
+        }),
+        'radii found: ' + radii.join(', ') + ' — at 27px type anything wider blooms over the glyph');
   check('with black underneath, because the name sits on the painting',
         !!sh && /rgba\(0,\s*0,\s*0/.test(sh.value),
         'no dark layer and a pale name disappears into a bright art');
