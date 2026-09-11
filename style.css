@@ -50930,11 +50930,13 @@ body.low-fx .card-glow-host { filter: none !important; }
    vertices 1.1547t in and the four side vertices t in horizontally and
    0.5774t vertically. */
 .card, .trick-card {
-  /* 0.190 -> 0.160. Owner, on the circled stat row: "i would rather them be
-     smaller and a little more space from the edge." One multiplier, so every
-     surface shrinks together and hand and board stay identical shares of their
+  /* 0.190 -> 0.160 -> 0.175. Owner, on the circled stat row: "i would rather
+     them be smaller and a little more space from the edge", then on the result:
+     "make the hexagons a little bigger, and closer to each other." 0.160 went
+     one step too far; this lands between the two. One multiplier, so every
+     surface moves together and hand and board stay identical shares of their
      own card. */
-  --stat-h: calc(var(--card-w) * 0.160);
+  --stat-h: calc(var(--card-w) * 0.175);
   /* EACH LOOP CLOSES ITSELF. `polygon()` is ONE path — listing the outer six
      points and then the inner six does not make two rings, it makes a single
      twelve-sided figure with a seam running from the last outer point to the
@@ -51171,12 +51173,26 @@ body.low-fx .card-glow-host { filter: none !important; }
    (draft / codex / inspect) keep their own wider 0.10 inset at (0,3,0) — more
    detail on the big card is the standing rule, not an inconsistency. */
 .card.card {
-  --stat-side: calc(var(--card-w) * 0.055);
+  /* --stat-side IS NOW THE WHOLE OFFSET, not an addition to --cf-inset.
+     "closer to each other" is the same knob as "further from the edge" — the
+     two hexes sit in opposite bottom corners, so pushing each inboard does
+     both at once. But adding it to --cf-inset meant the pair's separation was
+     only PARTLY proportional: --cf-inset is a flat 8px in hand and
+     card-w * 0.032 on the board, so the gap between the two hexes came out
+     38.8% of the card in hand against 47.2% on the board even after their
+     SIZE was matched. One proportional term, and the whole row is identical
+     on both. 0.16 measured: hand 29.4%, board 29.6%.
+     --stat-bottom's second term still reads --cf-inset + --chamfer -
+     --stat-side: that is the clearance condition for the HP hex against the
+     bottom-right corner cut, and it is stated in distances from the card's own
+     edges, which is exactly what --stat-side now is. Measured clearance after
+     the change: hand +26.66px, board +27.75px (positive = clear). */
+  --stat-side: calc(var(--card-w) * 0.16);
   --stat-bottom: max(
     calc(var(--chamfer) * 1.15 + var(--card-w) * 0.034),
     calc(var(--cf-inset) + var(--chamfer)
          - var(--stat-side) + var(--card-w) * 0.018)
   );
 }
-.card.card .stat-atk { left:  calc(var(--cf-inset) + var(--stat-side)) !important; }
-.card.card .stat-hp  { right: calc(var(--cf-inset) + var(--stat-side)) !important; }
+.card.card .stat-atk { left:  var(--stat-side) !important; }
+.card.card .stat-hp  { right: var(--stat-side) !important; }

@@ -398,8 +398,8 @@ check('and the old fixed green is gone from it',
         'height = width x 2/sqrt3, or the ring\'s inset is uneven');
   // 0.190 was 101/533 traced off the reference. Owner, on the shipped card:
   // "i would rather them be smaller and a little more space from the edge."
-  check('and it is 0.160 of the card width', /--stat-h:\s*calc\(var\(--card-w\) \* 0\.160\)/.test(BARE),
-        'one multiplier, so every surface shrinks together');
+  check('and it is 0.175 of the card width', /--stat-h:\s*calc\(var\(--card-w\) \* 0\.175\)/.test(BARE),
+        'one multiplier, so every surface moves together');
 
   // THE SAME SIZE IN HAND AND ON BOARD, and the fix for that is NOT a size rule.
   // Both surfaces already ran the same --stat-h; --card-w itself was wrong on a
@@ -422,14 +422,30 @@ check('and the old fixed green is gone from it',
   // sooner it clears. A copied literal decouples them the first time either is
   // tuned, which the --stat-bottom comment says has already happened four times.
   check('the stat inset is defined once, as --stat-side',
-        /--stat-side:\s*calc\(var\(--card-w\) \* 0\.055\)/.test(BARE),
+        /--stat-side:\s*calc\(var\(--card-w\) \* 0\.16\)/.test(BARE),
         'more space from the edge, one definition');
+  // And it is the WHOLE offset. Added to --cf-inset it was only partly
+  // proportional (--cf-inset is a flat 8px in hand, card-w * 0.032 on board),
+  // so the gap BETWEEN the two hexes read 38.8% of the card in hand against
+  // 47.2% on board even once their size matched. One term -> 29.4% / 29.6%.
+  // RESOLVE THE CASCADE, DO NOT GREP. The superseded
+  // `left: calc(var(--cf-inset) + var(--card-w) * 0.030)` is still in the file
+  // and a text test matches it, which is exactly the trap this suite exists to
+  // avoid — later in the file wins here, not the first hit.
+  var atkLeft = winner('left', { classes: ['stat-atk'], ancestors: ['card'] });
+  var hpRight = winner('right', { classes: ['stat-hp'], ancestors: ['card'] });
+  check('and it is the whole offset, so the pair sits identically on both',
+        !!atkLeft && /^var\(--stat-side\)$/.test(atkLeft.value.replace(/!important/, '').trim()) &&
+        !!hpRight && /^var\(--stat-side\)$/.test(hpRight.value.replace(/!important/, '').trim()),
+        'winning left is `' + (atkLeft ? atkLeft.value : 'none') +
+        '`, right is `' + (hpRight ? hpRight.value : 'none') +
+        '` — adding --cf-inset back makes the separation surface-dependent again');
   check('and the bottom offset subtracts that same variable',
         /--stat-bottom:[\s\S]{0,260}-\s*var\(--stat-side\)/.test(BARE),
         'a literal here silently decouples the two');
   check('both edges read it',
-        /\.card\.card \.stat-atk \{ left:\s*calc\(var\(--cf-inset\) \+ var\(--stat-side\)\)/.test(BARE) &&
-        /\.card\.card \.stat-hp\s+\{ right:\s*calc\(var\(--cf-inset\) \+ var\(--stat-side\)\)/.test(BARE),
+        /\.card\.card \.stat-atk \{ left:\s*var\(--stat-side\) !important; \}/.test(BARE) &&
+        /\.card\.card \.stat-hp\s+\{ right:\s*var\(--stat-side\) !important; \}/.test(BARE),
         'left and right must stay symmetric');
   // the numerals joined everything else
   var atk = winner('color', { classes: ['stat-atk'], ancestors: ['card'] });
