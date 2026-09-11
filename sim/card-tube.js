@@ -356,7 +356,11 @@ check('and the old fixed green is gone from it',
       'both declarations are present — the later one wins, but the dead one will confuse the next reader');
 
 // ---- health is a CIRCLE, attack stays a reticle -----------------------------
-// Owner: "make the health square a circle."
+// Owner: "make the health square a circle", then, on seeing a solid ring: "the
+// health circle should be dotted or lined like the damage square." A closed
+// loop next to four separate strokes reads as a different LANGUAGE rather than
+// a different shape, so the ring is four arcs with four gaps — same grammar as
+// the reticle, different silhouette.
 //
 // Both readouts were the same four-corner-bracket mask in two colours, so
 // COLOUR was the only thing telling them apart — the weakest carrier there is,
@@ -366,7 +370,8 @@ check('and the old fixed green is gone from it',
 (function () {
   var atk = winner('--stat-line', { classes: ['stat-atk', 'stat-circle'], ancestors: ['card'] });
   var hp  = winner('--stat-line', { classes: ['stat-hp', 'stat-circle'], ancestors: ['card'] });
-  check('health draws a ring', !!hp && /<circle/.test(hp.value),
+  check('health draws a SEGMENTED ring, not a solid loop',
+        !!hp && /<circle/.test(hp.value) && /stroke-dasharray/.test(hp.value),
         hp ? 'health still draws `' + hp.value.slice(0, 70) + '`' : 'nothing sets health\'s shape');
   check('attack keeps the corner reticle', !!atk && !/<circle/.test(atk.value) && /M0,26/.test(atk.value),
         atk ? 'attack now draws `' + atk.value.slice(0, 70) + '`' : 'nothing sets attack\'s shape');
@@ -409,6 +414,77 @@ check('and the old fixed green is gone from it',
   check('the chamfer line is not swallowed by the banner',
         !!clip && /--chamfer\)\s*\+\s*var\(--cf-stroke\)\s*\*\s*var\(--sqrt2\)/.test(clip.value),
         clip ? 'winning clip is `' + clip.value.slice(0, 80) + '`' : 'no clip reaches the banner');
+})();
+
+// ---- the health ring's dash pattern has to CLOSE ---------------------------
+// r=45 in a 100 viewBox is a circumference of 282.74. Four arcs and four gaps
+// must fill it exactly, or the pattern walks round the ring and the gaps stop
+// sitting square to the badge — which looks like a rendering fault rather than
+// a design. Asserting the arithmetic because it is the kind of number someone
+// tunes by eye later and leaves not quite closing.
+(function () {
+  var hp = winner('--stat-line', { classes: ['stat-hp', 'stat-circle'], ancestors: ['card'] });
+  var m = hp && /stroke-dasharray='([\d.]+) ([\d.]+)'/.exec(hp.value);
+  check('the ring has a dash pattern at all', !!m, hp ? 'value: ' + hp.value.slice(0, 80) : 'no rule');
+  if (m) {
+    var arc = parseFloat(m[1]), gap = parseFloat(m[2]);
+    var circumference = 2 * Math.PI * 45;
+    var err = Math.abs((arc + gap) * 4 - circumference);
+    check('four arcs and four gaps close the circle (err ' + err.toFixed(3) + 'px)', err < 0.05,
+          'arc ' + arc + ' + gap ' + gap + ' times 4 = ' + ((arc + gap) * 4).toFixed(2) +
+          ', circumference ' + circumference.toFixed(2));
+  }
+})();
+
+// ---- the glow lives on the container, and the pass that puts it there -------
+// Owner, against a reference card: "i just feel like i want more glow" -> "do
+// the wrapper". The glow could never work on the card itself: .card.card clips
+// to its own chamfered silhouette and a clip-path clips the FILTERED result,
+// so the halo was generated and cut off flush. Measured 19 against the
+// reference's 673.
+(function () {
+  var UIJS = read('ui.js');
+  check('the container rule exists', /\.card-glow-host\s*\{[^}]*drop-shadow/.test(BARE),
+        'nothing paints the halo');
+  check('and it reads the accent carried up to it',
+        /\.card-glow-host\s*\{[^}]*var\(--cg-rgb/.test(BARE),
+        'the host must read --cg-rgb — a container cannot read its child\'s colour by itself');
+  check('low-fx switches it off', /body\.low-fx \.card-glow-host\s*\{[^}]*filter:\s*none/.test(BARE),
+        'a per-card blur pass is exactly what the perf escape hatch is for');
+  check('the pass exists', /_applyCardGlow\(\)\s*\{/.test(UIJS));
+  check('and runs from applyTronFx, which already walks every card',
+        /applyTronFx\(\)\s*\{[\s\S]{0,400}_applyCardGlow\(\)/.test(UIJS),
+        'wired anywhere else and a surface has to opt in');
+  // It reads --portrait-frame-rgb, NOT --art-rgb: in hand/draft/codex that is
+  // the card's art colour, on the board it is the SIDE colour. One read, and
+  // the halo says the same thing the frame says on every surface.
+  check('it takes the frame colour, so the board keeps its side colours',
+        /_applyCardGlow[\s\S]{0,900}--portrait-frame-rgb/.test(UIJS),
+        'reading --art-rgb directly would make an enemy card glow in its art colour');
+  // Two bugs the first version shipped with, both found by driving it:
+  check('a host must wrap exactly ONE card',
+        /_applyCardGlow[\s\S]{0,900}host\.children\.length !== 1/.test(UIJS),
+        '.trick-cards holds the whole tray — stamping it put one halo around a GROUP');
+  check('and the idempotency guard checks the CLASS, not just the signature',
+        /dataset\.cgSig === sig && host\.classList\.contains\('card-glow-host'\)/.test(UIJS),
+        'a render that rewrites className drops the class while the signature survives, so the glow vanished on the first re-render and never came back');
+  check('an unplayable card\'s halo dims with it',
+        /_applyCardGlow[\s\S]{0,2600}unplayable/.test(UIJS),
+        'a greyed card glowing at full strength undoes the read');
+})();
+
+// ---- the stat deltas in the prose keep their sign colours ------------------
+// Owner circled the second +1 in "Add (+1/+1)": "that needs to be red". The
+// neutral-prose pass had taken it white with the rest of the body; the two
+// numbers are attack and health, and stripping the colour off one made the
+// pair unreadable as a pair.
+(function () {
+  var hp  = winner('color', { classes: ['stat-num-hp'],  ancestors: ['card', 'card-desc'] });
+  var atk = winner('color', { classes: ['stat-num-atk'], ancestors: ['card', 'card-desc'] });
+  check('the health delta is red',  !!hp && /#ff6b6b/i.test(hp.value),
+        hp ? 'winning colour is ' + hp.value : 'nothing reaches it');
+  check('the attack delta is green', !!atk && /#3dff9e/i.test(atk.value),
+        atk ? 'winning colour is ' + atk.value : 'nothing reaches it');
 })();
 
 print('card-tube: ' + pass + ' passed, ' + fails.length + ' failed');

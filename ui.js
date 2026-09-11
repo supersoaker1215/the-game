@@ -18703,9 +18703,80 @@ const UI = {
     ['.db-preset',        '.db-preset.db-preset-active'],
     ['.stats-source-btn', '.stats-source-btn.stats-source-active']
   ],
+  // ============================================================
+  // THE CARD'S GLOW LIVES ON ITS CONTAINER
+  // ============================================================
+  // Owner, against a reference card: "i just feel like i want more glow."
+  //
+  // The glow was always authored — every card carries --card-tube with a
+  // 3px/0.90 and a 7px/0.45 drop-shadow — and it had never painted a single
+  // pixel. Proved by cranking it to two 20px FULLY OPAQUE shadows and measuring
+  // the page around the card at luma 0.
+  //
+  // `.card` carries a clip-path of its own chamfered silhouette, and a
+  // clip-path clips the FILTERED result: the drop-shadow generates the halo and
+  // the clip then cuts it off flush at the card's edge. Measured, reference vs
+  // live: halo area 673 against 19.
+  //
+  // So the glow has to sit on an element that is NOT the clipped one. It cannot
+  // be a child (also clipped) and it cannot be a pseudo-element (also a child).
+  // It has to be the container — and the reason that was not simply a CSS rule
+  // is that the accent is a custom property set ON THE CARD, and custom
+  // properties inherit downward only. A container cannot read its child's
+  // colour, so something has to carry it up. This is that something.
+  //
+  // IT READS --portrait-frame-rgb, NOT --art-rgb, and the difference matters:
+  // in hand, draft and codex that resolves to the card's own art colour, while
+  // on the board the ally/enemy rules re-point it at the player's accent or the
+  // opponent's red. So the halo says "whose card is this" exactly where the
+  // frame already does, and says "which card is this" everywhere else.
+  //
+  // Runs from applyTronFx, which is the pass that already walks every card
+  // after every render — so a card that appears on any surface, present or
+  // future, is covered without that surface knowing about it.
+  _applyCardGlow() {
+    if (typeof document === 'undefined') return;
+    document.querySelectorAll('.card[data-card-name], .trick-card[data-trick-name]').forEach((card) => {
+      const host = card.parentElement;
+      if (!host || host === document.body) return;
+      // ONE CARD PER HOST, OR THE GLOW BELONGS TO THE ROW. `.trick-cards` holds
+      // the whole tray and `.hand-cards` the whole hand — stamping those put a
+      // single halo around a GROUP, in whichever card happened to be stamped
+      // last. A host has to wrap exactly one card to be that card's host.
+      if (host.children.length !== 1) return;
+      let cs;
+      try { cs = getComputedStyle(card); } catch (e) { return; }
+      const rgb = (cs.getPropertyValue('--portrait-frame-rgb') || '').trim();
+      if (!rgb) return;
+      const w = parseFloat(cs.getPropertyValue('--card-w')) || 110;
+      // A card that cannot be played is greyed by its own filter; a container
+      // glowing at full strength behind it would undo that read, so the halo
+      // goes with it.
+      const dim = card.classList.contains('unplayable') || card.classList.contains('card-disabled');
+      // IDEMPOTENT. This runs on every render, and writing the same inline
+      // values back each time is both wasted work and a style recalc — so the
+      // whole pass is skipped unless something it cares about actually moved.
+      const sig = rgb + '|' + Math.round(w) + '|' + (dim ? 'd' : '');
+      // …and the class has to still BE there. A render that rewrites the host's
+      // className drops `card-glow-host` while dataset.cgSig survives on the
+      // same node, so a signature check alone skipped the one pass that would
+      // have put it back — the glow vanished on the first re-render and never
+      // returned. Both have to match to skip.
+      if (host.dataset.cgSig === sig && host.classList.contains('card-glow-host')) return;
+      host.dataset.cgSig = sig;
+      host.classList.add('card-glow-host');
+      host.style.setProperty('--cg-rgb', rgb);
+      host.style.setProperty('--cg-r1', (w * 0.030).toFixed(2) + 'px');
+      host.style.setProperty('--cg-r2', (w * 0.080).toFixed(2) + 'px');
+      host.style.setProperty('--cg-a1', dim ? '0.20' : '0.95');
+      host.style.setProperty('--cg-a2', dim ? '0.10' : '0.55');
+    });
+  },
+
   applyTronFx() {
     if (typeof document === 'undefined') return;
     let stagger = 0;
+    this._safe ? this._safe('cardGlow', () => this._applyCardGlow()) : this._applyCardGlow();
 
     // ---- (a) BUTTON SURFACES — full FX (sweep + breath + active) ----
     const fxSel = this._TRON_FX_SELECTORS.join(', ');

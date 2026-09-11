@@ -50033,7 +50033,8 @@ body.in-match:not(.board-v2) .board {
   color: rgb(var(--portrait-frame-rgb, var(--own-green))) !important;
 }
 /* the inline stat deltas keep their sign colours, but health stops being red */
-.draft-card .card-desc .stat-num-hp { color: #ffffff !important; }
+/* (superseded by the red rule at the foot of this file — kept in step) */
+.draft-card .card-desc .stat-num-hp { color: #ff6b6b !important; }
 
 /* ---- 4 · attack is GREEN, health is RED, so the two stats read apart --------
    Owner reversed the earlier "both pips take the frame colour" call: on the
@@ -50493,7 +50494,16 @@ body.in-match:not(.board-v2) .board {
 }
 /* health stops being red in the prose — it is a number in a sentence here, not
    a stat readout (the readouts keep their green/red, see the draft block). */
-.card.card.card .card-desc .stat-num-hp { color: #ffffff !important; }
+/* THE HEALTH DELTA IS RED AGAIN, and that reverses the line two blocks up.
+   The neutral-prose pass took it white along with the rest of the body, on the
+   reasoning that a number inside a sentence is not a stat readout. The owner
+   circled it and said it needs to be red: in `Add (+1/+1)` the two numbers are
+   attack and health, and stripping the colour off the second one made the pair
+   unreadable as a pair. Same red the HP readout uses. */
+.card.card.card .card-desc .stat-num-hp,
+.trick-card.trick-card.trick-card .trick-desc .stat-num-hp { color: #ff6b6b !important; }
+.card.card.card .card-desc .stat-num-atk,
+.trick-card.trick-card.trick-card .trick-desc .stat-num-atk { color: #3dff9e !important; }
 /* The scanline wash behind the rules block took the frame colour too, which is
    the same tint one layer down. Neutral, and fainter. */
 .card.card.card .card-desc {
@@ -50521,30 +50531,35 @@ body.in-match:not(.board-v2) .board {
    nothing to override here.) */
 
 /* ============================================================
-   HEALTH IS A CIRCLE, ATTACK STAYS A RETICLE
+   HEALTH IS A SEGMENTED RING, ATTACK STAYS A RETICLE
    ------------------------------------------------------------
-   Owner: "make the health square a circle."
+   Owner: "make the health square a circle", then, seeing it: "the health
+   circle should be dotted or lined like the damage square."
 
-   Both readouts were the same object — four corner brackets — in two colours,
-   which made colour the ONLY thing separating them. That is the same complaint
-   that got the two pips split into green and red in the first place ("you could
-   not tell attack from health at a glance"), and colour alone is the weakest
-   way to carry it: it is the first thing lost to a colourblind player, to a
-   dark painting behind the numeral, and to a 55px board tile.
+   Both readouts were the same four-corner-bracket mask in two colours, so
+   COLOUR was the only thing telling them apart — the weakest carrier there is,
+   and the first thing lost to a colourblind player, a busy painting behind the
+   numeral, or a 55px board tile.
 
-   Shape is the stronger signal, and it costs nothing — the brackets are already
-   drawn by a mask (--stat-line), so health just gets a different path. Attack
-   keeps the reticle; health becomes a ring.
+   A SOLID ring was the first pass and it read as a different LANGUAGE, not a
+   different shape — the attack mark is four strokes with air between them, and
+   a closed loop next to it looks like it came from another set. So the ring is
+   four arcs with four gaps, the gaps landing at the compass points exactly
+   where the square's gaps land at its mid-edges. Same grammar, different
+   shape: you can tell them apart in the dark, and they still belong together.
 
-   THE VIEWBOX HAS TO STAY SQUARE AND SO DOES THE BOX. `preserveAspectRatio`
-   is 'none' on this mask, so a circle in a 100x100 viewBox stretched over a
-   non-square badge would render as an ellipse. The badge is --stat-h on both
-   sides, so the two agree; r=45 with stroke-width 10 keeps the ring's outer
-   edge on the same 100-unit bounds the brackets use, which is what makes the
-   two readouts sit on the same optical size.
+   THE NUMBERS. r=45 in a 100 viewBox, so the circumference is 282.74. Four
+   arcs of 52 with gaps of 18.69 fills it exactly (4 x 70.69 = 282.74), and the
+   dashoffset puts a gap — not an arc — at 3 o'clock, which is where an SVG
+   circle starts. Change the arc length and the gap has to be re-derived or the
+   pattern walks round the ring and the gaps stop being square to the badge.
+
+   preserveAspectRatio is 'none' on this mask, so the badge must stay square or
+   the ring renders as an ellipse. .stat-circle sets width and height from the
+   same --stat-h, which is what keeps that true.
    ============================================================ */
 .stat-hp {
-  --stat-line: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><circle cx='50' cy='50' r='45' fill='none' stroke='black' stroke-width='10'/></svg>");
+  --stat-line: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><circle cx='50' cy='50' r='45' fill='none' stroke='black' stroke-width='10' stroke-linecap='butt' stroke-dasharray='52 18.69' stroke-dashoffset='61.34'/></svg>");
 }
 
 /* ============================================================
@@ -50646,39 +50661,45 @@ body.in-match:not(.board-v2) .board {
 }
 
 /* ============================================================
-   AND WHY THE GLOW IS STILL MISSING — read this before trying again
+   THE GLOW — SHIPPED, ON THE CONTAINER
    ------------------------------------------------------------
-   The glow IS authored. Every card carries --card-tube:
+   The glow is authored on the card (--card-tube) and has never painted a
+   pixel: `.card.card` carries a clip-path of its own chamfered silhouette, and
+   a clip-path clips the FILTERED result, so the drop-shadow's halo is
+   generated and then cut off flush at the card's edge. Cranking the tube to
+   two 20px FULLY OPAQUE shadows still measured luma 0 around the card.
 
-     drop-shadow(0 0 3px  rgba(accent, 0.90))
-     drop-shadow(0 0 7px  rgba(accent, 0.45))
+   It cannot be fixed on the card. Four attempts, all measured, all rejected:
+     · inflate the clip by a glow allowance — the card's own black plate then
+       paints into that band. Invisible on black, a black box around every card
+       on the board mat.
+     · inflate it AND make .card transparent — that plate is what backs the
+       rules panel, which loses its ground.
+     · move the plate to a ::before inside the silhouette — the card's children
+       are absolutely positioned against it and the layout comes apart.
+     · a child or pseudo-element — both are inside the clip.
 
-   It is in the computed style and it has never painted a single pixel. Proved
-   by cranking it to two 20px FULLY OPAQUE shadows and measuring: the page
-   around the card stayed at luma 0.
-
-   THE CAUSE. `.card.card` carries a clip-path of its own chamfered silhouette
-   (the rule at ~line 46337, which exists so the card's art cannot spill
-   outside the ring). A clip-path clips the FILTERED result — so the
-   drop-shadow generates the halo and the clip then cuts it off flush at the
-   card's edge. Removing the clip takes the halo from 19 to 227 immediately.
-
-   WHAT DOES NOT WORK, all tried and measured rather than reasoned about:
-     · inflating the clip outward by a glow allowance — the card's own black
-       plate then paints into that band. Invisible on a black page, a black
-       box around every card on the board mat.
-     · inflating it AND making .card's background transparent — the plate is
-       what backs the RULES PANEL, which loses its ground.
-     · moving the plate to a ::before inside the silhouette — the card's
-       children are absolutely positioned against it and the layout comes
-       apart.
-     · putting the tube on the card's container instead — the container cannot
-       read --art-rgb, because custom properties inherit down and the accent is
-       set on the card itself.
-
-   WHAT WILL WORK. The glow has to live on an element that is NOT the clipped
-   one and IS below the card in the tree — i.e. makeCardEl has to emit a
-   wrapper, with the accent stamped on it and the card inside. That is a real
-   change to the canonical renderer and every surface that positions a `.card`
-   directly, so it is not something to bolt on at the end of an unrelated pass.
+   So it lives on the CONTAINER, where nothing clips it, and UI._applyCardGlow
+   carries the accent up (custom properties inherit downward only, so a
+   container cannot read its child's colour on its own). drop-shadow on the
+   container follows the card's own alpha, so the halo keeps the chamfered
+   outline instead of being a rectangle behind it.
    ============================================================ */
+.card-glow-host {
+  filter:
+    drop-shadow(0 0 var(--cg-r1, 4px)  rgba(var(--cg-rgb, 0,229,255), var(--cg-a1, 0.95)))
+    drop-shadow(0 0 var(--cg-r2, 10px) rgba(var(--cg-rgb, 0,229,255), var(--cg-a2, 0.55)));
+}
+/* A hand card lifts on hover; the glow should lift with it rather than sit
+   still behind a moving card. */
+.hand-card-wrapper.card-glow-host:hover {
+  filter:
+    drop-shadow(0 0 var(--cg-r1, 4px)  rgba(var(--cg-rgb, 0,229,255), 1))
+    drop-shadow(0 0 calc(var(--cg-r2, 10px) * 1.4) rgba(var(--cg-rgb, 0,229,255), 0.70));
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-glow-host { transition: none !important; }
+}
+/* body.low-fx is the battery/perf escape hatch — a per-card blur pass is
+   exactly the kind of thing it exists to switch off. */
+body.low-fx .card-glow-host { filter: none !important; }
