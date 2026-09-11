@@ -73,6 +73,8 @@ t('ES-5 EVERY one-shot event goes through the same door', function () {
   eq('Shadow Man claims it',        /_eventSlotClaim\(r, 'The Shadow Man'/.test(SRC), true);
   eq('a habitat gates on the slot', /a habitat waits its turn behind the live slot[\s\S]{0,200}_eventSlotOpen/.test(SRC), true);
   eq('a habitat claims it',         /_eventSlotClaim\(roundNow, name, 'hazard'\)/.test(SRC), true);
+  eq('Cog Invasion gates on the slot', /if \(!this\._eventSlotOpen\(r\)\) return;\s*\n\s*ev\.fired = true;/.test(SRC), true);
+  eq('Cog Invasion claims it',      /_eventSlotClaim\(r, 'Cog Invasion', 'hazard'\)/.test(SRC), true);
   // And the ms lock is no longer any event's overlap rule.
   eq('no event still gates on the millisecond lock alone',
      /(?:b\.fired|sh\.appeared|h\.fired)[\s\S]{0,80}if \(this\._eventInProgress\(\)\) return;/.test(SRC), false);
@@ -163,6 +165,99 @@ t('ES-13 rail rows are reused, or nothing can transition', function () {
   eq('and reused rather than rebuilt', /if \(el\.dataset\.h !== def\.html\)/.test(ui), true);
   // The entrance must land at CREATION only, never on a re-render.
   eq('entrance is one-shot', /el\.classList\.add\('is-arriving'\)/.test(ui), true);
+});
+
+t('ES-14 the schedule is the hand-off — 1, 3, 6, 9, 12, 15', function () {
+  // Owner: "i just wnat a random event on round 1,3,6,9,12,15 etc, the events
+  // only last 3 rounds after that the next event takes over."
+  var due = [];
+  for (var r = 1; r <= 20; r++) if (Game._eventRoundDue(r)) due.push(r);
+  eq('the clock', due.join(','), '1,3,6,9,12,15,18');
+
+  // THE ROUND-1 OPENER IS THE ONE SHORT WINDOW, and it must not push round 3.
+  // Before the hand-off cap, an event claimed on round 1 held 1-3 and round 3's
+  // event slid to round 4 — and every event after it stayed a slot behind for
+  // the whole match.
+  Game.init();
+  Game._eventSlotClaim(1, 'The Opener', 'boon');
+  eq('round 1 held', !!Game._eventSlotFor(1), true);
+  eq('round 2 held', !!Game._eventSlotFor(2), true);
+  eq('round 3 hands over', Game._eventSlotFor(3), null);
+  eq('so round 3 can start on time', Game._eventSlotOpen(3), true);
+
+  // On the 3/6/9/12 beat the two limits are the same number, so nothing else
+  // is shortened.
+  [3, 6, 9, 12, 15].forEach(function (r) {
+    eq('round ' + r + ' gets its full three', Game._eventSlotEndsAt(r) - r, Game._EVENT_LEN);
+  });
+});
+
+t('ES-15 the countdown reads the same end the slot does', function () {
+  // A shortened opener that still printed "3" would count down to a row that
+  // vanished a round early — the rail's hand-off would read as a glitch.
+  Game.init();
+  Game.state.round = 1;
+  Game._eventSlotClaim(1, 'The Opener', 'boon');
+  var a = Game.eventSlotNow();
+  eq('max is the real length', a && a.max, 2);
+  eq('and left agrees on round 1', a && a.left, 2);
+  Game.state.round = 2;
+  eq('and on round 2', Game.eventSlotNow().left, 1);
+  Game.state.round = 3;
+  eq('and it is gone on round 3', Game.eventSlotNow(), null);
+
+  Game.init();
+  Game.state.round = 6;
+  Game._eventSlotClaim(6, 'A Normal Event', 'hazard');
+  eq('a normal event still reads three', Game.eventSlotNow().max, Game._EVENT_LEN);
+});
+
+t('ES-16 an event that never found an opening is SPENT, not queued', function () {
+  // Every runner retried next round when the slot was busy, which is right —
+  // but it had no far end, so a round-6 event blocked by three later draws
+  // surfaced on round 13 still calling itself round 6's. The window closes when
+  // the next scheduled event comes round.
+  eq('round 6 may start on 6, 7 and 8',
+     [6, 7, 8].every(function (r) { return Game._eventWindowOpen(6, r); }), true);
+  eq('but not on 9',  Game._eventWindowOpen(6, 9),  false);
+  eq('nor on 13',     Game._eventWindowOpen(6, 13), false);
+  eq('and never before its own round', Game._eventWindowOpen(6, 5), false);
+  // The round-1 opener gets the two rounds it actually has.
+  eq('opener may start on 1', Game._eventWindowOpen(1, 1), true);
+  eq('opener may start on 2', Game._eventWindowOpen(1, 2), true);
+  eq('opener is spent on 3',  Game._eventWindowOpen(1, 3), false);
+  // EVERY runner asks — a single one keeping its own arithmetic is how the
+  // Ballyhoo round-3 floor survived the schedule going in.
+  ['b\\.appearAt', 'sh\\.appearAt', 'h\\.appearAt', 'ev\\.appearAt'].forEach(function (a) {
+    eq(a + ' goes through _eventWindowOpen',
+       new RegExp('_eventWindowOpen\\([^)]*' + a).test(SRC), true);
+  });
+});
+
+t('ES-17 Cog Invasion is an event in the slot, not a match-long engine', function () {
+  // Owner: "for the toon town event stahs the VP 4 bosses, thats not what i
+  // want." The VP engine claimed the slot on ARRIVAL and then ran underneath
+  // every later event for the rest of the match. The event does not.
+  eq('the VP engine is off for real matches', Game._COG_ALL_GAMES, false);
+  Game.init();
+  Game.state.round = 9;
+  Game.state._cogEvent = { shows: true, appearAt: 9, fired: false };
+  Game._maybeCogEvent(9);
+  eq('it is in the slot', Game.eventSlotNow().name, 'Cog Invasion');
+  eq('for three rounds', Game.eventSlotNow().max, Game._EVENT_LEN);
+  eq('and round 12 hands over', Game._eventSlotOpen(12), true);
+});
+
+t('ES-18 a drawn Cog Invasion is named in up-next, like the others', function () {
+  // It is DRAWN on a known round now, so there is an honest countdown to it —
+  // which is exactly what a VP arrival never had (see ES-11).
+  Game.init();
+  Game.state.round = 4;
+  Game.state._cogEvent = { shows: true, appearAt: 6, fired: false };
+  var up = Game.eventUpNext();
+  eq('named', up && up.name, 'Cog Invasion');
+  eq('on its round', up && up.at, 6);
+  eq('counting down', up && up.inRounds, 2);
 });
 
 // ---- run ----------------------------------------------------

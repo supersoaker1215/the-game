@@ -4786,8 +4786,10 @@ const Game = {
     // unless the match actually rolled them, and _rollMatchEvent picks exactly
     // one, so no two can ever fire together.
     this._maybeHabitatEvent(this.state.round);
-    // …and the Cog Invasion VP engine, from the same seam. A no-op unless the
-    // match is the Cog Invasion event (or _cogForce is set).
+    // …and Cog Invasion, from the same seam and through the same slot door as
+    // the other three. A no-op unless the clock actually rolled it.
+    this._maybeCogEvent(this.state.round);
+    // The four-VP engine. DEV ONLY now — a no-op unless _cogForce is set.
     this._maybeCogInvasion(this.state.round);
     this.state.lanes.forEach(l => l.protected = null);
     // Clear Parlay — one-round effect from Jack Sparrow (per-card flag;
@@ -17226,7 +17228,9 @@ const Game = {
     // the allow-list) to bring the habitats back. (Owner: "the only ones i want
     // showing up in the game right now is MC and Shadow man, everything else is
     // being worked on.")
-    const ALLOWED = ['Shadow Man', 'MC Ballyhoo'];
+    // Cog Invasion joined this list when it stopped being a whole-match VP
+    // engine and became a single wave like every other event (_maybeCogEvent).
+    const ALLOWED = ['Shadow Man', 'MC Ballyhoo', 'Cog Invasion'];
     return out.filter(name => ALLOWED.indexOf(name) !== -1);
   },
 
@@ -17269,13 +17273,48 @@ const Game = {
   // NO REPEATS. Each round draws from the events not yet used this match, so a
   // long game walks through the registry rather than rolling the same franchise
   // twice. When the pool is dry the clock simply stops.
-  _EVENT_FIRST_ROUND: 3,
+  // ROUND 1, THEN EVERY THIRD ROUND — 1, 3, 6, 9, 12, 15 …
+  // (Owner: "i just wnat a random event on round 1,3,6,9,12,15 etc, the events
+  // only last 3 rounds after that the next event takes over very simple.")
+  // Round 1 is the opener and the ONLY short window: its event holds rounds 1-2
+  // and round 3's takes over. From round 3 on the beat is exactly _EVENT_LEN,
+  // so every later event gets its full three rounds and the schedule IS the
+  // hand-off — see _eventSlotEndsAt.
+  _EVENT_FIRST_ROUND: 1,
+  _EVENT_BEAT_FROM: 3,
   _EVENT_EVERY: 3,
 
   _eventRoundDue(round) {
     const r = round | 0;
-    return r >= this._EVENT_FIRST_ROUND
-        && (r - this._EVENT_FIRST_ROUND) % this._EVENT_EVERY === 0;
+    if (r === this._EVENT_FIRST_ROUND) return true;
+    return r >= this._EVENT_BEAT_FROM
+        && (r - this._EVENT_BEAT_FROM) % this._EVENT_EVERY === 0;
+  },
+  // The next round the clock is due AFTER this one. The slot reads it to know
+  // when it has to let go, so an event can never outlive the event scheduled
+  // to replace it.
+  _eventNextDueAfter(round) {
+    const from = (round | 0) + 1;
+    for (let r = from; r < from + 64; r++) if (this._eventRoundDue(r)) return r;
+    return from + this._EVENT_EVERY;
+  },
+  // AN EVENT'S WINDOW IS ITS OWN, AND IT CLOSES.
+  //
+  // Every runner already retried next round when the slot was busy, which is
+  // right — an event blocked by a reveal, or a habitat still hunting for two
+  // clear lanes, deserves another go. What was missing is the far end. A
+  // round-6 event that never found an opening sat in the queue behind three
+  // later draws and surfaced on round 13 still calling itself round 6's event,
+  // and every event after it shifted a slot to the right. So: an event may
+  // start on the round it was drawn for, or on any round after it, until the
+  // NEXT scheduled event comes round — then it is spent. ("the events only
+  // last 3 rounds after that the next event takes over.")
+  //
+  // No flag needed: once `round` passes the next due round this returns false
+  // forever, which is what "spent" means.
+  _eventWindowOpen(appearAt, round) {
+    const a = appearAt | 0, r = round | 0;
+    return r >= a && r < this._eventNextDueAfter(a);
   },
 
   _drawEventFor() {
@@ -17283,8 +17322,20 @@ const Game = {
     if (!s) return null;
     if (!s._eventsUsed) s._eventsUsed = [];
     if (!this._randomEventsEnabled()) return null;
-    const pool = this.matchEventPool().filter(n => s._eventsUsed.indexOf(n) < 0);
-    if (!pool.length) return null;
+    const all = this.matchEventPool();
+    if (!all.length) return null;
+    let pool = all.filter(n => s._eventsUsed.indexOf(n) < 0);
+    if (!pool.length) {
+      // THE CLOCK DOES NOT STOP. "a random event on round 1,3,6,9,12,15 etc" —
+      // `etc` means the schedule outlives the registry, and it stopping dead the
+      // moment the pool ran dry is why a long match went quiet after round 9.
+      // No-repeats is still the rule WITHIN a cycle; the one just played is held
+      // back so a recycle can never show the same event twice in a row.
+      const last = s._eventsUsed[s._eventsUsed.length - 1];
+      s._eventsUsed = [];
+      pool = all.filter(n => n !== last);
+      if (!pool.length) pool = all.slice();
+    }
     const pick = pool[Math.floor(this.rng() * pool.length)];
     s._eventsUsed.push(pick);
     return pick;
@@ -17307,6 +17358,13 @@ const Game = {
     this.log(`[EVENT] Round ${r} rolls: ${pick}.`);
     s._matchEventName = pick;
 
+    if (pick === 'Cog Invasion') {
+      // One wave, on this round's rung, and then it is over — same as every
+      // other event. The four-VP engine is NOT involved; see _maybeCogEvent.
+      s._matchEvent = 'coginvasion';
+      s._cogEvent = { shows: true, appearAt: r, fired: false };
+      return;
+    }
     if (pick === 'Shadow Man') {
       s._matchEvent = 'shadowman';
       s._shadow = null;
@@ -17393,7 +17451,10 @@ const Game = {
   _runHabitatEvent(h, roundNow) {
     const s = this.state;
     if (!h || h.fired || !h.shows) return;
-    if ((roundNow | 0) < (h.appearAt != null ? h.appearAt : this._EVENT_FIRST_ROUND)) return;
+    // The owner's "they wait" (for two clear lanes) still holds — it just has
+    // an end now, the same one every other event has: until the next scheduled
+    // event takes over. Three rounds to find space, not the rest of the match.
+    if (!this._eventWindowOpen(h.appearAt != null ? h.appearAt : this._EVENT_FIRST_ROUND, roundNow)) return;
     // One event at a time — a habitat waits its turn behind the live slot.
     // h.fired stays false, so it retries next round. (Owner.)
     if (!this._eventSlotOpen(roundNow)) return;
@@ -17624,7 +17685,71 @@ const Game = {
   },
 
   // ============================================================
-  // COG INVASION — the VP engine (Toontown)
+  // COG INVASION — THE EVENT (Toontown)
+  // ============================================================
+  // This is the whole thing. One wave, one Cog, one on each side, drawn from
+  // the rung the round it rolled on has reached — and then it is over, exactly
+  // like every other event. (Owner: "for the toon town event stahs the VP 4
+  // bosses, thats not what i want ... so for toontown if it rolls on round 6
+  // only the cogs that i said on round 6 spawn the same cog one on each side ez
+  // peasy.")
+  //
+  // WHAT IT IS NOT ANY MORE: the four-Vice-President engine below this block.
+  // That built persistent 10-HP bosses that arrived on a 12.5% per-round roll,
+  // sent a wave every three rounds for the REST OF THE MATCH and drained 2 HP a
+  // side while they did — a whole-match system wearing an event's name, running
+  // underneath whatever event had actually rolled instead of taking its turn in
+  // the slot. It is still in the file and still reachable with `_cogForce` for
+  // testing; nothing in a real match starts it (see _cogEnabled).
+  _maybeCogEvent(roundNow) {
+    const s = this.state;
+    if (!s) return;
+    const ev = s._cogEvent;
+    if (!ev || ev.fired || !ev.shows) return;
+    const r = roundNow | 0;
+    if (!this._eventWindowOpen(ev.appearAt, r)) return;
+    // One event at a time. `fired` stays false so a wave that arrives while a
+    // reveal is still on screen retries next round rather than being spent —
+    // the same shape MC Ballyhoo and the habitats use.
+    if (!this._eventSlotOpen(r)) return;
+    ev.fired = true;
+    // ONE ROLL, BOTH SIDES. The pick happens once, HERE, and not inside the
+    // per-side spawn: rolling per side would hand one player a Flunky and the
+    // other a Short Change off a single wave, which is a fairness leak dressed
+    // up as variety. (Owner: "the same cog one on each side.")
+    const rung = this._cogRungFor(r);
+    const cog  = this._cogPickForTurn(r);
+    this._eventSlotClaim(r, 'Cog Invasion', 'hazard');
+    this.log(`[COG INVASION] Round ${r} — the Cogs drop in. ${cog}, one on each side.`);
+    this._cogAnnounceWave(cog, rung);
+    // A SENDER DESCRIPTOR, NOT A VP. `key: null` is what tells the Cog it has
+    // no boss behind it: every protection hook bails on a falsy `_cogVP`, so a
+    // Cog from the event is just its printed card.
+    const sender = { key: null, name: 'Cog Invasion', cog: cog };
+    ['player', 'ai'].forEach(side => this._cogSpawnOnSide(sender, r, side));
+    if (typeof UI !== 'undefined' && UI.render) { try { UI.render(); } catch (e) {} }
+  },
+  // The reveal. Pure presentation, wrapped so it can never break the wave, and
+  // UI-guarded for the same reason the VP announcement is: a wall-clock play
+  // lock only makes sense with a screen, and arming one headless would spin the
+  // AI's retry loop.
+  _cogAnnounceWave(cog, rung) {
+    if (typeof UI === 'undefined' || !UI.showCardReveal) return;
+    try {
+      if (this._armEventHold) { try { this._armEventHold(this._COG_REVEAL_MS + 300); } catch (e) {} }
+      const other = ((rung && rung.cogs) || []).filter(n => n !== cog)[0];
+      const desc = `A ${cog} drops into a lane on BOTH sides — same Cog, same wave. `
+        + (other ? `The other Cog on this rung was ${other}. ` : '')
+        + `They fight for whichever side they land on.`;
+      UI.showCardReveal('Cog Invasion', desc, null, true, 'COG INVASION', {
+        holdMs: this._COG_REVEAL_MS,
+        onShow: () => { try { this._cogPlayTheme('vp'); } catch (e) {} },
+      });
+    } catch (e) { try { this._cogPlayTheme('vp'); } catch (e2) {} }
+  },
+
+  // ============================================================
+  // COG INVASION — the VP engine (Toontown) — DEV ONLY
   // ============================================================
   // Four Vice Presidents, each a persistent off-board 10-HP entity (state._cog).
   // Each rolls 12.5% every round to first appear; once active it sends its Cog
@@ -17648,10 +17773,13 @@ const Game = {
   // opened at full strength and never escalated. A Flunky and a Big Cheese are
   // not the same threat and the event never showed the difference.
   //
-  // Keyed on the EVENT's own clock (rounds since this VP arrived), which is
-  // what "turn 0" means and what lines the rungs up 1:1 with the 3-round spawn
-  // cadence: 0, 3, 6, 9, 12+. Change `since` to the absolute match round below
-  // if the ladder should instead track the whole game rather than each boss.
+  // KEYED ON THE MATCH ROUND. This was the open question when the ladder went
+  // in — the event's own clock, or the whole game's? The owner has answered it:
+  // "if it rolls on round 6 only the cogs that i said on round 6 spawn." So
+  // round 1 is rung 0, round 3 is rung 3, round 6 is rung 6, and the rungs line
+  // up 1:1 with the event schedule (1, 3, 6, 9, 12, 15 …) by construction.
+  // ONE rule, read by both spawn paths, so they can never disagree about what
+  // round 6 means.
   _COG_LADDER: [
     { turn: 0,  cogs: ['Flunky', 'Short Change'] },
     { turn: 3,  cogs: ['Name Dropper', 'Bloodsucker'] },
@@ -17732,21 +17860,24 @@ const Game = {
       });
     } catch (e) { try { this._cogPlayTheme(vpKey); } catch (e2) {} }
   },
-  // ON FOR EVERY MATCH (owner). Cog Invasion is a persistent background system,
-  // not a one-shot placement, so it runs alongside whatever one-off event the
-  // match rolled (MC Ballyhoo / Shadow Man) rather than replacing it. Flip this
-  // to false to make it opt-in again (via _cogForce or a Cog Invasion roll).
-  _COG_ALL_GAMES: true,
+  // OFF. This used to be true, which is what put four bosses in every single
+  // match: the VP engine ran as a background system underneath whatever event
+  // had actually rolled. The owner's Toontown event is one wave (_maybeCogEvent
+  // above) — "it starts the VP 4 bosses, thats not what i want" — so nothing in
+  // a real match starts this any more.
+  _COG_ALL_GAMES: false,
   _cogEnabled() {
     const s = this.state;
-    // _cogForce is the explicit dev/console override and always wins.
-    if (s && s._cogForce) return true;
-    // RANDOM EVENTS OFF MEANS OFF. Cog Invasion is a random event, so when the
-    // player has switched random events off for this mode, it must not run —
-    // exactly like MC Ballyhoo and the Shadow Man. (Owner: "if they turn random
-    // events off no random events should happen during the game.")
+    // DEV ONLY. `_cogForce` is the explicit console override and the only door
+    // left. Note what is NOT here any more: `_matchEventName === 'Cog Invasion'`.
+    // A rolled Cog Invasion goes through _maybeCogEvent and never touches
+    // state._cog, so leaving that test in would have quietly restarted the very
+    // engine this change stands down.
+    if (!(s && s._cogForce)) return false;
+    // RANDOM EVENTS OFF MEANS OFF, even for the dev door. (Owner: "if they turn
+    // random events off no random events should happen during the game.")
     if (this._randomEventsEnabled && !this._randomEventsEnabled()) return false;
-    return !!(s && (this._COG_ALL_GAMES || s._matchEventName === 'Cog Invasion'));
+    return true;
   },
   _cogInit() {
     const s = this.state;
@@ -17825,10 +17956,12 @@ const Game = {
   // current pick to it keeps all six of those consumers correct without any of
   // them having to learn about the ladder.
   _cogSpawnCog(vp, round) {
-    const since = (round | 0) - ((vp.firstRound == null ? round : vp.firstRound) | 0);
-    vp.cog = this._cogPickForTurn(since);
-    this.log(`  [COG INVASION] Turn ${since} of the invasion — ${vp.name} sends ${vp.cog} to both sides.`);
-    ['player', 'ai'].forEach(side => this._cogSpawnOnSide(vp, round, side));
+    // THE MATCH ROUND, not rounds-since-arrival. One rule for the rung, so the
+    // dev VP path and the real event path can never disagree about round 6.
+    const r = round | 0;
+    vp.cog = this._cogPickForTurn(r);
+    this.log(`  [COG INVASION] Round ${r} — ${vp.name} sends ${vp.cog} to both sides.`);
+    ['player', 'ai'].forEach(side => this._cogSpawnOnSide(vp, r, side));
   },
   // The weakest card on a side — lowest cost, then lowest ATK, then lowest HP.
   // (Owner: "it always choses the lowest cost and lowest atk and health.")
@@ -17843,6 +17976,10 @@ const Game = {
       return (a.currentHealth | 0) - (b.currentHealth | 0);
     })[0];
   },
+  // `vp` here is a SENDER DESCRIPTOR — { key, name, cog } — not necessarily a
+  // Vice President. The event passes key:null (no boss, no protection); the dev
+  // VP path passes the VP itself. Everything below reads only those three
+  // fields, which is why one spawn serves both.
   _cogSpawnOnSide(vp, round, side) {
     const def = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(d => d.name === vp.cog) : null;
     if (!def) return null;
@@ -18027,7 +18164,9 @@ const Game = {
     const tt = s.twoVTwo;
     const r = roundNow | 0;
 
-    if (!sh.appeared && r >= sh.appearAt) {
+    // His ENTRANCE lives in the scheduled window (his payout does not — that
+    // rides `returnAt`, which is a later, separate beat).
+    if (!sh.appeared && this._eventWindowOpen(sh.appearAt, r)) {
       // One event at a time — hold his entrance while the slot is taken.
       // sh.appeared stays false, so he tries again next round. (Owner.)
       if (!this._eventSlotOpen(r)) return;
@@ -18573,10 +18712,23 @@ const Game = {
   // The live slot, or null once its three rounds are up. Derived from the round
   // rather than expired by a tick, so it cannot get stuck if a round seam is
   // missed — the same reasoning as the Batman lock's round-number marker.
+  //
+  // WHEN A SLOT LETS GO. Two limits, whichever comes first: its three rounds,
+  // or the next scheduled event round — because the schedule is a HAND-OFF, not
+  // a queue. ("the events only last 3 rounds after that the next event takes
+  // over.") On the 3, 6, 9, 12 beat the two numbers are identical; only the
+  // round-1 opener is cut short, which is the whole point of putting an event
+  // there. Without this an event claimed on round 1 held rounds 1-3 and pushed
+  // round 3's event to round 4, and the schedule drifted for the rest of the
+  // match.
+  _eventSlotEndsAt(start) {
+    const s = start | 0;
+    return Math.min(s + this._EVENT_LEN, this._eventNextDueAfter(s));
+  },
   _eventSlotFor(round) {
     const sl = this.state && this.state._eventSlot;
     if (!sl || sl.start == null) return null;
-    return (((round | 0) - (sl.start | 0)) < this._EVENT_LEN) ? sl : null;
+    return ((round | 0) < this._eventSlotEndsAt(sl.start)) ? sl : null;
   },
   // May an event START this round? Both gates: nothing holding the slot, and no
   // reveal currently on screen. The second is still worth keeping — it is what
@@ -18591,7 +18743,9 @@ const Game = {
     const s = this.state;
     if (!s) return;
     s._eventSlot = { name: name, kind: kind || 'event', start: round | 0 };
-    this.log(`[EVENT] ${name} holds the board for ${this._EVENT_LEN} rounds.`);
+    // The REAL length, not the nominal one: the round-1 opener holds two.
+    const len = this._eventSlotEndsAt(round | 0) - (round | 0);
+    this.log(`[EVENT] ${name} holds the board for ${len} round${len === 1 ? '' : 's'}.`);
   },
   // WHAT IS COMING, AND WHEN. The rail shows the current event counting down
   // and the next one waiting behind it, so an event ending is a hand-off
@@ -18614,7 +18768,7 @@ const Game = {
     const round = s.round | 0;
     const slot = this._eventSlotFor(round);
     // The earliest the slot can free up.
-    const freeAt = slot ? ((slot.start | 0) + this._EVENT_LEN) : round;
+    const freeAt = slot ? this._eventSlotEndsAt(slot.start) : round;
 
     let best = null;
     const consider = (name, kind, appearAt) => {
@@ -18626,6 +18780,11 @@ const Game = {
     if (b && b.shows && !b.fired) consider('MC Ballyhoo', 'boon', b.appearAt);
     const sh = s._shadow;
     if (sh && sh.shows && !sh.appeared) consider('The Shadow Man', 'modifier', sh.appearAt);
+    // Cog Invasion is DRAWN now, so the rail can name it the same way — unlike
+    // a VP arrival (still a per-round roll below, with no round it is due on and
+    // so no honest countdown).
+    const ce = s._cogEvent;
+    if (ce && ce.shows && !ce.fired) consider('Cog Invasion', 'hazard', ce.appearAt);
     (Array.isArray(s._habitats) ? s._habitats : []).forEach(h => {
       if (h && h.shows && !h.fired) consider(h.place || h.name, 'hazard', h.appearAt);
     });
@@ -18648,8 +18807,11 @@ const Game = {
     const round = (this.state && this.state.round) | 0;
     const sl = this._eventSlotFor(round);
     if (!sl) return null;
+    // The countdown reads the same end the slot does, so a shortened opener
+    // shows "1 left", not "2 left" followed by a row that vanishes early.
+    const ends = this._eventSlotEndsAt(sl.start);
     return { name: sl.name, kind: sl.kind, start: sl.start,
-             left: this._EVENT_LEN - (round - (sl.start | 0)), max: this._EVENT_LEN };
+             left: ends - round, max: ends - (sl.start | 0) };
   },
 
   _eventInProgress() {
@@ -18665,9 +18827,14 @@ const Game = {
     // happens; this runner only carries out one it has already scheduled.
     const b = s._ballyhoo;
     if (!b || b.fired || !b.shows) return;
-    // Rounds 1-2 are the opening: hands are small and a free trick there reads
-    // as part of the deal rather than as an event.
-    if ((roundNow | 0) < this._BALLYHOO_FIRST_ROUND) return;
+    // NO SECOND OPINION ON *WHEN*. This used to hard-floor at round 3 — "rounds
+    // 1-2 are the opening" — which was correct while Ballyhoo picked his own
+    // round, and became a second authority the moment the schedule started
+    // naming the round for him. With the clock now opening on round 1 (owner:
+    // "a random event on round 1,3,6,9,12,15 etc") that floor silently ate the
+    // round-1 draw and pushed it onto round 3, on top of round 3's own event —
+    // which is how every later event ended up a slot behind. The schedule
+    // decides WHEN; this runner only carries it out.
     // EVEN ODDS ACROSS THE WINDOW — decided at roll time, in _rollBallyhoo.
     // This used to roll 1/(rounds left) on EVERY call, which is a uniform pick
     // only if that happens exactly once per round. In 2v2 it happens twice, at
@@ -18680,7 +18847,7 @@ const Game = {
     //
     // >= and not ===, so a skipped round (or a seam that misses a tick) still
     // gets him out rather than losing him for the whole match.
-    if ((roundNow | 0) < (b.appearAt != null ? b.appearAt : this._BALLYHOO_FIRST_ROUND)) return;
+    if (!this._eventWindowOpen(b.appearAt != null ? b.appearAt : this._BALLYHOO_FIRST_ROUND, roundNow)) return;
     // The slot is held — wait. b.fired stays false, so he tries again next
     // round. One event at a time, for three rounds. (Owner.)
     if (!this._eventSlotOpen(roundNow)) return;
@@ -20520,6 +20687,8 @@ const Game = {
     this._shadowSettleDuels(tt.round);
     this._maybeShadowMan(tt.round);
     this._maybeHabitatEvent(tt.round);
+    this._maybeCogEvent(tt.round);
+    // DEV ONLY — a no-op unless _cogForce is set.
     this._maybeCogInvasion(tt.round);
     // Wonder Weapon board effects age at the top of the round, after combat has
     // resolved the previous one.

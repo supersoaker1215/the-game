@@ -1,5 +1,5 @@
 // ============================================================
-// COG INVASION — the Cog that spawns is a function of TURN, not of VP.
+// COG INVASION — ONE WAVE, ON THE RUNG FOR THE ROUND IT ROLLED ON.
 //
 //   jsc sim/cog-ladder.js
 //
@@ -8,10 +8,20 @@
 // and on 9 mingler or legal eagle, on turn 12+ a robber baron or big cheese.
 // the same cog for each side."
 //
-// Before: every VP had exactly ONE Cog and sent that same 3-cost 4/6 body
-// every three rounds from the moment it arrived, so the event opened at full
-// strength and never escalated — and eight of the ten Cogs on the ladder did
-// not exist as cards at all.
+// …and then, on seeing it in play: "for the toon town event stahs the VP 4
+// bosses, thats not what i want ... i just wnat a random event on round
+// 1,3,6,9,12,15 etc, the events only last 3 rounds after that the next event
+// takes over very simple so for toontown if it rolls on round 6 only the cogs
+// that i said on round 6 spawn the same cog one on each side ez peasy."
+//
+// So two rules, and this suite pins both:
+//   1. The RUNG is a function of the MATCH ROUND. Not of which VP is out (the
+//      original bug: every VP had one fixed 4/6 Cog, so the event opened at
+//      full strength and never escalated) and not of the event's own clock
+//      (the judgement call that was left open when the ladder went in).
+//   2. The EVENT is one wave. The four-VP engine — persistent 10-HP bosses
+//      arriving on a per-round roll, sending waves and draining 2 HP a side
+//      for the rest of the match — no longer runs in a real match at all.
 // ============================================================
 
 var __SIM_ROOT_OVERRIDE = '.';
@@ -72,18 +82,21 @@ t('CL-3 THE SAME COG ON BOTH SIDES — one roll per wave, not one per side', fun
   } finally { Game._cogSpawnOnSide = realSpawn; }
 });
 
-t('CL-4 the cog is picked from the rung the EVENT has reached', function () {
+t('CL-4 the rung is the MATCH ROUND, not the event\'s own clock', function () {
+  // The open question when the ladder went in, now answered: "if it rolls on
+  // round 6 only the cogs that i said on round 6 spawn." A VP that arrived on
+  // round 20 used to send a FLUNKY, because its own clock read turn 0.
   Game.init();
   var realSpawn = Game._cogSpawnOnSide;
   Game._cogSpawnOnSide = function () { return null; };
   try {
     SCHEDULE.forEach(function (row) {
-      var turn = row[0], allowed = row[1];
-      // firstRound 1, so round = turn + 1 puts the event on `turn`.
+      var round = row[0] || 1, allowed = row[1];
       for (var i = 0; i < 12; i++) {
-        var vp = { key: 'vp', name: 'The V.P.', cog: null, firstRound: 1 };
-        Game._cogSpawnCog(vp, turn + 1);
-        eq('turn ' + turn + ' sent ' + vp.cog, allowed.indexOf(vp.cog) >= 0, true);
+        // firstRound deliberately varied — it must make no difference at all.
+        var vp = { key: 'vp', name: 'The V.P.', cog: null, firstRound: 1 + (i % 9) };
+        Game._cogSpawnCog(vp, round);
+        eq('round ' + round + ' sent ' + vp.cog, allowed.indexOf(vp.cog) >= 0, true);
       }
     });
   } finally { Game._cogSpawnOnSide = realSpawn; }
@@ -127,6 +140,118 @@ t('CL-7 a cog card does not claim its sender\'s protection', function () {
     eq(n + ' does not name a VP protection',
        /While The (V\.P\.|C\.F\.O\.|C\.J\.|Chairman) lives/.test(d.desc || ''), false);
   });
+});
+
+t('CL-8 the rungs line up with the event schedule, round for round', function () {
+  // The schedule is 1, 3, 6, 9, 12, 15 … and the ladder is 0, 3, 6, 9, 12+.
+  // They have to agree or "the cogs i said on round 6" is not what round 6
+  // sends. Round 1 is the opener and sits on the bottom rung by design.
+  eq('round 1 -> rung 0',   Game._cogRungFor(1).turn,  0);
+  eq('round 3 -> rung 3',   Game._cogRungFor(3).turn,  3);
+  eq('round 6 -> rung 6',   Game._cogRungFor(6).turn,  6);
+  eq('round 9 -> rung 9',   Game._cogRungFor(9).turn,  9);
+  eq('round 12 -> rung 12', Game._cogRungFor(12).turn, 12);
+  eq('round 15 tops out',   Game._cogRungFor(15).turn, 12);
+  eq('every scheduled round is a rung',
+     [1, 3, 6, 9, 12].every(function (r) { return Game._eventRoundDue(r); }), true);
+});
+
+t('CL-9 THE EVENT IS ONE WAVE — one Cog, one on each side, this round\'s rung', function () {
+  // "if it rolls on round 6 only the cogs that i said on round 6 spawn the same
+  // cog one on each side ez peasy." Driven on a real board, not through a stub.
+  [[1, ['Flunky', 'Short Change']],
+   [3, ['Name Dropper', 'Bloodsucker']],
+   [6, ['Downsizer', 'Money Bags']],
+   [9, ['The Mingler', 'Legal Eagle']],
+   [12, ['Robber Baron', 'The Big Cheese']],
+   [15, ['Robber Baron', 'The Big Cheese']]].forEach(function (row) {
+    var round = row[0], allowed = row[1];
+    Game.init();
+    Game.state.round = round;
+    Game.state._cogEvent = { shows: true, appearAt: round, fired: false };
+    Game._maybeCogEvent(round);
+
+    var mine = [], theirs = [];
+    for (var i = 0; i < Game.LANE_COUNT; i++) {
+      var l = Game.state.lanes[i];
+      if (l.player && l.player._cogSpawnRound === round) mine.push(l.player.name);
+      if (l.ai     && l.ai._cogSpawnRound === round)     theirs.push(l.ai.name);
+    }
+    eq('round ' + round + ': exactly one on the player side', mine.length, 1);
+    eq('round ' + round + ': exactly one on the enemy side', theirs.length, 1);
+    eq('round ' + round + ': the SAME cog on both', mine[0], theirs[0]);
+    eq('round ' + round + ' sent ' + mine[0], allowed.indexOf(mine[0]) >= 0, true);
+  });
+});
+
+t('CL-10 the event takes the slot, and starts no boss at all', function () {
+  Game.init();
+  Game.state.round = 6;
+  Game.state._cogEvent = { shows: true, appearAt: 6, fired: false };
+  Game._maybeCogEvent(6);
+  var now = Game.eventSlotNow();
+  eq('it claimed the slot', now && now.name, 'Cog Invasion');
+  eq('for the usual three rounds', now && now.left, Game._EVENT_LEN);
+  // THE POINT OF THE WHOLE CHANGE. "it starts the VP 4 bosses, thats not what
+  // i want" — the event must not touch the VP engine's state.
+  eq('no VP engine was started', !!Game.state._cog, false);
+  // …and it is spent. One wave, not a subscription.
+  eq('the wave is fired', Game.state._cogEvent.fired, true);
+  Game._maybeCogEvent(7);
+  Game._maybeCogEvent(8);
+  var cogs = 0;
+  for (var i = 0; i < Game.LANE_COUNT; i++) {
+    if (Game.state.lanes[i].player && Game.state.lanes[i].player._cogSpawnRound != null) cogs++;
+  }
+  eq('and no second wave follows it', cogs, 1);
+});
+
+t('CL-11 a real match never starts the four-VP engine', function () {
+  eq('_COG_ALL_GAMES is off', Game._COG_ALL_GAMES, false);
+  Game.init();
+  eq('off by default', Game._cogEnabled(), false);
+  // Rolling the EVENT must not switch the engine back on — that test used to
+  // live in _cogEnabled and would have quietly restarted everything.
+  Game.state._matchEventName = 'Cog Invasion';
+  Game.state._matchEvent = 'coginvasion';
+  eq('and rolling the event does not', Game._cogEnabled(), false);
+  // The dev door still works.
+  Game.state._cogForce = true;
+  eq('_cogForce still opens it', Game._cogEnabled(), true);
+});
+
+t('CL-12 Cog Invasion is a rollable event like any other', function () {
+  eq('it is in the pool', Game.matchEventPool().indexOf('Cog Invasion') >= 0, true);
+  // And the draw dispatches it to the wave, not to the habitat branch — a
+  // habitat would try to place an ENVIRONMENT named "Cog Invasion", which does
+  // not exist, and the event would silently do nothing.
+  Game.init();
+  Game.state.round = 6;
+  Game.state._eventRounds = {};
+  Game.state._eventsUsed = Game.matchEventPool().filter(function (n) { return n !== 'Cog Invasion'; });
+  Game._maybeMatchEvent(6);
+  eq('the draw landed on Cog Invasion', Game.state._eventRounds[6], 'Cog Invasion');
+  eq('and it scheduled a wave', !!(Game.state._cogEvent && Game.state._cogEvent.shows), true);
+  eq('for this round', Game.state._cogEvent.appearAt, 6);
+  eq('and NOT a habitat', (Game.state._habitats || []).length, 0);
+});
+
+t('CL-13 a Cog from the event carries no boss protection', function () {
+  // The protections key on card._cogVP — WHICH VP SENT IT. There is no VP now,
+  // so a Cog from the event is exactly its printed card and nothing more.
+  Game.init();
+  Game.state.round = 9;
+  Game.state._cogEvent = { shows: true, appearAt: 9, fired: false };
+  Game._maybeCogEvent(9);
+  for (var i = 0; i < Game.LANE_COUNT; i++) {
+    ['player', 'ai'].forEach(function (side) {
+      var c = Game.state.lanes[i][side];
+      if (!c || c._cogSpawnRound == null) return;
+      eq(c.name + ' names no sender', !c._cogVP, true);
+      eq(c.name + ' blocks no damage', Game._cogBlocksDamage(c), false);
+      eq(c.name + ' resists no freeze', Game._cogResistsFreeze(c), false);
+    });
+  }
 });
 
 // ---- run ----------------------------------------------------

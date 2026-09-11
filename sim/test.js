@@ -5715,34 +5715,73 @@ test('Spinosaurus is spawn-only and never enters a draftable pool', function () 
 // this, making a card `_spawnOnly` and forgetting to file it silently deletes
 // it from the game — which is exactly what the deleted assertion above was
 // protecting against, in the form the design now takes.
-test('No event can fire before round 3', function () {
-  // Owner: "events start on turn 3 no events before that." Both constants are
-  // asserted AND the behaviour is driven, because the constant alone would not
-  // catch a caller that appeared him without consulting it.
-  assert(Game._BALLYHOO_FIRST_ROUND >= 3, 'Ballyhoo is gated to round 3+');
-  assert(Game._SHADOW_FIRST_ROUND >= 3, 'the Shadow Man is gated to round 3+');
-
-  var G = freshGame();
-  // Force his slot so `shows` cannot come up false and pass this vacuously.
-  G.state._matchEvent = 'shadowman';
-  G._rollShadowMan();
-  G.state._shadow.shows = true;
-  G._maybeShadowMan(1);
-  assertEq(!!G.state._shadow.appeared, false, 'round 1 — he stays away');
-  G._maybeShadowMan(2);
-  assertEq(!!G.state._shadow.appeared, false, 'round 2 — still nothing');
-  G._maybeShadowMan(3);
-  assertEq(G.state._shadow.appeared, true, 'round 3 — he arrives');
+test('The SCHEDULE decides when an event lands — 1, 3, 6, 9, 12, 15 …', function () {
+  // THIS REVERSES "events start on turn 3 no events before that". Owner, later
+  // and explicitly: "i just wnat a random event on round 1,3,6,9,12,15 etc, the
+  // events only last 3 rounds after that the next event takes over."
+  //
+  // The clock is now the SINGLE authority on when. It is asserted AND driven
+  // through a runner, because the constant alone would not catch a runner
+  // keeping a floor of its own — which is exactly the bug this replaced: MC
+  // Ballyhoo hard-floored at round 3, silently ate every round-1 draw and
+  // dumped it on round 3 on top of round 3's own event, so every later event
+  // ran a slot behind for the rest of the match.
+  var due = [];
+  for (var r = 1; r <= 20; r++) if (Game._eventRoundDue(r)) due.push(r);
+  assertEq(due.join(','), '1,3,6,9,12,15,18', 'the event clock');
 
   var H = freshGame();
   H.state._matchEvent = 'ballyhoo';
   H._rollBallyhoo();
   H.state._ballyhoo.shows = true;
-  H.state._ballyhoo.appearAt = 1;   // even told to come early, the gate holds
+  H.state._ballyhoo.appearAt = 1;
   H._maybeBallyhoo(1);
-  assertEq(!!H.state._ballyhoo.fired, false, 'round 1 — no candy');
-  H._maybeBallyhoo(2);
-  assertEq(!!H.state._ballyhoo.fired, false, 'round 2 — no candy');
+  assertEq(H.state._ballyhoo.fired, true, 'round 1 — the opener lands');
+
+  // …and never BEFORE the round it was scheduled for.
+  var K = freshGame();
+  K.state._matchEvent = 'ballyhoo';
+  K._rollBallyhoo();
+  K.state._ballyhoo.shows = true;
+  K.state._ballyhoo.appearAt = 6;
+  K._maybeBallyhoo(3); K._maybeBallyhoo(5);
+  assertEq(!!K.state._ballyhoo.fired, false, 'rounds 3 and 5 — not his round');
+  K._maybeBallyhoo(6);
+  assertEq(K.state._ballyhoo.fired, true, 'round 6 — his round');
+
+  // …and an event that never found an opening is SPENT when the next scheduled
+  // event comes round, not queued behind it to surface later wearing an old
+  // round's name.
+  var L = freshGame();
+  L.state._matchEvent = 'ballyhoo';
+  L._rollBallyhoo();
+  L.state._ballyhoo.shows = true;
+  L.state._ballyhoo.appearAt = 3;
+  L._eventSlotClaim(3, 'something else', 'modifier');   // holds rounds 3, 4, 5
+  L._maybeBallyhoo(3); L._maybeBallyhoo(4); L._maybeBallyhoo(5);
+  assertEq(!!L.state._ballyhoo.fired, false, 'blocked for his whole window');
+  L._maybeBallyhoo(6);
+  assertEq(!!L.state._ballyhoo.fired, false, 'round 6 — spent; the next event takes over');
+});
+
+test('An event holds the board until the next scheduled one takes over', function () {
+  // "the events only last 3 rounds after that the next event takes over." Two
+  // limits, whichever comes first — and on the 3/6/9/12 beat they are the same
+  // number, so only the round-1 opener is ever short.
+  var G = freshGame();
+  G._eventSlotClaim(1, 'The Opener', 'boon');
+  assertEq(!!G._eventSlotFor(1), true,  'round 1 held');
+  assertEq(!!G._eventSlotFor(2), true,  'round 2 held');
+  assertEq(G._eventSlotFor(3), null,    'round 3 — round 3\'s event takes over');
+  G.state.round = 1;
+  assertEq(G.eventSlotNow().max, 2, 'and the countdown says two, not three');
+
+  var H = freshGame();
+  H._eventSlotClaim(6, 'A Normal Event', 'hazard');
+  assertEq(!!H._eventSlotFor(8), true, 'round 8 held');
+  assertEq(H._eventSlotFor(9), null,   'round 9 hands over');
+  H.state.round = 6;
+  assertEq(H.eventSlotNow().max, H._EVENT_LEN, 'a normal event gets its full three');
 });
 
 test('Every environment is claimed by exactly one event franchise', function () {
@@ -5789,14 +5828,15 @@ test('Every environment is claimed by exactly one event franchise', function () 
   });
 });
 
-test('Only Shadow Man and MC Ballyhoo can roll right now (habitats held back)', function () {
+test('Only Shadow Man, MC Ballyhoo and Cog Invasion can roll (habitats held back)', function () {
   // TEMPORARY GATE (owner): "the only ones i want showing up in the game right
   // now is MC and Shadow man, everything else is being worked on." The seven
   // habitat events stay in EVENT_FRANCHISES so the codex still lists them, but
-  // matchEventPool() filters the rollable set down to these two. When the
-  // habitats come back, widen the allow-list in matchEventPool and restore the
-  // full-registry assertion below.
-  var ALLOWED = ['Shadow Man', 'MC Ballyhoo'];
+  // matchEventPool() filters the rollable set. Cog Invasion joined it once it
+  // stopped being a whole-match VP engine and became one wave like the others.
+  // When the habitats come back, widen the allow-list in matchEventPool and
+  // restore the full-registry assertion below.
+  var ALLOWED = ['Shadow Man', 'MC Ballyhoo', 'Cog Invasion'];
   var pool = Game.matchEventPool();
   var listed = [];
   EVENT_FRANCHISES.forEach(function (fr) {
@@ -5806,7 +5846,7 @@ test('Only Shadow Man and MC Ballyhoo can roll right now (habitats held back)', 
   assert(listed.length > ALLOWED.length, 'the registry still lists the held-back habitats');
   // …but only the two allowed ones are rollable.
   assertEq(pool.slice().sort().join(','), ALLOWED.slice().sort().join(','),
-    'the rollable pool is exactly Shadow Man + MC Ballyhoo');
+    'the rollable pool is exactly the allow-list');
 
   // Drive the real roll over many seeds: only the two allowed events ever come
   // up, and no habitat is ever reachable.
@@ -5832,9 +5872,13 @@ test('A habitat event opens the same environment on both sides, in different lan
   G.state._matchEvent = 'habitat';
   G.state._matchEventName = 'Open Water';
   G._rollHabitatEvent();
+  // The SCHEDULE says which round, so say it here rather than leaning on a
+  // default: this used to pass because _rollHabitatEvent's fallback happened to
+  // be 3, and it broke the moment the clock opened on round 1 instead.
+  G.state._habitats[0].appearAt = 3;
 
   G._maybeHabitatEvent(2);
-  assertEq(!!G.state._habitats[0].fired, false, 'round 2 — nothing opens');
+  assertEq(!!G.state._habitats[0].fired, false, 'round 2 — not its round yet');
 
   G._maybeHabitatEvent(3);
   assertEq(G.state._habitats[0].fired, true, 'round 3 — it opens');
@@ -5857,6 +5901,7 @@ test('A habitat event waits for space instead of being spent on it', function ()
   G.state._matchEvent = 'habitat';
   G.state._matchEventName = 'Sewers';
   G._rollHabitatEvent();
+  G.state._habitats[0].appearAt = 3;
 
   // Fill every lane but one with environments, so only one is free.
   for (var i = 0; i < G.LANE_COUNT - 1; i++) G._placeEventEnvironment('player', i, 'Gargantua');
@@ -5867,6 +5912,22 @@ test('A habitat event waits for space instead of being spent on it', function ()
   G.state.lanes[0]._env = {};
   G._maybeHabitatEvent(4);
   assertEq(G.state._habitats[0].fired, true, 'with two lanes clear it opens');
+
+  // BUT THE WAIT ENDS. "the events only last 3 rounds after that the next event
+  // takes over" — so a habitat that never finds room inside its own window is
+  // spent, not parked in the queue to surface six rounds later under an old
+  // round's name. (The owner's "they wait" still holds; it just has a far end.)
+  var W = freshGame();
+  W.state._matchEvent = 'habitat';
+  W.state._matchEventName = 'Sewers';
+  W._rollHabitatEvent();
+  W.state._habitats[0].appearAt = 3;
+  for (var j = 0; j < W.LANE_COUNT; j++) W._placeEventEnvironment('player', j, 'Gargantua');
+  W._maybeHabitatEvent(3); W._maybeHabitatEvent(4); W._maybeHabitatEvent(5);
+  assertEq(!!W.state._habitats[0].fired, false, 'no room for its whole window');
+  for (var k = 0; k < W.LANE_COUNT; k++) W.state.lanes[k]._env = {};
+  W._maybeHabitatEvent(6);
+  assertEq(!!W.state._habitats[0].fired, false, 'round 6 — spent, even with the board wide open');
 });
 
 test('The Enclosure releases the T-Rex AGAINST whoever stopped paying', function () {
@@ -6004,42 +6065,45 @@ test("Gargantua's pull re-reads a card's lane before moving it", function () {
   assertEq(seats.length, 1, 'the pulled card occupies exactly one lane, not ' + seats.length + ' (lanes ' + seats.join(',') + ')');
 });
 
-test('Events land on the 3/6/9 rounds, one per round, never repeating', function () {
-  // Owner: "on turn 6 another event should fire, and on turn 9 — right now its
-  // just turn 3." A match used to draw exactly one event at match start.
-  // TEMPORARY: only Shadow Man + MC Ballyhoo are rollable right now (the other
-  // seven habitats are held back — see matchEventPool). With a no-repeat rule
-  // and a two-event pool, rounds 3 and 6 each fire a distinct event and round 9
-  // finds the pool exhausted, so it fires nothing. When the habitats return,
-  // all three rounds fill again and this reverts to expecting 3 distinct draws.
+test('Events land on 1, 3, 6, 9 — one per round, and the clock never stops', function () {
+  // Owner: "i just wnat a random event on round 1,3,6,9,12,15 etc." A match used
+  // to draw exactly one event at match start; then it drew on 3, 6, 9 and went
+  // QUIET once the (three-event) pool ran dry, which made "etc" false for any
+  // match past round 9. The draw recycles now — no-repeats within a cycle, and
+  // never the same event twice in a row across a recycle.
   var G = freshGame();
   G.seedMatch(99);
-  assertEq(G._eventRoundDue(2), false, 'round 2 is not an event round');
+  assertEq(G._eventRoundDue(1), true,  'round 1 is an event round — the opener');
+  assertEq(G._eventRoundDue(2), false, 'round 2 is not');
   assertEq(G._eventRoundDue(3), true,  'round 3 is');
   assertEq(G._eventRoundDue(4), false, 'round 4 is not');
   assertEq(G._eventRoundDue(6), true,  'round 6 is');
   assertEq(G._eventRoundDue(9), true,  'round 9 is');
 
-  var rollable = Game.matchEventPool().length;   // 2 while the habitats are held back
   var drawn = [];
-  [1,2,3,4,5,6,7,8,9].forEach(function (r) {
+  for (var r = 1; r <= 15; r++) {
     G.state.round = r;
     G._maybeMatchEvent(r);
     var got = (G.state._eventRounds || {})[r];
     if (got && got !== 'none') drawn.push(r + ':' + got);
-  });
-  var expected = Math.min(3, rollable);
-  assertEq(drawn.length, expected, expected + ' events across the 3/6/9 rounds — got ' + drawn.join(', '));
-  assert(drawn[0].indexOf('3:') === 0, 'the first is round 3');
-  if (expected >= 2) assert(drawn[1].indexOf('6:') === 0, 'the second is round 6');
-  if (expected >= 3) assert(drawn[2].indexOf('9:') === 0, 'the third is round 9');
-  var names = drawn.map(function (d) { return d.split(':')[1]; });
-  assertEq(new Set(names).size, names.length, 'and no event repeats within a match');
+  }
+  assertEq(drawn.length, 6, 'an event on every due round through 15 — got ' + drawn.join(', '));
+  assertEq(drawn.map(function (d) { return d.split(':')[0]; }).join(','), '1,3,6,9,12,15',
+    'and they land on the clock, not near it');
+
+  // No back-to-back repeats, which is what "random event" has to mean with a
+  // pool this small — a recycle that can immediately re-draw the event just
+  // played would read as the schedule being stuck.
+  var names = drawn.map(function (d) { return d.split(':').slice(1).join(':'); });
+  for (var i = 1; i < names.length; i++) {
+    assert(names[i] !== names[i - 1], 'no event repeats back to back (' + names.join(' → ') + ')');
+  }
 
   // Asking twice for the same round does not draw twice.
-  G.state.round = 9;
-  G._maybeMatchEvent(9);
-  assertEq((G.state._eventsUsed || []).length, expected, 'a round draws exactly once');
+  var used = (G.state._eventsUsed || []).length;
+  G.state.round = 15;
+  G._maybeMatchEvent(15);
+  assertEq((G.state._eventsUsed || []).length, used, 'a round draws exactly once');
 });
 
 test('A hidden deploy still counts as a card you played', function () {

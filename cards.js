@@ -697,14 +697,20 @@ const EVENT_FRANCHISES = [
   { key: 'zombies', title: 'Call of Duty: Zombies',
     blurb: 'Four challenges, named up front, paid out later.',
     events: [ { name: 'Shadow Man', spawns: ['Apothicon Rift', '@wonders'] } ] },
-  // COG INVASION — a whole-match franchise, not a one-off placement. Four Vice
-  // Presidents roll independently every round (Game._cog* in game.js); each
-  // spawns and protects its own Cog, and killing Cogs / VPs pays out Gags.
-  // NOT in matchEventPool's ALLOWED list yet, so it is codex-only until the VP
-  // engine is finished and switched on. (Owner is still flushing out the rules.)
+  // COG INVASION — ONE WAVE, like every other event. It used to be a whole-match
+  // franchise: four Vice Presidents rolling independently every round, each
+  // sending waves and draining health for the rest of the game. Owner: "for the
+  // toon town event stahs the VP 4 bosses, thats not what i want ... if it rolls
+  // on round 6 only the cogs that i said on round 6 spawn the same cog one on
+  // each side ez peasy." So the event is now a single Cog drop, one on each
+  // side, picked from the rung the round it rolled on has reached
+  // (Game._COG_LADDER). The ten Cogs below are what it can produce, in rung
+  // order — which IS the escalation.
   { key: 'toontown', title: 'Toontown',
-    blurb: 'Four executives, four Cogs, and a bag of Gags for whoever drops them.',
+    blurb: 'One wave of Cogs, the same on both sides, tougher the later it lands.',
     events: [ { name: 'Cog Invasion',
-      spawns: ['@vps', 'Mr. Hollywood', 'Robber Baron', 'Big Wig', 'The Big Cheese', '@gags'] } ] },
+      spawns: ['Flunky', 'Short Change', 'Name Dropper', 'Bloodsucker',
+               'Downsizer', 'Money Bags', 'The Mingler', 'Legal Eagle',
+               'Robber Baron', 'The Big Cheese'] } ] },
 ];
 if (typeof window !== 'undefined') window.EVENT_FRANCHISES = EVENT_FRANCHISES;

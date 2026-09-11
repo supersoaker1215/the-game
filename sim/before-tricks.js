@@ -44,6 +44,17 @@ function eq(label, actual, expected) {
 
 function reset() {
   Game.init();
+  // NO RANDOM EVENTS IN A BEFORE-TRICKS UNIT TEST. reset() parks the match on
+  // round 2 and postCombat() steps it to 3, which is an event round — and once
+  // Cog Invasion became rollable, that round could drop a Cog into a lane on
+  // BOTH sides. An extra ally is all it takes: Yoda's gift picks one ally, so
+  // BT-3 started failing about two runs in five depending on which body the
+  // draw put next to him. The real per-mode switch is used rather than a stub,
+  // so this turns events off the same way a player would.
+  if (typeof UI !== 'undefined') {
+    UI.settings = UI.settings || {};
+    UI.settings.randomEvents = { solo: false, oneVOne: false, twoVTwo: false };
+  }
   Game.state.mode = { deck: 'classic', players: '1v1' };
   Game.state.phase = 'combat';
   Game.state.round = 2;
