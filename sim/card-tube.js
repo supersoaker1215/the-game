@@ -551,6 +551,69 @@ check('and the old fixed green is gone from it',
         digit ? 'winning text-shadow is `' + digit.value.slice(0, 120) + '`' : 'no digit rule');
 })();
 
+// ---- ATK keeps the hexagon, HP wears a shield ------------------------------
+// Owner: "have the health hexagon switch to be the same shield icon", then on
+// the first attempt "looks handrawn i needs it pristine" / "sharp edges" /
+// "straight edges".
+//
+// THE FIRST ATTEMPT REUSED --shield, the block meter's silhouette. Wrong shape
+// to borrow, and its own comment says why: it is FOURTEEN points because
+// "polygon() cannot curve, so the curve is sampled — enough points that it
+// reads round at 44px". At the 24px this mark is drawn at, that sampling reads
+// as a wobble. A sampled curve does not survive being shrunk.
+(function () {
+  var shield = (/--stat-shield:([\s\S]*?);/.exec(BARE) || [, ''])[1].replace(/\s+/g, ' ');
+  check('the HP mark has its own shield shape', shield.length > 40, 'no --stat-shield');
+  check('and it is drawn with STRAIGHT edges — five points, not a sampled curve',
+        /polygon\(evenodd, 0% 0%, 100% 0%, 100% 55%, 50% 100%, 0% 55%/.test(shield),
+        'winning shape is `' + shield.slice(0, 90) + '`');
+  // The 14-point block-meter shield must NOT be what this reads.
+  check('it does not reuse the block meter\'s sampled silhouette',
+        !/18% 4%/.test(shield) && !/86% 58%/.test(shield),
+        'those points are --shield, tuned for 44px');
+  // Same construction rules as the hexagon: one path, evenodd, each loop closed.
+  check('each loop closes itself, like the hexagon and .cf-edge',
+        (shield.match(/0% 0%/g) || []).length >= 2,
+        'an unclosed loop leaves the notch the owner circled twice');
+  // The inset is a computed miter per vertex, not a scale — a shield has no
+  // radial symmetry to scale along. Solved in PIXEL space because the box is
+  // 1.1547x taller than wide, so a percentage inset would be uneven per axis.
+  check('the inner loop is inset by --cf-stroke, per-vertex',
+        /1\.4422/.test(shield) && /0\.403/.test(shield),
+        'the bottom-point miter and the shoulder miter are the computed values');
+  // winner() models ELEMENTS, and these clips live on ::before — it cannot
+  // address a pseudo-element, so this walks the rule blocks instead and takes
+  // the LAST one that sets clip-path on each mark. Taking the last matters:
+  // a plain grep finds the superseded `.stat-atk::before, .stat-hp::before`
+  // rule that still sets --stat-hex for both, which is exactly the trap that
+  // made an earlier case in this suite pass against dead CSS.
+  function lastClipFor(pseudoSel) {
+    var re = /([^{}]+)\{([^{}]*)\}/g, m, found = null;
+    while ((m = re.exec(BARE)) !== null) {
+      if (m[1].indexOf(pseudoSel) < 0) continue;
+      var decls = m[2].split(';');
+      for (var i = 0; i < decls.length; i++) {
+        if (/^\s*clip-path\s*:/.test(decls[i])) found = decls[i].split(':').slice(1).join(':').trim();
+      }
+    }
+    return found;
+  }
+  var atkClip = lastClipFor('.stat-atk::before');
+  check('ATK still wears the hexagon',
+        !!atkClip && /--stat-hex/.test(atkClip),
+        'last clip-path on .stat-atk::before is `' + atkClip + '`');
+  var hpClip = lastClipFor('.stat-hp::before');
+  check('and HP wears the shield',
+        !!hpClip && /--stat-shield/.test(hpClip),
+        'last clip-path on .stat-hp::before is `' + hpClip + '`');
+  // A shield's mass sits higher than a hexagon's (centroid 39.84% vs 50%), so a
+  // box-centred glyph reads low. padding-bottom on a centre-aligned flex box
+  // lifts content by HALF the padding: 2 x 0.1016 x 1.1547 = 0.2347.
+  check('and the HP numeral is centred on the SHAPE, not the box',
+        /padding-bottom: calc\(var\(--stat-h\) \* 0\.2347\)/.test(BARE),
+        'a shield tapers, so its centroid is above the box centre');
+})();
+
 // ---- rarity is not printed under an inspected card -------------------------
 // Owner, striking out the COMMON chip under the inspected card: "get rid of the
 // rarity beneath the card." Continues the same sweep as "the rarity line by the

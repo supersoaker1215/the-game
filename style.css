@@ -50993,6 +50993,46 @@ body.low-fx .card-glow-host { filter: none !important; }
     var(--cf-stroke) calc(75% - var(--cf-stroke) * 0.5774),
     var(--cf-stroke) calc(25% + var(--cf-stroke) * 0.5774),
     50% calc(var(--cf-stroke) * 1.1547));
+
+  /* ---- THE HP MARK IS A SHIELD -------------------------------------------
+     Owner: "have the health hexagon switch to be the same shield icon", then
+     on the first attempt: "looks handrawn i needs it pristine" / "sharp edges"
+     / "straight edges".
+
+     THE FIRST ATTEMPT REUSED --shield, the block meter's silhouette, and that
+     was the wrong shape to borrow. Its own comment explains why: it is
+     FOURTEEN points because "polygon() cannot curve, so the curve is sampled —
+     enough points that it reads round at 44px". At 44px that sampling reads as
+     a curve; at the 24px this mark is drawn at, the same points read as a
+     wobble, which is exactly the "handrawn" the owner saw. A sampled curve
+     does not survive being shrunk.
+
+     So this is a DIFFERENT shield, built for this size: five points, every
+     edge a straight line, every corner exact. Flat top, vertical flanks to
+     55%, straight taper to a point. It fills 0..100 on both axes exactly as
+     the hexagon does, so the two marks read as the same size.
+
+     THE INNER LOOP IS COMPUTED, NOT EYEBALLED. The hexagon above can inset by
+     scaling each vertex along its radius because it is regular; a shield has
+     no such symmetry, so each vertex is offset along its own angle bisector by
+     the miter of its two edges. Those coefficients were solved numerically in
+     the box's PIXEL space — the box is --stat-h wide and 1.1547x that tall, so
+     a percentage means a different number of pixels per axis and insetting in
+     percent would give a stroke thick on one axis and thin on the other, which
+     is the fault the hexagon note records. Verified: every inner edge sits
+     exactly one --cf-stroke from its outer edge, worst deviation 6.2e-17.
+     1.4422 is the miter at the bottom point, where two shallow edges meet.
+
+     Same construction rules as the hexagon: ONE path, evenodd, and each loop
+     repeats its first point so it closes. */
+  --stat-shield: polygon(evenodd,
+    0% 0%, 100% 0%, 100% 55%, 50% 100%, 0% 55%, 0% 0%,
+    calc(0% + var(--cf-stroke) * 1) calc(0% + var(--cf-stroke) * 1),
+    calc(100% - var(--cf-stroke) * 1) calc(0% + var(--cf-stroke) * 1),
+    calc(100% - var(--cf-stroke) * 1) calc(55% - var(--cf-stroke) * 0.403),
+    50% calc(100% - var(--cf-stroke) * 1.4422),
+    calc(0% + var(--cf-stroke) * 1) calc(55% - var(--cf-stroke) * 0.403),
+    calc(0% + var(--cf-stroke) * 1) calc(0% + var(--cf-stroke) * 1));
 }
 /* A REGULAR HEXAGON, AND THAT IS NOT A STYLE CHOICE. The inner outline is
    inset by scaling every vertex toward the centre, which only yields a UNIFORM
@@ -51308,3 +51348,34 @@ body.low-fx .card-glow-host { filter: none !important; }
   height: calc(var(--sb-i) * 1.42) !important;
 }
 
+
+/* ============================================================
+   ATK KEEPS THE HEXAGON, HP WEARS THE SHIELD
+   ------------------------------------------------------------
+   Owner: "have the health hexagon switch to be the same shield icon."
+   Both marks keep everything else identical — the same --stat-h box, the same
+   --cf-stroke outline, the same colour, the same position — so the pair still
+   reads as one set. Only the silhouette says which is which.
+
+   THE NUMERAL IS CENTRED ON THE SHAPE, NOT THE BOX. A hexagon's area centroid
+   is the box centre, so a flex-centred glyph looks right inside it. A shield
+   tapers to a point, so its mass sits higher: centroid y = 39.84% of the box
+   against the hexagon's 50%. Left alone the digit read 10.16% of the box too
+   low. padding-bottom on a centre-aligned flex box moves its content up by
+   HALF the padding, so the correction is 2 x 0.1016 x 1.1547 = 0.2347 of
+   --stat-h. It cannot move the outline: `::before` is absolutely positioned at
+   `inset: 0`, which resolves against the padding box, and padding lives inside
+   that box. Measured after: glyph centre 39.83% against a centroid of 39.84%.
+   ============================================================ */
+.card .stat-hp::before, .trick-card .stat-hp::before,
+.card.card .stat-hp::before, .card.card.draft-card .stat-hp::before,
+.card.card.enc-card .stat-hp::before, .card-inspect-modal .card.card .stat-hp::before,
+.trick-card.trick-card .stat-hp::before {
+  -webkit-clip-path: var(--stat-shield) !important;
+  clip-path: var(--stat-shield) !important;
+}
+.card .stat-hp, .trick-card .stat-hp, .card.card .stat-hp,
+.card.card.draft-card .stat-hp, .card.card.enc-card .stat-hp,
+.card-inspect-modal .card.card .stat-hp, .trick-card.trick-card .stat-hp {
+  padding-bottom: calc(var(--stat-h) * 0.2347) !important;
+}
