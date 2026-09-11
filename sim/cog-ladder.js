@@ -298,6 +298,50 @@ t('CL-13 a Cog from the event carries no boss protection', function () {
   }
 });
 
+t('CL-14 the pick is FLAT — every cog on a rung is equally likely', function () {
+  // Owner: "why would all 4 not be 25% each? for round three and all after that
+  // should be 50/50."
+  //
+  // They are. A 2400-sample readout of a true 50/50 lands outside 49-51% about
+  // a third of the time — measured ten times on one rung it gave 50/50, 50/50,
+  // 52/48, 52/48, 51/49, 48/52, 51/49, 51/49, 50/50, 49/51, flipping direction
+  // run to run, which is what noise looks like and what a bias does not. At two
+  // million draws every cog sits within 0.1pp of its flat share.
+  //
+  // So this test exists to make that ANSWERABLE rather than argued: a
+  // chi-square against a flat expectation, at a sample big enough that a real
+  // weighting of even a couple of points would fail it. If anyone ever makes
+  // one cog rarer than its rung-mate, this is what says so.
+  Game.init();
+  var realSpawn = Game._cogSpawnOnSide;
+  Game._cogSpawnOnSide = function () { return null; };
+  try {
+    var N = 240000;
+    Game._COG_LADDER.forEach(function (rung) {
+      var hits = {};
+      rung.cogs.forEach(function (n) { hits[n] = 0; });
+      for (var i = 0; i < N; i++) {
+        var vp = { key: null, name: 'Cog Invasion', cog: null };
+        Game._cogSpawnCog(vp, rung.turn);
+        hits[vp.cog] = (hits[vp.cog] || 0) + 1;
+      }
+      var k = rung.cogs.length, expected = N / k, x = 0;
+      rung.cogs.forEach(function (n) { var d = hits[n] - expected; x += d * d / expected; });
+      // 0.1% critical values: 10.83 at 1 df, 16.27 at 3 df. Generous on purpose
+      // — this must fail on a real weighting, never on a bad afternoon.
+      var crit = (k - 1) === 1 ? 10.83 : 16.27;
+      eq('rung ' + rung.turn + ' is flat (chi-square ' + x.toFixed(2) + ' on ' + (k - 1) + ' df)',
+         x < crit, true);
+      // And the blunt version, so a failure reads without statistics.
+      rung.cogs.forEach(function (n) {
+        var pct = hits[n] / N * 100, flat = 100 / k;
+        eq(n + ' is within half a point of ' + flat.toFixed(2) + '% (' + pct.toFixed(2) + '%)',
+           Math.abs(pct - flat) < 0.5, true);
+      });
+    });
+  } finally { Game._cogSpawnOnSide = realSpawn; }
+});
+
 // ---- run ----------------------------------------------------
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];
