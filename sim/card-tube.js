@@ -405,6 +405,20 @@ check('and the old fixed green is gone from it',
         atk ? 'winning colour is ' + atk.value : 'nothing reaches it');
   check('the health numeral takes the card colour', !!hp && /var\(--cf-rgb/.test(hp.value),
         hp ? 'winning colour is ' + hp.value : 'nothing reaches it');
+  // AND SO DOES ITS GLOW. Changing the colour and leaving the text-shadow is
+  // how a green halo survived behind an orange numeral for two commits: the old
+  // shadow still carried rgba(61,255,158) behind attack and rgba(255,107,107)
+  // behind health. On a red card the health one hid inside the card's own
+  // colour, which is why only attack got reported. Owner: "why is there green
+  // behind the 1."
+  var aGlow = winner('text-shadow', { classes: ['stat-atk'], ancestors: ['card', 'draft-card'] });
+  var hGlow = winner('text-shadow', { classes: ['stat-hp'],  ancestors: ['card', 'draft-card'] });
+  check('the attack glow is the card colour, not green',
+        !!aGlow && /var\(--cf-rgb/.test(aGlow.value) && !/61, ?255, ?158/.test(aGlow.value),
+        aGlow ? 'winning text-shadow is `' + aGlow.value.slice(0, 100) + '`' : 'nothing reaches it');
+  check('the health glow is the card colour, not red',
+        !!hGlow && /var\(--cf-rgb/.test(hGlow.value) && !/255, ?107, ?107/.test(hGlow.value),
+        hGlow ? 'winning text-shadow is `' + hGlow.value.slice(0, 100) + '`' : 'nothing reaches it');
 })();
 
 // ---- the rest of the traced reference ---------------------------------------
@@ -432,8 +446,8 @@ check('and the old fixed green is gone from it',
   // …at a QUARTER strength, mixed toward black rather than dropped to alpha:
   // the plate has to stay OPAQUE or the frame's border reads through it, which
   // is the bug that made it black to begin with. ("the fill needs to be like 25%")
-  check('the plate is mixed to about a quarter',
-        !!plate && /\)\)? (1[8-9]|2[0-9]|3[0-5])%, #000\)/.test(plate.value),
+  check('the plate is mixed to about a tenth',
+        !!plate && /\)\)? (7|8|9|1[0-5])%, #000\)/.test(plate.value),
         plate ? 'winning background is `' + plate.value.slice(0, 110) + '`' : 'no plate rule');
   check('and it stays opaque',
         !!plate && !/rgba\([^)]*0\.\d+\s*\)/.test(plate.value),

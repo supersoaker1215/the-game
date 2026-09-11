@@ -51005,7 +51005,36 @@ body.low-fx .card-glow-host { filter: none !important; }
      it, which is the bug that made this black in the first place. Same look,
      none of that back. */
   background: linear-gradient(135deg,
-    color-mix(in srgb, rgb(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250))) 30%, #000) 0%,
-    color-mix(in srgb, rgb(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250))) 25%, #000) 52%,
-    color-mix(in srgb, rgb(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250))) 18%, #000) 100%) !important;
+    color-mix(in srgb, rgb(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250))) 13%, #000) 0%,
+    color-mix(in srgb, rgb(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250))) 10%, #000) 52%,
+    color-mix(in srgb, rgb(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250))) 7%, #000) 100%) !important;
+}
+
+
+/* ============================================================
+   THE STAT NUMERAL'S GLOW FOLLOWS ITS COLOUR
+   ------------------------------------------------------------
+   Owner: "why is there green behind the 1."
+
+   Because I changed the numeral's `color` to the card's accent two commits ago
+   and left its `text-shadow` alone — and that shadow still carried the old
+   pair, rgba(61,255,158) behind attack and rgba(255,107,107) behind health.
+   On a red card the health glow hid inside the card's own colour, which is why
+   only the attack one got reported; on a green or blue card BOTH would have
+   been wrong. A colour and its glow are one decision and have to move together.
+
+   Three rules declare this — .stat-atk, .card .stat-atk and
+   .draft-card .stat-atk, the last with !important — so this is written at a
+   specificity that beats all of them rather than edited in three places that
+   can drift apart again.
+   ============================================================ */
+.card.card .stat-atk, .card.card .stat-hp,
+.card.card.draft-card .stat-atk, .card.card.draft-card .stat-hp,
+.card-inspect-modal .card.card .stat-atk, .card-inspect-modal .card.card .stat-hp,
+.trick-card.trick-card .stat-atk, .trick-card.trick-card .stat-hp {
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 1),
+    0 0 3px  rgba(0, 0, 0, 0.95),
+    0 0 calc(var(--card-w) * 0.022) rgba(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250)), 0.80),
+    0 0 calc(var(--card-w) * 0.048) rgba(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250)), 0.38) !important;
 }
