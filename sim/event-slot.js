@@ -167,49 +167,74 @@ t('ES-13 rail rows are reused, or nothing can transition', function () {
   eq('entrance is one-shot', /el\.classList\.add\('is-arriving'\)/.test(ui), true);
 });
 
-t('ES-14 the schedule is the hand-off — 1, 3, 6, 9, 12, 15', function () {
-  // Owner: "i just wnat a random event on round 1,3,6,9,12,15 etc, the events
-  // only last 3 rounds after that the next event takes over."
+t('ES-14 the schedule is the hand-off — 3, 6, 9, 12, 15', function () {
+  // Owner: "no round 1 event 3,6,9,12,15 etc, the events only last 3 rounds
+  // after that the next event takes over."
   var due = [];
   for (var r = 1; r <= 20; r++) if (Game._eventRoundDue(r)) due.push(r);
-  eq('the clock', due.join(','), '1,3,6,9,12,15,18');
+  eq('the clock', due.join(','), '3,6,9,12,15,18');
+  eq('nothing in the opening', Game._eventRoundDue(1) || Game._eventRoundDue(2), false);
 
-  // THE ROUND-1 OPENER IS THE ONE SHORT WINDOW, and it must not push round 3.
-  // Before the hand-off cap, an event claimed on round 1 held 1-3 and round 3's
-  // event slid to round 4 — and every event after it stayed a slot behind for
-  // the whole match.
-  Game.init();
-  Game._eventSlotClaim(1, 'The Opener', 'boon');
-  eq('round 1 held', !!Game._eventSlotFor(1), true);
-  eq('round 2 held', !!Game._eventSlotFor(2), true);
-  eq('round 3 hands over', Game._eventSlotFor(3), null);
-  eq('so round 3 can start on time', Game._eventSlotOpen(3), true);
-
-  // On the 3/6/9/12 beat the two limits are the same number, so nothing else
-  // is shortened.
+  // On the uniform beat the two limits are the same number, so the cap is
+  // invisible in a normal match…
   [3, 6, 9, 12, 15].forEach(function (r) {
     eq('round ' + r + ' gets its full three', Game._eventSlotEndsAt(r) - r, Game._EVENT_LEN);
   });
+  // …and earns its keep on an OFF-BEAT claim. An event blocked on its own round
+  // and claiming late must not push the next one along with it, or the schedule
+  // drifts a slot to the right and stays there for the rest of the match.
+  Game.init();
+  Game._eventSlotClaim(7, 'A Late Claim', 'hazard');
+  eq('round 8 still held',   !!Game._eventSlotFor(8), true);
+  eq('round 9 hands over',   Game._eventSlotFor(9), null);
+  eq('so round 9 is on time', Game._eventSlotOpen(9), true);
 });
 
 t('ES-15 the countdown reads the same end the slot does', function () {
-  // A shortened opener that still printed "3" would count down to a row that
-  // vanished a round early — the rail's hand-off would read as a glitch.
-  Game.init();
-  Game.state.round = 1;
-  Game._eventSlotClaim(1, 'The Opener', 'boon');
-  var a = Game.eventSlotNow();
-  eq('max is the real length', a && a.max, 2);
-  eq('and left agrees on round 1', a && a.left, 2);
-  Game.state.round = 2;
-  eq('and on round 2', Game.eventSlotNow().left, 1);
-  Game.state.round = 3;
-  eq('and it is gone on round 3', Game.eventSlotNow(), null);
-
+  // A late claim that still printed "3" would count down to a row that vanished
+  // a round early — the rail's hand-off would read as a glitch.
   Game.init();
   Game.state.round = 6;
   Game._eventSlotClaim(6, 'A Normal Event', 'hazard');
-  eq('a normal event still reads three', Game.eventSlotNow().max, Game._EVENT_LEN);
+  eq('a normal event reads three', Game.eventSlotNow().max, Game._EVENT_LEN);
+  eq('and counts down', Game.eventSlotNow().left, Game._EVENT_LEN);
+  Game.state.round = 8;
+  eq('one left on the last round', Game.eventSlotNow().left, 1);
+  Game.state.round = 9;
+  eq('and it is gone when the next is due', Game.eventSlotNow(), null);
+
+  Game.init();
+  Game.state.round = 7;
+  Game._eventSlotClaim(7, 'A Late Claim', 'hazard');
+  var a = Game.eventSlotNow();
+  eq('a late claim says the truth, not three', a && a.max, 2);
+  eq('and left agrees', a && a.left, 2);
+});
+
+t('ES-19 an event drawn but never SHOWN goes back in the pool', function () {
+  // "events cant be done twice in the same game" is about SHOWINGS. Every draw
+  // is written into _eventsUsed, so an event whose window closed without ever
+  // finding an opening was marked used and silently deleted from the match —
+  // zero showings, and never drawable again. It also skews a draw the owner
+  // asked to be flat.
+  Game.init();
+  Game.state._eventsUsed = ['MC Ballyhoo'];
+  Game.state._ballyhoo = { shows: true, appearAt: 3, fired: false };
+
+  Game._reclaimUnshownEvents(5);                       // still inside its window
+  eq('inside the window it is left alone', Game.state._eventsUsed.join(','), 'MC Ballyhoo');
+  eq('and still pending', !!Game.state._ballyhoo, true);
+
+  Game._reclaimUnshownEvents(6);                       // round 6 takes over
+  eq('it is back in the pool', Game.state._eventsUsed.length, 0);
+  eq('and no longer pending', !!Game.state._ballyhoo, false);
+
+  // An event that DID show is never reclaimed — that would be a second showing.
+  Game.init();
+  Game.state._eventsUsed = ['MC Ballyhoo'];
+  Game.state._ballyhoo = { shows: true, appearAt: 3, fired: true };
+  Game._reclaimUnshownEvents(12);
+  eq('a shown event stays used', Game.state._eventsUsed.join(','), 'MC Ballyhoo');
 });
 
 t('ES-16 an event that never found an opening is SPENT, not queued', function () {
@@ -222,10 +247,13 @@ t('ES-16 an event that never found an opening is SPENT, not queued', function ()
   eq('but not on 9',  Game._eventWindowOpen(6, 9),  false);
   eq('nor on 13',     Game._eventWindowOpen(6, 13), false);
   eq('and never before its own round', Game._eventWindowOpen(6, 5), false);
-  // The round-1 opener gets the two rounds it actually has.
-  eq('opener may start on 1', Game._eventWindowOpen(1, 1), true);
-  eq('opener may start on 2', Game._eventWindowOpen(1, 2), true);
-  eq('opener is spent on 3',  Game._eventWindowOpen(1, 3), false);
+  // The NEAR end is clamped to the clock's floor, so "no round 1 event" holds
+  // at this one door however an appearAt got set — a stale schedule, a legacy
+  // roller's default, a caller with its own idea of the opening.
+  eq('nothing may start on round 1', Game._eventWindowOpen(1, 1), false);
+  eq('nor on round 2',               Game._eventWindowOpen(1, 2), false);
+  eq('an early appearAt is pulled up to round 3', Game._eventWindowOpen(1, 3), true);
+  eq('and still ends with round 3\'s window',      Game._eventWindowOpen(1, 6), false);
   // EVERY runner asks — a single one keeping its own arithmetic is how the
   // Ballyhoo round-3 floor survived the schedule going in.
   ['b\\.appearAt', 'sh\\.appearAt', 'h\\.appearAt', 'ev\\.appearAt'].forEach(function (a) {

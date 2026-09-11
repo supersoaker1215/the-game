@@ -5715,28 +5715,27 @@ test('Spinosaurus is spawn-only and never enters a draftable pool', function () 
 // this, making a card `_spawnOnly` and forgetting to file it silently deletes
 // it from the game — which is exactly what the deleted assertion above was
 // protecting against, in the form the design now takes.
-test('The SCHEDULE decides when an event lands — 1, 3, 6, 9, 12, 15 …', function () {
-  // THIS REVERSES "events start on turn 3 no events before that". Owner, later
-  // and explicitly: "i just wnat a random event on round 1,3,6,9,12,15 etc, the
-  // events only last 3 rounds after that the next event takes over."
+test('The SCHEDULE decides when an event lands — 3, 6, 9, 12, 15 …', function () {
+  // Owner: "no round 1 event 3,6,9,12,15 etc." Nothing before round 3.
   //
-  // The clock is now the SINGLE authority on when. It is asserted AND driven
+  // The clock is the SINGLE authority on WHEN. It is asserted AND driven
   // through a runner, because the constant alone would not catch a runner
-  // keeping a floor of its own — which is exactly the bug this replaced: MC
-  // Ballyhoo hard-floored at round 3, silently ate every round-1 draw and
-  // dumped it on round 3 on top of round 3's own event, so every later event
-  // ran a slot behind for the rest of the match.
+  // keeping a floor of its own — and one did: MC Ballyhoo hard-floored at
+  // round 3 of its own accord, which was invisible while the clock agreed with
+  // it and became a real bug the moment the two disagreed.
   var due = [];
   for (var r = 1; r <= 20; r++) if (Game._eventRoundDue(r)) due.push(r);
-  assertEq(due.join(','), '1,3,6,9,12,15,18', 'the event clock');
+  assertEq(due.join(','), '3,6,9,12,15,18', 'the event clock');
 
+  // Nothing lands in the opening.
   var H = freshGame();
   H.state._matchEvent = 'ballyhoo';
   H._rollBallyhoo();
   H.state._ballyhoo.shows = true;
-  H.state._ballyhoo.appearAt = 1;
+  H.state._ballyhoo.appearAt = 1;   // even told to come early
   H._maybeBallyhoo(1);
-  assertEq(H.state._ballyhoo.fired, true, 'round 1 — the opener lands');
+  H._maybeBallyhoo(2);
+  assertEq(!!H.state._ballyhoo.fired, false, 'rounds 1-2 — the opening is clear');
 
   // …and never BEFORE the round it was scheduled for.
   var K = freshGame();
@@ -5766,22 +5765,23 @@ test('The SCHEDULE decides when an event lands — 1, 3, 6, 9, 12, 15 …', func
 
 test('An event holds the board until the next scheduled one takes over', function () {
   // "the events only last 3 rounds after that the next event takes over." Two
-  // limits, whichever comes first — and on the 3/6/9/12 beat they are the same
-  // number, so only the round-1 opener is ever short.
-  var G = freshGame();
-  G._eventSlotClaim(1, 'The Opener', 'boon');
-  assertEq(!!G._eventSlotFor(1), true,  'round 1 held');
-  assertEq(!!G._eventSlotFor(2), true,  'round 2 held');
-  assertEq(G._eventSlotFor(3), null,    'round 3 — round 3\'s event takes over');
-  G.state.round = 1;
-  assertEq(G.eventSlotNow().max, 2, 'and the countdown says two, not three');
-
+  // limits, whichever comes first — and on the uniform 3/6/9/12 beat they are
+  // the same number, so the cap is invisible in a normal match. It earns its
+  // keep on an OFF-BEAT claim: an event blocked on its own round and claiming
+  // late must not push the next one, which is how a schedule drifts.
   var H = freshGame();
   H._eventSlotClaim(6, 'A Normal Event', 'hazard');
   assertEq(!!H._eventSlotFor(8), true, 'round 8 held');
   assertEq(H._eventSlotFor(9), null,   'round 9 hands over');
   H.state.round = 6;
   assertEq(H.eventSlotNow().max, H._EVENT_LEN, 'a normal event gets its full three');
+
+  var L = freshGame();
+  L._eventSlotClaim(7, 'A Late Claim', 'hazard');   // one round behind its beat
+  assertEq(!!L._eventSlotFor(8), true, 'round 8 still held');
+  assertEq(L._eventSlotFor(9), null,   'but round 9 is on time anyway');
+  L.state.round = 7;
+  assertEq(L.eventSlotNow().max, 2, 'a late claim is cut short, not carried over');
 });
 
 test('Every environment is claimed by exactly one event franchise', function () {
@@ -6065,45 +6065,79 @@ test("Gargantua's pull re-reads a card's lane before moving it", function () {
   assertEq(seats.length, 1, 'the pulled card occupies exactly one lane, not ' + seats.length + ' (lanes ' + seats.join(',') + ')');
 });
 
-test('Events land on 1, 3, 6, 9 — one per round, and the clock never stops', function () {
-  // Owner: "i just wnat a random event on round 1,3,6,9,12,15 etc." A match used
-  // to draw exactly one event at match start; then it drew on 3, 6, 9 and went
-  // QUIET once the (three-event) pool ran dry, which made "etc" false for any
-  // match past round 9. The draw recycles now — no-repeats within a cycle, and
-  // never the same event twice in a row across a recycle.
+test('Events land on 3, 6, 9 — one per round, and never twice in a match', function () {
+  // Owner: "no round 1 event 3,6,9,12,15 etc ... events cant be done twice in
+  // the same game." A recycle was tried between those two instructions and is
+  // wrong on both counts: it let a long match show MC Ballyhoo twice, and the
+  // no-back-to-back rule it needed put a thumb on a draw that is supposed to be
+  // flat. So the draw is uniform over what has not been shown, and when the
+  // registry is spent the clock keeps ticking and finds nothing.
   var G = freshGame();
   G.seedMatch(99);
-  assertEq(G._eventRoundDue(1), true,  'round 1 is an event round — the opener');
+  assertEq(G._eventRoundDue(1), false, 'round 1 is not an event round');
   assertEq(G._eventRoundDue(2), false, 'round 2 is not');
   assertEq(G._eventRoundDue(3), true,  'round 3 is');
   assertEq(G._eventRoundDue(4), false, 'round 4 is not');
   assertEq(G._eventRoundDue(6), true,  'round 6 is');
   assertEq(G._eventRoundDue(9), true,  'round 9 is');
 
+  var rollable = Game.matchEventPool().length;   // 3 while the habitats are held back
   var drawn = [];
-  for (var r = 1; r <= 15; r++) {
+  for (var r = 1; r <= 18; r++) {
     G.state.round = r;
+    // THE WHOLE SEAM, not just the draw. An event that is drawn and never gets
+    // to SHOW goes back in the pool (see _reclaimUnshownEvents), so driving the
+    // draw alone makes every event look reusable — which is what this test
+    // caught on its first run.
     G._maybeMatchEvent(r);
+    G._maybeBallyhoo(r); G._maybeShadowMan(r);
+    G._maybeHabitatEvent(r); G._maybeCogEvent(r);
     var got = (G.state._eventRounds || {})[r];
     if (got && got !== 'none') drawn.push(r + ':' + got);
   }
-  assertEq(drawn.length, 6, 'an event on every due round through 15 — got ' + drawn.join(', '));
-  assertEq(drawn.map(function (d) { return d.split(':')[0]; }).join(','), '1,3,6,9,12,15',
+  assertEq(drawn.length, rollable, 'every event shows once — got ' + drawn.join(', '));
+  assertEq(drawn.map(function (d) { return d.split(':')[0]; }).join(','), '3,6,9',
     'and they land on the clock, not near it');
 
-  // No back-to-back repeats, which is what "random event" has to mean with a
-  // pool this small — a recycle that can immediately re-draw the event just
-  // played would read as the schedule being stuck.
   var names = drawn.map(function (d) { return d.split(':').slice(1).join(':'); });
-  for (var i = 1; i < names.length; i++) {
-    assert(names[i] !== names[i - 1], 'no event repeats back to back (' + names.join(' → ') + ')');
-  }
+  assertEq(new Set(names).size, names.length, 'no event is done twice in the same game');
 
   // Asking twice for the same round does not draw twice.
   var used = (G.state._eventsUsed || []).length;
-  G.state.round = 15;
-  G._maybeMatchEvent(15);
+  G.state.round = 9;
+  G._maybeMatchEvent(9);
   assertEq((G.state._eventsUsed || []).length, used, 'a round draws exactly once');
+});
+
+test('WHICH round an event lands on is a flat random pull', function () {
+  // Owner: "all events are random when they show up MC can show up on round 6,
+  // or round 18 its just a random pull ... zombies can show up on 3, or 9, or
+  // 12 etc its all RNG equal randomnees."
+  //
+  // The draw is uniform over the unshown pool, so with three events the round
+  // an event lands on is its position in a uniform shuffle: a third each.
+  // Measured rather than asserted from the code, because "equal" is a property
+  // of the OUTCOME — the earlier recycle read as uniform and was not.
+  var N = 1200, at = {};
+  for (var g = 0; g < N; g++) {
+    var G = freshGame();
+    G.seedMatch(g + 1);
+    for (var r = 3; r <= 9; r += 3) {
+      G.state.round = r;
+      G._maybeMatchEvent(r);
+      G._maybeBallyhoo(r); G._maybeShadowMan(r);
+      G._maybeHabitatEvent(r); G._maybeCogEvent(r);
+      var got = (G.state._eventRounds || {})[r];
+      if (got && got !== 'none') (at[got] = at[got] || {})[r] = ((at[got] || {})[r] || 0) + 1;
+    }
+  }
+  Game.matchEventPool().forEach(function (name) {
+    [3, 6, 9].forEach(function (r) {
+      var share = ((at[name] || {})[r] || 0) / N;
+      assert(share > 0.27 && share < 0.40,
+        name + ' lands on round ' + r + ' about a third of the time (' + (share * 100).toFixed(1) + '%)');
+    });
+  });
 });
 
 test('A hidden deploy still counts as a card you played', function () {

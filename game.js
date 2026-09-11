@@ -17273,22 +17273,20 @@ const Game = {
   // NO REPEATS. Each round draws from the events not yet used this match, so a
   // long game walks through the registry rather than rolling the same franchise
   // twice. When the pool is dry the clock simply stops.
-  // ROUND 1, THEN EVERY THIRD ROUND — 1, 3, 6, 9, 12, 15 …
-  // (Owner: "i just wnat a random event on round 1,3,6,9,12,15 etc, the events
-  // only last 3 rounds after that the next event takes over very simple.")
-  // Round 1 is the opener and the ONLY short window: its event holds rounds 1-2
-  // and round 3's takes over. From round 3 on the beat is exactly _EVENT_LEN,
-  // so every later event gets its full three rounds and the schedule IS the
-  // hand-off — see _eventSlotEndsAt.
-  _EVENT_FIRST_ROUND: 1,
-  _EVENT_BEAT_FROM: 3,
+  // ROUND 3, THEN EVERY THIRD ROUND — 3, 6, 9, 12, 15 …
+  // (Owner: "my bad no round 1 event 3,6,9,12,15 etc." An earlier pass read an
+  // opener into the list and put one on round 1; there is no round-1 event.)
+  //
+  // The beat is uniform, so it is also exactly _EVENT_LEN: each event gets its
+  // full three rounds and the next one takes over on the round it is due. The
+  // schedule IS the hand-off — see _eventSlotEndsAt.
+  _EVENT_FIRST_ROUND: 3,
   _EVENT_EVERY: 3,
 
   _eventRoundDue(round) {
     const r = round | 0;
-    if (r === this._EVENT_FIRST_ROUND) return true;
-    return r >= this._EVENT_BEAT_FROM
-        && (r - this._EVENT_BEAT_FROM) % this._EVENT_EVERY === 0;
+    return r >= this._EVENT_FIRST_ROUND
+        && (r - this._EVENT_FIRST_ROUND) % this._EVENT_EVERY === 0;
   },
   // The next round the clock is due AFTER this one. The slot reads it to know
   // when it has to let go, so an event can never outlive the event scheduled
@@ -17313,7 +17311,11 @@ const Game = {
   // No flag needed: once `round` passes the next due round this returns false
   // forever, which is what "spent" means.
   _eventWindowOpen(appearAt, round) {
-    const a = appearAt | 0, r = round | 0;
+    // Clamped to the clock's floor at the NEAR end as well as the far one, so
+    // "no round 1 event" is true at ONE door for all four runners rather than
+    // being a private floor each of them has to remember — which is exactly the
+    // arrangement that let MC Ballyhoo and the schedule disagree.
+    const a = Math.max(appearAt | 0, this._EVENT_FIRST_ROUND), r = round | 0;
     return r >= a && r < this._eventNextDueAfter(a);
   },
 
@@ -17322,20 +17324,19 @@ const Game = {
     if (!s) return null;
     if (!s._eventsUsed) s._eventsUsed = [];
     if (!this._randomEventsEnabled()) return null;
+    // ONE SHOWING PER EVENT PER MATCH. (Owner: "events cant be done twice in
+    // the same game.") A recycle was tried and is wrong — it let a long match
+    // show MC Ballyhoo twice, and holding back only the one just played put a
+    // thumb on the scale, which is the opposite of "all events are random when
+    // they show up ... its all RNG equal randomnees". So: a flat, uniform draw
+    // from whatever has not been shown yet, and when the registry is spent the
+    // clock keeps ticking and simply finds nothing. Which round a given event
+    // lands on is therefore pure draw order — "MC can show up on round 6, or
+    // round 18 its just a random pull".
     const all = this.matchEventPool();
     if (!all.length) return null;
-    let pool = all.filter(n => s._eventsUsed.indexOf(n) < 0);
-    if (!pool.length) {
-      // THE CLOCK DOES NOT STOP. "a random event on round 1,3,6,9,12,15 etc" —
-      // `etc` means the schedule outlives the registry, and it stopping dead the
-      // moment the pool ran dry is why a long match went quiet after round 9.
-      // No-repeats is still the rule WITHIN a cycle; the one just played is held
-      // back so a recycle can never show the same event twice in a row.
-      const last = s._eventsUsed[s._eventsUsed.length - 1];
-      s._eventsUsed = [];
-      pool = all.filter(n => n !== last);
-      if (!pool.length) pool = all.slice();
-    }
+    const pool = all.filter(n => s._eventsUsed.indexOf(n) < 0);
+    if (!pool.length) return null;
     const pick = pool[Math.floor(this.rng() * pool.length)];
     s._eventsUsed.push(pick);
     return pick;
@@ -17345,11 +17346,59 @@ const Game = {
   // ahead of the three _maybe* runners, which then do the actual work — they
   // still run EVERY round because the Shadow Man returns later to pay out and a
   // habitat that found no room waits for some.
+  // AN EVENT THAT NEVER SHOWED HAS NOT BEEN DONE.
+  //
+  // Every drawn event is written into `_eventsUsed` at DRAW time, which is what
+  // enforces "events cant be done twice in the same game". But a draw is not a
+  // showing: an event whose window closed without ever finding an opening (a
+  // habitat that never got two clear lanes, anything held off by a reveal for
+  // all three rounds) was marked used and silently deleted from the match — it
+  // never appeared and it could never be drawn again. That is not one showing,
+  // it is zero, and it also quietly skews the odds the owner asked to be even.
+  // So an unshown event goes back in the pool and takes its chances with the
+  // rest. `_eventWindowOpen` is the same far end every runner already uses.
+  _eventDrawsPending() {
+    const s = this.state;
+    if (!s) return [];
+    const out = [];
+    if (s._ballyhoo && s._ballyhoo.shows && !s._ballyhoo.fired) {
+      out.push({ name: 'MC Ballyhoo', at: s._ballyhoo.appearAt, drop: () => { s._ballyhoo = null; } });
+    }
+    if (s._shadow && s._shadow.shows && !s._shadow.appeared) {
+      out.push({ name: 'Shadow Man', at: s._shadow.appearAt, drop: () => { s._shadow = null; } });
+    }
+    if (s._cogEvent && s._cogEvent.shows && !s._cogEvent.fired) {
+      out.push({ name: 'Cog Invasion', at: s._cogEvent.appearAt, drop: () => { s._cogEvent = null; } });
+    }
+    (Array.isArray(s._habitats) ? s._habitats : []).slice().forEach(h => {
+      if (h && h.shows && !h.fired) {
+        out.push({ name: h.name, at: h.appearAt, drop: () => {
+          const i = s._habitats.indexOf(h); if (i >= 0) s._habitats.splice(i, 1);
+        } });
+      }
+    });
+    return out;
+  },
+  _reclaimUnshownEvents(round) {
+    const s = this.state;
+    if (!s || !Array.isArray(s._eventsUsed)) return;
+    this._eventDrawsPending().forEach(p => {
+      if (this._eventWindowOpen(p.at, round)) return;      // it still has time
+      const i = s._eventsUsed.indexOf(p.name);
+      if (i >= 0) s._eventsUsed.splice(i, 1);
+      this.log(`[EVENT] ${p.name} never found an opening — back in the pool.`);
+      try { p.drop(); } catch (e) {}
+    });
+  },
+
   _maybeMatchEvent(roundNow) {
     const s = this.state;
     if (!s) return;
     const r = roundNow | 0;
     if (!this._eventRoundDue(r)) return;
+    // Before drawing: anything that was drawn and never got to show goes back,
+    // so this round's draw sees the honest pool.
+    this._reclaimUnshownEvents(r);
     if (!s._eventRounds) s._eventRounds = {};
     if (s._eventRounds[r]) return;                 // this round already drew
     const pick = this._drawEventFor();

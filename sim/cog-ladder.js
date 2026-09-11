@@ -143,24 +143,47 @@ t('CL-7 a cog card does not claim its sender\'s protection', function () {
 });
 
 t('CL-8 the rungs line up with the event schedule, round for round', function () {
-  // The schedule is 1, 3, 6, 9, 12, 15 … and the ladder is 0, 3, 6, 9, 12+.
-  // They have to agree or "the cogs i said on round 6" is not what round 6
-  // sends. Round 1 is the opener and sits on the bottom rung by design.
-  eq('round 1 -> rung 0',   Game._cogRungFor(1).turn,  0);
+  // The schedule is 3, 6, 9, 12, 15 … and the ladder is 0, 3, 6, 9, 12+. They
+  // have to agree or "the cogs i said on round 6" is not what round 6 sends.
   eq('round 3 -> rung 3',   Game._cogRungFor(3).turn,  3);
   eq('round 6 -> rung 6',   Game._cogRungFor(6).turn,  6);
   eq('round 9 -> rung 9',   Game._cogRungFor(9).turn,  9);
   eq('round 12 -> rung 12', Game._cogRungFor(12).turn, 12);
   eq('round 15 tops out',   Game._cogRungFor(15).turn, 12);
   eq('every scheduled round is a rung',
-     [1, 3, 6, 9, 12].every(function (r) { return Game._eventRoundDue(r); }), true);
+     [3, 6, 9, 12, 15].every(function (r) { return Game._eventRoundDue(r); }), true);
+});
+
+t('CL-8b RUNG 0 IS UNREACHABLE — Flunky and Short Change can never spawn', function () {
+  // NOT A PASSING GRADE, A FLAG. The owner gave the ladder as turn 0 Flunky /
+  // Short Change, turn 3 Name Dropper / Bloodsucker, and so on — and separately
+  // set the event clock to "no round 1 event 3,6,9,12,15 etc". Both were
+  // explicit, and together they leave the bottom rung with no round that can
+  // reach it: the earliest an event can land is round 3, which is rung 3.
+  //
+  // Measured over 3000 seeded matches: rung 0 landed 0 times.
+  //
+  // This is pinned rather than quietly fixed because the fix is a CONTENT
+  // decision, not a code one — either shift the ladder down a step (round 3
+  // becomes Flunky / Short Change and everything slides) or leave those two as
+  // dev-only bodies. Whichever the owner picks, changing it here would be
+  // rewriting a mapping he stated card by card. If this test ever starts
+  // failing, that decision has been made — update it to match.
+  eq('the earliest event round is 3', Game._EVENT_FIRST_ROUND, 3);
+  eq('and round 3 is already rung 3', Game._cogRungFor(Game._EVENT_FIRST_ROUND).turn, 3);
+  var reachable = {};
+  for (var r = Game._EVENT_FIRST_ROUND; r <= 60; r++) {
+    if (Game._eventRoundDue(r)) reachable[Game._cogRungFor(r).turn] = true;
+  }
+  eq('rung 0 is not on any scheduled round', !!reachable[0], false);
+  eq('rungs 3, 6, 9 and 12 all are',
+     [3, 6, 9, 12].every(function (t) { return !!reachable[t]; }), true);
 });
 
 t('CL-9 THE EVENT IS ONE WAVE — one Cog, one on each side, this round\'s rung', function () {
   // "if it rolls on round 6 only the cogs that i said on round 6 spawn the same
   // cog one on each side ez peasy." Driven on a real board, not through a stub.
-  [[1, ['Flunky', 'Short Change']],
-   [3, ['Name Dropper', 'Bloodsucker']],
+  [[3, ['Name Dropper', 'Bloodsucker']],
    [6, ['Downsizer', 'Money Bags']],
    [9, ['The Mingler', 'Legal Eagle']],
    [12, ['Robber Baron', 'The Big Cheese']],
