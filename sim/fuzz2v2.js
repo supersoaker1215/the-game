@@ -6,9 +6,10 @@
 load('./sim/shim.js');
 
 var argv = (typeof arguments !== 'undefined') ? arguments : [];
-var GAMES = 100, VERBOSE = false;
+var GAMES = 100, VERBOSE = false, SEED = 0;
 for (var i = 0; i < argv.length; i++) {
   if (argv[i] === '--games') GAMES = parseInt(argv[++i], 10);
+  if (argv[i] === '--seed')  SEED  = parseInt(argv[++i], 10) || 0;
   if (argv[i] === '--verbose') VERBOSE = true;
 }
 
@@ -25,6 +26,26 @@ console.error = function () {
 };
 
 var KEYS = ['p1', 'p2', 'p3', 'p4'];
+// ---------------- mulberry32 PRNG ----------------
+// THIS HARNESS WAS NOT REPRODUCIBLE. `playGame(seed)` took a seed it never
+// used and the body called Math.random() directly, so two runs of the SAME
+// tree explored different games — which makes "did this commit cause it?"
+// unanswerable. It cost a whole bisect: at roughly 0.25% of games, 600-game
+// runs have an expected count near 1.5, and I read that noise as a fix.
+//
+// Same mechanism sim/fuzz.js has had all along, including hijacking the
+// SHARED Math.random so the shim's prompt pickers draw from this stream too —
+// without that, a found bug vanishes on rerun.
+function mulberry32(seed) {
+  var s = seed >>> 0;
+  return function () {
+    s = (s + 0x6D2B79F5) >>> 0;
+    var t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 function rnd(n) { return Math.floor(Math.random() * n); }
 
 // ---- PROMPT OWNERSHIP ----------------------------------------------------
@@ -125,6 +146,18 @@ function invariants(tag, played) {
 }
 
 function playGame(seed) {
+  // Per GAME, not per run: a violation reported for game N is reproducible on
+  // its own with the same --seed, without replaying the N games before it.
+  var __origRandom = Math.random;
+  Math.random = mulberry32((SEED >>> 0) + (seed >>> 0) * 0x9E3779B1);
+  try {
+    return playGameInner(seed);
+  } finally {
+    Math.random = __origRandom;
+  }
+}
+
+function playGameInner(seed) {
   var played = {}, bad = [];
   Game.start2v2Match({ names: { p1: 'A1', p2: 'A2', p3: 'B1', p4: 'B2' } });
   Game.state.twoVTwo.online = true;

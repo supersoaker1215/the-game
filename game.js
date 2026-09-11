@@ -11179,8 +11179,10 @@ const Game = {
     // could get here (a card in hand is rarely at 0 ATK); opening the free door
     // to the chain made it reachable, and the fuzz found it immediately — 8
     // states on one seed, a Jango Fett sitting at -1 attack from round 6 to the
-    // end of the match. HP is left unclamped on purpose: 0 there means dead,
-    // which is a real outcome of the chains.
+    // end of the match. CURRENT hp is left unclamped on purpose: 0 there means
+    // dead, which is a real outcome of the chains. maxHealth is NOT current —
+    // buffCard floors that at 1, or a 1-HP card that gets saved out of this
+    // death stands forever at 1/0 (see sim/max-health-floor.js).
     const a = Math.min(1, Math.max(0, card.attack | 0));
     this.buffCard(card, -a, -1);
   },
@@ -11211,7 +11213,20 @@ const Game = {
     const a = (typeof atk === 'number' && Number.isFinite(atk)) ? atk : 0;
     const h = (typeof hp  === 'number' && Number.isFinite(hp))  ? hp  : 0;
     if (a) card.attack += a;
-    if (h) { card.currentHealth += h; card.maxHealth += h; }
+    if (h) {
+      card.currentHealth += h;
+      // maxHealth is CAPACITY, not a current value, and it FLOORS AT 1.
+      // buffCard is the only hp door that ever let it reach 0 — every other
+      // strip (debuffCard, the stat-strip, Brainiac's spy drain, the aura
+      // reconcile) has clamped all along. A 1-HP card taking -1/-1 from the
+      // chains went to 0/0, and normally nobody sees it because cleanupDead
+      // removes the corpse — but a card at 0 HP can be SAVED (Iron Giant
+      // restores it to Math.max(1, snapshot)), and it then stands there
+      // forever at 1/0: every heal is above maximum and the HP bar has no
+      // denominator. That is the `board hp>max` the 2v2 fuzz reports.
+      // currentHealth stays UNCLAMPED on purpose: 0 there is a real death.
+      card.maxHealth = Math.max(1, card.maxHealth + h);
+    }
     if (a || h) this._noteEffectOn(card, `+${a}/+${h}`);
     // Splash-tracks-ATK cards (Hulk) keep splashRange live on ANY stat change.
     if (card._splashTracksAtk) card.splashRange = Math.max(0, card.attack | 0);

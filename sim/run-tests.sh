@@ -142,6 +142,9 @@ echo ""
 echo "=== seat-purse.js (a seat's purse is never negative) ==="
 run_suite sim/seat-purse.js
 
+echo "=== max-health-floor.js (maxHealth is capacity, never 0) ==="
+run_suite sim/max-health-floor.js
+
 echo ""
 if [ "$FAIL" -ne 0 ]; then
   echo "❌ TESTS FAILED — see suites above."
