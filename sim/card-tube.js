@@ -379,11 +379,26 @@ check('and the old fixed green is gone from it',
         /\.stat-atk::before[\s\S]{0,400}solid rgb\(var\(--cf-rgb/.test(BARE),
         'the mark should be the border, not a second palette');
   check('the segments are MASKED OUT of it, not drawn into it',
-        /--stat-seg-mask:\s*conic-gradient/.test(BARE) &&
-        /\.stat-atk::before[\s\S]{0,400}mask: var\(--stat-seg-mask\)/.test(BARE),
+        /--stat-seg-square:\s*conic-gradient/.test(BARE) &&
+        /\.stat-atk::before[\s\S]{0,500}mask: var\(--stat-seg-square\)/.test(BARE),
         'drawing the segments would put the stroke width back in the mask');
-  check('one mask serves both marks, so they stay one family',
-        /\.card \.stat-atk::before, \.card \.stat-hp::before/.test(BARE));
+  // TWO ANGLES, NOT ONE. A conic cuts by ANGLE, and angle maps to arc-length
+  // differently on a circle than on a square — so one shared mask gave the
+  // circle even arcs and the square brackets that did not match the ones it
+  // replaced. Measured: 26% of each edge open where the original SVG left 48%,
+  // i.e. brackets half again too long. Owner: "these are a little off."
+  check('the square and the circle get their own angle',
+        /--stat-seg-round:\s*conic-gradient/.test(BARE) &&
+        /\.stat-hp::before[^}]*mask: var\(--stat-seg-round\)/.test(BARE),
+        'one conic for both looks tidy and renders wrong on one of them');
+  check('the square\'s gap reproduces the original 48% of each edge',
+        /transparent 0 25\.64deg/.test(BARE),
+        'atan(0.24h / 0.5h) = 25.64deg either side of each edge midpoint — ' +
+        'measured after: 48% open, all four gaps within 1px');
+  check('the circle keeps the original arc/gap split',
+        /transparent 0 11\.9deg/.test(BARE),
+        'arc 52 / gap 18.69 on a 282.74 circumference is 66.2deg / 23.8deg, and ' +
+        'on a circle angle IS arc-length so it carries over unchanged');
   check('health is the round one', /\.stat-hp::before[^{]*\{[^}]*border-radius:\s*50%/.test(BARE),
         'shape is what tells them apart when colour cannot');
   // and the meaning moves to the numerals
