@@ -50874,17 +50874,18 @@ body.low-fx .card-glow-host { filter: none !important; }
    Full opacity, not 42%: at this size the bars are two 1px rules, and a dimmed
    1px line on a dark panel is not a subtle signal, it is an invisible one.
    ============================================================ */
-.card, .trick-card                  { --rarity-tier-rgb: 127, 207, 155; }
-.card.rarity-tier-1, .trick-card.rarity-tier-1 { --rarity-tier-rgb: 127, 207, 155; }
-.card.rarity-tier-2, .trick-card.rarity-tier-2 { --rarity-tier-rgb:  92, 184, 255; }
-.card.rarity-tier-3, .trick-card.rarity-tier-3 { --rarity-tier-rgb: 184, 140, 255; }
-.card.rarity-tier-4, .trick-card.rarity-tier-4 { --rarity-tier-rgb: 255, 194,  71; }
-
+/* REVERSED ON SIGHT. The bars carried the rarity tier for one commit — the
+   owner asked for it, looked at it, and asked for the opposite: "the rarity
+   line by the name should be the border colour, no rarity line anymore." So
+   they are the card's own colour again, at full strength rather than the 42%
+   they started at. The `rarity-tier-N` class stays stamped on the card: it is
+   a fact about the card that the draft foot and the inspect ribbon already
+   print, and it costs one line to keep available. */
 .card .card-name-overlay::before,
 .card .card-name-overlay::after,
 .trick-card .card-name-overlay::before,
 .trick-card .card-name-overlay::after {
-  background: rgb(var(--rarity-tier-rgb)) !important;
+  background: rgb(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250))) !important;
 }
 
 
@@ -50928,9 +50929,25 @@ body.low-fx .card-glow-host { filter: none !important; }
     var(--cf-stroke) calc(75% - var(--cf-stroke) * 0.5774),
     var(--cf-stroke) calc(25% + var(--cf-stroke) * 0.5774));
 }
-.card .stat-circle, .trick-card .stat-circle {
-  height: calc(var(--stat-h) * 1.08) !important;   /* the reference's 101:109 */
-  font-size: calc(var(--stat-h) * 0.52) !important;
+/* A REGULAR HEXAGON, AND THAT IS NOT A STYLE CHOICE. The inner outline is
+   inset by scaling every vertex toward the centre, which only yields a UNIFORM
+   stroke on a regular hexagon — height exactly width x 2/sqrt3. The badge was
+   landing square (a (0,4,0) rule pins it to 0.145w both ways, and the 1.08 I
+   traced from the reference lost to it at (0,2,0)), so the vertical inset was
+   1.1547 x stroke against a horizontal 1 x stroke: the two upright edges came
+   out thin and the four diagonals fat, which is the "not fully complete" the
+   owner saw. Both axes are set here, at the specificity that actually wins. */
+.card.card .stat-circle, .card.card.draft-card .stat-circle,
+.card.card.enc-card .stat-circle, .card-inspect-modal .card.card .stat-circle,
+.trick-card.trick-card .stat-circle {
+  width: var(--stat-h) !important;
+  height: calc(var(--stat-h) * 1.1547) !important;
+  font-size: calc(var(--stat-h) * 0.50) !important;
+}
+/* the numerals join everything else on the card */
+.card.card .stat-atk, .card.card .stat-hp,
+.trick-card.trick-card .stat-atk, .trick-card.trick-card .stat-hp {
+  color: rgb(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250))) !important;
 }
 .card .stat-atk::before, .card .stat-hp::before,
 .trick-card .stat-atk::before, .trick-card .stat-hp::before {
@@ -51007,8 +51024,16 @@ body.low-fx .card-glow-host { filter: none !important; }
 .card .cf-band, .trick-card .cf-band,
 .card.card .cf-band, .card.card.draft-card .cf-band,
 .card.card.enc-card .cf-band, .trick-card.trick-card .cf-band {
+  /* AND IT IS THE CARD'S OWN COLOUR. The traced steel was the reference's, and
+     the owner's next look corrected it: "the energy corner is filled with each
+     card's unique border colour." Same value the frame, the glow, the name and
+     the stat marks read, so the corner joins them instead of being the one
+     neutral object on the card. Still fully opaque — that was the reason the
+     plate stopped being translucent in the first place, and it still holds —
+     and still a gradient, because a flat fill at this size reads as a sticker.
+     Darkened toward the inboard end so the digit keeps its contrast. */
   background: linear-gradient(135deg,
-    rgb(70, 74, 80) 0%,
-    rgb(56, 60, 66) 46%,
-    rgb(44, 48, 54) 100%) !important;
+    rgb(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250))) 0%,
+    color-mix(in srgb, rgb(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250))) 72%, #000) 52%,
+    color-mix(in srgb, rgb(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250))) 46%, #000) 100%) !important;
 }

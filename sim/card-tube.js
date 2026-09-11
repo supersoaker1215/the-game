@@ -402,11 +402,14 @@ check('and the old fixed green is gone from it',
   check('health is the round one', /\.stat-hp::before[^{]*\{[^}]*border-radius:\s*50%/.test(BARE),
         'shape is what tells them apart when colour cannot');
   // and the meaning moves to the numerals
+  // THE NUMERALS TOOK THE CARD COLOUR TOO. They were green and red for two
+  // commits — the owner asked for that, then for this: "the numbers inside
+  // should be the border colour." Everything on the card now reads one token.
   var atk = winner('color', { classes: ['stat-atk'], ancestors: ['card'] });
   var hp  = winner('color', { classes: ['stat-hp'],  ancestors: ['card'] });
-  check('the damage numeral is green', !!atk && /#3dff9e/i.test(atk.value),
+  check('the damage numeral takes the card colour', !!atk && /var\(--cf-rgb/.test(atk.value),
         atk ? 'winning colour is ' + atk.value : 'nothing reaches it');
-  check('the health numeral is red',   !!hp  && /#ff6b6b/i.test(hp.value),
+  check('the health numeral takes the card colour', !!hp && /var\(--cf-rgb/.test(hp.value),
         hp ? 'winning colour is ' + hp.value : 'nothing reaches it');
 })();
 
@@ -610,81 +613,25 @@ check('and the old fixed green is gone from it',
         'a pure-white override on one surface is the thing this replaced');
 })();
 
-// ---- the name bars carry RARITY ---------------------------------------------
-// Owner, against a reference card: "the name bars are the rarity of the card."
-//
-// They were rgba(var(--cf-rgb), 0.42) — the card's own accent at 42%, a dimmer
-// copy of a colour already carried by the frame, the glow, the name and both
-// stat marks. Five things saying one thing, while the card's RARITY (which it
-// has always had, and which only the inspect ribbon and the draft foot ever
-// showed) said nothing anywhere on the card itself.
+// ---- the name bars carry the card's own colour ------------------------------
+// REVERSED ON SIGHT. They carried the rarity tier for exactly one commit — the
+// owner asked for it, looked at it, and asked for the opposite: "the rarity
+// line by the name should be the border colour, no rarity line anymore."
 (function () {
   var UIJS = read('ui.js');
-  check('the card element carries its rarity tier',
-        /makeCardEl\(card, inHand, side, opts\)[\s\S]{0,2000}rarity-tier-' \+ _r\.tier/.test(UIJS),
-        'nothing on the card could be coloured by rarity until it did');
-  check('and so does a trick',
-        /_trCls[\s\S]{0,200}rarity-tier-/.test(UIJS));
-  var bar = winner('background', { classes: ['card-name-overlay'], ancestors: ['card'] });
-  check('the bars read the rarity colour, not the card accent',
-        /card-name-overlay::before[\s\S]{0,220}rgb\(var\(--rarity-tier-rgb\)\)/.test(BARE),
-        'they should not be a fifth copy of --cf-rgb');
-  // all four tiers, matching the ribbon that labels them
-  [['1','127, 207, 155'], ['2','92, 184, 255'],
-   ['3','184, 140, 255'], ['4','255, 194,  71']].forEach(function (t) {
-    check('tier ' + t[0] + ' has its colour',
-          new RegExp('rarity-tier-' + t[0] + '[^{]*\\{[^}]*' + t[1].replace(/\s+/g, '\\s*')).test(BARE),
-          'the card and its rarity label must agree');
-  });
-  check('and the bars are not dimmed to 42%',
-        !/card-name-overlay::before[\s\S]{0,220}rgba\([^)]*0\.42\)/.test(BARE),
-        'a dimmed 1px rule on a dark panel is not a subtle signal, it is an invisible one');
-})();
-
-// ---- the reference card, traced ---------------------------------------------
-// Owner supplied a reference and asked for it copied side by side. Every number
-// is measured off that image (card body 533x1259) and expressed over 533 in
-// --card-w, which is the unit the rest of the sheet scales by:
-//     hex badge 101x109px -> 0.190w, 1.08:1     label 10px -> 0.019w
-//     chip 127x34px -> 0.238w x 0.064w          divider 1px rgb(40,45,51)
-//     energy plate rgb(67,70,76) -> rgb(50,54,60)
-(function () {
-  // 1 · hexagons, still stroked at the frame's own width
-  check('the stat mark is a hexagon', /--stat-hex:\s*polygon\(evenodd/.test(BARE),
-        'the reference badge is a hex, not a square or a circle');
-  check('traced as ONE ring polygon, so the stroke stays var(--cf-stroke)',
-        /--stat-hex[\s\S]{0,600}var\(--cf-stroke\) \* 1\.1547/.test(BARE),
-        'insetting a pointy-top hexagon by t moves each vertex 1.1547t along its radius — ' +
-        'a mask or an SVG stroke would be a fraction of the badge and drift with it');
-  check('and the badge is 0.190 of the card width',
-        /--stat-h:\s*calc\(var\(--card-w\) \* 0\.190\)/.test(BARE),
-        '101 / 533 in the reference');
-  // 1b · the labels are DETAIL, so only the reading surfaces get them
-  check('ATK / HP labels exist', /content:\s*'ATK'/.test(BARE) && /content:\s*'HP'/.test(BARE));
-  check('…on the reading surfaces only',
-        /\.card\.card\.draft-card \.stat-atk[^,]*::after/.test(BARE) &&
-        !/^\.card \.stat-atk:not[^{]*::after/m.test(BARE),
-        'a 10px label under a 21px board tile badge is noise — the hexagon is the design, ' +
-        'the label is the detail (owner\'s hand/board rule)');
-  // 2 · the keyword chip
-  check('the keyword chip is a bordered pill, centred',
-        /\.card\.card\.draft-card \.status-badge[\s\S]{0,300}border: 1px solid rgba\(var\(--cf-rgb/.test(BARE) &&
-        /\.status-badges[\s\S]{0,160}justify-content: center/.test(BARE));
-  // 3 · the divider
-  check('the rules divider runs the full width at the reference\'s value',
-        /border-top: 1px solid rgb\(40, 45, 51\)/.test(BARE),
-        'sampled off the reference, not picked');
-  // 4 · the energy plate
-  // RESOLVED, not grepped. Two older .cf-band rules still declare the
-  // translucent fill this replaces; they lose on order, and a text search finds
-  // them anyway and reports a bug that does not exist. Ask which one WINS.
-  var plate = winner('background', { classes: ['cf-band'], ancestors: ['card'] });
-  check('the energy plate is the reference\'s steel, not black',
-        !!plate && /rgb\(70, ?74, ?80\)/.test(plate.value) && /rgb\(44, ?48, ?54\)/.test(plate.value),
-        plate ? 'winning background is `' + plate.value.slice(0, 90) + '`' : 'nothing reaches the plate');
-  check('and it is fully opaque, which is why the black was chosen',
-        !!plate && !/rgba\([^)]*0\.\d+\s*\)/.test(plate.value),
-        'a translucent plate let the frame\'s own border read through it — that was the original bug');
+  check('the bars take the card colour, not a rarity colour',
+        /card-name-overlay::before[\s\S]{0,260}rgb\(var\(--cf-rgb/.test(BARE),
+        'they should read the same token everything else on the card reads');
+  check('and no rarity palette is left behind',
+        !/--rarity-tier-rgb:/.test(BARE),
+        'a colour block nothing reads is the thing this suite keeps catching');
+  // the CLASS stays: it is a fact about the card the draft foot and the inspect
+  // ribbon already print, and it costs one line to keep available.
+  check('the rarity tier is still stamped on the card',
+        /makeCardEl\(card, inHand, side, opts\)[\s\S]{0,2000}rarity-tier-' \+ _r\.tier/.test(UIJS));
+  check('and the bars are not dimmed',
+        !/card-name-overlay::before[\s\S]{0,260}rgba\([^)]*0\.42\)/.test(BARE),
+        'a dimmed 1px rule on a dark panel is invisible, not subtle');
 })();
 
 print('card-tube: ' + pass + ' passed, ' + fails.length + ' failed');
