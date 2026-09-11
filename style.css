@@ -50971,9 +50971,31 @@ body.low-fx .card-glow-host { filter: none !important; }
      does not survive being shrunk.
 
      So this is a DIFFERENT shield, built for this size: five points, every
-     edge a straight line, every corner exact. Flat top, vertical flanks to
-     55%, straight taper to a point. It fills 0..100 on both axes exactly as
-     the hexagon does, so the two marks read as the same size.
+     edge a straight line, every corner exact. Flat top, vertical flanks, and a
+     straight taper to a point.
+
+     IT DOES NOT FILL THE BOX, AND THAT IS THE WHOLE POINT. It used to span
+     0..100 vertically like the hexagon, so the two marks were the same size —
+     but a shape that tapers carries its mass high, and a flat-topped shield
+     spanning 0..100 has its area centroid at 39.84% of the box against the
+     hexagon's 50%. That left only bad choices: centre each digit on its own
+     shape and the two numbers sit 8.22px apart, or level the digits and the HP
+     one sits below its shield's mass. Owner, after seeing both drawn: "id
+     prefer this the shapes can be a little diffrent."
+
+     So the SHAPE moved instead of the digit. Dropping the flat top to 16.890%
+     of the box puts the shield's centroid at exactly 50% — the same place the
+     hexagon's is, and the same place a flex-centred glyph already sits. Both
+     digits are then centred on their own shape AND level with each other, with
+     no padding on either mark. Solved, not guessed:
+
+         centroid(top) = top + (1 - top) * 0.3984
+         centroid(0.16890) = 0.50000
+
+     The two marks now share their bottom point and their centre of mass; the
+     shield is 83.1% of the hexagon's height and its flat top sits lower. That
+     is the visible difference the owner signed off on. The shoulder stays at
+     55% OF THE SHIELD, which is 62.60% of the box.
 
      THE INNER LOOP IS COMPUTED, NOT EYEBALLED. The hexagon above can inset by
      scaling each vertex along its radius because it is regular; a shield has
@@ -50983,19 +51005,23 @@ body.low-fx .card-glow-host { filter: none !important; }
      a percentage means a different number of pixels per axis and insetting in
      percent would give a stroke thick on one axis and thin on the other, which
      is the fault the hexagon note records. Verified: every inner edge sits
-     exactly one --cf-stroke from its outer edge, worst deviation 6.2e-17.
-     1.4422 is the miter at the bottom point, where two shallow edges meet.
+     exactly one --cf-stroke from its outer edge, worst deviation 0.0.
+     1.3214 is the miter at the bottom point, where two shallow edges meet —
+     it was 1.4422 when the shield was taller, because raising the flat top
+     steepens the taper and a steeper corner needs less miter. The same solver
+     reproduces the old 1 / 0.403 / 1.4422 from the old geometry, which is how
+     these were checked.
 
      Same construction rules as the hexagon: ONE path, evenodd, and each loop
      repeats its first point so it closes. */
   --stat-shield: polygon(evenodd,
-    0% 0%, 100% 0%, 100% 55%, 50% 100%, 0% 55%, 0% 0%,
-    calc(0% + var(--cf-stroke) * 1) calc(0% + var(--cf-stroke) * 1),
-    calc(100% - var(--cf-stroke) * 1) calc(0% + var(--cf-stroke) * 1),
-    calc(100% - var(--cf-stroke) * 1) calc(55% - var(--cf-stroke) * 0.403),
-    50% calc(100% - var(--cf-stroke) * 1.4422),
-    calc(0% + var(--cf-stroke) * 1) calc(55% - var(--cf-stroke) * 0.403),
-    calc(0% + var(--cf-stroke) * 1) calc(0% + var(--cf-stroke) * 1));
+    0% 16.89%, 100% 16.89%, 100% 62.6%, 50% 100%, 0% 62.6%, 0% 16.89%,
+    calc(0% + var(--cf-stroke) * 1) calc(16.89% + var(--cf-stroke) * 1),
+    calc(100% - var(--cf-stroke) * 1) calc(16.89% + var(--cf-stroke) * 1),
+    calc(100% - var(--cf-stroke) * 1) calc(62.6% - var(--cf-stroke) * 0.4576),
+    50% calc(100% - var(--cf-stroke) * 1.3214),
+    calc(0% + var(--cf-stroke) * 1) calc(62.6% - var(--cf-stroke) * 0.4576),
+    calc(0% + var(--cf-stroke) * 1) calc(16.89% + var(--cf-stroke) * 1));
 }
 /* A REGULAR HEXAGON, AND THAT IS NOT A STYLE CHOICE. The inner outline is
    inset by scaling every vertex toward the centre, which only yields a UNIFORM

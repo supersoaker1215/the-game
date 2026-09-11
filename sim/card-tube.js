@@ -670,22 +670,44 @@ check('and the old fixed green is gone from it',
   var shield = (/--stat-shield:([\s\S]*?);/.exec(BARE) || [, ''])[1].replace(/\s+/g, ' ');
   check('the HP mark has its own shield shape', shield.length > 40, 'no --stat-shield');
   check('and it is drawn with STRAIGHT edges — five points, not a sampled curve',
-        /polygon\(evenodd, 0% 0%, 100% 0%, 100% 55%, 50% 100%, 0% 55%/.test(shield),
+        /polygon\(evenodd, 0% 16\.89%, 100% 16\.89%, 100% 62\.6%, 50% 100%, 0% 62\.6%/.test(shield),
         'winning shape is `' + shield.slice(0, 90) + '`');
+  // THE FLAT TOP IS AT 16.89% ON PURPOSE, AND THAT NUMBER IS LOAD-BEARING.
+  // A flat-topped shield spanning the whole box carries its area centroid at
+  // 39.84% against the hexagon's 50%, so its digit could be centred on its own
+  // shape or level with the ATK digit, never both — measured 8.22px apart.
+  // Dropping the top to 16.890% puts the centroid at exactly 50%, where a
+  // flex-centred glyph already sits, so both are true with no padding on
+  // either mark:  centroid(top) = top + (1 - top) * 0.3984  ->  0.5.
+  // Owner: "id prefer this the shapes can be a little diffrent."
+  check('the flat top sits where the shield\'s mass lands on the box centre',
+        /0% 16\.89%/.test(shield),
+        'move the top and the digits stop being both level and shape-centred');
+  check('and the shoulder moved with it (55% OF THE SHIELD = 62.6% of the box)',
+        /100% 62\.6%/.test(shield) && !/100% 55%/.test(shield),
+        'the shoulder is a proportion of the shield, not of the box');
   // The 14-point block-meter shield must NOT be what this reads.
   check('it does not reuse the block meter\'s sampled silhouette',
         !/18% 4%/.test(shield) && !/86% 58%/.test(shield),
         'those points are --shield, tuned for 44px');
   // Same construction rules as the hexagon: one path, evenodd, each loop closed.
   check('each loop closes itself, like the hexagon and .cf-edge',
-        (shield.match(/0% 0%/g) || []).length >= 2,
+        (shield.match(/0% 16\.89%/g) || []).length >= 2,
         'an unclosed loop leaves the notch the owner circled twice');
   // The inset is a computed miter per vertex, not a scale — a shield has no
   // radial symmetry to scale along. Solved in PIXEL space because the box is
   // 1.1547x taller than wide, so a percentage inset would be uneven per axis.
+  // Raising the flat top steepens the taper, and a steeper corner needs LESS
+  // miter — 1.4422 became 1.3214 and 0.403 became 0.4576. The same solver
+  // reproduces the old pair from the old geometry, which is how the new ones
+  // were checked; both were verified to put every inner edge exactly one
+  // --cf-stroke from its outer edge.
   check('the inner loop is inset by --cf-stroke, per-vertex',
-        /1\.4422/.test(shield) && /0\.403/.test(shield),
+        /1\.3214/.test(shield) && /0\.4576/.test(shield),
         'the bottom-point miter and the shoulder miter are the computed values');
+  check('and the miters were re-solved for the new taper, not carried over',
+        !/1\.4422/.test(shield) && !/0\.403[^0-9]/.test(shield),
+        'the old coefficients belong to a shield whose top was at 0%');
   // winner() models ELEMENTS, and these clips live on ::before — it cannot
   // address a pseudo-element, so this walks the rule blocks instead and takes
   // the LAST one that sets clip-path on each mark. Taking the last matters:
