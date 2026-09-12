@@ -565,9 +565,11 @@ check('and the old fixed green is gone from it',
         !!plate && /rgba\(var\(--cf-rgb/.test(plate.value) && !/#000/.test(plate.value),
         plate ? 'winning background is `' + plate.value.slice(0, 110) + '`' : 'no plate rule');
   // 15% first, then the owner looked at it: "just have it fill with the border
-  // color 50" / "50%". Half strength, not a tint.
-  check('at about 50%',
-        !!plate && /,\s*0?\.(4[5-9]|5[0-5])0?\s*\)/.test(plate.value),
+  // color 50" / "50%". Then, looking at it again on a draft card: "make this
+  // 45% fill." Half strength, not a tint — and the exact number is the owner's
+  // eye, so pin the number rather than a band around it.
+  check('at 45%',
+        !!plate && /,\s*0?\.45\s*\)/.test(plate.value),
         plate ? 'winning background is `' + plate.value.slice(0, 110) + '`' : 'no plate rule');
   // The black plate was what guaranteed the digit's contrast — it carried only
   // a white hairline and a coloured bloom, no dark shadow at all, and against a
@@ -656,95 +658,77 @@ check('and the old fixed green is gone from it',
         'one token, one size — the grid cell still has to be filled');
 })();
 
-// ---- ATK keeps the hexagon, HP wears a shield ------------------------------
-// Owner: "have the health hexagon switch to be the same shield icon", then on
-// the first attempt "looks handrawn i needs it pristine" / "sharp edges" /
-// "straight edges".
+// ---- ATK keeps the hexagon, HP wears a CIRCLE ------------------------------
+// Owner: "make the hp a circle not a shield."
 //
-// THE FIRST ATTEMPT REUSED --shield, the block meter's silhouette. Wrong shape
-// to borrow, and its own comment says why: it is FOURTEEN points because
-// "polygon() cannot curve, so the curve is sampled — enough points that it
-// reads round at 44px". At the 24px this mark is drawn at, that sampling reads
-// as a wobble. A sampled curve does not survive being shrunk.
+// This block used to pin a five-point shield and its numerically-solved miters.
+// The shield is gone; the reasoning that produced it is in git. What survives is
+// the rule it was built to satisfy — whatever the HP mark is, its centre of mass
+// has to land on the box centre, because that is where a flex-centred glyph sits
+// and where the hexagon's centroid is, and the two digits have to stay level
+// ("i need the numbers to be straight across even with each other").
+//
+// A circle satisfies that for free: its centroid IS its centre. That is the
+// whole argument for why the circle needs no padding and no reshaping, where the
+// shield needed a 16.89% flat top to get there.
+//
+// A POLYGON WOULD HAVE BEEN THE WRONG TOOL. clip-path can only approximate a
+// circle by sampling it, and a sampled curve does not survive being shrunk —
+// that is exactly what "looks handrawn i needs it pristine" was about when the
+// 14-point block-meter shield was reused at 24px. border-radius is exact at
+// every size.
 (function () {
-  var shield = (/--stat-shield:([\s\S]*?);/.exec(BARE) || [, ''])[1].replace(/\s+/g, ' ');
-  check('the HP mark has its own shield shape', shield.length > 40, 'no --stat-shield');
-  check('and it is drawn with STRAIGHT edges — five points, not a sampled curve',
-        /polygon\(evenodd, 0% 16\.89%, 100% 16\.89%, 100% 62\.6%, 50% 100%, 0% 62\.6%/.test(shield),
-        'winning shape is `' + shield.slice(0, 90) + '`');
-  // THE FLAT TOP IS AT 16.89% ON PURPOSE, AND THAT NUMBER IS LOAD-BEARING.
-  // A flat-topped shield spanning the whole box carries its area centroid at
-  // 39.84% against the hexagon's 50%, so its digit could be centred on its own
-  // shape or level with the ATK digit, never both — measured 8.22px apart.
-  // Dropping the top to 16.890% puts the centroid at exactly 50%, where a
-  // flex-centred glyph already sits, so both are true with no padding on
-  // either mark:  centroid(top) = top + (1 - top) * 0.3984  ->  0.5.
-  // Owner: "id prefer this the shapes can be a little diffrent."
-  check('the flat top sits where the shield\'s mass lands on the box centre',
-        /0% 16\.89%/.test(shield),
-        'move the top and the digits stop being both level and shape-centred');
-  check('and the shoulder moved with it (55% OF THE SHIELD = 62.6% of the box)',
-        /100% 62\.6%/.test(shield) && !/100% 55%/.test(shield),
-        'the shoulder is a proportion of the shield, not of the box');
-  // The 14-point block-meter shield must NOT be what this reads.
-  check('it does not reuse the block meter\'s sampled silhouette',
-        !/18% 4%/.test(shield) && !/86% 58%/.test(shield),
-        'those points are --shield, tuned for 44px');
-  // Same construction rules as the hexagon: one path, evenodd, each loop closed.
-  check('each loop closes itself, like the hexagon and .cf-edge',
-        (shield.match(/0% 16\.89%/g) || []).length >= 2,
-        'an unclosed loop leaves the notch the owner circled twice');
-  // The inset is a computed miter per vertex, not a scale — a shield has no
-  // radial symmetry to scale along. Solved in PIXEL space because the box is
-  // 1.1547x taller than wide, so a percentage inset would be uneven per axis.
-  // Raising the flat top steepens the taper, and a steeper corner needs LESS
-  // miter — 1.4422 became 1.3214 and 0.403 became 0.4576. The same solver
-  // reproduces the old pair from the old geometry, which is how the new ones
-  // were checked; both were verified to put every inner edge exactly one
-  // --cf-stroke from its outer edge.
-  check('the inner loop is inset by --cf-stroke, per-vertex',
-        /1\.3214/.test(shield) && /0\.4576/.test(shield),
-        'the bottom-point miter and the shoulder miter are the computed values');
-  check('and the miters were re-solved for the new taper, not carried over',
-        !/1\.4422/.test(shield) && !/0\.403[^0-9]/.test(shield),
-        'the old coefficients belong to a shield whose top was at 0%');
-  // winner() models ELEMENTS, and these clips live on ::before — it cannot
-  // address a pseudo-element, so this walks the rule blocks instead and takes
-  // the LAST one that sets clip-path on each mark. Taking the last matters:
-  // a plain grep finds the superseded `.stat-atk::before, .stat-hp::before`
-  // rule that still sets --stat-hex for both, which is exactly the trap that
-  // made an earlier case in this suite pass against dead CSS.
-  function lastClipFor(pseudoSel) {
+  // winner() models ELEMENTS and this lives on ::before, so walk the rule blocks
+  // and take the LAST one that sets each property — that is what decides it at
+  // equal specificity, and a first-hit grep finds the superseded rule.
+  function lastDeclFor(pseudoSel, prop) {
     var re = /([^{}]+)\{([^{}]*)\}/g, m, found = null;
     while ((m = re.exec(BARE)) !== null) {
       if (m[1].indexOf(pseudoSel) < 0) continue;
       var decls = m[2].split(';');
       for (var i = 0; i < decls.length; i++) {
-        if (/^\s*clip-path\s*:/.test(decls[i])) found = decls[i].split(':').slice(1).join(':').trim();
+        if (new RegExp('^\\s*' + prop + '\\s*:').test(decls[i])) {
+          found = decls[i].split(':').slice(1).join(':').trim();
+        }
       }
     }
     return found;
   }
-  var atkClip = lastClipFor('.stat-atk::before');
+  var atkClip = lastDeclFor('.stat-atk::before', 'clip-path');
   check('ATK still wears the hexagon',
         !!atkClip && /--stat-hex/.test(atkClip),
         'last clip-path on .stat-atk::before is `' + atkClip + '`');
-  var hpClip = lastClipFor('.stat-hp::before');
-  check('and HP wears the shield',
-        !!hpClip && /--stat-shield/.test(hpClip),
-        'last clip-path on .stat-hp::before is `' + hpClip + '`');
-  // THE SHAPES DIFFER, THE DIGITS DO NOT. This used to assert the opposite —
-  // that the HP numeral carried `padding-bottom: calc(var(--stat-h) * 0.2347)`
-  // to ride the shield's 39.84% centroid instead of the box's 50%. That is
-  // sound for one mark in isolation and wrong for the pair: it put the two
-  // digits 8.22px apart on the codex card. Owner: "i need the numbers to be
-  // straight across even with each other." Only the SILHOUETTE distinguishes
-  // the two marks now; the digits share one line. The live assertion is in the
-  // stat-pair block above (it resolves the cascade rather than grepping, which
-  // matters here because 0.2347 still appears in style.css prose).
-  check('and the shield is the only thing that distinguishes the marks',
-        !/padding-bottom: calc\(var\(--stat-h\) \* 0\.2347\)/.test(BARE),
-        'the 0.2347 lift is back — that is an 8.22px vertical split between the two digits');
+  var hpRadius = lastDeclFor('.stat-hp::before', 'border-radius');
+  check('and HP is a circle',
+        !!hpRadius && /^50%/.test(hpRadius),
+        'last border-radius on .stat-hp::before is `' + hpRadius + '`');
+  var hpClip = lastDeclFor('.stat-hp::before', 'clip-path');
+  check('with no polygon left clipping it',
+        !!hpClip && /^none/.test(hpClip),
+        'last clip-path on .stat-hp::before is `' + hpClip + '` — a polygon cannot draw a circle, it samples one');
+  // SQUARE FIRST, THEN ROUND. The mark's box is --stat-h wide and 1.1547x that
+  // tall, so `border-radius: 50%` on the box itself yields an ELLIPSE. The inset
+  // takes (H-W)/2 off top and bottom — (1.1547-1)/(2*1.1547) = 6.699% of H —
+  // leaving a square exactly W on a side, centred. Centred is what keeps the
+  // digit on the circle's own centre AND level with the hexagon's.
+  var hpInset = lastDeclFor('.stat-hp::before', 'inset');
+  check('squared before it is rounded, or it is an ellipse',
+        !!hpInset && /^6\.699%\s+0/.test(hpInset),
+        'last inset on .stat-hp::before is `' + hpInset + '` — the box is 1.1547x taller than wide');
+  // One uniform stroke from a real border, rather than an evenodd inner loop
+  // with per-vertex miters to solve.
+  var hpBorder = lastDeclFor('.stat-hp::before', 'border');
+  check('the ring is one uniform stroke in the card\'s colour',
+        !!hpBorder && /var\(--cf-stroke\)/.test(hpBorder) && /var\(--cf-rgb\)/.test(hpBorder),
+        'last border on .stat-hp::before is `' + hpBorder + '`');
+  // ...and the shield really is gone, not merely unreferenced.
+  check('the retired shield polygon is not still defined',
+        !/--stat-shield:\s*polygon/.test(BARE),
+        'a --stat-shield definition nothing reads is dead weight');
+  // The digits-are-level assertion itself lives in the stat-pair block above,
+  // where it resolves the cascade with winner() instead of matching text. What
+  // belongs HERE is the shape's side of that bargain: a circle is centred in
+  // its own box, so nothing has to be nudged to make the two line up.
 })();
 
 // ---- rarity is not printed under an inspected card -------------------------
@@ -814,6 +798,60 @@ check('and the old fixed green is gone from it',
   check('and the estimate it replaced is gone',
         !/--sb-card:\s*calc\(\(100cqw/.test(BARE),
         'the container-query guess never matched above 520px');
+})();
+
+// ---- the holographic sheen does not wait for a hover ------------------------
+// Owner: "the white highlight when you hover over the card to give it a shimmer
+// can you give that to the card all the time it looks so much better like that."
+//
+// The sheen is a diagonal white band on ::after that used to sit at opacity 0
+// and only fade in under :hover, travelling 100% 100% -> 0% 0% over 0.9s and
+// RESTING there. That resting state is the look being asked for, so the rest
+// state simply became the hovered one. Measured with the probe in this session:
+// no measurable frame cost at 124 cards on screen — the two arms overlap.
+//
+// winner() models ELEMENTS and these live on ::after, so this walks the rule
+// blocks and takes the LAST one that sets each property, which is what decides
+// it for equal specificity.
+(function () {
+  function lastDeclFor(pseudoSel, prop) {
+    var re = /([^{}]+)\{([^{}]*)\}/g, m, found = null;
+    while ((m = re.exec(BARE)) !== null) {
+      if (m[1].indexOf(pseudoSel) < 0) continue;
+      if (m[1].indexOf(':hover') >= 0) continue;      // the REST state only
+      var decls = m[2].split(';');
+      for (var i = 0; i < decls.length; i++) {
+        if (new RegExp('^\\s*' + prop + '\\s*:').test(decls[i])) {
+          found = decls[i].split(':').slice(1).join(':').trim();
+        }
+      }
+    }
+    return found;
+  }
+  // Every surface that carries the sheen, including the rare tier's two-layer
+  // version and the tricks' purple one — a card glossed beside an unglossed
+  // trick in the same draft would read as a bug, not a distinction.
+  [['.draft-card::after',        'the card sheen'],
+   ['.draft-card.cost-7::after', 'the rare tier\'s own sheen'],
+   ['.trick-card::after',        'the trick sheen']
+  ].forEach(function (pair) {
+    var sel = pair[0], label = pair[1];
+    var op  = lastDeclFor(sel, 'opacity');
+    var pos = lastDeclFor(sel, 'background-position');
+    // null = the rule sets no opacity of its own and inherits the base sheen's,
+    // which is the rare tier's case: it overrides only the gradient and the
+    // park. What must never appear anywhere is a resting 0.
+    check(label + ' is on at rest', op === null || op === '1',
+          'resting opacity for ' + sel + ' is `' + op + '` — 0 means it is waiting for a hover again');
+    check(label + ' is parked where the sweep ends',
+          !!pos && /^0%\s+0%/.test(pos),
+          'resting background-position for ' + sel + ' is `' + pos + '`');
+  });
+  // ...and the hover rule must still agree with the rest state, or hovering
+  // would visibly snap the highlight somewhere else.
+  check('hovering does not move it any more',
+        /\.draft-card:hover::after[\s\S]{0,120}background-position:\s*0%\s*0%/.test(BARE),
+        'the hover rule should land on the same place the card already rests at');
 })();
 
 // ---- the energy banner wraps OVER the corner --------------------------------

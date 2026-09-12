@@ -8126,12 +8126,14 @@ body.hit-pause .ai-hand * {
 .draft-card.cost-9::after,
 .draft-card.cost-10::after {
   background:
+    /* The rare/legendary band is the same idea at the strength this tier has
+       always had — the card's accent, not white. */
     linear-gradient(
       125deg,
       transparent 30%,
-      rgba(255, 255, 255, 0.18) 45%,
-      rgba(210, 235, 255, 0.35) 50%,
-      rgba(255, 255, 255, 0.18) 55%,
+      rgba(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250)), 0.22) 45%,
+      rgba(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250)), 0.42) 50%,
+      rgba(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250)), 0.22) 55%,
       transparent 70%
     ),
     repeating-linear-gradient(
@@ -8142,7 +8144,11 @@ body.hit-pause .ai-hand * {
       rgba(255,255,255,0.04) 4px
     );
   background-size: 200% 200%, auto;
-  background-position: 100% 100%, 0 0;
+  /* Parked at the end of the sweep, same as the default sheen above — the
+     rare/legendary cards carry their own two-layer ::after (a stronger sheen
+     plus the scan-line texture), so they need the same park written here or
+     they are the only cards in the set still waiting for a hover. */
+  background-position: 0% 0%, 0 0;
 }
 .draft-card.cost-7:hover::after,
 .draft-card.cost-8:hover::after,
@@ -20398,17 +20404,39 @@ body.colorblind .ai-bar .health-container {
   position: absolute; inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  opacity: 0;
+  /* ON ALL THE TIME. This used to sit at opacity 0 and only fade in under
+     :hover, travelling from 100% 100% to 0% 0% over 0.9s and RESTING there —
+     and that resting state is the one the owner was looking at: "the white
+     highlight when you hover over the card to give it a shimmer can you give
+     that to the card all the time it looks so much better like that."
+     So the rest state simply becomes the hovered one: opacity 1, parked at the
+     end of the travel. The hover rule below now sets the same two values,
+     which is deliberate — it keeps the effect described in one place and means
+     a card that is hovered before this rule ever applies still lands correctly.
+     Deliberately NOT animated into a loop. The sweep is a background-position
+     change, which repaints the whole card every frame it moves; one static
+     gradient costs a paint that these cards were already doing on hover, a
+     permanent one would cost it on every card on every frame forever. */
+  opacity: 1;
+  /* THE SHEEN IS THE CARD'S OWN COLOUR. Owner: "the sheen coud be the unique
+     broder color for each card that could look cool." --cf-rgb is the accent
+     already driving the frame, the name and the stat marks — the one taken from
+     the painting itself — so the gloss stops being a generic white highlight
+     and becomes part of the card's identity. Superman's runs red, Catwoman's
+     blue. Alphas are a touch higher than the white they replace: a saturated
+     colour at the same alpha reads weaker than white does.
+     Same fallback chain the corner plate uses, so a card with no accent yet
+     still gets the old near-white band rather than nothing. */
   background: linear-gradient(
     125deg,
     transparent 30%,
-    rgba(255, 255, 255, 0.10) 45%,
-    rgba(171, 226, 255, 0.18) 50%,
-    rgba(255, 255, 255, 0.10) 55%,
+    rgba(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250)), 0.13) 45%,
+    rgba(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250)), 0.26) 50%,
+    rgba(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250)), 0.13) 55%,
     transparent 70%
   );
   background-size: 200% 200%;
-  background-position: 100% 100%;
+  background-position: 0% 0%;     /* parked where the hover sweep ends */
   /* No mix-blend-mode — `screen` was brightening the cost diamond's
      black backdrop as the sheen passed over, surfacing as a white
      dot "behind" the cost number on hover. With normal blending at
@@ -20736,9 +20764,16 @@ body {
 
 /* ---- Reduced-motion gates for the above ---- */
 @media (prefers-reduced-motion: reduce) {
+  /* THE SHEEN IS NOT MOTION ANY MORE, so reduced motion no longer removes it.
+     This gate killed it outright (opacity 0) back when it was a 0.9s sweep that
+     only existed under :hover — disabling the travel meant disabling the
+     effect. It is a static gradient parked at the end of that travel now, on
+     all the time, so the only thing left to switch off is the transition. Zero
+     here would mean anyone with reduced motion enabled is the one player who
+     never sees the treatment the owner asked to have on every card. */
   .card.hand-card::after,
   .card.ally-card::after,
-  .draft-card::after { transition: none !important; opacity: 0 !important; }
+  .draft-card::after { transition: none !important; }
   /* :not(.card-drag-ghost) — braces to the belt in _makeCardDragGhost.
      The ghost is a hand-card clone, so it matches this selector, and this
      `!important` transform beat the INLINE translate(x,y) that positions it —
@@ -21266,7 +21301,11 @@ body.combat-anticipate .board {
   position: absolute; inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  opacity: 0;
+  /* ON ALL THE TIME, like the card sheen — a trick sits beside a card in the
+     draft and in the tray, and one of the pair glossed while the other waited
+     for a hover would read as a bug rather than a distinction. Same treatment,
+     its own purple. */
+  opacity: 1;
   background: linear-gradient(
     125deg,
     transparent 30%,
@@ -21276,7 +21315,7 @@ body.combat-anticipate .board {
     transparent 70%
   );
   background-size: 200% 200%;
-  background-position: 100% 100%;
+  background-position: 0% 0%;     /* parked where the hover sweep ends */
   transition: opacity 0.35s var(--ease-snap), background-position 0.9s var(--ease-out-soft);
   z-index: 1;
 }
@@ -51237,14 +51276,11 @@ body.low-fx .card-glow-host { filter: none !important; }
 
      Same construction rules as the hexagon: ONE path, evenodd, and each loop
      repeats its first point so it closes. */
-  --stat-shield: polygon(evenodd,
-    0% 16.89%, 100% 16.89%, 100% 62.6%, 50% 100%, 0% 62.6%, 0% 16.89%,
-    calc(0% + var(--cf-stroke) * 1) calc(16.89% + var(--cf-stroke) * 1),
-    calc(100% - var(--cf-stroke) * 1) calc(16.89% + var(--cf-stroke) * 1),
-    calc(100% - var(--cf-stroke) * 1) calc(62.6% - var(--cf-stroke) * 0.4576),
-    50% calc(100% - var(--cf-stroke) * 1.3214),
-    calc(0% + var(--cf-stroke) * 1) calc(62.6% - var(--cf-stroke) * 0.4576),
-    calc(0% + var(--cf-stroke) * 1) calc(16.89% + var(--cf-stroke) * 1));
+  /* --stat-shield was here. The HP mark is a border-radius circle now (owner:
+     "make the hp a circle not a shield"), so the five-point silhouette and its
+     solved miters have no reader left. The geometry and the reasoning are in
+     git — the commit that centred its mass on the box centre — if the shield
+     is ever wanted back. */
 }
 /* A REGULAR HEXAGON, AND THAT IS NOT A STYLE CHOICE. The inner outline is
    inset by scaling every vertex toward the centre, which only yields a UNIFORM
@@ -51381,7 +51417,7 @@ body.low-fx .card-glow-host { filter: none !important; }
      painting showing through, the art supplies both and a second gradient on
      top of it only muddies the tint. Still the card's own colour — the same
      value the frame, the glow, the name and the stat marks all read. */
-  background: rgba(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250)), 0.50) !important;
+  background: rgba(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250)), 0.45) !important;
 }
 
 
@@ -51613,8 +51649,30 @@ body.low-fx .card-glow-host { filter: none !important; }
 .card.card .stat-hp::before, .card.card.draft-card .stat-hp::before,
 .card.card.enc-card .stat-hp::before, .card-inspect-modal .card.card .stat-hp::before,
 .trick-card.trick-card .stat-hp::before {
-  -webkit-clip-path: var(--stat-shield) !important;
-  clip-path: var(--stat-shield) !important;
+  /* NO CLIP AT ALL. Owner: "make the hp a circle not a shield." A polygon is
+     the wrong tool for a circle — clip-path can only approximate one with
+     enough vertices to fake the curve, and that is exactly the sampled-curve
+     fault the shield was built to escape ("looks handrawn i needs it
+     pristine"): whatever reads round at 44px reads as a wobble at 24. A
+     border-radius circle is resolution-independent and exact at every size.
+     SQUARE FIRST, THEN ROUND. `border-radius: 50%` on this box would give an
+     ELLIPSE — the box is --stat-h wide and 1.1547x that tall. The inset takes
+     (H - W)/2 off the top and bottom, which as a fraction of H is
+     (1.1547 - 1) / (2 x 1.1547) = 6.699%, leaving a square exactly W on a side
+     and centred in the box. Centred means the circle's centre IS the box
+     centre, which is where a flex-centred glyph already sits and where the
+     hexagon's centroid is — so the two digits stay level with no padding on
+     either mark, and the shield's whole 16.89%-flat-top construction (see the
+     note above, kept for the history) is no longer needed to achieve it.
+     The ring is a real border rather than an evenodd inner loop, for the same
+     reason: one uniform stroke, no miters to solve. */
+  -webkit-clip-path: none !important;
+  clip-path: none !important;
+  inset: 6.699% 0 !important;
+  background: transparent !important;
+  border: var(--cf-stroke) solid rgb(var(--cf-rgb)) !important;
+  border-radius: 50% !important;
+  box-sizing: border-box !important;
 }
 .card .stat-hp, .trick-card .stat-hp, .card.card .stat-hp,
 .card.card.draft-card .stat-hp, .card.card.enc-card .stat-hp,
