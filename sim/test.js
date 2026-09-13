@@ -6017,57 +6017,167 @@ test('The T-Rex clears the lane it lands in, and eats what cannot move', functio
 });
 
 test("Gargantua's pull re-reads a card's lane before moving it", function () {
-  // The fuzz found "duplicate id 8 on lane: Trigon + Trigon" — ONE object in
-  // two lanes at once. _doPull reads curLane at the top of each iteration and
-  // wrote `lanes[curLane] = null` several statements later, AFTER the two
-  // dealDamage calls of a collision. Those kill cards, which runs onDeath and
-  // onDamaged hooks, which can move the very card being pulled (a habitat
-  // release displacing it, a Hunt chase, a bounce). Nulling the stale index
-  // then leaves the card where it actually is AND writes it into the
-  // destination.
+  // The fuzz once found "duplicate id 8 on lane: Trigon + Trigon" — ONE object
+  // in two lanes at once. The pull reads curLane at the top of each iteration
+  // and writes `lanes[curLane] = null` several statements later, and the hooks
+  // it fires in between (onMoved, checkLaneTrap, and a weaken that can kill and
+  // cascade into onDeath) can move the very card being pulled. Nulling the
+  // stale index then leaves the card where it actually is AND writes it into
+  // the destination.
   //
-  // The window is BETWEEN the damage and the write, so the hook here fires
-  // from onDamaged — exactly where Open Water's displacement was firing when
-  // the fuzz caught it.
+  // The collision this originally exercised is gone with the rework, but the
+  // window is not: the pull still moves several cards and still fires hooks
+  // between them. Re-aimed at onMoved, which is now the hook inside the window.
   var G = freshGame();
   G.state.player.isHuman = false;
   var garg = G._placeEventEnvironment('player', 0, 'Gargantua');
   assert(garg, 'Gargantua is standing');
 
-  // An enemy standing in Gargantua's own lane — this is what makes the pulled
-  // card COLLIDE rather than simply step across.
-  // PLAIN BODIES, deliberately. The first draft used Nightwing and Trigon and
-  // neither branch ran: Nightwing has Evade so it dodged the killing blow, and
-  // Trigon has Immunity so it took no damage and its onDamaged never fired.
-  // Hulk and Apocalypse carry no keywords.
-  var occupant = place(G, 'Hulk', 'ai', 0);
-  // It needs a BITE as well as a low HP total: the collision deals damage both
-  // ways, and the victim's onDamaged is what fires inside the window. At 0
-  // attack the victim takes nothing and the hook never runs.
-  occupant.attack = 2; occupant.currentHealth = 1; occupant.maxHealth = 1;
+  // Two bodies to pull, so the loop runs a second iteration after the hook.
+  var mover = place(G, 'Apocalypse', 'ai', 2);
+  mover.attack = 9; mover.currentHealth = 9; mover.maxHealth = 9;
+  var second = place(G, 'Hulk', 'ai', 4);
+  second.attack = 2; second.currentHealth = 9; second.maxHealth = 9;
 
-  // The card that gets pulled into that collision, from the adjacent lane.
-  var victim = place(G, 'Apocalypse', 'ai', 1);
-  victim.attack = 9; victim.currentHealth = 9; victim.maxHealth = 9;
-
-  // Mid-collision, something relocates the victim — the displacement that a
-  // habitat release performs when the collision's deaths cascade into it.
-  victim.onDamaged = function (g, self) {
+  // Mid-pull, the card relocates ITSELF — the displacement a habitat release
+  // performs when a cascade reaches it.
+  mover.onMoved = function (g, self) {
     if (self._moved) return;
     self._moved = true;
     var from = g.findCardLane(self);
     if (from < 0) return;
     g.state.lanes[from].ai = null;
-    g.state.lanes[4].ai = self;
+    g.state.lanes[5].ai = self;
   };
 
-  CARD_ABILITIES['Gargantua']._doPull(G, garg);
+  CARD_ABILITIES['Gargantua']._pull(G, 0);
 
-  var seats = [];
+  [mover, second].forEach(function (c) {
+    var seats = [];
+    for (var i = 0; i < G.LANE_COUNT; i++) {
+      if (G.state.lanes[i].ai === c) seats.push(i);
+    }
+    assertEq(seats.length, 1, c.name + ' occupies exactly one lane, not ' + seats.length + ' (lanes ' + seats.join(',') + ')');
+  });
+});
+
+// ==================== GARGANTUA, REWORKED ====================
+// Owner: "theres 1 gargantua lane that spawns and theres no energy energy pay
+// for either player it wil pull cards in for 3 rounds, and pull them closer at
+// the start of the round like before, insted of fghting each other a card
+// pulled into the black hole 1st turn loses -3/-3 2nd turn dies thats all
+// simple."
+function gargBoard() {
+  var G = freshGame();
+  G.state.player.isHuman = false;
   for (var i = 0; i < G.LANE_COUNT; i++) {
-    if (G.state.lanes[i].ai === victim) seats.push(i);
+    G.state.lanes[i].player = null; G.state.lanes[i].ai = null;
+    G.state.lanes[i]._env = null; delete G.state.lanes[i]._gargRound;
   }
-  assertEq(seats.length, 1, 'the pulled card occupies exactly one lane, not ' + seats.length + ' (lanes ' + seats.join(',') + ')');
+  return G;
+}
+function gargTick(G, round) {
+  G.state.round = round;
+  var lane = null;
+  for (var i = 0; i < G.LANE_COUNT; i++) {
+    var l = G.state.lanes[i];
+    if (l._env && (l._env.player || l._env.ai)) { lane = l; break; }
+  }
+  if (!lane) return;
+  ['player', 'ai'].forEach(function (side) {
+    var e = lane._env[side];
+    if (e && e.onTurnStart) e.onTurnStart(G, e);
+  });
+  G.cleanupDead();
+}
+
+test('Gargantua takes ONE lane and seats both sides of it', function () {
+  var G = gargBoard();
+  var h = { shows: true, name: 'Gargantua', place: 'Gargantua', appearAt: 3, fired: false };
+  G.state.round = 3;
+  G._runHabitatEvent(h, 3);
+  assertEq(h.fired, true, 'it landed');
+  var lanes = {};
+  (h.seated || []).forEach(function (sp) { lanes[sp.lane] = (lanes[sp.lane] || 0) + 1; });
+  assertEq(Object.keys(lanes).length, 1, 'exactly one lane, not two');
+  assertEq(lanes[Object.keys(lanes)[0]], 2, 'and BOTH sides of it are the hole');
+  var L = G.state.lanes[+Object.keys(lanes)[0]];
+  assert(L._env && L._env.player && L._env.ai, 'both halves are actually seated');
+  // The second seat must not clear the first — that guard exists for one event
+  // REPLACING another, not for a lane-wide event seating itself.
+  assertEq(L._env.player.name, 'Gargantua', 'player half survived');
+  assertEq(L._env.ai.name, 'Gargantua', 'ai half survived');
+});
+
+test('Gargantua charges nobody — no upkeep prompt is raised', function () {
+  var G = gargBoard();
+  G._placeEventEnvironment('player', 2, 'Gargantua');
+  G._placeEventEnvironment('ai', 2, 'Gargantua', { keepOpposite: true });
+  G.state._pendingUpkeep = [];
+  gargTick(G, 1);
+  assertEq((G.state._pendingUpkeep || []).length, 0,
+    'the black hole is weather, not a purchase — nothing to pay');
+  // …and the card text no longer promises one.
+  var d = cardByName('Gargantua').desc;
+  assert(d.indexOf('Pay') < 0, 'the desc does not ask for Energy');
+  assert(d.indexOf('collides') < 0, 'and no longer describes the old collision');
+});
+
+test('Gargantua pulls BOTH sides, one lane per round', function () {
+  var G = gargBoard();
+  G._placeEventEnvironment('player', 2, 'Gargantua');
+  G._placeEventEnvironment('ai', 2, 'Gargantua', { keepOpposite: true });
+  var mine = place(G, 'Hulk', 'player', 0);
+  mine.currentHealth = 9; mine.maxHealth = 9;
+  var theirs = place(G, 'Hulk', 'ai', 5);
+  theirs.currentHealth = 9; theirs.maxHealth = 9;
+  gargTick(G, 1);
+  assertEq(G.findCardLane(mine), 1, 'my card moved one lane closer');
+  assertEq(G.findCardLane(theirs), 4, "the opponent's card moved too — it belongs to neither side");
+  // ONE lane per round even though the hole is two instances. Without the round
+  // stamp both halves run and the board slides two lanes a round.
+  gargTick(G, 2);
+  assertEq(G.findCardLane(mine), 2, 'still one lane at a time');
+});
+
+test('Gargantua: (−3/−3) on the way in, destroyed the round after', function () {
+  var G = gargBoard();
+  G._placeEventEnvironment('player', 2, 'Gargantua');
+  G._placeEventEnvironment('ai', 2, 'Gargantua', { keepOpposite: true });
+  var c = place(G, 'King Shark', 'ai', 3);
+  c.attack = 4; c.baseAttack = 4;
+  c.currentHealth = 8; c.maxHealth = 8; c.baseHealth = 8;
+
+  gargTick(G, 1);                       // pulled from lane 4 into the hole
+  assertEq(G.findCardLane(c), 2, 'it is in the hole');
+  assertEq(c.attack, 1, 'ATK 4 - 3');
+  assertEq(c.currentHealth, 5, 'HP 8 - 3');
+  assertEq(!!c._gargHeld, true, 'and it is marked as held');
+
+  gargTick(G, 2);                       // second round inside
+  assertEq(c.currentHealth <= 0, true, 'crushed on the second round');
+  assertEq(G.findCardLane(c) < 0, true, 'and off the board');
+});
+
+test('Gargantua: a card dragged clear loses the hold', function () {
+  // The hold is a fact about standing in the hole, not a scar. Something else
+  // can move a card out (Magneto, Bifrost, a Hunt chase, a habitat release) —
+  // keeping the mark would destroy it the instant the pull dragged it back,
+  // skipping the weakened round it is owed.
+  var G = gargBoard();
+  G._placeEventEnvironment('player', 2, 'Gargantua');
+  G._placeEventEnvironment('ai', 2, 'Gargantua', { keepOpposite: true });
+  var c = place(G, 'King Shark', 'ai', 3);
+  c.attack = 6; c.baseAttack = 6;
+  c.currentHealth = 9; c.maxHealth = 9; c.baseHealth = 9;
+  gargTick(G, 1);
+  assertEq(!!c._gargHeld, true, 'held after being pulled in');
+  // Yanked out by something else.
+  G.state.lanes[2].ai = null;
+  G.state.lanes[5].ai = c;
+  gargTick(G, 2);
+  assertEq(!!c._gargHeld, false, 'the hold is released once it is clear');
+  assertEq(c.currentHealth > 0, true, 'and it was not crushed in absentia');
 });
 
 test('Events land on 3, 6, 9 — one per round, and never twice in a match', function () {

@@ -496,11 +496,11 @@ const CARD_DEFS = [
   { name: "Droideka", cost: 4, attack: 3, health: 4, type: "scifi",
     abilities: [],
     desc: "While Active: Alternates every round. Shields up (1st round on the field, 3rd, 5th…): Damage Immunity — takes no damage from any source. Shields down (2nd round, 4th…): deals double his ATK when he attacks." },
-  { name: "Gargantua", cost: 2, attack: 0, health: 1, type: "environment",
+  { name: "Gargantua", cost: 0, attack: 0, health: 1, type: "environment",
     _spawnOnly: true,
     isEnvironment: true,
     abilities: [],
-    desc: "Each Turn: Pay 1 Energy to pull all enemies 1 lane closer, or skip — Gargantua stays either way. An enemy pulled into this lane collides with the enemy already there — each deals its ATK to the other. If the occupant is destroyed, the pulled enemy takes the lane." },
+    desc: "While Active: At the start of each round, every card on the board is pulled 1 lane closer — no Energy, from either player. A card in this lane loses (−3/−3), and is destroyed if it is still here at the start of the next round." },
 
   // ==================== COST 6 ====================
   { name: "Hela", cost: 6, attack: 5, health: 6, type: "villain",

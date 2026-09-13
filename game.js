@@ -4923,20 +4923,22 @@ const Game = {
         : () => { this.state[owner].currency -= 1; };
       const payerIsHuman = payer ? !this._2v2SeatIsAI(payer) : this.isHuman(owner);
       // WHAT THE ENTRY WANTS SAID, NOT WHAT GARGANTUA WANTS SAID. Every string
-      // below was written when Gargantua was the only optional upkeep in the
-      // game, so a second one inherited his copy verbatim: the Enclosure's gate
-      // asked "Pay 1 Energy to pull all enemies 1 lane closer, or skip." The
-      // wording belongs to the card, with his as the default so nothing about
-      // him changes.
+      // THE DEFAULTS ARE GENERIC NOW. They used to be Gargantua's own copy —
+      // "Pay 1 Energy to pull all enemies 1 lane closer, or skip" — because he
+      // was the only optional upkeep in the game, and the second one to arrive
+      // inherited it verbatim and asked about a pull it does not have. Gargantua
+      // no longer charges a toll at all (he is weather, not a purchase), so
+      // leaving his wording here as the fallback would describe a mechanic that
+      // no longer exists to whatever asks next. Every caller states its own.
       const q = queue[idx];
       const payLabel   = q.payLabel   || 'Pay 1 Energy';
-      const payText    = q.payDesc    || ((optional ? 'Activate pull — ' : 'Keep ') + (label || card.name) + (optional ? ' pulls all enemies 1 lane closer.' : ' active.'));
+      const payText    = q.payDesc    || ((optional ? 'Activate ' : 'Keep ') + (label || card.name) + (optional ? '.' : ' active.'));
       const skipLabel  = q.skipLabel  || (optional ? 'Skip' : 'Let it Collapse');
       const skipText   = q.skipDesc   || (optional
-        ? 'No pull this round — ' + (label || card.name) + ' stays put.'
+        ? 'Nothing happens this round — ' + (label || card.name) + ' stays put.'
         : (label || card.name) + ' disappears — no energy spent.');
       const askText    = q.promptDesc || (optional
-        ? 'Pay 1 Energy to pull all enemies 1 lane closer, or skip.'
+        ? 'Pay 1 Energy to activate it this round, or skip.'
         : 'Pay 1 Energy to keep it active, or let it collapse.');
       if (!payerIsHuman) {
         // AI always auto-pays if it can afford. Correct for both optional
@@ -17636,6 +17638,8 @@ const Game = {
     try { this.cleanupDead(); } catch (e) {}
   },
 
+  _ONE_LANE_EVENTS: { 'Gargantua': true },
+
   _runHabitatEvent(h, roundNow) {
     const s = this.state;
     if (!h || h.fired || !h.shows) return;
@@ -17657,10 +17661,15 @@ const Game = {
       const l = this.state.lanes[i];
       return l && !l.destroyed && !(l._env && (l._env.player || l._env.ai));
     });
-    if (free.length < 2) {
+    // ONE LANE, BOTH SIDES — Gargantua only. Owner: "theres 1 gargantua lane
+    // that spawns". Every other habitat opens in two lanes, one side each; the
+    // black hole is a single lane that swallows from both directions, so it
+    // takes one lane and seats both halves of it.
+    const need = this._ONE_LANE_EVENTS[name] ? 1 : 2;
+    if (free.length < need) {
       if (!h.waited) {
         h.waited = true;
-        this.log(`[EVENT] ${name} is waiting — it needs two lanes clear of environments.`);
+        this.log(`[EVENT] ${name} is waiting — it needs ${need === 1 ? 'a lane' : 'two lanes'} clear of environments.`);
       }
       return;
     }
@@ -17675,9 +17684,15 @@ const Game = {
     // a habitat can wait several rounds for two clear lanes, and holding the
     // slot while it waited would have blocked every other event for nothing.
     this._eventSlotClaim(roundNow, name, 'hazard');
-    this._placeEventEnvironment('player', pick[0], name);
-    this._placeEventEnvironment('ai', pick[1], name);
-    h.seated = [{ lane: pick[0], owner: 'player' }, { lane: pick[1], owner: 'ai' }];
+    if (need === 1) {
+      this._placeEventEnvironment('player', pick[0], name);
+      this._placeEventEnvironment('ai', pick[0], name, { keepOpposite: true });
+      h.seated = [{ lane: pick[0], owner: 'player' }, { lane: pick[0], owner: 'ai' }];
+    } else {
+      this._placeEventEnvironment('player', pick[0], name);
+      this._placeEventEnvironment('ai', pick[1], name);
+      h.seated = [{ lane: pick[0], owner: 'player' }, { lane: pick[1], owner: 'ai' }];
+    }
     this._announceHabitatEvent(h, name, def);
   },
 
@@ -17685,7 +17700,7 @@ const Game = {
   // spending energy, no hand to remove it from and no discount to clear. It is
   // the same short sequence Jigsaw's rooms use — clear the lane, instance,
   // seat, announce, run On Play.
-  _placeEventEnvironment(owner, laneIdx, name) {
+  _placeEventEnvironment(owner, laneIdx, name, opts) {
     const def = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(d => d.name === name) : null;
     const lane = this.state.lanes[laneIdx];
     if (!def || !lane || lane.destroyed) return null;
@@ -17693,7 +17708,13 @@ const Game = {
     // Only one environment may be active per lane, from either side — kill any
     // existing one before seating so its effects are cleaned up rather than
     // left as a dead zombie still receiving broadcasts.
-    [owner, this.opponent(owner)].forEach(side => {
+    //
+    // `keepOpposite` is for an event that owns a WHOLE lane and seats both
+    // sides of it (Gargantua). The second call would otherwise clear the first
+    // one it just placed — the guard above is written for the normal case of
+    // one side replacing another event's.
+    const clearSides = (opts && opts.keepOpposite) ? [owner] : [owner, this.opponent(owner)];
+    clearSides.forEach(side => {
       const existing = lane._env[side];
       if (existing) {
         existing.currentHealth = 0;

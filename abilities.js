@@ -8480,105 +8480,145 @@ const CARD_ABILITIES = {
     // left under him to take with him.)
   },
 
+  // ==================== GARGANTUA ====================
+  // Owner: "theres 1 gargantua lane that spawns and theres no energy energy pay
+  // for either player it wil pull cards in for 3 rounds, and pull them closer at
+  // the start of the round like before, insted of fghting each other a card
+  // pulled into the black hole 1st turn loses -3/-3 2nd turn dies thats all
+  // simple."
+  //
+  // WHAT CHANGED, AND WHY EACH PIECE WENT:
+  //   · THE TOLL. It used to push an optional upkeep — "Pay 1 Energy to pull
+  //     all enemies 1 lane closer, or skip" — which made a board-wide hazard
+  //     into a purchase one side made. A black hole is weather; nobody buys it.
+  //   · WHOSE CARDS. It pulled only the OPPONENT's, because it was seated as a
+  //     player's environment. It is one lane belonging to neither side now, so
+  //     it pulls everything.
+  //   · THE COLLISION. A card arriving in the lane used to trade ATK with
+  //     whoever was standing there, with a whole branch for who takes the lane
+  //     afterwards. Replaced by the two-step the owner asked for: the hole
+  //     weakens, then it kills.
+  //
+  // ONE LANE, TWO INSTANCES. The event seats Gargantua on BOTH sides of its
+  // lane (see _ONE_LANE_EVENTS) so the whole lane reads as the hole, which
+  // means onTurnStart fires twice per round. The round stamp on the lane is
+  // what keeps that one event rather than two — without it the board is pulled
+  // two lanes a round and every card inside takes −6/−6.
   "Gargantua": {
     onTurnStart(G, self) {
-      const owner = self.owner;
       const laneIdx = G.findCardLane(self);
       if (laneIdx < 0) return;
-
+      const lane = G.state.lanes[laneIdx];
+      if (!lane) return;
+      const r = G.state.round | 0;
+      if (lane._gargRound === r) return;      // the other half already ran it
+      lane._gargRound = r;
       const AB = CARD_ABILITIES['Gargantua'];
-      // Optional upkeep: pay 1 to pull, skip to do nothing (no collapse).
-      if (!G.state._pendingUpkeep) G.state._pendingUpkeep = [];
-      G.state._pendingUpkeep.push({
-        card: self, owner, label: 'Gargantua',
-        onPay()    { AB._doPull(G, self); },
-        onDecline() { /* no pull this round — card stays */ },
+      // A CARD THAT GOT OUT IS OUT. The hold is a fact about standing in the
+      // hole, not a scar you carry — something else can move a card clear
+      // (Magneto, Bifrost, a Hunt chase, the Enclosure's release), and without
+      // this it would keep the mark and be destroyed the instant the pull
+      // dragged it back, skipping its weakened round.
+      for (let i = 0; i < G.LANE_COUNT; i++) {
+        if (i === laneIdx) continue;
+        ['player', 'ai'].forEach(side => {
+          const c = G.state.lanes[i][side];
+          if (c && c._gargHeld) delete c._gargHeld;
+        });
+      }
+      // CRUSH BEFORE PULL. A card marked last round dies at the top of this
+      // one; anything dragged in a moment later is marked, not killed, so it
+      // gets its full round of being weakened first. Run the other way round, a
+      // card pulled in would be marked and destroyed in the same breath.
+      AB._crush(G, laneIdx);
+      AB._pull(G, laneIdx);
+      if (typeof UI !== 'undefined' && UI.render) { try { UI.render(); } catch (e) {} }
+    },
+
+    // Everything standing in the hole, resolved in the order the owner gave:
+    // first round inside it loses (−3/−3), second round inside it is gone.
+    _crush(G, laneIdx) {
+      const lane = G.state.lanes[laneIdx];
+      if (!lane) return;
+      ['player', 'ai'].forEach(side => {
+        const c = lane[side];
+        if (!c || c.currentHealth <= 0 || c.isEnvironment) return;
+        if (c._gargHeld) {
+          G.log(`[GARGANTUA] ${c.name} is crushed by the singularity.`);
+          G.killCard(c, { name: 'Gargantua' });
+          return;
+        }
+        c._gargHeld = true;
+        G.log(`[GARGANTUA] ${c.name} is caught in the pull — (\u22123/\u22123).`);
+        // allowKill true: a card small enough to be finished by the weaken is
+        // finished by it, rather than sitting at 0 HP waiting a round for the
+        // crush to notice.
+        G.debuffCard(c, 3, 3, true, { name: 'Gargantua' });
       });
     },
 
-    _doPull(G, self) {
-      const owner = self.owner;
-      const laneIdx = G.findCardLane(self);
-      if (laneIdx < 0) return;
-      const opp = G.opponent(owner);
-
-      // Snapshot all enemy (non-environment) cards and their current lanes.
+    // One lane closer, both sides, no toll.
+    _pull(G, laneIdx) {
       const targets = [];
       for (let i = 0; i < G.LANE_COUNT; i++) {
-        const c = G.state.lanes[i][opp];
-        if (c && c.currentHealth > 0 && !c.isEnvironment) targets.push({ card: c, origLane: i });
+        if (i === laneIdx) continue;                       // already home
+        ['player', 'ai'].forEach(side => {
+          const c = G.state.lanes[i][side];
+          if (c && c.currentHealth > 0 && !c.isEnvironment) targets.push({ card: c, side: side, origLane: i });
+        });
       }
-      // Gravity-well vortex over Gargantua as the pull begins.
-      if (targets.length && typeof UI !== 'undefined' && UI._fxGargantuaPull) { try { UI._fxGargantuaPull(self); } catch (e) {} }
-
-      // Pull closest enemies first to chain moves without cascading conflicts.
+      if (!targets.length) return;
+      if (typeof UI !== 'undefined' && UI._fxGargantuaPull) {
+        try { UI._fxGargantuaPull(G.state.lanes[laneIdx]._env && (G.state.lanes[laneIdx]._env.player || G.state.lanes[laneIdx]._env.ai)); } catch (e) {}
+      }
+      // Closest first, so a card stepping into a lane the one ahead of it has
+      // just vacated is not blocked by a body that is about to move.
       targets.sort((a, b) => {
         const da = Math.abs(a.origLane - laneIdx);
         const db = Math.abs(b.origLane - laneIdx);
         return da !== db ? da - db : a.origLane - b.origLane;
       });
 
-      for (const { card } of targets) {
-        if (card.currentHealth <= 0) continue;
+      targets.forEach(t => {
+        const card = t.card, side = t.side;
+        if (card.currentHealth <= 0) return;
         const curLane = G.findCardLane(card);
-        if (curLane < 0 || curLane === laneIdx) continue;
-
+        if (curLane < 0 || curLane === laneIdx) return;
         const dir = laneIdx > curLane ? 1 : -1;
         const targetLane = curLane + dir;
-        // A destroyed (voided) lane blocks the pull — there is no lane to
-        // stand in for its remaining rounds, so the card holds position.
-        // User report: Gargantua dragged a Doombot into an Anti-Life void.
-        if (G.state.lanes[targetLane] && G.state.lanes[targetLane].destroyed) {
+        const dest = G.state.lanes[targetLane];
+        // A destroyed (voided) lane blocks the pull — there is no lane to stand
+        // in for its remaining rounds, so the card holds position. (User
+        // report: Gargantua dragged a Doombot into an Anti-Life void.)
+        if (dest && dest.destroyed) {
           G.log(`[GARGANTUA] ${card.name} braces against the void in lane ${targetLane + 1} — the pull fails.`);
-          continue;
+          return;
         }
-        const occupant = G.state.lanes[targetLane][opp];
-
-        if (targetLane === laneIdx && occupant && occupant.currentHealth > 0) {
-          // Pulled card enters the Gargantua lane where an enemy already stands.
-          const existingAtk = occupant.attack || 0;
-          const pulledAtk   = card.attack || 0;
-          G.log(`[GARGANTUA] ${card.name} is pulled into lane ${laneIdx + 1} — COLLISION with ${occupant.name}!`);
-          G.dealDamage(occupant, pulledAtk, card);
-          G.dealDamage(card,     existingAtk, occupant);
-
-          if (occupant.currentHealth <= 0 && card.currentHealth > 0) {
-            // Occupant was destroyed; pulled card takes the lane.
-            // CLEAR BY IDENTITY, FROM A FRESH READ. curLane was taken at the
-            // top of this iteration, BEFORE the two dealDamage calls above —
-            // and those kill cards, which runs onDeath hooks, which can move
-            // this very card (a habitat release displacing it, a Hunt chase, a
-            // bounce). Nulling the stale index then leaves the card where it
-            // actually is AND writes it into laneIdx: one object, two lanes.
-            // Caught in the fuzz as "duplicate id 8 on lane: Trigon + Trigon",
-            // after Open Water's Jaws had displaced Trigon mid-pull.
-            const nowA = G.findCardLane(card);
-            if (nowA >= 0 && G.state.lanes[nowA][opp] === card) G.state.lanes[nowA][opp] = null;
-            G.state.lanes[laneIdx][opp]    = card;
-            G.log(`[GARGANTUA] ${card.name} takes lane ${laneIdx + 1}!`);
-            G.checkLaneTrap(card, laneIdx);
-            if (card.onMoved) card.onMoved(G, card, laneIdx);
-          } else if (card.currentHealth > 0) {
-            G.log(`[GARGANTUA] ${card.name} is repelled — both cards survive the collision.`);
-          }
-        } else if (!occupant || occupant.currentHealth <= 0) {
-          // Target lane is clear — pull the card one step toward Gargantua.
-          // Same fresh-read-and-match rule as the collision branch above: this
-          // loop moves several cards and fires hooks between them, so the index
-          // read at the top of the iteration cannot be trusted at the write.
-          const nowB = G.findCardLane(card);
-          if (nowB >= 0 && G.state.lanes[nowB][opp] === card) G.state.lanes[nowB][opp] = null;
-          G.state.lanes[targetLane][opp]  = card;
-          G.log(`[GARGANTUA] ${card.name} pulled from lane ${curLane + 1} → lane ${targetLane + 1}.`);
-          G.checkLaneTrap(card, targetLane);
-          if (card.onMoved) card.onMoved(G, card, targetLane);
-        } else {
-          // Another enemy already occupies the intermediate lane — card is blocked.
+        const occupant = dest && dest[side];
+        if (occupant && occupant.currentHealth > 0) {
           G.log(`[GARGANTUA] ${card.name} is blocked — lane ${targetLane + 1} is occupied.`);
+          return;
         }
-      }
-
-      if (typeof UI !== 'undefined' && UI.render) { try { UI.render(); } catch (e) {} }
+        // CLEAR BY IDENTITY, FROM A FRESH READ. curLane was taken at the top of
+        // this iteration, and the hooks fired between moves (a habitat release
+        // displacing a card, a Hunt chase, a bounce) can move THIS card. Nulling
+        // a stale index leaves the card where it actually is AND writes it into
+        // the destination: one object, two lanes. Caught in the fuzz once as
+        // "duplicate id 8 on lane: Trigon + Trigon".
+        const now = G.findCardLane(card);
+        if (now >= 0 && G.state.lanes[now][side] === card) G.state.lanes[now][side] = null;
+        dest[side] = card;
+        G.log(`[GARGANTUA] ${card.name} pulled from lane ${curLane + 1} \u2192 lane ${targetLane + 1}.`);
+        G.checkLaneTrap(card, targetLane);
+        if (card.onMoved) card.onMoved(G, card, targetLane);
+        // ARRIVED IN THE HOLE THIS ROUND. Weakened now, marked so the next
+        // round's crush finds it — its "1st turn" is the turn it lands.
+        if (targetLane === laneIdx && card.currentHealth > 0 && !card._gargHeld) {
+          card._gargHeld = true;
+          G.log(`[GARGANTUA] ${card.name} is caught in the pull — (\u22123/\u22123).`);
+          G.debuffCard(card, 3, 3, true, { name: 'Gargantua' });
+        }
+      });
     },
   },
 };
