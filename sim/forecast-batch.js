@@ -147,6 +147,56 @@ t('FB-7 the follow loop that makes this hot is still there', function () {
 });
 
 // ---- run ----------------------------------------------------
+// ============================================================
+// FB-SWING — THE FACE-DAMAGE SURFACES ASK THE PREDICTOR, NOT THE BOARD.
+//
+// Owner, on a live board printing a red 4 under lane 2: "im not taking 4
+// because harley splashes killing micheal" — Harley's Splash 1 reached the
+// next lane and finished a 1-HP Michael Myers before he ever swung. The engine
+// had this right all along (sim/golden.js SWING-1/2); the STRIP did not,
+// because laneFaceDamage only ever asked "is this attacker alive right now",
+// which is a question about the board as it stands rather than about the fight
+// that is about to happen — and it looked at one lane, so a cross-lane splash
+// was invisible to it by construction.
+//
+// Three separate face-damage models existed. Two of them are pinned here; the
+// third (predictCombatGlobal) is pinned by sim/snapshots.js GS-SWING1..4.
+var _lfd = decomment(methodBody('laneFaceDamage'));
+var _rts = decomment(methodBody('refreshThreatSignals'));
+
+t('FB-SWING1 laneFaceDamage exists and consults the global predictor', function () {
+  eq('found the method', _lfd.length > 100, true);
+  eq('reads the forecast', /_combatPred\(\)/.test(_lfd), true);
+  eq('gates on swings',    /swings === false/.test(_lfd), true);
+});
+
+t('FB-SWING2 the threat signals read the same helper, not a third model', function () {
+  eq('found the method', _rts.length > 400, true);
+  eq('calls laneFaceDamage', /this\.laneFaceDamage\(/.test(_rts), true);
+  // The old copy hand-rolled its own unblocked test off ai.attack. If that
+  // comes back, the lane glow and the LETHAL warning can disagree with the
+  // strip printed directly beneath them about the very same lane.
+  eq('no hand-rolled unblocked branch',
+     !/faceDamage = aiAtk;[\s\S]{0,40}\}\s*$/.test(_rts.split('hasBullseye')[0] || ''), true);
+});
+
+t('FB-SWING3 splash is never counted against the health bar', function () {
+  // applySplash (game.js) only ever calls dealDamage on a CARD in an adjacent
+  // lane — never damagePlayer. The strip was corrected for this years-old
+  // assumption ("splash doesnt do damge to the healthbar so -10 is wrong it
+  // shoudl be -6"); refreshThreatSignals still carried it and invented LETHAL
+  // warnings out of damage that cannot land.
+  eq('no splashFace term', /splashFace/.test(_rts), false);
+  eq('no splash added to the incoming total', /splashRange\s*-\s*playerArmor/.test(_rts), false);
+});
+
+t('FB-SWING4 one door to the forecast, with a write-back', function () {
+  var acc = decomment(methodBody('_combatPred'));
+  eq('the accessor exists', acc.length > 40, true);
+  eq('it reuses the per-render cache', /_combatPredCache/.test(acc), true);
+  eq('and caches what it computes', /this\._combatPredCache = pred/.test(acc), true);
+});
+
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];
   try { c.fn(); } catch (e) {

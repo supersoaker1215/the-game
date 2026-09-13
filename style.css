@@ -48927,10 +48927,19 @@ body.decision-column:not(.board-v2) .trick-reveal .trick-reveal-card {
    =========================================================================== */
 body.decision-column:not(.board-v2) .ai-trick-toast {
   top: auto;
-  /* The BOARD's bottom edge, not the screen's. Everything below the board runs
-     the full width, so a toast anchored to the viewport floor clears the lanes
-     and lands on the trick cards instead. */
-  bottom: calc(100vh - var(--decision-bottom, 665px) + 10px);
+  /* THE MIDLINE, NOT THE FLOOR (2026-09-12). Owner: "not ebeoigh energy should
+     be on top just half and half." It sat on the board's bottom edge, which put
+     a CANNOT PLAY warning as far from the card you just tried to play as the
+     column allows, and — now that the events rail owns the lower half — inside
+     the events group rather than with the decisions it belongs to.
+
+     Anchored to the halfway point between the board's own top and bottom, so it
+     rests ON the split: last thing in the decision half, directly above the
+     first row of the rail. Still the two numbers the layout solver publishes,
+     so it cannot drift out of step with the board or with the rail beneath it,
+     and it still grows UPWARDS into the empty middle instead of pushing
+     anything. */
+  bottom: calc(100vh - (var(--decision-top, 90px) + var(--decision-bottom, 665px)) / 2 + 6px);
   left: auto;
   right: var(--decision-inset, 10px);
   width: var(--decision-w, 289px);
@@ -50798,6 +50807,39 @@ body.in-match:not(.board-v2) .board {
 #right-col > .shadow-tracker    { flex: 0 0 auto; }
 #right-col > .trick-reveal,
 #right-col > #event-rail        { flex: 0 1 auto; min-height: 0; }
+
+/* ---- HALF AND HALF: DECISIONS UP, EVENTS DOWN (2026-09-12) ---------------
+   Owner: "events need to be lower becaue all decisions are upper, like not
+   ebeoigh energy should be on top just half and half."
+
+   The column already ordered its four occupants correctly; what it did not do
+   was SEPARATE them. With no decision open the rail was the only flow child,
+   so it sat at the very top of the gutter — directly beside the enemy's front
+   row — and a notice fired 500px below it at the board's bottom edge. Two
+   different kinds of information, interleaved by whatever happened to be
+   mounted, with the whole middle of the column empty.
+
+   `margin-top: auto` is what makes the split real: it eats ALL the free space
+   above the rail, so the events group lands on the floor of the column whether
+   it is sharing with a decision, a reveal, both, or nothing at all. No measured
+   offset, nothing to keep in step with the panels above it.
+
+   The rail's cap is a cap, not a size — it is a scrolling list, so a long one
+   stops at the midline rather than climbing into the decision half. The
+   scoreboard, when opened, is deliberately allowed past it: it is a panel the
+   player asked for and it keeps the `flex: 0 0 auto` that stops it shrinking
+   into two unreadable rows. */
+#right-col > #event-rail {
+  margin-top: auto;
+  max-height: 50%;
+}
+/* And the decision half is the other half. The panel's own 262px floor wins
+   over this on a short column — which is correct and is why it is written as a
+   max: the thing you have to answer is never the thing that gives. */
+#right-col > #classic-decision,
+#right-col > .trick-reveal {
+  max-height: 50%;
+}
 
 /* ---- a little smaller, throughout ---------------------------------------- */
 #right-col > .cog-panel { padding: 8px 9px 9px !important; font-size: 92%; }

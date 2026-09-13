@@ -855,6 +855,53 @@ gold('RG-13b outside a cascade summonCardChoice keeps its normal path', function
 });
 
 // ============================================================
+// SWING — THE ENGINE HAS ALWAYS KILLED HIM FIRST. The forecast had not.
+//
+// Owner, on a live board printing a red 4 under lane 2: "im not taking 4
+// because harley splashes killing micheal".
+//
+// Real cards, the owner's board: lane 1 Harley Quinn 3/2 (Splash 1) vs Poison
+// Ivy 1/3, lane 2 EMPTY vs Michael Myers 4/1. resolveCombat walks lanes left to
+// right and calls cleanupDead() + re-reads pLive/aLive at the top of each one
+// (game.js:7379), so Harley's splash finishes Michael during lane 1 and lane 2
+// finds an empty board.
+//
+// This pins the RESOLUTION so the number the strip now prints has something to
+// be right ABOUT. sim/snapshots.js GS-SWING1..4 pin the forecast of the same
+// board. Unlike the Hawkeye pair, only the forecast was ever wrong here — which
+// is its own lesson: a correct engine does not make a second model correct, and
+// nothing was checking the two against each other.
+gold('SWING-1 Harley splashes Michael dead — the 4 never lands', function () {
+  reset();
+  place(goldReal('Harley Quinn', 'player', 3, 2), 0, 'player');
+  place(goldReal('Poison Ivy',   'ai',     1, 3), 0, 'ai');
+  var mike = place(goldReal('Michael Myers', 'ai', 4, 1), 1, 'ai');
+  Game.state.player.health = 21;
+
+  // The forecast agrees he never swings...
+  var pred = Game.predictCombatGlobal().byId.get(mike.id);
+  eq('forecast.swings', pred.swings, false);
+
+  Game.resolveCombat();
+  eq('michael removed', !Game.state.lanes[1].ai || Game.state.lanes[1].ai.currentHealth <= 0, true);
+  // ...and the HP bar agrees with the forecast. The 1 that DOES come off is
+  // Harley's own Crazy drawback ("Deal 1 damage to your own HP before
+  // attacking"), which is a self-inflicted cost and not lane face damage —
+  // 21 - 1, not 21 - 1 - 4.
+  eq('player.health', Game.state.player.health, 20);
+});
+
+gold('SWING-2 control: no Harley, and the same Michael takes 4 off the bar', function () {
+  reset();
+  place(goldReal('Michael Myers', 'ai', 4, 1), 1, 'ai');
+  Game.state.player.health = 21;
+  var pred = Game.predictCombatGlobal().byId.get(Game.state.lanes[1].ai.id);
+  eq('forecast.swings', pred.swings, true);
+  Game.resolveCombat();
+  eq('player.health', Game.state.player.health, 17);
+});
+
+// ============================================================
 // RUNNER
 // ============================================================
 for (var ci = 0; ci < __cases.length; ci++) {

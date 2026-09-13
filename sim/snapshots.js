@@ -695,6 +695,85 @@ snap('GS-HAWK2 the strip cannot take a 0-ATK card below zero', function () {
   assertEquals('mine.dies',      predOf(r, mine.id).dies,      false);
 });
 
+// ============================================================
+// GS-SWING — A CARD THAT IS ALREADY DEAD WHEN ITS LANE COMES UP SWINGS AT
+// NOTHING, and `dies` is not the flag that tells you so.
+//
+// Owner, on a live board printing a red 4 under lane 2: "im not taking 4
+// because harley splashes killing micheal".
+//
+// The board: lane 1 Harley Quinn 3/2 (Splash 1) vs Poison Ivy 1/3; lane 2
+// EMPTY vs Michael Myers 4/1. Harley's splash reaches lane 2 and finishes a
+// 1-HP Michael. The resolver calls cleanupDead() and re-reads pLive/aLive at
+// the TOP OF EVERY LANE (game.js:7379), so by the time lane 2 comes up Michael
+// is gone — the player takes 0, and the engine always did this correctly.
+//
+// The lane forecast strip (UI.laneFaceDamage) was a SECOND face-damage model
+// that only ever asked "is this attacker alive right now", which is a question
+// about the board as it stands and not about the fight that is about to
+// happen. It could not see a cross-lane splash because it only ever looked at
+// one lane.
+//
+// THE TRAP, and the reason `swings` exists rather than a one-line
+// `if (dies) return 0`: lanes resolve LEFT TO RIGHT, so a splash from an
+// EARLIER lane lands before the victim swings and a splash from a LATER lane
+// lands after it already has. `dies` is the end-of-combat verdict and cannot
+// tell those two apart — GS-SWING2 is the case that a `dies` check gets
+// exactly backwards.
+snap('GS-SWING1 splashed dead by an EARLIER lane — never swings', function () {
+  reset();
+  // lane 1 (index 0)
+  place(makeCard({ owner: 'player', name: 'Harley Quinn', attack: 3,
+    currentHealth: 2, maxHealth: 2, splashRange: 1 }), 0);
+  place(makeCard({ owner: 'ai', name: 'Poison Ivy', attack: 1,
+    currentHealth: 3, maxHealth: 3 }), 0);
+  // lane 2 (index 1) — uncontested, so he would hit the face for 4
+  var mike = place(makeCard({ owner: 'ai', name: 'Michael Myers', attack: 4,
+    currentHealth: 1, maxHealth: 4 }), 1);
+
+  var m = predOf(Game.predictCombatGlobal(), mike.id);
+  assertEquals('michael.dies',   m.dies,   true);
+  assertEquals('michael.swings', m.swings, false);   // THE POINT
+});
+
+snap('GS-SWING2 splashed dead by a LATER lane — he swings first', function () {
+  reset();
+  // lane 2 (index 1) — uncontested Michael, resolves BEFORE lane 3
+  var mike = place(makeCard({ owner: 'ai', name: 'Michael Myers', attack: 4,
+    currentHealth: 1, maxHealth: 4 }), 1);
+  // lane 3 (index 2) — the splasher is to his RIGHT, so it lands too late
+  place(makeCard({ owner: 'player', name: 'Harley Quinn', attack: 3,
+    currentHealth: 2, maxHealth: 2, splashRange: 1 }), 2);
+
+  var m = predOf(Game.predictCombatGlobal(), mike.id);
+  assertEquals('michael.dies',   m.dies,   true);    // same verdict as GS-SWING1
+  assertEquals('michael.swings', m.swings, true);    // opposite answer
+});
+
+snap('GS-SWING3 nothing reaches him — he swings, and the 4 is real', function () {
+  reset();
+  var mike = place(makeCard({ owner: 'ai', name: 'Michael Myers', attack: 4,
+    currentHealth: 1, maxHealth: 4 }), 1);
+  var m = predOf(Game.predictCombatGlobal(), mike.id);
+  assertEquals('michael.dies',   m.dies,   false);
+  assertEquals('michael.swings', m.swings, true);
+});
+
+snap('GS-SWING4 a card that trades in its OWN lane still swung', function () {
+  reset();
+  // Both die in the exchange. Neither was dead when the lane came up, so both
+  // dealt their damage — the classic trade. If `swings` were computed from the
+  // end state this would read false for both and every trade would silently
+  // stop reporting.
+  var p = place(makeCard({ owner: 'player', attack: 5, currentHealth: 2, maxHealth: 2 }), 3);
+  var a = place(makeCard({ owner: 'ai',     attack: 5, currentHealth: 2, maxHealth: 2 }), 3);
+  var r = Game.predictCombatGlobal();
+  assertEquals('player.dies',   predOf(r, p.id).dies,   true);
+  assertEquals('player.swings', predOf(r, p.id).swings, true);
+  assertEquals('ai.dies',       predOf(r, a.id).dies,   true);
+  assertEquals('ai.swings',     predOf(r, a.id).swings, true);
+});
+
 // ---- RUNNER -----------------------------------------------
 // ============================================================
 

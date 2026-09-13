@@ -19619,6 +19619,12 @@ const Game = {
             // forecast. Held on the snapshot rather than the card because the
             // predictor must not mutate live state. See the cone below.
             atkPenalty: 0,
+            // DID THIS CARD LIVE LONG ENOUGH TO SWING AT ALL? Set in the lane
+            // loop below, at the exact moment this card's own lane comes up.
+            // Optimistic default: a card the loop never reaches (destroyed
+            // lane) is reported as swinging, so a fault here can only ever
+            // over-warn the player, never hide real damage from them.
+            swings: true,
           });
         }
       });
@@ -19725,6 +19731,16 @@ const Game = {
       // stun/freeze/fear/mind-control gate, so those cards still don't splash
       // (matches the predictor's prior approximation); +ATK>0 (a 0-ATK card
       // never swings — resolveLaneCombat:4664).
+      // ALIVE WHEN ITS OWN LANE COMES UP — the one fact only this loop knows.
+      // The resolver calls cleanupDead() and re-reads pLive/aLive at the top of
+      // EVERY lane (game.js:7379), so a card killed by an earlier lane's splash
+      // is gone before it ever swings, while a card killed by a LATER lane's
+      // splash has already swung. `dies` cannot tell those apart — it is the
+      // end-of-combat verdict. This flag is read at the right instant, and it
+      // is what the face-damage surfaces need: owner, on a live board, "im not
+      // taking 4 because harley splashes killing micheal".
+      if (pSnap) pSnap.swings = pSnap.hp > 0;
+      if (aSnap) aSnap.swings = aSnap.hp > 0;
       const pCanSplash = !!(pSnap && pSnap.hp > 0 && canHitEnemy(p));
       const aCanSplash = !!(aSnap && aSnap.hp > 0 && canHitEnemy(a));
       const pCanAttack = pCanSplash && (p.attack | 0) > 0;
@@ -19829,6 +19845,10 @@ const Game = {
         hpAfter: Math.max(0, s.hp),
         dmgIn: s.dmgIn,
         dies: s.hp <= 0,
+        // `dies` is the end-of-combat verdict; `swings` is whether it was still
+        // standing when its own lane resolved. A card can do both (it swung,
+        // then a later lane's splash finished it) or neither.
+        swings: s.swings !== false,
       });
     });
     return { byId: out };

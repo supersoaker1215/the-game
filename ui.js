@@ -8393,13 +8393,26 @@ const UI = {
       const player = lane.player;
       const aiAtk = Math.max(0, ai.attack || 0);
       // How much of this lane's AI ATK reaches the face?
-      let faceDamage = 0;
+      // ONE SOURCE. This used to be a third hand-rolled face-damage model,
+      // standing alongside laneFaceDamage (the strip + the lane shading) and
+      // the global predictor — and it was the copy that had drifted furthest.
+      // It knew nothing about an attacker dying to an adjacent splash before
+      // its lane resolved, so it lit the lane red and counted the damage
+      // towards a LETHAL warning for a card that never swings.
       const hasBullseye = ai.hasBullseye || (ai.statusBadges && ai.statusBadges.includes('bullseye'));
-      if (!player || player.currentHealth <= 0 || hasBullseye) {
-        // Unblocked OR bypassed by Bullseye → the full ATK reaches the face.
-        faceDamage = aiAtk;
+      // laneFaceDamage covers the unblocked case, every status gate, Critical
+      // via _cardEffectiveAtk, and the ordering. Bullseye is the one thing it
+      // does not model (it is about reaching PAST a live blocker, which that
+      // helper answers "0" for by design), so it stays here — still gated on
+      // the same swing check, since a dead Bullseye card swings at nothing
+      // either.
+      let faceDamage = this.laneFaceDamage(s, i, 'ai');
+      if (faceDamage === 0 && hasBullseye && player && player.currentHealth > 0) {
+        const pr = this._combatPred();
+        const mine = pr && pr.byId && pr.byId.get(ai.id);
+        if (!mine || mine.swings !== false) faceDamage = aiAtk;
       }
-      // else: a living, non-Bullseye blocker eats the ENTIRE hit. There is NO
+      // A living, non-Bullseye blocker eats the ENTIRE hit. There is NO
       // trample — the combat resolver (applyCombatDamage) only damages the
       // blocker and wastes any excess; Bullseye / Overdrive are the dedicated
       // ways to reach the face through a blocker. This branch previously
@@ -8415,22 +8428,16 @@ const UI = {
       if (playerInvincible) {
         faceDamage = 0;
       }
-      // Splash damage: if AI has splash, the splash hits the player
-      // FACE adjacent to this lane only if that adjacent lane is
-      // empty (no blocker). Worst-case approximation.
-      let splashFace = 0;
-      const splashRange = Game.effectiveSplash ? Game.effectiveSplash(ai) : (ai.splashRange || 0);
-      if (splashRange > 0 && !playerInvincible) {
-        const adjLanes = [i - 1, i + 1].filter(j => j >= 0 && j < 6);
-        for (const j of adjLanes) {
-          const adjLane = s.lanes[j];
-          if (!adjLane || adjLane.destroyed) continue;
-          if (!adjLane.player || adjLane.player.currentHealth <= 0) {
-            splashFace += Math.max(0, splashRange - playerArmor);
-          }
-        }
-      }
-      const laneFaceTotal = faceDamage + splashFace;
+      // SPLASH NEVER TOUCHES THE HEALTH BAR. This used to add splashRange to
+      // the incoming total for every adjacent EMPTY lane, on the theory that
+      // splash "reaches the face" where no blocker stands. It does not:
+      // applySplash (game.js:8655) only ever calls dealDamage on a CARD in an
+      // adjacent lane, and never damagePlayer — a splasher facing three empty
+      // lanes puts exactly its ATK on the bar. The lane strip was corrected for
+      // this already ("splash doesnt do damge to the healthbar so -10 is wrong
+      // it shoudl be -6"); this copy was not, so the two surfaces disagreed and
+      // this one invented lethal warnings out of damage that cannot land.
+      const laneFaceTotal = faceDamage;
       if (laneFaceTotal > 0) {
         totalIncoming += laneFaceTotal;
         // Record breakdown — Lane N: ai.name (math): total
@@ -8440,7 +8447,6 @@ const UI = {
         } else {
           math += ' unblocked';
         }
-        if (splashFace > 0) math += ` + splash ${splashFace}`;
         if (playerArmor > 0 && faceDamage > 0) math += ` (after armor ${playerArmor})`;
         this._threatBreakdown.push(`  Lane ${i+1}: ${ai.name} → ${laneFaceTotal} (${math})`);
         let tier = 1;
@@ -30186,7 +30192,23 @@ const UI = {
     this._eventRailGone = this._eventRailGone.filter(g => (round - g.round) < 1);
     this._eventRailPrev = model.map(e => ({ id: e.id, name: e.name, type: e.type }));
 
-    if (!model.length && !this._eventRailGone.length) { if (rail) rail.remove(); return; }
+    // THE TAB IS PART OF THE BOARD, NOT A THING EVENTS BRING WITH THEM.
+    // Owner: "the event tab should be visable at round 1". It was not: with no
+    // event yet ACTIVE the rail was removed outright, so in a normal round 1 the
+    // column's lower half was simply empty and the tab appeared out of nowhere
+    // on whatever round the first event landed — the layout jumped, and there
+    // was nowhere to look to find out what was coming.
+    //
+    // An UP NEXT row is real content — it is the whole hand-off feature below —
+    // so it keeps the rail alive on its own. Resolved HERE rather than at its
+    // old spot further down, because a gate that runs before the thing it ought
+    // to be gating on is how this went wrong in the first place. A mode with no
+    // events at all still gets no rail, which is correct: an empty EVENTS tab
+    // in a mode that has none is furniture.
+    let upNext = null;
+    try { upNext = (typeof Game !== 'undefined' && Game.eventUpNext) ? Game.eventUpNext() : null; } catch (e) { upNext = null; }
+    const hasUpNext = !!(upNext && upNext.inRounds >= 0);
+    if (!model.length && !this._eventRailGone.length && !hasUpNext) { if (rail) rail.remove(); return; }
     if (!rail) {
       rail = document.createElement('aside');
       rail.id = 'event-rail';
@@ -30274,9 +30296,8 @@ const UI = {
     // one that was waiting takes its place. Rendered as a real row in the same
     // three-part grammar — dimmed, and with the clock reading "in N" instead
     // of "N left" — so when it is promoted nothing about it moves except its
-    // weight.
-    let upNext = null;
-    try { upNext = (typeof Game !== 'undefined' && Game.eventUpNext) ? Game.eventUpNext() : null; } catch (e) { upNext = null; }
+    // weight. `upNext` itself is resolved up at the removal gate — the rail has
+    // to stay mounted FOR this row, so the gate is the one place that can ask.
     // `>= 0`, not `> 0`, and that is the seam this whole feature is about. At
     // inRounds 0 the event is DUE this round but has not claimed the slot yet
     // (the engine fires it on the round tick). Dropping the row at 0 made it
@@ -30503,6 +30524,20 @@ const UI = {
   // only reaches the face when the OPPOSING slot is empty, so at most one of
   // laneFaceDamage(s,i,'ai') and laneFaceDamage(s,i,'player') is ever non-zero.
   // That is what lets the lane shade both directions from a single pseudo.
+  // THE ONE DOOR to the combat forecast. Four call sites had each grown their
+  // own "use the cache, else compute" lines, and two of them forgot the
+  // write-back — so a cold cache meant one predictor run per lane per side.
+  // Populated up-front by render(); this is the fallback for everything that
+  // can run outside a render pass.
+  _combatPred() {
+    if (this._combatPredCache && this._combatPredCache.byId) return this._combatPredCache;
+    if (typeof Game === 'undefined' || typeof Game.predictCombatGlobal !== 'function') return null;
+    let pred = null;
+    try { pred = Game.predictCombatGlobal(); } catch (e) { pred = null; }
+    this._combatPredCache = pred;
+    return pred;
+  },
+
   laneFaceDamage(s, laneIdx, side) {
     const lane = s && s.lanes && s.lanes[laneIdx];
     if (!lane || lane.destroyed) return 0;
@@ -30515,6 +30550,18 @@ const UI = {
     // own allies (no face damage). Mind-controlled → swings for the
     // opponent (also no face damage in your direction).
     if (me.isStunned || me.isFrozen || me.isFeared || me.isMindControlled) return 0;
+    // AND IT HAS TO BE ALIVE WHEN ITS LANE COMES UP. Everything above asks
+    // about the board as it stands RIGHT NOW; none of it asks whether this
+    // attacker survives long enough to take the swing. An adjacent splasher
+    // that kills it first is a cross-lane fact, and the global predictor is the
+    // only thing in the codebase that resolves lanes in order, so it is the
+    // only thing that can answer. Owner, on a live board printing a red 4:
+    // "im not taking 4 because harley splashes killing micheal" — Harley's
+    // Splash 1 reached the next lane and finished a 1-HP Michael Myers before
+    // he ever swung, and the resolver agreed: the player took 0.
+    const pred = this._combatPred();
+    const mine = pred && pred.byId && pred.byId.get(me.id);
+    if (mine && mine.swings === false) return 0;
     // Same crit blindness the hover pill had — this number drives the lane
     // strip's face-damage readout AND the lane shading, so a Critical attacker
     // under-reported in both.

@@ -746,4 +746,27 @@ window.CARD_ART_ACCENT_OVERRIDE = {
   // red at all — so the sampler returns a pink highlight. This is the red the
   // SAME generator derived from 'Iron Man.png', his own painting.
   'Iron Man':             '240,53,57',
+
+  // SPIDER-MAN — owner: "spiderman red".
+  //
+  // The generator had him at 238,128,33: ORANGE. 'Spider-Man 3.jpg' is lit
+  // warm from behind, and that lighting outvoted the suit — the same saliency
+  // failure that made Carnage blue and the Green Goblin red. His red is not
+  // scarce the way Superman's is: it is 17.0% of the painting at hue 358.9 deg.
+  //
+  // AND art_vivid IS THE WRONG SAMPLER FOR A PURE RED, which is new. Its top
+  // quartile plus the 1.15x saturation push returns 255,14,12 — faithful to the
+  // pigment and unusable as a line, because red carries only 21% of Rec.709
+  // luma, so driving green and blue to zero takes the whole border down to
+  // luma 65. That would be the DARKEST border in this file by 28 points; the
+  // next darkest is Iron Man at 93. The luma-125 floor art_vivid holds every
+  // other border to is not reachable by a saturated red at all — pure red maxes
+  // out at 54 — which is why it silently bailed out at v=1.0 instead of
+  // clamping.
+  //
+  // art_match — the chroma-weighted MEAN of the red family, same hue, the
+  // paint's own saturation — gives 255,49,49 at luma 92.8. That lands it
+  // exactly with the two pure reds already shipped and approved: Iron Man 93.0
+  // and Superman 97.3.
+  'Spider-Man':           '255,49,49',
 };
