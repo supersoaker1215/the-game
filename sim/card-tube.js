@@ -888,6 +888,59 @@ check('and the old fixed green is gone from it',
         'a trick carries no `card` class, so the .card 1em rule never matches one');
 })();
 
+// ---- a trick's rules panel is as black as a card's --------------------------
+// Owner: "why on tricks does the text glow from the picture, get rid of that
+// make them like the cards."
+//
+// TWO layers sat UNDER a trick's rules text — the one part of the card the
+// portrait does not cover, so anything painted on the card body shows through
+// there and reads as the picture bleeding into the rules.
+//   1. a SECOND sheen, older than both the full-bleed art and .pt-shine,
+//      stamped on the card's own background-image with hover alphas of
+//      0.30 / 0.55 — roughly double the card sheen's 0.13 / 0.26;
+//   2. a body wash hardcoded purple at 0.14, against the 0.08 a character card
+//      uses for the same tint.
+// The sheen is gone and the wash now reads --cf-rgb at the card's strength.
+(function () {
+  var draft = (function () {
+    var re = /([^{}]+)\{([^{}]*)\}/g, m, found = null;
+    while ((m = re.exec(BARE)) !== null) {
+      var sel = ' ' + m[1].replace(/\s+/g, ' ').trim() + ' ';
+      if (sel.indexOf('.draft-card.trick-draft ') < 0) continue;
+      if (sel.indexOf(':hover') >= 0 || sel.indexOf('::') >= 0) continue;
+      if (m[2].indexOf('background-image') < 0) continue;
+      found = m[2].replace(/\s+/g, ' ').trim();
+    }
+    return found;
+  })();
+  check('the draft trick has no second sheen on its body',
+        !!draft && /background-image:\s*none\s*!important/.test(draft),
+        'winning background-image for .draft-card.trick-draft is `' + draft + '`');
+  // The body wash: the trick's own colour, at the card's strength. Resolved by
+  // walking the rule blocks for the exact `.trick-card` selector rather than by
+  // matching near the brace — the decommented source keeps this block's own
+  // prose as whitespace, so a proximity regex measures the comment, not the CSS.
+  var body = (function () {
+    var re = /([^{}]+)\{([^{}]*)\}/g, m, found = null;
+    while ((m = re.exec(BARE)) !== null) {
+      var parts = m[1].split(',');
+      var exact = false;
+      for (var i = 0; i < parts.length; i++) {
+        if (parts[i].replace(/\s+/g, ' ').trim() === '.trick-card') exact = true;
+      }
+      if (!exact || m[2].indexOf('background-image') < 0) continue;
+      found = m[2].replace(/\s+/g, ' ').trim();
+    }
+    return found;
+  })();
+  check('and its body wash is its own colour at the card\'s 0.08',
+        !!body && /linear-gradient\(180deg, rgba\(var\(--cf-rgb[\s\S]*?0\.08\)/.test(body),
+        'winning .trick-card background-image is `' + (body || 'none') + '`');
+  check('no hardcoded purple wash is left on a trick body',
+        !/background-image: linear-gradient\(180deg,\s*rgba\(155,89,182,0\.14\)/.test(BARE),
+        'that literal is the one being replaced');
+})();
+
 // ---- the trick's shimmer is its own colour too ------------------------------
 // Owner: "is the shimmer color still white for tricks it should be unique
 // border like cards." It was.

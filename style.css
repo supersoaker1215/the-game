@@ -14254,9 +14254,18 @@ body.round-first-ai .hud-pill-main {
 .trick-card {
   position: relative;
   background-color: #000;
+  /* THE BODY WASH IS THE TRICK'S OWN COLOUR, AT THE CARD'S STRENGTH. Owner:
+     "why on tricks does the text glow from the picture, get rid of that make
+     them like the cards." Two things made a trick's rules panel glow where a
+     character card's does not: a second sheen painted on the card BACKGROUND
+     (removed — see the (b2) block), and this wash, hardcoded purple at 0.14
+     against the 0.08 a card uses for the same tint. Both sit UNDER the text,
+     which is the one part of a trick the art does not cover, so they read as
+     the picture bleeding into the rules.
+     --cf-rgb is the accent from the trick's own painting, same as its frame. */
   background-image: linear-gradient(180deg,
-    rgba(155,89,182,0.14) 0%,
-    rgba(155,89,182,0) 55%);
+    rgba(var(--cf-rgb, var(--portrait-frame-rgb, 155,89,182)), 0.08) 0%,
+    rgba(var(--cf-rgb, var(--portrait-frame-rgb, 155,89,182)), 0) 55%);
   outline: 1px solid rgba(155,89,182,0.22);
   outline-offset: -5px;
   box-shadow:
@@ -14756,9 +14765,18 @@ body.theme-purple, :root.theme-purple { --theme-r: 176; --theme-g: 97; --theme-b
 .trick-card {
   border-color: rgba(155,89,182,0.95);
   background-color: #000;
+  /* THE BODY WASH IS THE TRICK'S OWN COLOUR, AT THE CARD'S STRENGTH. Owner:
+     "why on tricks does the text glow from the picture, get rid of that make
+     them like the cards." Two things made a trick's rules panel glow where a
+     character card's does not: a second sheen painted on the card BACKGROUND
+     (removed — see the (b2) block), and this wash, hardcoded purple at 0.14
+     against the 0.08 a card uses for the same tint. Both sit UNDER the text,
+     which is the one part of a trick the art does not cover, so they read as
+     the picture bleeding into the rules.
+     --cf-rgb is the accent from the trick's own painting, same as its frame. */
   background-image: linear-gradient(180deg,
-    rgba(155,89,182,0.14) 0%,
-    rgba(155,89,182,0) 55%);
+    rgba(var(--cf-rgb, var(--portrait-frame-rgb, 155,89,182)), 0.08) 0%,
+    rgba(var(--cf-rgb, var(--portrait-frame-rgb, 155,89,182)), 0) 55%);
   outline: 1px solid rgba(155,89,182,0.25);
   box-shadow:
     inset 0 0 0 1px rgba(155,89,182,0.16),
@@ -21353,52 +21371,31 @@ body.combat-anticipate .board {
   background-position: 0% 0%;
 }
 
-/* (b2) Draft trick sheen — hover-only sweep using a separate
-   `.trick-sheen` overlay element that's appended to the card by
-   the codex/draft renderer when the card is hovered. We can't
-   layer the sheen on `::after` because it's already claimed by
-   the corner-bracket rule with `!important`, and `::before` is
-   used by the inner-hairline. So we use the `box-shadow` insets
-   trick: a faint diagonal band that fades in via opacity on
-   hover, and the band's "position" is animated by switching the
-   background-position via the wrap. User spec: "give the trick
-   cards a sheen in the draft mode."
-   Approach: stamp the sheen on the card's OWN background-image
-   using a layered linear-gradient that's transparent until hover.
-   No new pseudo, no new DOM. */
+/* (b2) THE DRAFT TRICK'S SECOND SHEEN IS GONE (2026-09-12)
+   Owner, on a trick's rules panel: "why on tricks does the text glow from the
+   picture, get rid of that make them like the cards."
+
+   A draft trick was carrying TWO sheens. This one is the older: it predates
+   both the full-bleed portrait and the .pt-shine layer, and it works by
+   stamping gradients on the CARD'S OWN background-image — so it paints behind
+   everything, including the rules text, which is the one part of the card the
+   art does not cover. Measured on a draft trick: the card element's background
+   was `linear-gradient(125deg ...) , linear-gradient(180deg rgba(155,89,182,
+   0.06) ...)` over #000 — a purple wash that is always on, plus a band whose
+   hover alphas (0.30 / 0.55) are roughly double the card sheen's (0.13 / 0.26).
+   That is the glow, and it reads as the picture bleeding into the text because
+   it is literally painted under both.
+
+   The card's ::after sheen — accent-coloured and always on — is the one sheen
+   now, the same treatment a character card gets. What stays here is the black:
+   a trick's body is pure #000 like every other panel interior.
+
+   Kept as a comment rather than deleted silently: the note this replaces
+   explained that ::after was claimed by the corner brackets and ::before by the
+   inner hairline, which is still true and is exactly why .pt-shine exists. */
 .draft-card.trick-draft {
-  background-image:
-    linear-gradient(
-      125deg,
-      transparent 30%,
-      rgba(217, 165, 255, 0) 45%,
-      rgba(217, 165, 255, 0) 50%,
-      rgba(217, 165, 255, 0) 55%,
-      transparent 70%
-    ),
-    linear-gradient(180deg, rgba(155,89,182,0.06) 0%, rgba(155,89,182,0) 45%) !important;
+  background-image: none !important;
   background-color: #000 !important;
-  background-size: 200% 200%, 100% 100% !important;
-  background-position: 100% 100%, 0 0 !important;
-  background-repeat: no-repeat, no-repeat !important;
-  transition: background-image 0.35s var(--ease-snap), background-position 0.9s var(--ease-out-soft) !important;
-}
-.draft-card.trick-draft:hover {
-  /* Sheen alphas bumped up — the card's near-black background
-     (#000000) absorbs low-alpha overlays. Peak ~0.55 reads as
-     a clear bright band sweeping across, like the hand-card
-     sheen does on its dark ally-side variant. */
-  background-image:
-    linear-gradient(
-      125deg,
-      transparent 25%,
-      rgba(217, 165, 255, 0.30) 45%,
-      rgba(255, 230, 255, 0.55) 50%,
-      rgba(217, 165, 255, 0.30) 55%,
-      transparent 75%
-    ),
-    linear-gradient(180deg, rgba(155,89,182,0.10) 0%, rgba(155,89,182,0) 45%) !important;
-  background-position: 0% 0%, 0 0 !important;
 }
 
 /* (c) 3D tilt parallax on trick cards. Perspective host is the

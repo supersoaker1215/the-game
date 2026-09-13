@@ -697,4 +697,30 @@ window.CARD_ART_ACCENT_OVERRIDE = {
   // generator that a small intense subject on black is not a monochrome image,
   // which re-derives all 259 borders — a much larger change than one card.
   'Superman': '240,57,76',
+
+  // FOUR MORE THE GENERATOR READ HONESTLY AND STILL GOT WRONG FOR A PERSON.
+  // Owner: "power battery green border, time stone green border, iron man his
+  // red lex luthor his green".
+  //
+  // Each was sampled the same way Superman was — the art's own hue population,
+  // run through the shipped neon() — and each needed a correction the sampler
+  // cannot make on its own. The proof sheets are what decided it; the numbers
+  // below are what they showed.
+  //
+  //   IRON MAN. The default variant is 'Iron Man 2.png', a blue-lit shot whose
+  //   armour is a dark, low-saturation maroon — only 0.3% of its pixels read as
+  //   red at all, and the hue peak lands on a handful of pink highlights
+  //   (241,67,118). The value used instead is the one the SAME generator
+  //   derived from 'Iron Man.png', which is his red taken from his own
+  //   painting; keyed by name, so whichever variant is selected wears it.
+  //
+  //   THE THREE GREENS. A glow photographs cyan-shifted, so the honest peak for
+  //   the Power Battery is 142 deg and the Time Stone 140 — both read as mint
+  //   rather than green — while Lex's armour peaks at 99, which reads olive.
+  //   Clamped into the band that actually reads GREEN (110-135) and checked
+  //   against the paintings side by side.
+  'Iron Man':      '240,53,57',
+  'Lex Luthor':    '72,239,39',
+  'Power Battery': '58,240,103',
+  'Time Stone':    '58,240,103',
 };
