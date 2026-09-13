@@ -16666,6 +16666,21 @@ const Game = {
   // 2v2 — and `opp` its opponent side.
   _armJumpForCard(card, owner, opp, trigger, data) {
     if (card.jumpReady) return false;
+    // A SILENCED CARD DOES NOT JUMP. Owner: "jason was bloawn away with the
+    // blowayay candy, he jumped in afet harley dies, shouldnt happen his
+    // abilitesa re stripped so no jump."
+    //
+    // Bloway Candy silences a card by NULLING ITS HOOKS — onPlay, onDeath, the
+    // other eighteen — which is the right shape for everything that runs off a
+    // hook and does nothing at all for jump, because jump does not. Every
+    // condition below is a `card.name ===` test inside the engine, so a blown
+    // Jason with an empty abilities array, no hooks and the rules text "Lost to
+    // Bloway Candy" still matched his own name and armed.
+    //
+    // Here rather than in the candy: this is the ONE door every jump condition
+    // passes through, so a new jumper inherits the silence instead of having to
+    // be taught about it.
+    if (card._blowaySilenced) return false;
     if (card.name === 'Ghostface' && trigger === 'trickPlayed' && data.owner !== owner
         && this.canJumpNow(owner, card)) {
       card.jumpReady = true;

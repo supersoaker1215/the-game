@@ -1089,8 +1089,22 @@ const CANDY_DEFS = [
       // Fired BEFORE removeFromLane, or there is no card element left to blow.
       if (typeof UI !== 'undefined' && UI._fxCandyBloway) { try { UI._fxCandyBloway(t); } catch (e) {} }
       G.removeFromLane(t, l);
-      // Fresh instance at base stats, exactly as Phantom Zone does.
-      const def = (typeof CARD_DEFS !== 'undefined' && CARD_DEFS.find(d => d.name === t.name)) || t;
+      // Fresh instance at base stats, exactly as Phantom Zone does — but BORN
+      // WITHOUT ITS KEYWORDS, not stripped of them afterwards.
+      //
+      // Clearing `fresh.abilities` after the fact (which is what this used to
+      // do, below) empties the LIST and leaves everything the list had already
+      // produced: createCardInstance applies the keywords on the way in, so a
+      // blown Jason Voorhees came back reading "Lost to Bloway Candy" with an
+      // empty ability row and still carried isOverdrive, reviveCharges 1 and
+      // Hunt. Measured, on exactly that card.
+      //
+      // Handing createCardInstance a def with no abilities means none are ever
+      // derived, so there is no flag to remember to unset — and no new keyword
+      // can be added later that this forgets about. The HOOKS are left on the
+      // def so the hookless-def repair stays quiet; they are nulled below.
+      const baseDef = (typeof CARD_DEFS !== 'undefined' && CARD_DEFS.find(d => d.name === t.name)) || t;
+      const def = Object.assign({}, baseDef, { abilities: [] });
       const fresh = G.createCardInstance(def, t.owner);
       // THE SILENCE. Null every hook on the returning copy, the same set the
       // face-down play suppresses — that is what "doesn't get to fire its

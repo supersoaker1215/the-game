@@ -6061,6 +6061,79 @@ test("Gargantua's pull re-reads a card's lane before moving it", function () {
   });
 });
 
+// ==================== BLOWN AWAY MEANS BLOWN AWAY =========================
+// Owner: "jason was bloawn away with the blowayay candy, he jumped in afet
+// harley dies, shouldnt happen his abilitesa re stripped so no jump."
+//
+// Bloway Candy silences a card by NULLING ITS HOOKS — the right shape for
+// everything that runs off a hook, and no use at all against the two things
+// that do not:
+//   · JUMP is armed by a `card.name ===` test inside the engine
+//     (_armJumpForCard), so a blown Jason matched his own name and armed.
+//   · KEYWORDS are derived at instance creation, and the candy cleared the
+//     abilities LIST afterwards — emptying the row on the tile while leaving
+//     everything the row had already produced.
+function blowAway(G, name, ownerSide) {
+  for (var i = 0; i < G.LANE_COUNT; i++) { G.state.lanes[i].player = null; G.state.lanes[i].ai = null; }
+  var side = ownerSide || 'ai';
+  G.state.lanes[2][side] = place(G, name, side, 2);
+  G.state[side].hand = [];
+  var candy = CANDY_DEFS.filter(function (c) { return c.name === 'Bloway Candy'; })[0];
+  candy.play(G, G.opponent(side));
+  return (G.state[side].hand || [])[0];
+}
+
+test('a card blown away by Bloway Candy keeps none of its keywords', function () {
+  var G = freshGame();
+  var normal = G.createCardInstance(cardByName('Jason Voorhees'), 'ai');
+  G.applyAbilities(normal);
+  // The control first — if Jason ever stops carrying these, this test would
+  // pass for the wrong reason.
+  assertEq(!!normal.isOverdrive, true, 'a normal Jason has Overdrive');
+  assertEq(normal.reviveCharges | 0, 1, 'and a revive charge');
+
+  var blown = blowAway(G, 'Jason Voorhees');
+  assert(!!blown, 'he came back to hand');
+  assertEq(!!blown._blowaySilenced, true, 'marked silenced');
+  assertEq(blown.abilities.length, 0, 'the ability row is empty');
+  // …and so is everything the row used to produce. Derived at creation, so the
+  // fix is to never grant them, not to unset them one by one — a new keyword
+  // added later inherits this instead of being forgotten.
+  assertEq(!!blown.isOverdrive, false, 'Overdrive is gone, not just hidden');
+  assertEq(blown.reviveCharges | 0, 0, 'the revive charge is gone');
+  assertEq(!!(blown.isHunter || blown.hasHunt), false, 'Hunt is gone');
+  assertEq(blown.desc, 'Lost to Bloway Candy.', 'and the tile says so');
+});
+
+test('a silenced card cannot arm a jump — any jumper, any trigger', function () {
+  var G = freshGame();
+  // One door serves every jump condition, so every jumper inherits the silence.
+  var CASES = [
+    ['Jason Voorhees', 'allyDied',    { owner: 'ai', laneIdx: 4 }],
+    ['Ghostface',      'trickPlayed', { owner: 'player' }],
+    ['Michael Myers',  'cardPlayed',  { owner: 'player', cost: 1, laneIdx: 4, isEnvironment: false }],
+    ['Stripe',         'heroDamaged', { owner: 'player' }],
+    ['Art the Clown',  'beforeTricks',{ owner: 'player' }]
+  ];
+  CASES.forEach(function (c) {
+    var name = c[0], trigger = c[1], data = c[2];
+    // Control: the real card DOES arm, so a false pass is impossible.
+    for (var i = 0; i < G.LANE_COUNT; i++) { G.state.lanes[i].player = null; G.state.lanes[i].ai = null; }
+    place(G, 'Hulk', 'player', 0); place(G, 'Hulk', 'player', 1);   // Art needs to be outnumbered
+    var live = G.createCardInstance(cardByName(name), 'ai');
+    G.applyAbilities(live);
+    var armedLive = G._armJumpForCard(live, 'ai', 'player', trigger, data);
+    assertEq(armedLive, true, name + ' normally arms on ' + trigger);
+
+    var silent = G.createCardInstance(cardByName(name), 'ai');
+    G.applyAbilities(silent);
+    silent._blowaySilenced = true;
+    var armedSilent = G._armJumpForCard(silent, 'ai', 'player', trigger, data);
+    assertEq(armedSilent, false, name + ' does NOT arm while silenced');
+    assertEq(!!silent.jumpReady, false, name + ' is not left armed');
+  });
+});
+
 // ==================== AN EVENT HOLD LOCKS THE WHOLE TURN ===================
 // Owner, during MC Ballyhoo's entrance: "i cant play cards which is good but i
 // can end cards, which is bad i should be locked ouut of both. also have his
