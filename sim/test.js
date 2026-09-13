@@ -6130,20 +6130,54 @@ test("A card's own printed Revive does not claim a granter", function () {
   assertEq(G._reviveSourceLabel(c), '', 'nor for an unattributed one');
 });
 
-test('AI actions are paced about two seconds apart', function () {
-  // Owner: "i wnat a 2 second pause between each Ai action just to have soem
-  // time." The gap is pre-play + post-play; neither half means anything alone,
-  // so the test asserts the SUM the player actually experiences.
+test('AI actions are paced about two seconds apart — BOTH gaps', function () {
+  // Owner: "i wnat a 2 second pause between each Ai action ... if they pplay
+  // superman, 2 seconds, freeze, 2 seconds freeze, 2 seconds, blast 5, 2
+  // seconds, play harley quinn."
+  //
+  // TWO DIFFERENT GAPS make that sentence, and pinning only one leaves the
+  // other free to drift:
+  //   · BETWEEN CARDS — AI.aiStepMs + aiPostPlayMs, the queue's own cadence.
+  //   · BETWEEN THE STEPS INSIDE ONE CARD — UI.aiStepDelay, which
+  //     Game._aiActionDelay walks every AI-resolved effect through. Superman's
+  //     two freezes and his blast are three of these, not three cards.
+  // Traced live at these values: play 0ms / freeze 2004ms / freeze 4006ms /
+  // blast 6008ms.
   var saved = (typeof UI !== 'undefined' && UI.settings) ? UI.settings.aiSpeed : null;
   if (typeof UI === 'undefined' || !UI.settings) { assert(true, 'no UI settings in this harness'); return; }
   UI.settings.aiPacing = 'animated';
   UI.settings.aiSpeed = 'normal';
-  var gap = AI.aiStepMs() + AI.aiPostPlayMs();
-  assertEq(gap, 2000, 'normal speed puts two seconds between AI actions — got ' + gap);
-  // Most of it AFTER the card lands: the board is the interesting thing, not
-  // the thinking dots.
-  assert(AI.aiPostPlayMs() > AI.aiStepMs(), 'the hold is weighted after the play');
-  // Instant is still instant — the pacing setting has to keep meaning something.
+
+  var between = AI.aiStepMs() + AI.aiPostPlayMs();
+  assertEq(between, 2000, 'two seconds between CARDS — got ' + between);
+  assert(AI.aiPostPlayMs() > AI.aiStepMs(),
+    'weighted after the play — the board is the interesting thing, not the dots');
+
+  // UI.aiStepDelay is STUBBED by the sim's UI shim (it is presentation, and the
+  // shim models none), so read the shipped numbers out of ui.js rather than
+  // asserting against a stub that would agree with anything.
+  var uisrc = readFile('ui.js');
+  var m = uisrc.match(/aiStepDelay\(\)\s*\{\s*return \{([^}]*)\}/);
+  assert(!!m, 'found aiStepDelay in ui.js');
+  var tiers = {};
+  (m[1].match(/(\w+):\s*(\d+)/g) || []).forEach(function (pair) {
+    var kv = pair.split(':'); tiers[kv[0].trim()] = parseInt(kv[1], 10);
+  });
+  assertEq(tiers.normal, 2000, 'two seconds between the STEPS inside a card — got ' + tiers.normal);
+  assert(tiers.fast < tiers.normal, 'fast shortens the step');
+  assert(tiers.slow > tiers.normal, 'slow lengthens the step');
+  // …and the card gap moves with the same dial, so one setting cannot desync
+  // the two cadences.
+  UI.settings.aiSpeed = 'fast';
+  assert(AI.aiStepMs() + AI.aiPostPlayMs() < between, 'fast shortens the card gap too');
+  UI.settings.aiSpeed = 'slow';
+  assert(AI.aiStepMs() + AI.aiPostPlayMs() > between, 'slow lengthens it too');
+
+  // A step must stay well clear of the 30s prompt auto-pick, or a card with
+  // several of them would time itself out.
+  assert(tiers.slow * 8 < 30000, 'eight slow steps still fit inside the prompt timeout');
+
+  UI.settings.aiSpeed = 'normal';
   UI.settings.aiPacing = 'instant';
   assertEq(AI.aiStepMs() + AI.aiPostPlayMs(), 0, 'instant mode is unaffected');
   UI.settings.aiPacing = 'animated';

@@ -1986,8 +1986,30 @@ const UI = {
   // AI scheduling — delay between AI card plays so player can follow along.
   // Scales with aiSpeed; Normal slowed a bit (was 320ms) so plays are easier
   // to read; Slow extended proportionally.
+  // THE GAP BETWEEN THE STEPS INSIDE ONE AI CARD.
+  // Owner: "i wnat a 2 second pause between each Ai action ... if they pplay
+  // superman, 2 seconds, freeze, 2 seconds freeze, 2 seconds, blast 5, 2
+  // seconds, play harley quinn" — then, on being told the sub-steps were a
+  // deeper change: "well i think itll be better because you can see what
+  // happens."
+  //
+  // It was NOT a deeper change, and I said otherwise before measuring. This
+  // seam already existed: Game._aiActionDelay steps every AI-resolved effect
+  // through it, which is why a Superman play already traced as 0ms play /
+  // 452ms freeze / 904ms freeze / 1356ms blast. The steps were there; they
+  // were just fast enough to read as simultaneous.
+  //
+  // 2000 at normal makes that trace exactly the owner's sentence. Paired with
+  // the queue's own 2s between cards (AI.aiStepMs + aiPostPlayMs), a Superman
+  // into a Harley Quinn reads: play, 2s, freeze, 2s, freeze, 2s, blast, 2s,
+  // play.
+  //
+  // A CARD WITH MANY STEPS IS NOW GENUINELY LONG — Jigsaw's three traps, Hela's
+  // summons — and that is the trade being asked for: "you can see what
+  // happens". fast/slow stay as the dial for anyone who disagrees, and
+  // `instant` pacing is handled separately by the queue.
   aiStepDelay() {
-    return { fast: 150, normal: 450, slow: 800 }[this.settings.aiSpeed] || 450;
+    return { fast: 700, normal: 2000, slow: 2800 }[this.settings.aiSpeed] || 2000;
   },
 
   // ===================== SFX (procedural Web Audio) =====================
