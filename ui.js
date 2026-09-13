@@ -13515,9 +13515,16 @@ const UI = {
       const dropAttr = card._isPlayerTile ? ' data-drop-seat="1"' : '';
       const playerNameHtml = card._isPlayerTile
         ? `<div class="choice-player-name">${card.name || 'Player'}</div>` : '';
+      // THE THIRD TRICK SURFACE. makeTrickEl and the in-match tray both stamp
+      // the art accent now; this tile is built here, separately again, and
+      // without the same stamp a trick offered in the tray would be the one
+      // purple trick left on screen — with a coloured makeTrickEl render of the
+      // SAME trick sitting inside it, since .choice-real flip-host wraps one.
+      const _tileAcc = (isTrickFace && this._artAccentFor) ? this._artAccentFor(card.name) : null;
+      const _tileStyle = _tileAcc ? ` style="--art-rgb:${_tileAcc}"` : '';
       return `
         <div class="choice-opt">
-          <div class="choice-card card ${isActionTile ? 'choice-action' : 'flip-host'} ${costClass}${isTrickFace ? ' choice-trick' : ''}${curseClass}${weaponClass}${playerClass}" data-idx="${idx}"${dropAttr}>
+          <div class="choice-card card ${isActionTile ? 'choice-action' : 'flip-host'} ${costClass}${isTrickFace ? ' choice-trick' : ''}${curseClass}${weaponClass}${playerClass}" data-idx="${idx}"${dropAttr}${_tileStyle}>
             ${curseBolt}
             ${weaponIcon}
             ${costHtml}
@@ -22782,19 +22789,33 @@ const UI = {
     // Ballyhoo and Shadow Man turn up by themselves; stamping a play trigger on
     // their text states the opposite of the first thing each of them says.
     if (desc && !trick._isEvent && !/^[1-9A-Z][^:.]{0,28}:/.test(desc)) desc = 'When Played: ' + desc;
-    // A TRICK DOES NOT TAKE AN ART BORDER, and that is a decision rather than an
-    // oversight. Trick chrome is purple everywhere — frame, cost gem, tray tile
-    // — so that a trick reads as a trick at a glance next to a card, the same
-    // way the board's ownership colours say whose card you are looking at. An
-    // art-derived border would spend that signal on decoration. It is also not
-    // what was asked: the cost-tier ramp being replaced (1-3 green ... 9-10
-    // gold) only ever applied to CARDS; a trick was never in it.
-    // The first pass did stamp --art-rgb here, and it was dead — tricks pin
-    // --rarity-rgb to the purple, so nothing read it. A variable nothing reads
-    // is worse than no variable.
+    // A TRICK TAKES ITS ART BORDER TOO. Owner: "can you do tricks the same way as
+    // cards unique color and sheen."
+    //
+    // THIS REVERSES the note that stood here. The argument was that purple
+    // chrome is how a trick reads as a trick at a glance, the same way the
+    // board's ownership colours say whose card you are looking at, and that an
+    // art-derived border spends that signal on decoration. That cost is real
+    // and it is being paid deliberately: a trick is still told apart by its
+    // shape (no stat marks at all), its rarity strip and where it appears — the
+    // tray, the trick slots, its own half of the draft — and the owner would
+    // rather every trick look like its own painting.
+    //
+    // The generator already had the colours: it walks every file in the art
+    // folder, so Joker's Playing Card has been sitting at 238,181,26 the whole
+    // time with nothing reading it. Stamping the same --art-rgb the card
+    // renderer stamps is all that was missing; the purple moves to being the
+    // FALLBACK in the CSS (see `.trick-card, .draft-card.trick-draft`), which is
+    // what a trick with no art accent still gets.
+    //
+    // The first pass at this was dead code for the opposite reason — it stamped
+    // the variable while the CSS still pinned --rarity-rgb to the purple, so
+    // nothing read it. Both halves have to move together, and now they have.
+    const _trAccent = this._artAccentFor && this._artAccentFor(trick.name);
+    const _trStyle = _trAccent ? ` style="--art-rgb:${_trAccent}"` : '';
     const _tr = this._cardRarityLabel ? this._cardRarityLabel(trick) : null;
     const _trCls = (_tr && _tr.tier) ? ' rarity-tier-' + _tr.tier : '';
-    return `<div class="${cls}${_trCls}" data-trick-name="${trick.name}"${onclick}>
+    return `<div class="${cls}${_trCls}" data-trick-name="${trick.name}"${_trStyle}${onclick}>
       ${trick.cost != null ? `<span class="card-cost">${trick.cost}</span>` : ''}
       <div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay"><span class="cn-text">${trick.name}</span></div><i class="pt-shine" aria-hidden="true"></i></div>
       ${badges}
@@ -29497,6 +29518,17 @@ const UI = {
       const el = document.createElement('div');
       el.className = 'trick-card';
       if (trick.name) el.setAttribute('data-trick-name', trick.name);
+      // THE SECOND EMITTER, AND IT HAS TO BE STAMPED TOO. The trick frame block
+      // in style.css warns about exactly this pair — "Two emitters, same markup,
+      // or the tray would have quietly kept the old look the way the rarity pips
+      // did." The tray builds its own element rather than going through
+      // makeTrickEl, so the art accent has to be set here as well or a trick in
+      // hand stays purple while the same trick in the codex and the draft wears
+      // its own colour.
+      {
+        const _acc = this._artAccentFor && this._artAccentFor(trick.name);
+        if (_acc) el.style.setProperty('--art-rgb', _acc);
+      }
       // Instance id — lets the mobile drag handler (installMobileCardDrag)
       // resolve the element back to THIS trick object, same as hand cards.
       if (trick.id != null) el.setAttribute('data-trick-id', trick.id);

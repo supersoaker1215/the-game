@@ -70,19 +70,38 @@ t('AA-1 the cost-tier ramp is gone, at the source', function () {
   eq('nothing reads --rar-gold',  /var\(--rar-gold\)/.test(CSS), false);
 });
 
-t('AA-2 the card renderer stamps it; the TRICK renderer deliberately does not', function () {
+t('AA-2 both renderers stamp it — the card AND the trick', function () {
   // makeCardEl is the one door every card surface goes through, so stamping it
   // there covers hand, board, draft, codex, deck builder and inspect at once.
   //
-  // makeTrickEl is deliberately NOT stamped. Trick chrome is purple everywhere
-  // so a trick reads as a trick at a glance — the same kind of signal as the
-  // board's ownership colours, and not something to spend on decoration. The
-  // cost-tier ramp this replaces only ever applied to CARDS. The first pass did
-  // stamp it and it was dead code: tricks pin --rarity-rgb to the purple, so
-  // nothing read the variable.
+  // THIS REVERSES the assertion that used to stand here, that a trick was
+  // deliberately excluded. The argument was that purple chrome is how a trick
+  // reads as a trick at a glance, the same signal as the board's ownership
+  // colours. Owner: "can you do tricks the same way as cards unique color and
+  // sheen" — so the signal is spent, knowingly, and a trick is now told apart
+  // by having no stat marks at all rather than by its colour.
+  //
+  // TWO EMITTERS. makeTrickEl covers draft, codex, history and the floating
+  // prompts; the in-match tray builds its own element and has to be stamped
+  // separately. The trick frame block in style.css already warns about this
+  // pair — "or the tray would have quietly kept the old look the way the rarity
+  // pips did" — and a trick that is purple in hand and coloured in the codex is
+  // exactly that bug.
   eq('the helper exists', /_artAccentFor\(name\) \{/.test(UISRC), true);
   eq('makeCardEl stamps the CARD', /_artAccentFor\(card\.name\)[\s\S]{0,140}setProperty\('--art-rgb'/.test(UISRC), true);
-  eq('a TRICK is deliberately excluded', /_artAccentFor\(trick\.name\)/.test(UISRC), false);
+  eq('makeTrickEl stamps the TRICK', /_artAccentFor\(trick\.name\)[\s\S]{0,120}--art-rgb/.test(UISRC), true);
+  // ...and both of the trick emitters do it.
+  eq('the in-match tray stamps it too',
+     (UISRC.match(/_artAccentFor\(trick\.name\)/g) || []).length >= 2, true);
+  // The chain has to be open at every link or the stamp is dead code, which is
+  // what happened the first time this was tried: --art-rgb was set while the
+  // CSS still pinned --rarity-rgb and --cf-rgb to the purple.
+  var CSS = readOr('style.css', '');
+  eq('the trick frame reads the chain rather than pinning purple',
+     /--cf-rgb:\s*var\(--portrait-frame-rgb, 155, 89, 182\)/.test(CSS), true);
+  eq('and so do its frame + rarity vars',
+     /--portrait-frame-rgb: var\(--art-rgb, 155, 89, 182\)/.test(CSS)
+     && /--rarity-rgb:\s*var\(--art-rgb, 155, 89, 182\)/.test(CSS), true);
   // On the CARD, not the portrait: a custom property set on a child can never
   // reach the parent, and the rim glow lives on .card.
   eq('it is not stamped on the portrait instead',

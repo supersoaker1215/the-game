@@ -8938,10 +8938,16 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
    (cover art + bottom name overlay — the old square `contain` art with black
    side bars is gone). Key the portrait gem frame + cost color PURPLE so the
    card chrome reads all-trick. */
+/* PURPLE IS THE FALLBACK NOW, NOT THE PIN. Owner: "can you do tricks the same
+   way as cards unique color and sheen." These two lines were what made the
+   card renderer's --art-rgb dead on a trick — they pinned the chain shut one
+   step before --portrait-frame-rgb could read it. makeTrickEl stamps the
+   accent inline (see the note there for what this trades away), and a trick
+   with no accent of its own still lands on the purple it always had. */
 .trick-card,
 .draft-card.trick-draft {
-  --portrait-frame-rgb: 155, 89, 182;
-  --rarity-rgb: 155, 89, 182;
+  --portrait-frame-rgb: var(--art-rgb, 155, 89, 182);
+  --rarity-rgb:         var(--art-rgb, 155, 89, 182);
 }
 .trick-cost {
   position: absolute; top: -7px; left: -7px;
@@ -12411,15 +12417,18 @@ body.turn-combat .board .lane.lane-active {
 .choice-tray .choice-card .card-desc { padding: 0 8px; }
 /* Trick tiles in the tray (Grinch keep-or-discard, trick picks) — purple
    chrome + purple cost gem, matching the trick card language everywhere else. */
+/* The tray tile follows the trick's own colour like every other trick surface
+   now — the purple is the fallback, for a trick whose art has no accent. */
 .choice-tray .choice-card.choice-trick {
-  border-color: rgba(155,89,182,0.75);
-  box-shadow: 0 0 14px rgba(155,89,182,0.30);
-  --portrait-frame-rgb: 155, 89, 182;
-  --rarity-rgb: 155, 89, 182;
+  --trick-rgb: var(--art-rgb, 155, 89, 182);
+  border-color: rgba(var(--trick-rgb), 0.75);
+  box-shadow: 0 0 14px rgba(var(--trick-rgb), 0.30);
+  --portrait-frame-rgb: var(--trick-rgb);
+  --rarity-rgb: var(--trick-rgb);
 }
 .choice-tray .choice-card.choice-trick:hover {
-  border-color: rgba(155,89,182,1);
-  box-shadow: 0 4px 20px rgba(155,89,182,0.55);
+  border-color: rgb(var(--trick-rgb));
+  box-shadow: 0 4px 20px rgba(var(--trick-rgb), 0.55);
 }
 .choice-tray .choice-card:hover {
   transform: translateY(-4px);
@@ -21306,12 +21315,15 @@ body.combat-anticipate .board {
      for a hover would read as a bug rather than a distinction. Same treatment,
      its own purple. */
   opacity: 1;
+  /* ...and in the trick's own colour, like the card sheen. The literal purple
+     here was the same pin in a different place: --cf-rgb now resolves to the
+     trick's art accent, and the old 217,165,255 stays as the last fallback. */
   background: linear-gradient(
     125deg,
     transparent 30%,
-    rgba(217, 165, 255, 0.14) 45%,
-    rgba(217, 165, 255, 0.28) 50%,
-    rgba(217, 165, 255, 0.14) 55%,
+    rgba(var(--cf-rgb, var(--portrait-frame-rgb, 217,165,255)), 0.14) 45%,
+    rgba(var(--cf-rgb, var(--portrait-frame-rgb, 217,165,255)), 0.28) 50%,
+    rgba(var(--cf-rgb, var(--portrait-frame-rgb, 217,165,255)), 0.14) 55%,
     transparent 70%
   );
   background-size: 200% 200%;
@@ -44730,9 +44742,16 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    or the tray would have quietly kept the old look the way the rarity pips did.
 
    A trick is art-only — no stat readouts, no name banner — so this is the frame
-   layers and nothing else. Purple is hardcoded rather than read from
-   --portrait-frame-rgb: a trick has no rarity tier and does not sit on a side,
-   so there is no per-instance colour for it to track. */
+   layers and nothing else.
+
+   PURPLE USED TO BE HARDCODED HERE, with the reason written down: "a trick has
+   no rarity tier and does not sit on a side, so there is no per-instance colour
+   for it to track." There is one now — makeTrickEl stamps --art-rgb from the
+   same generated map the cards read, so the chain that was broken at this line
+   (--art-rgb -> --rarity-rgb -> --portrait-frame-rgb -> --cf-rgb) runs end to
+   end. Owner: "can you do tricks the same way as cards unique color and sheen."
+   The literal stays as the last fallback, for a trick whose art the generator
+   found no colour in. */
 .trick-card {
   --card-w:    132px;
   --cf-inset:  4px;
@@ -44743,7 +44762,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   --band-box:  calc(var(--card-w) * 0.297);
   --band-out:  calc(var(--card-w) * 0.263);
   --band-mid:  calc((var(--chamfer) + var(--band-out)) / 2);
-  --cf-rgb:    155, 89, 182;
+  --cf-rgb:    var(--portrait-frame-rgb, 155, 89, 182);
   --sqrt2: 1.41421;
   border-color: transparent !important;
   border-radius: 0 !important;
