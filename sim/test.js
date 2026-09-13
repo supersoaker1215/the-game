@@ -6061,6 +6061,95 @@ test("Gargantua's pull re-reads a card's lane before moving it", function () {
   });
 });
 
+// ==================== IRON GIANT SAVES ONE CARD, AND SAYS SO ===============
+// Owner, reading a log: "i sactificed iron giant to save thor iron giant fired,
+// then superman blasted ghostface and he revived, that shouldbnt happen iron
+// giant fires for 1 card."
+//
+// Iron Giant was innocent. It IS once per combat, it was spent on Thor, and it
+// never grants reviveCharges at all — it restores HP directly. Ghostface came
+// back on a charge REVAN had handed him, which the log did say, about forty
+// lines earlier where nobody is still looking. So the fault is legibility, not
+// mechanics: a save with no stated cause printed moments after a sacrifice
+// reads as that sacrifice firing twice.
+// NOTE: this case PASSES against the commit that prompted it, and that is the
+// point — it is a characterisation test, not a fix. The report was that Iron
+// Giant fired twice; it did not, and this is the evidence. What changed is the
+// revive line below, which used to name no source.
+test('Iron Giant saves exactly one ally per combat', function () {
+  var G = freshGame();
+  G.state.player.isHuman = false;                 // auto-accepts the sacrifice
+  G.state.player.hand = [G.createCardInstance(cardByName('Iron Giant'), 'player')];
+  var a = place(G, 'Thor', 'player', 1);
+  a.currentHealth = 1; a.maxHealth = 7;
+  var b = place(G, 'Ghostface', 'player', 3);
+  b.currentHealth = 1; b.maxHealth = 1;
+
+  G.killCard(a, { name: 'Superman' });
+  G.cleanupDead();
+  assert(a.currentHealth > 0, 'the first ally is saved');
+  assertEq(!!G.state.player._igSpentThisCombat, true, 'and the once-per-combat gate is set');
+  assertEq(G.state.player.hand.some(function (c) { return c.name === 'Iron Giant'; }), false,
+    'Iron Giant left the hand');
+
+  G.killCard(b, { name: 'Superman' });
+  G.cleanupDead();
+  assertEq(b.currentHealth > 0, false, 'the second ally is NOT saved — one card, one save');
+  assertEq(b.reviveCharges | 0, 0, 'and Iron Giant never hands out revive charges');
+});
+
+test('A revive names the card that granted the charge', function () {
+  var G = freshGame();
+  var c = place(G, 'Ghostface', 'player', 2);
+  c.currentHealth = 1; c.maxHealth = 4;
+  c.reviveCharges = 1;
+  c._reviveFrom = 'Revan';
+  var seen = [];
+  var origLog = G.log;
+  G.log = function (t) { seen.push(String(t)); return origLog.call(G, t); };
+  G.killCard(c, { name: 'Superman' });
+  G.cleanupDead();
+  G.log = origLog;
+  var line = seen.filter(function (t) { return t.indexOf('[REVIVE]') >= 0; })[0];
+  assert(!!line, 'the revive was logged');
+  assert(line.indexOf("Revan's Revive") >= 0,
+    'and it names where the charge came from — got "' + line + '"');
+});
+
+test("A card's own printed Revive does not claim a granter", function () {
+  // "printed" is the absence of an attribution, not a name to print — a card
+  // that simply HAS Revive should read as it always did.
+  var G = freshGame();
+  var c = place(G, 'Ghostface', 'player', 2);
+  c.currentHealth = 1; c.maxHealth = 4;
+  c.reviveCharges = 1;
+  c._reviveFrom = 'printed';
+  assertEq(G._reviveSourceLabel(c), '', 'no parenthetical for a printed Revive');
+  // …and an unknown source stays silent rather than guessing.
+  delete c._reviveFrom;
+  assertEq(G._reviveSourceLabel(c), '', 'nor for an unattributed one');
+});
+
+test('AI actions are paced about two seconds apart', function () {
+  // Owner: "i wnat a 2 second pause between each Ai action just to have soem
+  // time." The gap is pre-play + post-play; neither half means anything alone,
+  // so the test asserts the SUM the player actually experiences.
+  var saved = (typeof UI !== 'undefined' && UI.settings) ? UI.settings.aiSpeed : null;
+  if (typeof UI === 'undefined' || !UI.settings) { assert(true, 'no UI settings in this harness'); return; }
+  UI.settings.aiPacing = 'animated';
+  UI.settings.aiSpeed = 'normal';
+  var gap = AI.aiStepMs() + AI.aiPostPlayMs();
+  assertEq(gap, 2000, 'normal speed puts two seconds between AI actions — got ' + gap);
+  // Most of it AFTER the card lands: the board is the interesting thing, not
+  // the thinking dots.
+  assert(AI.aiPostPlayMs() > AI.aiStepMs(), 'the hold is weighted after the play');
+  // Instant is still instant — the pacing setting has to keep meaning something.
+  UI.settings.aiPacing = 'instant';
+  assertEq(AI.aiStepMs() + AI.aiPostPlayMs(), 0, 'instant mode is unaffected');
+  UI.settings.aiPacing = 'animated';
+  UI.settings.aiSpeed = saved || 'normal';
+});
+
 // ==================== A RANDOM-LANE EFFECT SAYS WHERE IT LANDED ============
 // Owner, on Gojo's card: "for hallow purpe can i see what lanes were hit same
 // for thanos."

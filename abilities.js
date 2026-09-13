@@ -5882,6 +5882,9 @@ const CARD_ABILITIES = {
         // Revive (Jason, Mahoraga, Wolverine) already have
         // reviveCharges set in applyAbilities; we add 1 more.
         a.reviveCharges = (a.reviveCharges || 0) + 1;
+        // WHO GAVE IT. The revive line fires whole combats later, long after
+        // this one has scrolled away — see the note on _reviveSourceLabel.
+        a._reviveFrom = 'Revan';
         a.canRevive = true;
         G.log(`Revan grants ${a.name} Revive 1! (${a.reviveCharges} charge${a.reviveCharges === 1 ? '' : 's'})`);
         if (typeof UI !== 'undefined' && UI._fxRevanForce) { try { UI._fxRevanForce(self, a); } catch (e) {} }

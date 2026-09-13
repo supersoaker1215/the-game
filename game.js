@@ -9890,7 +9890,7 @@ const Game = {
       // card comes back with its signature ability already spent.
       try { this.resetOncePerLifeTriggers(card); } catch (e) {}
       card.reviveCharges = chargesLeft;
-      this.log(`  [REVIVE] ${card.name} revives — and is played anew! (${chargesLeft} charge${chargesLeft === 1 ? '' : 's'} left)`);
+      this.log(`  [REVIVE] ${card.name} revives${this._reviveSourceLabel(card)} — and is played anew! (${chargesLeft} charge${chargesLeft === 1 ? '' : 's'} left)`);
       if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.playEffectSfx) {
         try { UI.sfx.playEffectSfx('Revive', card); } catch (e) {}
       }
@@ -11936,6 +11936,25 @@ const Game = {
       const lane = this.state.lanes[i];
       if (lane && lane.destroyed) this.evictVoidSurvivors(i);
     }
+  },
+
+  // WHERE A REVIVE CAME FROM.
+  // Owner, reading a log: "i sactificed iron giant to save thor iron giant
+  // fired, then superman blasted ghostface and he revived, that shouldbnt
+  // happen iron giant fires for 1 card."
+  //
+  // Iron Giant was innocent — it IS once per combat (_igSpentThisCombat), it
+  // was spent on Thor, and it never grants reviveCharges at all; it restores HP
+  // directly. Ghostface came back on a charge Revan had handed him, which the
+  // log did say — about forty lines earlier, where nobody is still looking.
+  //
+  // A save with no stated cause, printed moments after a sacrifice, reads as
+  // that sacrifice firing twice. The charge knows who gave it, so the line that
+  // spends it should say so. Unknown sources stay silent rather than guessing.
+  _reviveSourceLabel(card) {
+    const from = card && card._reviveFrom;
+    if (!from || from === 'printed') return '';
+    return ` (${from}'s Revive)`;
   },
 
   // ===================== IRON GIANT DEATH-GUARD =====================
@@ -16313,7 +16332,13 @@ const Game = {
         // engine gate is the def's `_spawnOnly`; this is the badge that tells
         // the player why the card is not in any deck.
         case 'Spawn': if (parts[1] === 'Only') card.isSpawnOnly = true; break;
-        case 'Revive': card.reviveCharges = Math.max(card.reviveCharges, n || 1); break;
+        case 'Revive':
+          card.reviveCharges = Math.max(card.reviveCharges, n || 1);
+          // Printed on the card. Only claim it if nothing else granted the
+          // charge — applyAbilities re-runs on revive, and overwriting here
+          // would relabel a granted charge as the card's own.
+          if (!card._reviveFrom) card._reviveFrom = 'printed';
+          break;
         case 'Untrickable': card.isUntrickable = true; card.permanentUntrickable = true; break;
         case 'Damage': if (parts[1] === 'Immunity') card.hasDamageImmunity = true; break;
         // "Dead Draw N" splits to name='Dead', which had no case — so the

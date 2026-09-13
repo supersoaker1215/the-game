@@ -13394,7 +13394,13 @@ body.turn-combat .board .lane.lane-active {
   border-left: 1px solid rgba(var(--theme-rgb, 79,195,247),0.45);
   box-shadow: -4px 0 18px rgba(0,0,0,0.6);
   transition: transform 240ms var(--ease-snap);
-  z-index: 230 !important;
+  /* ABOVE THE GUTTER. Owner: "the log needs to go over the enciroment tab."
+     It was 230 against #right-col's 500, so the events rail, the decision panel
+     and the Shadow Man scoreboard all painted straight through an opaque drawer
+     — the column is a permanent fixture and the drawer is something you open on
+     purpose, so the drawer wins. Still under the full-screen modals at 750,
+     which must cover everything. */
+  z-index: 620 !important;
   display: flex; flex-direction: column;
   padding: 10px 10px 10px;
 }

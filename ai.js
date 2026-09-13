@@ -550,23 +550,30 @@ const AI = {
     const mode = (typeof UI !== 'undefined' && UI.settings && UI.settings.aiPacing) || 'animated';
     if (mode === 'instant') return 0;
     const spd = (typeof UI !== 'undefined' && UI.settings && UI.settings.aiSpeed) || 'normal';
-    // Tuned so that pre-play + post-play >= 700ms (the user-spec
-    // minimum gap between consecutive AI placements). Normal puts most
-    // of the spacing AFTER the card lands so the shockwave + ripple
-    // can fully resolve before the next play starts.
-    return { fast: 200, normal: 350, slow: 500 }[spd] || 350;
+    // TWO SECONDS BETWEEN AI ACTIONS. Owner: "when the ai plays its happens
+    // bakc to back no pause i wnat a 2 second pause between each Ai action just
+    // to have soem time."
+    //
+    // This is the FIRST half of the gap; aiPostPlayMs is the second, and the
+    // two are tuned to add up:
+    //     fast 500 + 700  = 1200
+    //     normal 800 + 1200 = 2000   <- the asked-for beat
+    //     slow 1100 + 1700 = 2800
+    // Most of it still sits AFTER the card lands, so the shockwave and ripple
+    // finish before the next play starts rather than before it begins.
+    return { fast: 500, normal: 800, slow: 1100 }[spd] || 800;
   },
 
   // Post-play hold — pause AFTER a card lands so the radial ripple +
   // lane shockwave + HP pulse have time to play out before the AI
-  // commits the next action. User spec: "After each card lands,
-  // hold for ~500ms before the next play begins." Total gap (pre +
-  // post) is ~850ms at normal — comfortably above the 700ms floor.
+  // commits the next action. The larger half of the two-second gap: the
+  // interesting thing to look at is the board AFTER the play, not the thinking
+  // dots before it.
   aiPostPlayMs() {
     const mode = (typeof UI !== 'undefined' && UI.settings && UI.settings.aiPacing) || 'animated';
     if (mode === 'instant') return 0;
     const spd = (typeof UI !== 'undefined' && UI.settings && UI.settings.aiSpeed) || 'normal';
-    return { fast: 350, normal: 500, slow: 700 }[spd] || 500;
+    return { fast: 700, normal: 1200, slow: 1700 }[spd] || 1200;
   },
 
   // End-of-turn pause — gives the player a beat to read the final
