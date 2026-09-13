@@ -1303,6 +1303,54 @@ check('and the old fixed green is gone from it',
         'a dimmed 1px rule on a dark panel is invisible, not subtle');
 })();
 
+// ---- A TRICK'S ICONS SIT INSIDE ITS FRAME ----------------------------------
+// Owner, circling the lightning bolt on the bottom edge of a Fear Toxin in the
+// tray: "still the icons are gettig cut off from thr trcick just start the
+// icons higher." Nothing overflowed — the badge row was painted 4px BELOW the
+// frame's bottom line, so the frame drew across it.
+//
+// The arithmetic came out to zero: on an 88px tray trick the content box is
+// 129.91px and portrait (110.13, aspect-locked) + gap + badge row = 129.93, so
+// there was never any room for the 4px the frame is inset by.
+//
+// Resolved through the cascade, not grepped: the three rules that style this
+// badge row all carry !important, so a plain margin-bottom would have been
+// authored, committed, and silently lost. That is the whole reason this suite
+// exists.
+(function () {
+  var trayBadges = { classes: ['status-badges', 'card-abilities'],
+                     ancestors: ['trick-card', 'trick-cards', 'player-hand-section'] };
+  var w = winner('margin-bottom', trayBadges);
+  check('a tray trick\'s badge row reserves room for the frame',
+        w && /--cf-inset/.test(w.value),
+        w ? 'style.css:' + w.line + ' wins with `' + w.value.slice(0, 60) + '`'
+          : 'nothing sets margin-bottom on the tray trick badge row — the icons sit on the frame line');
+  // Sized from the badge metric, which is derived from the card's PAINTED
+  // width. --card-w reads 132px on a trick that paints at 88px.
+  check('and it is sized from --sb-i, not the stale --card-w',
+        w && /--sb-i/.test(w.value) && !/--card-w/.test(w.value),
+        w ? w.value.slice(0, 70) : 'no rule');
+
+  // The .flip-host choice tile has the same shape — .trick-desc is an absolute
+  // overlay there too, so its badge row is also the last thing in flow.
+  var flipBadges = { classes: ['status-badges', 'card-abilities'],
+                     ancestors: ['trick-card', 'flip-host'] };
+  var wf2 = winner('margin-bottom', flipBadges);
+  check('the choice tile gets the same reserve, being the same shape',
+        wf2 && /--cf-inset/.test(wf2.value),
+        wf2 ? 'style.css:' + wf2.line : 'the flip-host tile was left behind');
+
+  // AND THE DRAFT MUST NOT GET IT. There, .trick-desc stays in FLOW below the
+  // badges, so the rules panel is the bottom-most thing and already clears the
+  // frame — adding a reserve would just grow the card for nothing.
+  var draftBadges = { classes: ['status-badges', 'card-abilities'],
+                      ancestors: ['trick-card', 'draft-card', 'trick-draft', 'draft-offer'] };
+  var wd = winner('margin-bottom', draftBadges);
+  check('the draft trick is left alone — its rules panel already holds the row up',
+        !wd || !/--cf-inset/.test(wd.value),
+        wd ? 'style.css:' + wd.line + ' reaches the draft too: `' + wd.value.slice(0, 50) + '`' : '');
+})();
+
 print('card-tube: ' + pass + ' passed, ' + fails.length + ' failed');
 if (fails.length) {
   print('Failures:');

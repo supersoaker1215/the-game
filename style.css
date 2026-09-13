@@ -12494,6 +12494,49 @@ body.turn-combat .board .lane.lane-active {
   color: var(--text-mute, #b8c2cc);
   font-size: 11px; line-height: 1.45;
 }
+/* ---- A TEXT DECISION IS TEXT (2026-09-12) --------------------------------
+   Owner, circling a scrolling decision column: "there should be no scrooll fit
+   it the cards are too big for those decsins its jsut text no cards."
+
+   The option IS the button now — see isPlainText in the tray builder. No
+   portrait plate, no card min-height, no separate PICK underneath. Sized by its
+   own words, so two short phrases take about 50px of the gutter instead of 484
+   and the panel has nothing to scroll. */
+.choice-tray .choice-opt-text { display: block; }
+.choice-tray .choice-text-opt {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  min-height: 0;
+  padding: 9px 11px;
+  text-align: left;
+  cursor: pointer;
+  background: rgba(8, 14, 22, 0.9);
+  border: 1px solid rgba(var(--theme-rgb, 79, 195, 247), 0.45);
+  border-radius: 6px;
+  color: var(--text-body, #e8eef6);
+  transition: border-color 0.14s var(--ease-snap), background 0.14s var(--ease-snap),
+              transform 0.14s var(--ease-snap);
+}
+.choice-tray .choice-text-opt:hover,
+.choice-tray .choice-text-opt:focus-visible {
+  border-color: rgb(var(--theme-rgb, 79, 195, 247));
+  background: rgba(var(--theme-rgb, 79, 195, 247), 0.10);
+  transform: translateY(-1px);
+}
+.choice-tray .choice-text-opt .cto-name {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12px; font-weight: 700;
+  letter-spacing: 0.8px; text-transform: uppercase;
+  color: var(--text-hi, #f5fbff);
+  line-height: 1.15;
+}
+.choice-tray .choice-text-opt .cto-desc {
+  font-family: 'Inter', sans-serif;
+  font-size: 10.5px; line-height: 1.35;
+  color: var(--text-mute, #b8c2cc);
+}
 .choice-tray .choice-facedown {
   width: 150px; height: 190px;
   background: repeating-linear-gradient(45deg, #1a1a2e, #1a1a2e 10px, #16213e 10px, #16213e 20px);
@@ -35523,6 +35566,47 @@ body.dragging-trick .tut-callout { pointer-events: none; }
   pointer-events: none;
 }
 @keyframes trickSweep { to { transform: translateX(70%); } }
+/* ---- HOW LONG IS LEFT (2026-09-12) --------------------------------------
+   Owner: "have the art stay for 7 seconds though so you know whit a little bar
+   timer."
+
+   Seven seconds of a card sitting there with no indication is indistinguishable
+   from a card that is stuck — the bar is what turns a long hold into a hold you
+   can wait out. Its duration is written inline from the SAME `hold` the
+   dismissal timeout uses (see _nextTrickReveal), so the bar cannot finish early
+   or run past the card it belongs to.
+
+   scaleX on a transform, not width: a width animation relayouts every frame on
+   an element sitting over card art. transform-origin left so it drains from the
+   right, the direction the time is going. It takes the trick's own accent, like
+   everything else on this card. */
+.trick-reveal .tr-timer {
+  width: min(100%, 200px);
+  height: 3px;
+  margin-top: 6px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: rgba(var(--art-rgb, 155, 89, 182), 0.18);
+}
+.trick-reveal .tr-timer > i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-origin: left center;
+  background: rgb(var(--art-rgb, 155, 89, 182));
+  box-shadow: 0 0 8px rgba(var(--art-rgb, 155, 89, 182), 0.65);
+  animation-name: trickRevealDrain;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+@keyframes trickRevealDrain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+.trick-reveal.tr-exit .tr-timer { opacity: 0; transition: opacity 160ms linear; }
+/* A player who has asked for less motion still gets the hold — they just get a
+   static bar instead of a draining one, rather than a bar frozen at full. */
+@media (prefers-reduced-motion: reduce) {
+  .trick-reveal .tr-timer > i { animation: none; transform: scaleX(1); opacity: 0.5; }
+}
+
 .trick-reveal .tr-label {
   font-family: 'Rajdhani', sans-serif; font-weight: 700;
   font-size: 12px; letter-spacing: 3px; text-transform: uppercase;
@@ -48827,6 +48911,22 @@ body.in-match #classic-decision:has(.cd-slot > *) { display: flex; }
   overflow: visible !important;
   align-content: start;
 }
+/* ...EXCEPT WHEN THE OPTIONS ARE TEXT. The auto-fit grid above is arithmetic
+   for CARD tiles — three 70px portraits across a 242px panel. A sentence is not
+   a portrait: split across two 116px tracks, "Let the opponent lead next round"
+   wraps to three lines and the two options stop lining up with each other. One
+   per row instead, full width, so each reads as a line you pick.
+
+   `!important` and co-located ON PURPOSE. The grid above is !important, so a
+   normal declaration loses no matter how specific it is — and a correct rule
+   authored 36,000 lines earlier in this file would have been silently dead, the
+   trap sim/card-tube.js exists for. This sits directly under what it overrides,
+   and is more specific, so both halves of the cascade agree. */
+#classic-decision .choice-tray-cards:has(.choice-opt-text) {
+  display: flex !important;
+  flex-direction: column;
+  gap: 6px !important;
+}
 #classic-decision .choice-tray-cards > * { width: 100% !important; min-width: 0 !important; }
 #classic-decision .choice-tray .card,
 #classic-decision .choice-tray-cards .card {
@@ -51715,6 +51815,57 @@ body.low-fx .card-glow-host { filter: none !important; }
   flex: 0 0 calc((100% - var(--sb-gap) * 3) / 4 - 0.5px) !important;
   min-width: 0;
   height: calc(var(--sb-i) * 1.42) !important;
+}
+
+/* ============================================================
+   A TRICK'S ICONS SIT INSIDE ITS FRAME (2026-09-12)
+   ------------------------------------------------------------
+   Owner, circling the lightning bolt on the bottom edge of a Fear Toxin in the
+   tray: "still the icons are gettig cut off from thr trcick just start the
+   icons higher."
+
+   Not a clipping bug — nothing was overflowing. The icons were painted 4px
+   BELOW the frame's bottom line, so the frame drew straight across them.
+
+   IT IS ARITHMETIC, AND IT CAME OUT TO ZERO. Measured on an 88px tray trick:
+
+       card box                        133.91
+       less 2px border x 2          =  129.91   content box
+       portrait  110.13  (aspect-locked 360/472, from the card's WIDTH)
+       + 2px gap + badge row 17.80  =  129.93
+
+   The content exactly fills the content box, to within a fifth of a pixel —
+   and the frame is inset another 4px inside that. There was never any room
+   reserved for it, so the last thing in flow always lands under the frame.
+
+   WHY ONLY HERE. Every other surface has something after the badge row that
+   holds it up:
+     · a CHARACTER card ends with the ATK/HP circles. Measured on a hand card,
+       the last element ends 5.9px INSIDE the frame, on a 217.6px card — 2.71%
+       of the card's height. That is the proportion this reserve reproduces.
+     · a DRAFT / codex trick keeps `.trick-desc` in FLOW beneath the badges, so
+       the rules panel is the bottom-most thing and the badges never reach the
+       edge.
+   The two surfaces that make `.trick-desc` an absolute overlay — the in-match
+   tray and the .flip-host choice tile — have nothing in flow after the badge
+   row at all. Those are exactly the two selected here, and they are selected
+   for that reason rather than by where the bug was reported.
+
+   THE ART IS NOT TOUCHED. The obvious fix is to shrink the portrait by the
+   reserve, and it is the wrong one: the portrait is the painting, and cropping
+   7% off it to make room for the frame trades one edge problem for another
+   ("the art should fit in the box"). The reserve is added below the badges
+   instead, so the card grows by ~7.8px and the picture is untouched. Measured
+   in the tray at 1000px tall: the row goes 133.9 -> 141.7 with 46px still
+   clear inside its 228.6px host.
+
+   SIZED FROM --sb-i, NOT --card-w. --card-w reads 132px on a tray trick that
+   paints at 88px — a live instance of the wrong-reference trap — while --sb-i
+   is derived from the painted width and is correct here.
+   ============================================================ */
+.trick-cards .trick-card .status-badges,
+.trick-card.flip-host .status-badges {
+  margin-bottom: calc(var(--cf-inset, 4px) + var(--sb-i) * 0.30) !important;
 }
 
 

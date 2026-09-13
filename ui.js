@@ -13528,6 +13528,44 @@ const UI = {
       // SAME trick sitting inside it, since .choice-real flip-host wraps one.
       const _tileAcc = (isTrickFace && this._artAccentFor) ? this._artAccentFor(card.name) : null;
       const _tileStyle = _tileAcc ? ` style="--art-rgb:${_tileAcc}"` : '';
+      // ---- A TEXT DECISION IS TEXT, NOT A CARD ------------------------------
+      // Owner, circling a scrolling decision column holding The Flash's two
+      // first-player options: "there should be no scrooll fit it the cards are
+      // too big for those decsins its jsut text no cards."
+      //
+      // Measured on that prompt: each option was a 190px card-shaped tile —
+      // `.choice-card`'s min-height — carrying a 34px name plate and a
+      // `.card-desc` stretched to 108.8px to hold 26.1px of sentence, with a
+      // separate 44px PICK button under it. 242px per option, 484px of column
+      // for two short phrases, and the panel scrolled by 103px inside a gutter
+      // that has no room to give.
+      //
+      // The card shape is doing no work here. There is no portrait, no cost, no
+      // stats — nothing a card frame exists to hold. So a plain option becomes
+      // what it always was: a button with a label and a sentence on it, which
+      // also removes the odd two-step of reading a tile and then hunting for
+      // its PICK.
+      //
+      // NOT every action tile. Three of them carry a real visual payload and
+      // keep the tile: Voldemort's curses (each wears its own colour of
+      // lightning), Art the Clown's weapons (a neon glyph in place of a
+      // portrait), and the "which player?" seat tiles (the name IS the
+      // decision, rendered big). Those are excluded by the flags that give them
+      // their art, so this reaches only the tiles that were pure text already.
+      const isPlainText = isActionTile && !curseColor && !card._artWeaponKey
+                          && !card._isPlayerTile && !stats && !costHtml;
+      if (isPlainText) {
+        // data-idx alone: the delegated [data-idx] handler below already picks,
+        // and it is the ONLY handler that reaches this button — adding
+        // data-pick as well would be a second door to the same room.
+        return `
+        <div class="choice-opt choice-opt-text">
+          <button type="button" class="choice-text-opt" data-idx="${idx}">
+            <span class="cto-name">${card.name || 'Option'}</span>
+            ${card.desc ? `<span class="cto-desc">${this.formatDesc(card.desc)}</span>` : ''}
+          </button>
+        </div>`;
+      }
       return `
         <div class="choice-opt">
           <div class="choice-card card ${isActionTile ? 'choice-action' : 'flip-host'} ${costClass}${isTrickFace ? ' choice-trick' : ''}${curseClass}${weaponClass}${playerClass}" data-idx="${idx}"${dropAttr}${_tileStyle}>
@@ -26940,7 +26978,12 @@ const UI = {
   // corner toast and the full reveal panel — so they cannot drift apart.
   // (Owner: "all notices form tricks needs to sty on the screen for 3.5
   // seconds.")
-  TRICK_NOTICE_MS: 3500,
+  // SEVEN SECONDS. Owner: "have the art stay for 7 seconds though so you know
+  // whit a little bar timer." It was 3500 — long enough to notice a trick had
+  // been played, not long enough to read what it did and look at the board
+  // before deciding. The reveal lives in the gutter column, not over the board,
+  // so it costs nothing to leave it up: nothing is blocked while it holds.
+  TRICK_NOTICE_MS: 7000,
 
   // "…and the ai plays tricks too fst and its all one blur i want some sequnce
   // and time."
@@ -27113,6 +27156,9 @@ const UI = {
     if (stale) stale.remove();
     const artPath = this.getCardArtPath(item.name);
     const artStyle = artPath ? `--portrait-bg:url('${String(artPath).replace(/'/g, '%27')}')` : '';
+    // ONE number for the hold and the bar. A bar that drains on its own clock
+    // is worse than no bar: it tells you how long is left and is wrong.
+    const hold = item.holdMs || 2100;
     const wrap = document.createElement('div');
     wrap.id = 'trick-reveal';
     wrap.className = 'trick-reveal';
@@ -27123,6 +27169,7 @@ const UI = {
         ${item.desc ? `<div class="tr-desc">${this.formatDesc ? this.formatDesc(item.desc) : String(item.desc).replace(/</g, '&lt;')}</div>` : ''}
         <i class="tr-sweep" aria-hidden="true"></i>
       </div>
+      <div class="tr-timer" aria-hidden="true"><i style="animation-duration:${hold}ms"></i></div>
       <div class="tr-label">${item.label ? String(item.label).replace(/</g, '&lt;') : (item.mine ? 'You play a Trick' : this.oppName() + ' plays a Trick')}</div>`;
     this._revealHome().appendChild(wrap);
     if (item.onShow) { try { item.onShow(); } catch (e) {} }
@@ -27131,7 +27178,7 @@ const UI = {
     setTimeout(() => {
       wrap.classList.add('tr-exit');
       setTimeout(() => { wrap.remove(); this._nextTrickReveal(); }, 240);
-    }, item.holdMs || 2100);
+    }, hold);
   },
 
   // ===================== TITAN ENTRANCE (cost 9-10) =====================
@@ -36869,14 +36916,22 @@ const UI = {
         const orig = Game.playTrick.bind(Game);
         Game.playTrick = (owner, trick, ...rest) => {
           const r = orig(owner, trick, ...rest);
-          if (r && owner === 'ai' && trick && trick.name) {
-            // Tricks don't have a lane — surface as a toast so the
-            // player sees what just hit them. Existing toast helper
-            // gets the right styling for trick-cast notifications.
-            if (this.showAITrickToast) {
-              this.showAITrickToast(`${UI.oppName()} played ${trick.name}`, trick.desc || '', 'trick');
-            }
-          }
+          // NO SECOND ANNOUNCEMENT. Owner, on a screenshot of the Bacta Tank
+          // reveal with a text notice painted across it: "no overlapping the
+          // art says it all no notice needed."
+          //
+          // This toast predates the centre reveal — back then a trick had no
+          // lane and no card to look at, so a toast was the only way to say
+          // what hit you. playTrick itself now calls UI.showTrickReveal for
+          // EVERY trick (game.js:6818) and carries its own `else` fallback to
+          // this toast for the case where the reveal is unavailable. So the
+          // wrapper was announcing the same play a second time, on a different
+          // clock — the reveal queue and UI._stage do not serialise against
+          // each other, which is why the two ended up on screen together
+          // rather than one after the other.
+          //
+          // The reveal shows the art, the cost, the name and the rules text.
+          // There is nothing left for a notice to add.
           return r;
         };
       }

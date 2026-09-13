@@ -202,6 +202,106 @@ t('GS-7 the answer is always on screen', function () {
 });
 
 // ---- run ----------------------------------------------------
+// ---- GS-8 A TEXT DECISION IS TEXT -------------------------------------------
+// Owner, circling a scrolling decision column holding The Flash's two
+// first-player options: "there should be no scrooll fit it the cards are too
+// big for those decsins its jsut text no cards."
+//
+// Measured on that prompt: each option was a 190px card-shaped tile carrying a
+// 34px name plate and a .card-desc stretched to 108.8px to hold 26.1px of
+// sentence, plus a separate 44px PICK button. 242px per option, and the panel
+// scrolled by 103px inside a gutter with no room to give. After: 51px per
+// option, panel scrolls by 0.
+t('GS-8 a pure-text option renders as a button, not a card tile', function () {
+  var src = decomment(UISRC);
+  eq('the branch exists', /isPlainText/.test(src), true);
+  eq('it emits a button, not a .choice-card', /class="choice-text-opt"/.test(src), true);
+  // The three action tiles that carry real art must NOT be collapsed: the
+  // Voldemort curses (coloured lightning), Art the Clown's weapons (neon
+  // glyph), and the "which player?" seat tiles (the name IS the decision).
+  var cond = (src.match(/const isPlainText =[^;]*;/) || [''])[0];
+  eq('curse tiles excluded',  /!curseColor/.test(cond), true);
+  eq('weapon tiles excluded', /!card\._artWeaponKey/.test(cond), true);
+  eq('player tiles excluded', /!card\._isPlayerTile/.test(cond), true);
+  eq('and anything with stats or a cost', /!stats/.test(cond) && /!costHtml/.test(cond), true);
+});
+
+t('GS-9 the text option is pickable through the one existing door', function () {
+  var src = decomment(UISRC);
+  var branch = (src.match(/if \(isPlainText\)[\s\S]*?\n      \}/) || [''])[0];
+  eq('found the branch', branch.length > 40, true);
+  // [data-idx] is already delegated to cardChoicePick. Carrying data-pick as
+  // well would bind a SECOND listener to the same button and pick twice.
+  eq('carries data-idx', /data-idx=/.test(branch), true);
+  eq('and not a second data-pick door', /data-pick=/.test(branch), false);
+});
+
+t('GS-10 the stacking override beats the !important grid it overrides', function () {
+  // The decision column forces `display: grid !important` with an auto-fit
+  // track list sized for card portraits. A normal declaration loses to it no
+  // matter how specific, so the text rule has to be !important too — and it is
+  // written directly beneath what it overrides rather than 36,000 lines away,
+  // which is how a correct rule ends up dead. (See [[css-audit-traps]].)
+  var m = CSS.match(/#classic-decision \.choice-tray-cards:has\(\.choice-opt-text\)\s*\{([^}]*)\}/);
+  eq('the override exists', !!m, true);
+  eq('it is !important', !!m && /display:\s*flex\s*!important/.test(m[1]), true);
+  eq('and stacks them', !!m && /flex-direction:\s*column/.test(m[1]), true);
+  // It must come AFTER the grid rule in source order, so equal-weight
+  // declarations resolve its way too.
+  var gridAt = CSS.indexOf('#classic-decision .choice-tray-cards {');
+  var overAt = CSS.indexOf('#classic-decision .choice-tray-cards:has(.choice-opt-text)');
+  eq('and is authored after it', gridAt >= 0 && overAt > gridAt, true);
+});
+
+// ---- GS-11 ONE ANNOUNCEMENT PER TRICK ---------------------------------------
+// Owner, on a screenshot of the Bacta Tank reveal with a text notice painted
+// across it: "also no overlapping the art says it all no notice needed, have
+// the art stay for 7 seconds though so you know whit a little bar timer."
+//
+// playTrick calls UI.showTrickReveal for EVERY trick and carries its own `else`
+// fallback to the toast. A ui.js wrapper around Game.playTrick fired a SECOND
+// toast for AI tricks — written before the centre reveal existed, when a trick
+// had no card to look at. The two ran on different clocks (the reveal queue and
+// UI._stage do not serialise against each other), so they landed on screen
+// together rather than one after the other.
+t('GS-11 the playTrick wrapper no longer raises its own toast', function () {
+  var src = decomment(UISRC);
+  // NOT by slicing "the wrapper": ui.js wraps Game.playTrick TWICE (once for
+  // the play SFX, once — formerly — for this toast), and a non-greedy slice
+  // from the first one runs 9,268 characters into unrelated code and reports
+  // whatever it finds there. A constant error = a wrong reference, again.
+  // The call itself is unique, so assert on the call.
+  eq('the opponent-trick toast is gone',
+     /showAITrickToast\(`\$\{UI\.oppName\(\)\} played/.test(src), false);
+  eq('and no toast is raised from a playTrick wrapper at all',
+     /Game\.playTrick = [\s\S]{0,400}?showAITrickToast/.test(src), false);
+  // ...and the engine's own door still does, so nothing was simply deleted.
+  var engine = read('game.js');
+  eq('playTrick still reveals every trick',
+     /UI\.showTrickReveal\(trick\.name, trick\.desc \|\| '', trick\.cost, owner === 'player'\)/.test(engine), true);
+});
+
+t('GS-12 the reveal holds for seven seconds, and says how long is left', function () {
+  var src = decomment(UISRC);
+  eq('seven seconds', /TRICK_NOTICE_MS:\s*7000/.test(src), true);
+  var body = decomment(methodBody('_nextTrickReveal'));
+  eq('one number for both', /const hold = item\.holdMs \|\| 2100;/.test(body), true);
+  eq('the bar is driven by it', /animation-duration:\$\{hold\}ms/.test(body), true);
+  eq('and the dismissal too', /\}, hold\);/.test(body), true);
+  // A bar that animates width relayouts every frame over card art.
+  var bar = CSS.match(/\.trick-reveal \.tr-timer > i\s*\{([^}]*)\}/);
+  eq('the bar exists', !!bar, true);
+  eq('it names the drain animation', !!bar && /animation-name:\s*trickRevealDrain/.test(bar[1]), true);
+  eq('and it is linear, so the bar tracks real time',
+     !!bar && /animation-timing-function:\s*linear/.test(bar[1]), true);
+  // The KEYFRAMES are the thing that must not animate width — a width
+  // animation relayouts every frame on an element sitting over card art.
+  // (The static `width: 100%` on the bar itself is the box, not the motion.)
+  var kf = CSS.match(/@keyframes trickRevealDrain\s*\{([\s\S]*?)\}\s*\n/);
+  eq('the keyframes exist', !!kf, true);
+  eq('they scale, they do not resize', !!kf && /scaleX\(0\)/.test(kf[1]) && !/width/.test(kf[1]), true);
+});
+
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];
   try { c.fn(); } catch (e) {
