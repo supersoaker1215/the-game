@@ -10766,6 +10766,39 @@ const Game = {
     if (card._history.length > 10) card._history.shift();
   },
 
+  // A RANDOM-LANE EFFECT SHOULD SAY WHERE IT LANDED.
+  // Owner, on Gojo's card: "for hallow purpe can i see what lanes were hit
+  // same for thanos."
+  //
+  // These two pick their lanes from the seeded RNG and resolve in the same beat
+  // as the rest of combat, so the only record of WHICH lanes was a line in the
+  // engine log. The flash Thanos throws lasts 2.6 seconds and Gojo's fires
+  // mid-combat, which means by the time you look at the card and ask what it
+  // did, the answer is gone. The dossier is the one surface that keeps it.
+  //
+  // ONE FORMATTER, so a future random-lane card inherits the wording instead of
+  // inventing a third one. Empty lanes are named too — "lanes 2, 4, 6 (empty)"
+  // is the answer to "why did nothing happen", and hiding it would leave the
+  // most common disappointment unexplained.
+  //
+  // `hits` is {lane, name} PAIRS, not a bare list of names, and that is the
+  // whole reason it is a formatter rather than two string joins. Thanos rolls
+  // its lanes into a Set and iterates them in ROLL order while the lane numbers
+  // print sorted — so a flat name list produced "lanes 3, 4, 6 (Sandman, Venom,
+  // Catwoman)" with Sandman actually standing in lane 6. Every name is read
+  // against the number in the same position; getting that pairing wrong is
+  // worse than printing no names at all.
+  noteLaneStrike(card, label, lanes, hits) {
+    if (!card || !lanes || !lanes.length) return;
+    const ls = lanes.slice().sort((a, b) => a - b).map(i => (i | 0) + 1).join(', ');
+    const named = (hits || []).slice()
+      .filter(h => h && h.name)
+      .sort((a, b) => (a.lane | 0) - (b.lane | 0))
+      .map(h => h.name);
+    const tail = named.length ? ` (${named.join(', ')})` : ' (empty)';
+    this.noteCardEvent(card, `${label} \u2014 lanes ${ls}${tail}`);
+  },
+
   // ===================== PROVENANCE: WHO PLAYED IT, WHEN =====================
   // The card's RECORD block was an EFFECT log only ("R5 Star-Lord — +2/+2"):
   // nothing anywhere recorded who actually PLAYED a card. This is the one

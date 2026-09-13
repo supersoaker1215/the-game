@@ -5302,14 +5302,23 @@ const CARD_ABILITIES = {
       }
       const picked = LANES.slice(0, 3).sort((a, b) => a - b);
       G.log(`Gojo activates Hollow Purple! Erasing lanes ${picked.map(i => i + 1).join(', ')}!`);
+      const erased = [];
       for (const i of picked) {
         const e = G.state.lanes[i][opp];
         if (e && e.currentHealth > 0) {
+          // Name it BEFORE the kill — killCard can clear the slot and a death
+          // hook can move the object, so reading it afterwards is a race.
+          const who = e.name;
           if (typeof UI !== 'undefined' && UI._fxHollowPurple) { try { UI._fxHollowPurple(self, e); } catch (er) {} }
           G.killCard(e, self);
-          G.log(`  Gojo destroys ${e.name} in lane ${i + 1}!`);
+          if (e.currentHealth <= 0) erased.push({ lane: i, name: who });
+          G.log(`  Gojo destroys ${who} in lane ${i + 1}!`);
         }
       }
+      // ON THE RECORD. The three lanes are rolled from the seeded RNG and the
+      // whole thing resolves mid-combat, so without this the only answer to
+      // "which lanes did it hit" was a log line nobody has open.
+      G.noteLaneStrike(self, 'Hollow Purple', picked, erased);
     }
   },
   "Gorr": {
@@ -6775,6 +6784,7 @@ const CARD_ABILITIES = {
         ? self._thanosLanes
         : halfBoard + G.rarityValue(self, { common: 0, rare: 0, special: 1, legendary: 2 });
       const rolled = new Set();
+      const erased = [];
       let killed = 0;
       const maxLanes = Game.LANE_COUNT;
       while (rolled.size < Math.min(numRolls, maxLanes)) {
@@ -6792,11 +6802,18 @@ const CARD_ABILITIES = {
             // no revive. devourCard is the canonical door for that, so the
             // snap inherits every rule devour already has (Invincible refuses
             // it, Damage Immunity does not, kill credit still lands).
-            G.devourCard(e, self); killed++; G.log(`Thanos snaps lane ${r + 1}: ${e.name} erased from existence!`);
+            // Named before the devour, for the same reason Gojo's is: the card
+            // is gone from the board a statement later.
+            const who = e.name;
+            erased.push({ lane: r, name: who });
+            G.devourCard(e, self); killed++; G.log(`Thanos snaps lane ${r + 1}: ${who} erased from existence!`);
           }
         }
       }
       G.log(`Thanos snaps! Lanes ${[...rolled].map(n => n + 1).sort().join(', ')} — ${killed} enemies erased!`);
+      // ON THE RECORD, same as Hollow Purple. The lane flash below is 2.6
+      // seconds; the card is read long after that.
+      G.noteLaneStrike(self, 'Snap', [...rolled], erased);
       try { if (typeof UI !== 'undefined' && UI.sfx) UI.sfx.playCardSfx('Thanos', 'ability', self); } catch (e) {}
       // Flash the rolled lanes so the player can SEE which 3 lanes got hit
       // (some may have had no target to kill, which the log line alone

@@ -6061,6 +6061,84 @@ test("Gargantua's pull re-reads a card's lane before moving it", function () {
   });
 });
 
+// ==================== A RANDOM-LANE EFFECT SAYS WHERE IT LANDED ============
+// Owner, on Gojo's card: "for hallow purpe can i see what lanes were hit same
+// for thanos."
+//
+// Both roll their lanes from the seeded RNG and resolve in the same beat as the
+// rest of combat, so the only record of WHICH lanes was an engine log line.
+// Thanos's lane flash lasts 2.6 seconds and Gojo's fires mid-combat; the card
+// gets read long after either is gone.
+test('noteLaneStrike pairs each name with the lane it stood in', function () {
+  // THE ONE THAT MATTERS. Thanos rolls into a Set and iterates in ROLL order
+  // while the lane numbers print SORTED, so a flat list of names produced
+  // "lanes 3, 4, 6 (Sandman, Venom, Catwoman)" with Sandman actually in lane 6.
+  // Every name is read against the number in the same position — a wrong
+  // pairing is worse than printing no names at all.
+  var G = freshGame();
+  var c = place(G, 'Hulk', 'player', 0);
+  c._history = [];
+  G.state.round = 7;
+  // hits deliberately out of lane order, the way a Set iterates a roll
+  G.noteLaneStrike(c, 'Snap', [5, 2, 3], [
+    { lane: 5, name: 'Sandman' },
+    { lane: 2, name: 'Venom' },
+    { lane: 3, name: 'Catwoman' },
+  ]);
+  var line = c._history[c._history.length - 1].t;
+  assertEq(line, 'Snap \u2014 lanes 3, 4, 6 (Venom, Catwoman, Sandman)',
+    'names follow the lanes, not the roll — got "' + line + '"');
+});
+
+test('noteLaneStrike says (empty) when the lanes held nothing', function () {
+  var G = freshGame();
+  var c = place(G, 'Hulk', 'player', 0);
+  c._history = [];
+  G.state.round = 4;
+  G.noteLaneStrike(c, 'Hollow Purple', [1, 3, 5], []);
+  assertEq(c._history[c._history.length - 1].t, 'Hollow Purple \u2014 lanes 2, 4, 6 (empty)',
+    '"why did nothing happen" is a real question and this is the answer');
+});
+
+test("Hollow Purple writes the lanes it erased onto Gojo's record", function () {
+  var G = freshGame();
+  for (var i = 0; i < G.LANE_COUNT; i++) { G.state.lanes[i].player = null; G.state.lanes[i].ai = null; }
+  var gojo = place(G, 'Gojo', 'player', 2);
+  gojo._history = [];
+  gojo._gojoCombats = 1;                 // one combat already banked
+  for (var j = 0; j < G.LANE_COUNT; j++) place(G, 'Hulk', 'ai', j);
+  G.state.round = 7;
+  gojo.onLaneResolved(G, gojo, 2);
+  G.cleanupDead();
+  var line = (gojo._history || []).map(function (e) { return e.t; })
+    .filter(function (t) { return t.indexOf('Hollow Purple') === 0; })[0];
+  assert(!!line, 'the record carries a Hollow Purple line');
+  assert(/^Hollow Purple \u2014 lanes \d(, \d){2} \(/.test(line),
+    'naming exactly three lanes — got "' + line + '"');
+  // Every lane held a body, so none of them can read as empty.
+  assert(line.indexOf('(empty)') < 0, 'a full board does not report empty lanes');
+});
+
+test("Thanos writes the lanes he snapped onto his own record", function () {
+  var G = freshGame();
+  for (var i = 0; i < G.LANE_COUNT; i++) { G.state.lanes[i].player = null; G.state.lanes[i].ai = null; }
+  for (var j = 0; j < G.LANE_COUNT; j++) place(G, 'Hulk', 'ai', j);
+  var th = place(G, 'Thanos', 'player', 0);
+  th._history = [];
+  G.state.round = 9;
+  th.onPlay(G, th, 0);
+  G.cleanupDead();
+  var line = (th._history || []).map(function (e) { return e.t; })
+    .filter(function (t) { return t.indexOf('Snap') === 0; })[0];
+  assert(!!line, 'the record carries a Snap line');
+  // Half the board in 1v1 is three lanes.
+  assert(/^Snap \u2014 lanes \d(, \d){2} \(/.test(line),
+    'naming exactly three lanes — got "' + line + '"');
+  // The names are read off cards that were DEVOURED, so they have to be
+  // captured before the devour rather than after.
+  assert(line.indexOf('Hulk') >= 0, 'and it names what it erased — got "' + line + '"');
+});
+
 // ==================== GARGANTUA, REWORKED ====================
 // Owner: "theres 1 gargantua lane that spawns and theres no energy energy pay
 // for either player it wil pull cards in for 3 rounds, and pull them closer at
