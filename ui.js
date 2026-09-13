@@ -630,7 +630,24 @@ const UI = {
     // dismiss the view — the card stays selected and the lanes stay tappable.
     // (User: "add a tap-to-play system too, keep tap-to-view; the option to
     // play shouldn't go away when you go out.")
-    if (this._inspectCardPlayable(card)) {
+    // A PROMPT IS WAITING ON THIS CARD. When a `fromHand` choice is open and
+    // this is one of its options, the inspect view is where the decision gets
+    // made — you are already looking at the full face, which is the whole point
+    // of routing the pick through here. Same button furniture as Play.
+    const _pickIdx = this._handPickIndexOf ? this._handPickIndexOf(card) : -1;
+    if (_pickIdx >= 0) {
+      const pickBtn = document.createElement('button');
+      pickBtn.type = 'button';
+      pickBtn.className = 'card-inspect-play-btn card-inspect-pick-btn tron-reticle-btn';
+      pickBtn.textContent = (Game.state.pendingCardChoice && Game.state.pendingCardChoice.pickLabel) || 'Pick';
+      pickBtn.onclick = (e) => {
+        e.stopPropagation();
+        this.closeCardInspect();
+        try { cardChoicePick(_pickIdx); } catch (err) { console.error('[hand-pick]', err); }
+      };
+      modal.appendChild(pickBtn);
+    }
+    if (_pickIdx < 0 && this._inspectCardPlayable(card)) {
       const playBtn = document.createElement('button');
       playBtn.type = 'button';
       // .tron-reticle-btn carries the form (corner brackets, no fill);
@@ -13253,6 +13270,17 @@ const UI = {
     if (timer) timer.innerHTML = '';
   },
 
+  // Is this card one the open `fromHand` prompt is offering? Returns its index
+  // in the prompt's list, or -1. The inspect view uses it to decide whether to
+  // show a PICK button.
+  _handPickIndexOf(card) {
+    const st = typeof Game !== 'undefined' && Game.state;
+    const cc = st && st.pendingCardChoice;
+    if (!card || !cc || !cc.fromHand) return -1;
+    try { if (!Game.promptIsMine(cc, 'card')) return -1; } catch (e) { return -1; }
+    return (cc.cards || []).findIndex(c => c && String(c.id) === String(card.id));
+  },
+
   // Render inline choice cards below the board for choices that can't be highlighted on board/hand
   renderInlineChoiceFallback(s) {
     let existing = document.getElementById('inline-choice-row');
@@ -13266,6 +13294,46 @@ const UI = {
     // it resolves on the owner's screen. One authority (promptIsMine) covers
     // solo, 1v1 seat-flip, AND 2v2 playerKey — no per-gate re-derivation.
     if (!cc || !Game.promptIsMine(cc, 'card')) return;
+
+    // ---- CHOOSE FROM THE HAND YOU ALREADY HAVE ----------------------------
+    // Owner: "for SSM decsion thats the only one i want thats highlights yur
+    // hand yellow and you choose form there with a decion notice."
+    //
+    // Symbiote Spider-Man offers your WHOLE hand — up to seven cards. Three fit
+    // across the 242px decision column, so the rest sat behind a scroll, and
+    // every one of them was a second, smaller copy of a card already painted
+    // full size a few hundred pixels below. The hand IS the list.
+    //
+    // The highlighting is not new: renderPlayerHand already lights a prompt's
+    // hand cards gold (.target-highlight) and wires them, and SSM opted OUT of
+    // it with `inlineTray: true`. What was missing is the half the owner is
+    // asking for now — a notice saying what the lit cards are for. Without one
+    // the hand simply glowed and you had to infer the question.
+    //
+    // WHY THIS DOES NOT RE-BREAK THE EARLIER COMPLAINT. The tray replaced hand
+    // highlighting once before, for a good reason recorded in abilities.js: "a
+    // tap on a card is a READ everywhere else in the game, so committing a
+    // shuffle with the same gesture is a trap." That still holds, and is
+    // answered rather than ignored: a lit hand card now OPENS (the full inspect
+    // view, as any hand card does) and the Pick button lives inside it. You
+    // still read first and commit second — the reading just happens at full
+    // size instead of at 70px.
+    if (cc.fromHand) {
+      const tray = document.createElement('div');
+      tray.id = 'choice-tray';
+      tray.className = 'choice-tray choice-from-hand';
+      tray.innerHTML = `
+        <div class="choice-tray-backdrop"></div>
+        <div class="choice-tray-panel">
+          <div class="choice-tray-header">
+            <span class="choice-tray-title">${cc.title || 'Choose a card'}</span>
+            ${cc.desc ? `<span class="choice-tray-desc">${cc.desc}</span>` : ''}
+          </div>
+          <div class="choice-hand-hint">Pick from your hand \u2014 tap a lit card to read it.</div>
+        </div>`;
+      document.body.appendChild(tray);
+      return;
+    }
 
     // Wire up the Mind Control "attack the health bar" option directly to the
     // HP bar UI — the HP bar glows and becomes clickable, instead of being
@@ -13646,6 +13714,35 @@ const UI = {
       const idx = +el.getAttribute('data-idx');
       if (!(idx >= 0)) return;
       el.style.cursor = 'pointer';
+      // A CARD FACE OPENS TO BE READ. THE BUTTON COMMITS.
+      // Owner, on the Wonder Weapon prompt docked in the gutter: "there shpuld
+      // be a pick utton underneath becaue whemn you selct them they tap to play
+      // card so you can read the description."
+      //
+      // Every prompt lives in the 242px decision column now, and three card
+      // faces across that is ~70px each — the art reads, the rules do not. So
+      // the one gesture available was "commit to a card you cannot read".
+      // Tapping a face opens the same full inspect view a board card gets, and
+      // the PICK button under it is what actually chooses.
+      //
+      // A PLAIN TEXT OPTION IS EXEMPT, because it is already its own button —
+      // it has no art to enlarge and its sentence is fully on screen. Sending
+      // that through an inspect view would be a modal that says what the tile
+      // it covers already said.
+      const isTextOpt = el.classList.contains('choice-text-opt');
+      const face = !isTextOpt && (el.classList.contains('card') || el.classList.contains('trick-card'));
+      if (face) {
+        el.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          const c = cc.cards[idx];
+          // No readable face to open (a synthetic action tile that still wears
+          // card chrome) → fall back to the historic click-to-pick rather than
+          // opening an empty modal.
+          if (!c || !this.openCardInspect) { cardChoicePick(idx); return; }
+          try { this.openCardInspect(c); } catch (e) { cardChoicePick(idx); }
+        });
+        return;
+      }
       el.addEventListener('click', (ev) => { ev.stopPropagation(); cardChoicePick(idx); });
     });
     this._wireGiveDrag(tray, cardChoicePick);
@@ -23085,8 +23182,20 @@ const UI = {
     const modal = document.createElement('div');
     modal.id = 'decision-modal';
     modal.className = 'choice-tray decision-modal';
+    // SAME GRAMMAR AS THE TRAY: a face you can open, and a button that commits.
+    // Owner, on this prompt docked in the gutter: "there shpuld be a pick utton
+    // underneath becaue whemn you selct them they tap to play card so you can
+    // read the description."
+    //
+    // Wrapped in .choice-opt and given a .choice-pick-btn so the column's
+    // existing tray layout applies to it unchanged — this modal emits
+    // `.choice-tray-cards` already, it just never wore the row shape those
+    // rules are written for.
     const items = choices.map((ch, i) =>
-      `<div class="choice-card decision-choice${ch.danger ? ' decision-danger' : ''}${ch.art ? ' has-art' : ''}" data-di="${i}">${ch.html}</div>`
+      `<div class="choice-opt">`
+      + `<div class="choice-card decision-choice${ch.danger ? ' decision-danger' : ''}${ch.art ? ' has-art' : ''}" data-di="${i}">${ch.html}</div>`
+      + `<button type="button" class="choice-pick-btn${ch.danger ? ' choice-pick-danger' : ''}" data-dpick="${i}">${ch.pickLabel || 'Pick'}</button>`
+      + `</div>`
     ).join('');
     modal.innerHTML = `
       <div class="choice-tray-backdrop"></div>
@@ -23099,15 +23208,57 @@ const UI = {
             + `${opts.cardDesc ? `<div class="decision-hero-desc">${opts.cardDesc}</div>` : ''}</div>` : ''}
         <div class="choice-tray-cards decision-choices">${items}</div>
       </div>`;
-    document.body.appendChild(modal);
+    // INTO THE DECISION PANEL, like every other prompt. Owner, arrow drawn from
+    // a centred "Paul Atreides — Choose a Card" modal to the gutter: "this
+    // should be at the decisoon table for thw WW perfct."
+    //
+    // It never docked because it could not: renderClassicDecision adopts the
+    // floaters into the slot, but the render path RETURNS at the Kang/BWL
+    // branch (ui.js:8039) before renderHud — and renderClassicDecision hangs
+    // off renderHud. So the one render where this modal exists is the one
+    // render that never reaches the code that would have moved it. Mounting it
+    // directly removes the ordering dependency rather than reshuffling the
+    // render, which is the kind of change that breaks two other things.
+    const _slot = this._classicDecisionSlot && this._classicDecisionSlot('slot');
+    (_slot || document.body).appendChild(modal);
+    // The column's card sizer normally runs from renderClassicDecision, which
+    // this render never reaches (see the mount note above) — so the faces would
+    // keep the --card-w they were built at and overflow the gutter.
+    if (this._sizeDecisionTrayCards) this._sizeDecisionTrayCards();
+    // A FACE OPENS, IT DOES NOT COMMIT. Same split as the tray: at gutter width
+    // a card's rules are unreadable, so tapping it shows the full inspect view
+    // and the button underneath is the decision. A choice with no card behind
+    // it (the Batman Who Laughs keep/destroy pair, which are pure actions) keeps
+    // click-to-commit, because there is nothing to open.
     modal.querySelectorAll('.decision-choice').forEach(el => {
       const i = +el.getAttribute('data-di');
+      const ch = choices[i];
+      if (ch && ch.card && this.openCardInspect) {
+        el.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          try { this.openCardInspect(ch.card); } catch (e) { try { ch.onClick(); } catch (e2) {} }
+        });
+        return;
+      }
       el.addEventListener('click', () => {
         try { choices[i].onClick(); }
         catch (err) {
           // A throw in a BWL/Kang handler used to vanish into an empty catch
           // and soft-lock the match. Surface it and try to unstick combat so
           // a handler bug degrades to a logged error + a live board, not a freeze.
+          console.error('[decision-modal] choice handler threw:', err);
+          this._removeDecisionModal();
+          try { Game.resumeCombatIfWaiting(); } catch (e2) {}
+          try { UI.render(); } catch (e3) {}
+        }
+      });
+    });
+    modal.querySelectorAll('[data-dpick]').forEach(btn => {
+      const i = +btn.getAttribute('data-dpick');
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        try { choices[i].onClick(); }
+        catch (err) {
           console.error('[decision-modal] choice handler threw:', err);
           this._removeDecisionModal();
           try { Game.resumeCombatIfWaiting(); } catch (e2) {}
@@ -23180,7 +23331,9 @@ const UI = {
       const face = this._synthFace(card, {});
       const el = this.makeCardEl(face, true, 'player', { static: true });
       el.insertAdjacentHTML('beforeend', `<div class="decision-choice-cost">New cost: ${newCost}</div>`);
-      return { art: true, html: el.outerHTML, onClick: () => kangChoicePick(i) };
+      // `card` rides along so the tile's face can open the full inspect view —
+      // at gutter width the printed rules are ~7px.
+      return { art: true, card, html: el.outerHTML, onClick: () => kangChoicePick(i) };
     });
     this._showDecisionModal('Paul Atreides — Choose a Card',
       'Pick 1 to keep (cost −2). The other returns to the deck.', choices);
@@ -29347,7 +29500,16 @@ const UI = {
         // so reused .card elements don't accumulate stacked listeners
         // across renders (each render would otherwise add a fresh
         // click handler on top of the previous ones).
-        el.onclick = () => cardChoicePick(idx);
+        //
+        // A `fromHand` prompt OPENS the card rather than committing it. That is
+        // the objection that retired hand-picking the first time — "a tap on a
+        // card is a READ everywhere else in the game, so committing a shuffle
+        // with the same gesture is a trap" — and it is answered here rather
+        // than argued with: the tap does what a tap does anywhere else, and the
+        // Pick button waiting inside the inspect view is the commit.
+        el.onclick = cc.fromHand
+          ? () => { try { this.openCardInspect(card); } catch (e) { cardChoicePick(idx); } }
+          : () => cardChoicePick(idx);
       } else if (!hasPending) {
         const cost = this._localCardCost(card);
         const afford = s.player.currency >= cost;
@@ -30009,7 +30171,10 @@ const UI = {
     // The four floaters are NOT rebuilt every render the way the banner is, so
     // adopting them here is safe — #choice-tray is the exception and is
     // re-checked each pass because it IS rebuilt whenever it is raised.
-    ['jump-offer-modal', 'block-trick-modal', 'time-stone-modal', 'choice-tray'].forEach(function (id) {
+    // 'decision-modal' is the Kang/BWL prompt. It mounts itself into the slot
+    // now (see _showDecisionModal) — this keeps it there across renders, the
+    // same belt-and-braces every other floater gets.
+    ['jump-offer-modal', 'block-trick-modal', 'time-stone-modal', 'choice-tray', 'decision-modal'].forEach(function (id) {
       const m = document.getElementById(id);
       if (m && m.parentNode !== slot) slot.appendChild(m);
     });

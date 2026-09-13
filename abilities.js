@@ -2699,16 +2699,23 @@ const CARD_ABILITIES = {
           if (onDone) onDone();
         } else {
           // Human: picks each card via prompt.
-          // inlineTray — THE WHOLE HAND, LAID OUT, WITH A PICK BUTTON UNDER EACH
-          // CARD. This used to light the cards up where they sat in the hand and
-          // ask you to tap one there: the cards are hand-sized, the rules text
-          // is unreadable at that scale, and a tap on a card is a READ
-          // everywhere else in the game, so committing a shuffle with the same
-          // gesture is a trap. The tray is the grammar Deadpool's give-back
-          // already uses — read the full face, then press Pick. (User: "instead
-          // of tapping the highlighted cards in your hand i want it more like a
-          // prompt that comes up and shows your whole hand and has the option to
-          // pick underneath like when you give a card with deadpool.")
+          // fromHand — YOU PICK OUT OF THE HAND ITSELF. Owner: "for SSM decsion
+          // thats the only one i want thats highlights yur hand yellow and you
+          // choose form there with a decion notice."
+          //
+          // THIS REVERSES AN EARLIER CHANGE, DELIBERATELY, AND KEEPS ITS POINT.
+          // It used to be `inlineTray: true`, which laid the whole hand out as
+          // tiles with a Pick under each, because hand-picking had one real
+          // fault: "a tap on a card is a READ everywhere else in the game, so
+          // committing a shuffle with the same gesture is a trap." True then and
+          // true now — so the tap is NOT the commit any more. A lit hand card
+          // opens the full inspect view like any other hand card, and the Pick
+          // button lives inside it (see UI._handPickIndexOf). Read first,
+          // commit second, at full size.
+          //
+          // What the tray could never fix is that this prompt offers the WHOLE
+          // hand — seven cards, three of which fit across the decision column,
+          // each a smaller duplicate of a card already on screen.
           G.promptCardChoice(p, [...hand], "Symbiote Spider-Man — Shuffle", "Choose 1st card to shuffle back into the deck (pick 2 total)", (c1) => {
             const idx1 = hand.findIndex(c => c.id === c1.id);
             if (idx1 >= 0) hand.splice(idx1, 1);
@@ -2720,8 +2727,8 @@ const CARD_ABILITIES = {
               cycleDraw(p, 2, () => G.state[p].hand);
               G.log("Symbiote Spider-Man: You shuffle 2 cards back and draw 2!");
               if (onDone) onDone();
-            }, null, { inlineTray: true });
-          }, null, { inlineTray: true });
+            }, null, { fromHand: true });
+          }, null, { fromHand: true });
         }
       };
       // Process owner first, then opponent, then heal
@@ -2845,8 +2852,8 @@ const CARD_ABILITIES = {
                     const i2 = hand.findIndex(c => c.id === c2.id);
                     if (i2 >= 0) { shuffleBack(hand[i2], seatSide); hand.splice(i2, 1); }
                     finalizeDraw();
-                  }, lowest, { seat: seatKey, inlineTray: true });
-              }, lowest, { seat: seatKey, inlineTray: true });
+                  }, lowest, { seat: seatKey, fromHand: true });
+              }, lowest, { seat: seatKey, fromHand: true });
           }
         };
         // Owner first, then the rest — chained so human pick prompts never

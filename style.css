@@ -12537,6 +12537,27 @@ body.turn-combat .board .lane.lane-active {
   font-size: 10.5px; line-height: 1.35;
   color: var(--text-mute, #b8c2cc);
 }
+/* ---- THE NOTICE FOR A HAND PICK (2026-09-12) -----------------------------
+   Owner: "for SSM decsion ... highlights yur hand yellow and you choose form
+   there with a decion notice."
+
+   A `fromHand` prompt has no tiles — the hand IS the list, lit gold by
+   .target-highlight. All this panel has to do is say what the gold means, so
+   it is a title, a sentence and a line, and nothing that looks pickable. */
+.choice-tray.choice-from-hand .choice-hand-hint {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-align: center;
+  padding: 8px 10px 2px;
+  color: rgba(var(--gold-rgb), 0.95);
+  text-shadow: 0 0 10px rgba(var(--gold-rgb), 0.45);
+}
+/* No card row means no grid to size — keep the panel to its own words so the
+   gutter does not reserve a tray-sized hole under the notice. */
+#classic-decision .choice-tray.choice-from-hand .choice-tray-panel { min-height: 0; }
+
 .choice-tray .choice-facedown {
   width: 150px; height: 190px;
   background: repeating-linear-gradient(45deg, #1a1a2e, #1a1a2e 10px, #16213e 10px, #16213e 20px);
@@ -48928,6 +48949,54 @@ body.in-match #classic-decision:has(.cd-slot > *) { display: flex; }
   gap: 6px !important;
 }
 #classic-decision .choice-tray-cards > * { width: 100% !important; min-width: 0 !important; }
+/* ---- A TILE IN THE GUTTER IS A THUMBNAIL (2026-09-12) --------------------
+   Owner, on the Wonder Weapon prompt: that one is "perfct" — art, name, cost,
+   nothing else — while the prompts printing full rules into the same 242px
+   column scrolled. Measured on a two-card prompt: the card face came to
+   177.7px and 173.7px of that was `.card-desc`, set at ~7px and unreadable
+   anyway; the panel scrolled by 93px. The Kang pair was worse at 477.6px and
+   276px of scroll.
+
+   The rules are not lost, they MOVED: tapping a tile opens the full inspect
+   view, which is the whole reason the face stopped being the commit target.
+   So the tile carries what you recognise a card BY — the art, the name, the
+   cost — and the button under it commits. That is the shape the owner already
+   approved; this just gives it to the prompts that did not have it.
+
+   `.decision-choice-cost` is exempt: on the Kang pair the whole decision IS
+   the new cost, so that line is data, not description. */
+#classic-decision .choice-tray-cards .card .card-desc,
+#classic-decision .choice-tray-cards .trick-card .trick-desc,
+#classic-decision .choice-tray-cards .card .card-active-text {
+  display: none !important;
+}
+#classic-decision .choice-tray-cards .decision-choice-cost { display: block; }
+/* The decision modal nests its face ONE LEVEL DEEPER than the tray does
+   (.choice-opt > .decision-choice > .card, vs .choice-opt > .card), so the
+   `> *` width rule above stopped at .choice-opt and the wrapper kept its own
+   198px. `width: 100%` on the card inside then resolved against THAT, not the
+   116px track — and _snapPortraits, which derives the portrait's height from
+   its MEASURED width, faithfully wrote 238.5px of portrait for it. A wrong
+   reference producing a confidently wrong number, again. */
+#classic-decision .choice-tray-cards .decision-choice {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+/* And the portrait answers to the TRACK rather than to whatever width it was
+   measured at. _snapPortraits writes an inline height derived from the box it
+   measured, which is correct then and stale the moment CSS narrows that box.
+
+   Derived from --card-w, not from `aspect-ratio`: that same helper also blanks
+   aspect-ratio inline, so a non-important ratio here loses to the inline value
+   and the portrait collapses to 0 — measured, on the first attempt at this. A
+   definite height off the variable the sizer already maintains cannot collapse
+   and cannot go stale. Same 360/472 the card uses everywhere. */
+#classic-decision .choice-tray-cards .card-portrait {
+  height: calc(var(--card-w, 70px) * 472 / 360) !important;
+  aspect-ratio: auto !important;
+}
+
 #classic-decision .choice-tray .card,
 #classic-decision .choice-tray-cards .card {
   /* --card-w IS THE TYPE SCALE, NOT THE BOX. The box is the 100% below; this is
@@ -50933,10 +51002,17 @@ body.in-match:not(.board-v2) .board {
   margin-top: auto;
   max-height: 50%;
 }
-/* And the decision half is the other half. The panel's own 262px floor wins
-   over this on a short column — which is correct and is why it is written as a
-   max: the thing you have to answer is never the thing that gives. */
-#right-col > #classic-decision,
+/* THE DECISION IS NOT CAPPED AT HALF. It was, briefly, and that was wrong: the
+   rail is only as tall as the events it holds — 53px with one row — so a flat
+   50% cap left 232px of a 570px column EMPTY while the decision above it
+   scrolled by 129. A split is about ORDER, not about reserving space nothing
+   is using, and `margin-top: auto` on the rail already delivers the order.
+
+   When the two genuinely compete, the rail gives first. That is this column's
+   documented priority and the reason is written above: the rail SCROLLS, so it
+   loses nothing permanent, while a decision you cannot see all of is a question
+   you cannot answer. The rail keeps its own 50% cap, which is what stops a long
+   event list climbing into the decision half. */
 #right-col > .trick-reveal {
   max-height: 50%;
 }

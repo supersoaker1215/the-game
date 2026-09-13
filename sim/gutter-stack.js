@@ -302,6 +302,120 @@ t('GS-12 the reveal holds for seven seconds, and says how long is left', functio
   eq('they scale, they do not resize', !!kf && /scaleX\(0\)/.test(kf[1]) && !/width/.test(kf[1]), true);
 });
 
+// ---- GS-13 EVERY DECISION DOCKS -------------------------------------------
+// Owner, arrow drawn from a centred "Paul Atreides — Choose a Card" modal to
+// the gutter: "this should be at the decisoon table for thw WW perfct."
+//
+// It never docked because it could not. renderClassicDecision adopts the
+// floaters into the slot, but the render path RETURNS at the Kang/BWL branch
+// before renderHud — and renderClassicDecision hangs off renderHud. The one
+// render where this modal exists is the one render that never reaches the code
+// that would move it.
+t('GS-13 the Kang/BWL modal mounts into the decision slot, not onto body', function () {
+  var body = decomment(methodBody('_showDecisionModal'));
+  eq('found the method', body.length > 200, true);
+  eq('it asks for the slot', /_classicDecisionSlot\(['"]slot['"]\)/.test(body), true);
+  eq('and body is only the fallback', /\(_slot \|\| document\.body\)\.appendChild\(modal\)/.test(body), true);
+  eq('body is never appended to unconditionally', /^\s*document\.body\.appendChild\(modal\)/m.test(body), false);
+  // Belt and braces: it is also in the adopt list, so a later render keeps it.
+  var adopt = decomment(methodBody('renderClassicDecision'));
+  eq('and it is adopted on later renders', /'decision-modal'/.test(adopt), true);
+});
+
+// ---- GS-14 A FACE OPENS, A BUTTON COMMITS ---------------------------------
+// Owner: "there shpuld be a pick utton underneath becaue whemn you selct them
+// they tap to play card so you can read the description."
+//
+// Three card faces across a 242px column is ~70px each: the art reads, the
+// rules do not. The only gesture available was "commit to a card you cannot
+// read". Now the face opens the full inspect view and the button decides.
+t('GS-14 the decision modal gives every option a pick button', function () {
+  var body = decomment(methodBody('_showDecisionModal'));
+  eq('wrapped in the tray row shape', /class="choice-opt"/.test(body), true);
+  eq('with a pick button', /class="choice-pick-btn/.test(body), true);
+  eq('wired separately from the face', /\[data-dpick\]/.test(body), true);
+  // The face opens instead of committing WHEN there is a card behind it.
+  eq('the face opens the inspect view', /openCardInspect\(ch\.card\)/.test(body), true);
+  // Kang has to pass the card through for that to be possible.
+  var kang = decomment(methodBody('renderKangChoice'));
+  eq('and Kang passes its card along', /card,\s*html:/.test(kang) || /\bcard\b[^\n]*html: el\.outerHTML/.test(kang), true);
+});
+
+t('GS-15 a tray card face opens rather than picking, but text options do not', function () {
+  var src = decomment(UISRC);
+  var wiring = (src.match(/tray\.querySelectorAll\('\[data-idx\]'\)[\s\S]*?\n    \}\);/) || [''])[0];
+  eq('found the wiring', wiring.length > 80, true);
+  eq('a card face opens the inspect view', /openCardInspect/.test(wiring), true);
+  // A plain text option IS its own button and has nothing to enlarge — sending
+  // it through an inspect view would be a modal restating the tile it covers.
+  eq('text options are exempt', /choice-text-opt/.test(wiring), true);
+  eq('and a face with no card still falls back to picking',
+     /if \(!c \|\| !this\.openCardInspect\) \{ cardChoicePick/.test(wiring), true);
+});
+
+// ---- GS-16 SSM PICKS OUT OF THE HAND --------------------------------------
+// Owner: "for SSM decsion thats the only one i want thats highlights yur hand
+// yellow and you choose form there with a decion notice."
+//
+// This REVERSES an earlier change and keeps its point. The tray replaced hand
+// highlighting because "a tap on a card is a READ everywhere else in the game,
+// so committing a shuffle with the same gesture is a trap" — still true, so the
+// tap is no longer the commit: a lit hand card opens, and Pick lives inside.
+t('GS-16 SSM offers the hand itself, with a notice and no tiles', function () {
+  var ab = read('abilities.js');
+  var ssm = (ab.match(/Symbiote Spider-Man — Shuffle[\s\S]{0,2200}/) || [''])[0];
+  eq('SSM asks for the hand', /fromHand: true/.test(ssm), true);
+  eq('and no longer forces the tray', /inlineTray: true/.test(ssm), false);
+  // The engine has to carry the flag or the UI can never see it.
+  eq('the engine carries it', /fromHand: !!\(options && options\.fromHand\)/.test(read('game.js')), true);
+  var src = decomment(UISRC);
+  eq('the tray becomes a notice', /cc\.fromHand/.test(src) && /choice-hand-hint/.test(src), true);
+  eq('and renders no option tiles', /choice-from-hand/.test(src), true);
+});
+
+t('GS-17 a lit hand card opens to be read, and Pick lives in that view', function () {
+  var src = decomment(UISRC);
+  // renderPlayerHand already lights prompt cards gold; only the gesture changed.
+  eq('a fromHand prompt opens instead of committing',
+     /cc\.fromHand[\s\S]{0,140}openCardInspect\(card\)/.test(src), true);
+  eq('a normal prompt still commits on click',
+     /: \(\) => cardChoicePick\(idx\)/.test(src), true);
+  var ins = decomment(methodBody('openCardInspect'));
+  eq('the inspect view offers Pick', /card-inspect-pick-btn/.test(ins), true);
+  eq('it resolves the real prompt', /cardChoicePick\(_pickIdx\)/.test(ins), true);
+  // Play and Pick must not both appear — the card is being chosen, not played.
+  eq('and Play steps aside while a pick is pending',
+     /_pickIdx < 0 && this\._inspectCardPlayable\(card\)/.test(ins), true);
+});
+
+t('GS-18 the decision is not capped at half the column', function () {
+  // A flat 50% cap left 232px of a 570px column empty (the rail is only as tall
+  // as its events) while the decision above it scrolled by 129.
+  eq('no 50% cap on the decision',
+     /#right-col > #classic-decision,\s*\n#right-col > \.trick-reveal \{[^}]*max-height:\s*50%/.test(CSS), false);
+  // The rail keeps its cap and its pin — that is what "events lower" is made of.
+  var rail = CSS.match(/#right-col > #event-rail \{([^}]*)\}/g) || [];
+  var joined = rail.join(' ');
+  eq('the rail still pins to the floor', /margin-top:\s*auto/.test(joined), true);
+  eq('and still stops at half', /max-height:\s*50%/.test(joined), true);
+});
+
+t('GS-19 a gutter tile is a thumbnail, sized off the track', function () {
+  eq('rules text is hidden on a gutter tile',
+     /#classic-decision \.choice-tray-cards \.card \.card-desc[\s\S]{0,160}display:\s*none\s*!important/.test(CSS), true);
+  // The nested .decision-choice wrapper has to be constrained too, or
+  // `width: 100%` on the card resolves against the wrapper's own width and
+  // _snapPortraits writes a portrait height off that wrong reference.
+  eq('the nested wrapper is constrained',
+     /#classic-decision \.choice-tray-cards \.decision-choice \{[^}]*width:\s*100%\s*!important/.test(CSS), true);
+  // Derived from --card-w, NOT aspect-ratio: _snapPortraits blanks aspect-ratio
+  // inline, so a non-important ratio loses and the portrait collapses to 0.
+  var por = CSS.match(/#classic-decision \.choice-tray-cards \.card-portrait \{([^}]*)\}/);
+  eq('the portrait has a definite height', !!por && /height:\s*calc\(var\(--card-w/.test(por[1]), true);
+  eq('and cannot be collapsed by the inline blank',
+     !!por && /aspect-ratio:\s*auto\s*!important/.test(por[1]), true);
+});
+
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];
   try { c.fn(); } catch (e) {

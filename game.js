@@ -14383,7 +14383,7 @@ const Game = {
       // sequence number lets the host recognise a stale answer and ignore it
       // instead of acting on it.
       this._promptSeq = (this._promptSeq || 0) + 1;
-      this.state.pendingCardChoice = { owner, cards, title, desc, callback, _seq: this._promptSeq, faceDown: !!(options && options.faceDown), inlineTray: !!(options && options.inlineTray), localOnly: !!(options && options.localOnly), declineLabel: declineLabelC, onDecline: (options && options.onDecline) || null, peekStrip: (options && options.peekStrip) || null, aiPicker: (typeof aiPicker === 'function') ? aiPicker : null };
+      this.state.pendingCardChoice = { owner, cards, title, desc, callback, _seq: this._promptSeq, faceDown: !!(options && options.faceDown), inlineTray: !!(options && options.inlineTray), fromHand: !!(options && options.fromHand), localOnly: !!(options && options.localOnly), declineLabel: declineLabelC, onDecline: (options && options.onDecline) || null, peekStrip: (options && options.peekStrip) || null, aiPicker: (typeof aiPicker === 'function') ? aiPicker : null };
       // 2v2 online: route guest choices to the guest client (same as lane choice)
       const _cap = this._2v2CurrentActingPlayer;
       // Stamp the host (p1) too. Excluding p1 left every host-raised prompt
