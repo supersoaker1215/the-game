@@ -5393,6 +5393,14 @@ const Game = {
   },
 
   endPhase2() {
+    // THE HOLE. endPhase1 and endPhase3 both refuse during an event hold; this
+    // one never did, so the COMBINED cards+tricks phase — the common one — let
+    // you end your turn straight through MC Ballyhoo's entrance while your
+    // cards were greyed out. Owner: "i cant play cards which is good but i can
+    // end cards, which is bad i should be locked ouut of both."
+    // Refused, not queued, exactly like the other two: the lock is a deadline
+    // and the button works again the moment the show ends.
+    if (this.ballyhooLocked && this.ballyhooLocked()) return;
     // Guest forwards Done to host (same as endPhase1).
     if (this.isMultiplayer() && this.mp && this.mp.role === 'guest') {
       if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'doneTurn' });
@@ -18859,7 +18867,13 @@ const Game = {
   // together.
   // 10s lead-in + two text beats at the UI's BALLYHOO_HOLD_MS (5000) + tail. Raised
   // from 17500 alongside the same beat change.
-  _BALLYHOO_LOCK_MS: 21500,
+  // Sized to the SHOW, and the show got shorter. It was 21500 for a 10s musical
+  // lead-in plus two 5s text beats plus a tail; the art is immediate now
+  // (UI.BALLYHOO_LEAD_MS), so the whole arrival is two beats and their exits —
+  // about 10.5s. Leaving the lock at 21.5 would grey the table for ten seconds
+  // after the last panel had already gone, which is the same "stuck grey"
+  // complaint this constant carries a hard ceiling for.
+  _BALLYHOO_LOCK_MS: 11500,
 
   // EVERY CLIENT TIMES THIS LOCK ON ITS OWN CLOCK.
   //

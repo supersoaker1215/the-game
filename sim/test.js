@@ -6061,6 +6061,77 @@ test("Gargantua's pull re-reads a card's lane before moving it", function () {
   });
 });
 
+// ==================== AN EVENT HOLD LOCKS THE WHOLE TURN ===================
+// Owner, during MC Ballyhoo's entrance: "i cant play cards which is good but i
+// can end cards, which is bad i should be locked ouut of both. also have his
+// art immedialty shoe up."
+test('every phase-end refuses during an event hold', function () {
+  // endPhase1 and endPhase3 both checked the lock; endPhase2 — the COMBINED
+  // cards+tricks phase, and the common one — never did. Half the turn locked
+  // and half not.
+  var src = readFile('game.js');
+  ['endPhase1', 'endPhase2', 'endPhase3'].forEach(function (fn) {
+    var body = src.slice(src.indexOf('\n  ' + fn + '() {'));
+    body = body.slice(0, body.indexOf('\n  },'));
+    assert(/ballyhooLocked\(\) && this\.ballyhooLocked\(\)|ballyhooLocked && this\.ballyhooLocked\(\)/.test(body),
+      fn + ' refuses while an event hold is up');
+  });
+});
+
+test('the End button is disabled, not just refused, during an event hold', function () {
+  // The engine refusing is not enough on its own: the button only ever dimmed
+  // for a pending ability, so through the entrance it sat lit above a greyed
+  // hand. The redraw button got this same fix one release earlier — "1v1 had no
+  // idea the lock existed, so the redraw button stayed lit while the engine
+  // refused" — and this is the same bug at the next control along.
+  var src = readFile('ui.js');
+  var i = src.indexOf("setEnd('End Cards'");
+  assert(i > 0, 'found the end-phase button renderer');
+  var around = src.slice(Math.max(0, i - 1800), i + 900);
+  assert(/eventHoldActive/.test(around), 'the button asks whether an event hold is up');
+  assert(/endBlocked/.test(around), 'and folds it into the disabled state');
+  // All three phases go through one setter, so a fourth phase cannot be added
+  // with the lock quietly left out of it.
+  assert(/setEnd\('End Cards'/.test(around) && /setEnd\('End Turn'/.test(around)
+      && /setEnd\('End Tricks'/.test(around),
+    'all three phases share one setter');
+});
+
+test("MC Ballyhoo's card is not held back behind the music", function () {
+  var ui = readFile('ui.js');
+  // The card used to be raised INSIDE the lead timeout. It is raised before it
+  // now, and only the fanfare-to-voice handoff still waits.
+  var i = ui.indexOf('showBallyhoo() {');
+  assert(i > 0, 'found showBallyhoo');
+  var body = ui.slice(i, i + 2200);
+  var beatsAt = body.indexOf('this._ballyhooBeats()');
+  var timerAt = body.indexOf('setTimeout(');
+  assert(beatsAt > 0, 'the panels are raised through _ballyhooBeats');
+  assert(beatsAt < timerAt, 'and raised BEFORE the audio timer, not inside it');
+  // The ten-second gate is gone; what is left is only the voice beat. Asserted
+  // on the READ, not on the name: the name survives in the comment explaining
+  // why it went, and a test that trips over its own changelog is worse than no
+  // test. (This one did, on its first run.)
+  assert(!/this\.BALLYHOO_LEAD_MS/.test(ui), 'nothing reads the ten-second card gate any more');
+  var m = ui.match(/BALLYHOO_VOICE_LEAD_MS:\s*(\d+)/);
+  assert(!!m, 'a voice lead remains');
+  assert(parseInt(m[1], 10) <= 2000, 'and it is a beat, not a wait — got ' + m[1] + 'ms');
+});
+
+test('the event hold does not outlast the show', function () {
+  // The lock was sized for a 10s musical lead-in plus two 5s beats. With the
+  // card immediate the arrival is about 10.5s, and holding the table for 21.5
+  // would grey it for ten seconds after the last panel had gone — the same
+  // "its stuck grey" complaint the hard ceiling exists for.
+  var g = readFile('game.js');
+  var lock = parseInt((g.match(/_BALLYHOO_LOCK_MS:\s*(\d+)/) || [])[1], 10);
+  var hold = parseInt((readFile('ui.js').match(/BALLYHOO_HOLD_MS:\s*(\d+)/) || [])[1], 10);
+  assert(!!lock && !!hold, 'both constants found');
+  var show = hold * 2 + 500;                 // two beats plus their exits
+  assert(lock >= show, 'the lock covers the whole show (' + lock + ' >= ' + show + ')');
+  assert(lock <= show + 1500, 'and does not run on past it (' + lock + ')');
+});
+
 // ==================== IRON GIANT SAVES ONE CARD, AND SAYS SO ===============
 // Owner, reading a log: "i sactificed iron giant to save thor iron giant fired,
 // then superman blasted ghostface and he revived, that shouldbnt happen iron

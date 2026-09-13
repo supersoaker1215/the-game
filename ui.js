@@ -3217,17 +3217,14 @@ const UI = {
     MATCH_INTRO_SRC: 'audio/match_intro.mp3?v=2',
     MATCH_INTRO_MS: 20000,   // total on-screen time before it's fully faded
 
-    // MC Ballyhoo's fanfare. He is announced by his MUSIC — the song runs for
-    // BALLYHOO_LEAD_MS on its own, and only then does his card drop in, so the
-    // table hears him coming before they see him. Length covers the lead-in
-    // plus the reveal's 2.1s hold, with a tail so the music outlives the card
-    // rather than being cut off by it.
+    // MC Ballyhoo's fanfare. It starts the moment he arrives and plays UNDER
+    // his card rather than in front of it — the song used to run alone for ten
+    // seconds before the card dropped, which is the wait the owner asked to
+    // lose ("have his art immedialty shoe up").
     BALLYHOO_SRC: 'audio/ballyhoo-fanfare.mp3?v=1',
-    // Long enough that the carnival theme is still at full volume across the
-    // whole lead-in — the arrival cuts it explicitly when his voice lands, so
-    // this only needs to outlast that moment, never to time it. Kept ahead of
-    // BALLYHOO_LEAD_MS (10s) so the fade-out never starts before the cut and
-    // the song is still at full level when he interrupts it.
+    // It only has to outlast the moment his voice cuts it
+    // (BALLYHOO_VOICE_LEAD_MS), never to time anything, so this is a ceiling
+    // rather than a duration and is deliberately left long.
     BALLYHOO_MS: 16000,
     // …and his voice. The fanfare is the fairground starting up; this is the
     // man himself, and it lands on the beat the card drops. The fanfare is cut
@@ -27242,10 +27239,12 @@ const UI = {
   },
   // MC BALLYHOO'S ARRIVAL — music first, then the man.
   //
-  // The song plays alone for BALLYHOO_LEAD_MS before his card drops in, so the
-  // table hears the carnival start up and then sees who brought it. (Owner:
-  // "i want this song to play first for like 3 seconds and then his card
-  // appears".) Purely presentational: the candies are already in everyone's
+  // The song and the card now arrive TOGETHER — the fanfare plays under the
+  // panel instead of in front of it, and his voice cuts in a beat later. It
+  // used to hold the card back for ten full seconds (owner, originally: "i want
+  // this song to play first ... and then his card appears"; and since: "theres
+  // like 5 seconds before his art pops up ... have his art immedialty shoe
+  // up"). Purely presentational: the candies are already in everyone's
   // trick hand by the time this runs, so nothing waits on the animation and a
   // player who clicks straight through misses nothing but the show.
   //
@@ -27253,9 +27252,13 @@ const UI = {
   // the three 2v2 guests call it from the relayed 'ballyhoo' FX event, so the
   // lead-in, the wording and the music are identical on all four screens
   // instead of the guests getting a bare card with no fanfare.
-  // The song plays alone this long before his card drops. (Owner: "the first
-  // song needs to play for like 10 seconds".)
-  BALLYHOO_LEAD_MS: 10000,
+  // HOW LONG THE FANFARE HAS THE ROOM BEFORE HIS VOICE CUTS IN. This used to be
+  // BALLYHOO_LEAD_MS: 10000 and it gated the CARD as well as the voice — ten
+  // seconds of locked table with nothing on screen. (The original ask was
+  // "the first song needs to play for like 10 seconds"; the follow-up was
+  // "have his art immedialty shoe up".) The card no longer waits on it; this is
+  // only the beat between the music starting and him talking over it.
+  BALLYHOO_VOICE_LEAD_MS: 1200,
   // …and each of his two beats stays up this long, rather than the 2.1s a
   // mid-turn trick reveal gets. ("each text should stay for at least 3
   // seconds" — 3.2s, so it clears three full seconds before the exit starts.)
@@ -27264,7 +27267,20 @@ const UI = {
     try { if (this.sfx && this.sfx.playBallyhooFanfare) this.sfx.playBallyhooFanfare(); } catch (e) {}
     // Reduced motion still gets the announcement, just without the theatrical
     // wait — the delay is the effect here, so skipping it is the accommodation.
-    const lead = (this._reducedMotion && this._reducedMotion()) ? 0 : (this.BALLYHOO_LEAD_MS || 3000);
+    // HIS CARD DROPS NOW. Owner: "theres like 5 seconds before his art pops up
+    // ... have his art immedialty shoe up."
+    //
+    // THIS REVERSES AN EARLIER REQUEST OF THEIRS, recorded on the constant
+    // below: "the first song needs to play for like 10 seconds". It was ten,
+    // not five — ten seconds of a locked table with nothing on screen to
+    // explain it, which is what made it read as a hang rather than a fanfare.
+    //
+    // The song is not cut, only the WAIT is: the fanfare still starts on this
+    // beat and plays under the panel, and his voice still takes over from it a
+    // moment later so the two are not shouting at once. What changed is that
+    // there is now something to look at while that happens.
+    const lead = (this._reducedMotion && this._reducedMotion()) ? 0 : (this.BALLYHOO_VOICE_LEAD_MS || 1200);
+    this._ballyhooBeats();
     setTimeout(() => {
       // HIS VOICE TAKES THE ROOM. The fanfare is cut on the same beat rather
       // than left playing underneath — he is shouting over it otherwise.
@@ -27274,23 +27290,27 @@ const UI = {
       // Both go through showCardReveal, which queues: _nextTrickReveal holds
       // each panel 2.1s and starts the next when it exits, so pushing two here
       // plays them back to back with no timer of our own to keep in sync.
-      try {
-        // Beat one: he arrives and says what he brought. His voice fired above,
-        // on this same beat.
-        this.showCardReveal('MC Ballyhoo',
-          "Hobadahe! Step right up — a free candy for everyone, and no two the same!",
-          null, true, "IT'S MC BALLYHOO!",
-          { holdMs: this.BALLYHOO_HOLD_MS, cardClass: 'tr-name-top' });
-        // Beat two: the sign-off, with its own line landing as the panel goes
-        // up rather than on a timer of ours that would drift the moment the
-        // reveal's hold changes.
-        this.showCardReveal('MC Ballyhoo',
-          "Now go on and enjoy 'em — good luck out there!",
-          null, true, 'GOOD LUCK!',
-          { holdMs: this.BALLYHOO_HOLD_MS, cardClass: 'tr-name-top',
-            onShow: () => { try { if (this.sfx && this.sfx.playBallyhooVoice2) this.sfx.playBallyhooVoice2(); } catch (e) {} } });
-      } catch (e) {}
     }, lead);
+  },
+
+  // The two panels, split out so the arrival can raise them IMMEDIATELY while
+  // the fanfare-to-voice handoff keeps its own short beat above.
+  _ballyhooBeats() {
+    try {
+      // Beat one: he arrives and says what he brought.
+      this.showCardReveal('MC Ballyhoo',
+        "Hobadahe! Step right up — a free candy for everyone, and no two the same!",
+        null, true, "IT'S MC BALLYHOO!",
+        { holdMs: this.BALLYHOO_HOLD_MS, cardClass: 'tr-name-top' });
+      // Beat two: the sign-off, with its own line landing as the panel goes up
+      // rather than on a timer of ours that would drift the moment the reveal's
+      // hold changes.
+      this.showCardReveal('MC Ballyhoo',
+        "Now go on and enjoy 'em — good luck out there!",
+        null, true, 'GOOD LUCK!',
+        { holdMs: this.BALLYHOO_HOLD_MS, cardClass: 'tr-name-top',
+          onShow: () => { try { if (this.sfx && this.sfx.playBallyhooVoice2) this.sfx.playBallyhooVoice2(); } catch (e) {} } });
+    } catch (e) {}
   },
 
   // THE REVEAL JOINS THE COLUMN INSTEAD OF LYING ACROSS IT.
@@ -30132,27 +30152,38 @@ const UI = {
     // fits. "End Cards" / "End Tricks" carries the same meaning inside the
     // space that exists. Measured at 1280 and at 380 before shipping.
     // The combined phase ends BOTH halves, so it says End Turn.
+    // AND IT LOOKS LOCKED WHILE IT IS LOCKED. Owner: "i cant play cards which is
+    // good but i can end cards, which is bad i should be locked ouut of both."
+    //
+    // The engine refuses a phase end during an event hold, but the BUTTON only
+    // ever dimmed for a pending ability — so through MC Ballyhoo's entrance it
+    // sat there at full brightness with the hand greyed out behind it. Half the
+    // table locked and half not reads as a bug whichever way the click then
+    // goes: either it works and shouldn't, or it doesn't and looks dead.
+    // The hold lifts on a timer that already re-renders (see _armEventHold), so
+    // the button re-enables itself without needing to watch anything.
+    const eventHeld = !!(Game.eventHoldActive && Game.eventHoldActive());
+    const endBlocked = !!abilityPending || eventHeld;
+    // Same words the redraw button already uses for this lock — that control
+    // got this exact fix one release earlier ("1v1 had no idea the lock existed,
+    // so the redraw button stayed lit while the engine refused"), and two
+    // controls refused by one rule should not explain it two ways.
+    const endTitle = eventHeld ? 'MC Ballyhoo is here' : '';
+    const setEnd = (label, cls, fn) => {
+      btnA.textContent = label;
+      btnA.className = cls;
+      btnA.onclick = endBlocked ? null : fn;
+      btnA.style.display = 'inline-block';
+      btnA.disabled = endBlocked;
+      btnA.style.opacity = endBlocked ? '0.4' : '';
+      if (endTitle) btnA.title = endTitle; else btnA.removeAttribute('title');
+    };
     if (s.phase === 'player-cards') {
-      btnA.textContent = 'End Cards';
-      btnA.className = 'btn btn-primary';
-      btnA.onclick = abilityPending ? null : () => Game.endPhase1();
-      btnA.style.display = 'inline-block';
-      btnA.disabled = !!abilityPending;
-      btnA.style.opacity = abilityPending ? '0.4' : '';
+      setEnd('End Cards', 'btn btn-primary', () => Game.endPhase1());
     } else if (s.phase === 'player-cards-tricks') {
-      btnA.textContent = 'End Turn';
-      btnA.className = 'btn btn-primary';
-      btnA.onclick = abilityPending ? null : () => Game.endPhase2();
-      btnA.style.display = 'inline-block';
-      btnA.disabled = !!abilityPending;
-      btnA.style.opacity = abilityPending ? '0.4' : '';
+      setEnd('End Turn', 'btn btn-primary', () => Game.endPhase2());
     } else if (s.phase === 'player-tricks') {
-      btnA.textContent = 'End Tricks';
-      btnA.className = 'btn btn-secondary';
-      btnA.onclick = abilityPending ? null : () => Game.endPhase3();
-      btnA.style.display = 'inline-block';
-      btnA.disabled = !!abilityPending;
-      btnA.style.opacity = abilityPending ? '0.4' : '';
+      setEnd('End Tricks', 'btn btn-secondary', () => Game.endPhase3());
     }
     // Render the pre-combat lane-forecast strip whenever it's a player
     // phase with upcoming combat. The strip glances at every lane's
