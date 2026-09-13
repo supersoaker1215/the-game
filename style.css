@@ -35234,21 +35234,31 @@ body.dragging-trick .tut-callout { pointer-events: none; }
    "the tricks don't have the shimmer over the card art when hovering").
    A dedicated .pt-shine layer INSIDE the portrait sweeps a purple-white band
    directly OVER the painting on hover — same feel as the hand-card sheen. */
+/* THE TRICK'S SHIMMER IS ITS OWN COLOUR, AND IT IS ALWAYS ON — both of which
+   the card sheen already got. Owner: "is the shimmer color still white for
+   tricks it should be unique border like cards."
+   It was, and this is the layer that does it. A trick's ::after is taken by its
+   corner brackets and ::before by the gem frame, which is the whole reason this
+   dedicated layer exists (see the note above), so changing the card sheen left
+   this one untouched: hardcoded white + lilac, and only on hover.
+   --cf-rgb is the accent taken from the trick's own painting, the same variable
+   now driving its frame, name and ribbon. The lilac stays as the last fallback
+   for a trick whose art the generator found no colour in. */
 .card-portrait .pt-shine {
   position: absolute; inset: 0;
   pointer-events: none;
-  opacity: 0;
+  opacity: 1;
   z-index: 2;   /* over the art + gem frame, under the name overlay (z 3) */
   background: linear-gradient(
     125deg,
     transparent 30%,
-    rgba(255, 255, 255, 0.14) 45%,
-    rgba(233, 213, 255, 0.36) 50%,
-    rgba(255, 255, 255, 0.14) 55%,
+    rgba(var(--cf-rgb, var(--portrait-frame-rgb, 233,213,255)), 0.14) 45%,
+    rgba(var(--cf-rgb, var(--portrait-frame-rgb, 233,213,255)), 0.36) 50%,
+    rgba(var(--cf-rgb, var(--portrait-frame-rgb, 233,213,255)), 0.14) 55%,
     transparent 70%
   );
   background-size: 200% 200%;
-  background-position: 100% 100%;
+  background-position: 0% 0%;     /* parked where the hover sweep ends */
   transition: opacity 0.35s var(--ease-snap), background-position 0.9s var(--ease-out-soft);
 }
 .trick-card:hover .card-portrait .pt-shine,
@@ -35280,8 +35290,12 @@ body.dragging-trick .tut-callout { pointer-events: none; }
   .lane .card.ai-card:hover { outline-color: transparent; }
   .card:hover { outline-color: color-mix(in srgb, var(--card-edge) 12%, transparent); }
   .player-hand-section .hand-cards .card:hover { transform: none !important; box-shadow: none; }
+  /* The shine is on at rest now, so there is no sticky-hover artefact left for
+     this to neutralise — and zeroing the hover state would instead HIDE the
+     shimmer on touch the moment a finger landed on a card. Left at 1, i.e. the
+     same as rest, which is what "no hover effect" means here. */
   .trick-card:hover .card-portrait .pt-shine,
-  .draft-card.trick-draft:hover .card-portrait .pt-shine { opacity: 0; }
+  .draft-card.trick-draft:hover .card-portrait .pt-shine { opacity: 1; }
 }
 
 /* ============================================================

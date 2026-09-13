@@ -888,6 +888,42 @@ check('and the old fixed green is gone from it',
         'a trick carries no `card` class, so the .card 1em rule never matches one');
 })();
 
+// ---- the trick's shimmer is its own colour too ------------------------------
+// Owner: "is the shimmer color still white for tricks it should be unique
+// border like cards." It was.
+//
+// A TRICK DOES NOT USE THE CARD SHEEN. Its ::after is taken by the corner
+// brackets and its ::before by the gem frame, which is exactly why a dedicated
+// .pt-shine layer exists inside the portrait — so making the card sheen take
+// --cf-rgb and stay on left this one hardcoded white + lilac, and hover-only.
+// Same two changes here: the accent, and parked at the end of the sweep.
+(function () {
+  function lastDeclFor(sel, prop) {
+    var re = /([^{}]+)\{([^{}]*)\}/g, m, found = null;
+    while ((m = re.exec(BARE)) !== null) {
+      if (m[1].indexOf(sel) < 0) continue;
+      if (m[1].indexOf(':hover') >= 0) continue;         // the REST state only
+      var decls = m[2].split(';');
+      for (var i = 0; i < decls.length; i++) {
+        if (new RegExp('^\\s*' + prop + '\\s*:').test(decls[i])) {
+          found = decls[i].split(':').slice(1).join(':').trim();
+        }
+      }
+    }
+    return found;
+  }
+  check('the trick shimmer is on at rest', lastDeclFor('.pt-shine', 'opacity') === '1',
+        'resting opacity for .pt-shine is `' + lastDeclFor('.pt-shine', 'opacity') + '`');
+  check('and parked where the sweep ends',
+        /^0%\s+0%/.test(lastDeclFor('.pt-shine', 'background-position') || ''),
+        'resting background-position is `' + lastDeclFor('.pt-shine', 'background-position') + '`');
+  var bg = lastDeclFor('.pt-shine', 'background') || '';
+  check('it takes the trick\'s own accent', /var\(--cf-rgb/.test(bg),
+        'the .pt-shine gradient is `' + bg.slice(0, 90) + '`');
+  check('and no white is left hardcoded in it', !/255,\s*255,\s*255/.test(bg),
+        'a literal white band is the thing being replaced');
+})();
+
 // ---- the badge glow is an edge, not a halo ---------------------------------
 // Owner: "its too much outer glow on the icons i like the glow just too much on
 // the black behind the icons if that makes sense."
