@@ -17804,6 +17804,12 @@ const Game = {
       }
     });
     const env = this.createCardInstance(def, owner);
+    // PLACED BY AN EVENT, not by a player. The rail reports the EVENT — "Sewers,
+    // 2 left" — so a second row for each lane it seated would be the same fact
+    // twice. A player-played environment has no event row to hide behind and
+    // still gets one. (Owner: "the enviroments that say permant can be removed
+    // as they say them in the event itself.")
+    env._fromEvent = true;
     lane._env[owner] = env;
     if (env.statsEnteredRound == null) env.statsEnteredRound = this.state.round || 1;
     this.emitFX('envReveal', { lane: laneIdx, owner, name });

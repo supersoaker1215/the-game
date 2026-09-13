@@ -3830,8 +3830,32 @@ const CARD_ABILITIES = {
     onPlay(G, self, lane) {
       const own = self.owner;
       const adj = [];
-      if (lane > 0 && G.state.lanes[lane-1][own]) adj.push(G.state.lanes[lane-1][own]);
-      if (lane < Game.LANE_COUNT-1 && G.state.lanes[lane+1][own]) adj.push(G.state.lanes[lane+1][own]);
+      // A LOCKED ALLY CANNOT BE COMMANDED. Owner: "SS shouldnt be able to bonus
+      // attack with optimus due to fear stun."
+      //
+      // Optimus's swing is an EXTRA action, exactly like a queued bonus attack —
+      // and that path has refused frozen / stunned / feared / mind-controlled
+      // cards for a long time (_drainBonusAttacks, "same lock that stops them
+      // acting in normal combat and moving"). This one took any adjacent body
+      // that existed, so a feared Silver Surfer was ordered to attack while the
+      // same fear was stopping him swinging in combat two seconds later.
+      //
+      // isActionLocked is that shared predicate, so the two cannot drift: add a
+      // fifth lock to it and Optimus honours it for free. Checked on the ALLY,
+      // not on Optimus — he is fine, it is the body being told to move that is
+      // not.
+      const canCommand = (a) => !!a && !G.isActionLocked(a);
+      if (lane > 0 && canCommand(G.state.lanes[lane-1][own])) adj.push(G.state.lanes[lane-1][own]);
+      if (lane < Game.LANE_COUNT-1 && canCommand(G.state.lanes[lane+1][own])) adj.push(G.state.lanes[lane+1][own]);
+      if (!adj.length) {
+        // Say so rather than failing silently — a card that visibly did nothing
+        // is the report this came in as.
+        const blocked = [G.state.lanes[lane-1] && G.state.lanes[lane-1][own],
+                         G.state.lanes[lane+1] && G.state.lanes[lane+1][own]].filter(Boolean);
+        if (blocked.length) {
+          G.log(`  [OPTIMUS] ${blocked[0].name} can't answer the call (${G.actionLockLabel(blocked[0])}).`);
+        }
+      }
       if (adj.length) {
         // Wrap the chain attack so an Overdrive ally (Michael Myers,
         // King Shark, Wolverine post-revive, etc.) still gets its

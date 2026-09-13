@@ -49002,6 +49002,32 @@ body.in-match #classic-decision:has(.cd-slot > *) { display: flex; }
   height: calc(var(--card-w, 70px) * 472 / 360) !important;
   aspect-ratio: auto !important;
 }
+/* …BUT AN ACTION TILE HAS NO ART TO SIZE. Owner, on Voldemort's three curses:
+   "the curses just needs the name sof eack ans the play no croll."
+
+   The rule above gives a gutter tile a portrait proportional to its track,
+   which is right for a card face and wrong for a tile that deliberately draws
+   no portrait at all (isActionTile suppresses it). It was re-inflating an empty
+   box to card height — 190px of nothing under each curse name, three across,
+   and the panel scrolled. The collapse .choice-action already asks for is
+   restored here; the curse keeps its coloured bolt and its glow, which are
+   absolutely positioned and never needed the box. */
+#classic-decision .choice-tray-cards .choice-action .card-portrait {
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 10px 8px 2px;
+}
+/* …and the TILE stops reserving a card's worth of height for it. `.choice-card`
+   carries `min-height: 190px`, which is a CARD's floor — right for a face, and
+   190px of nothing under a two-word curse name. Collapsing the portrait alone
+   left the box exactly as tall as before; this is the other half.
+
+   Scoped to the gutter on purpose: in the full-size tray a 190px floor keeps a
+   row of action tiles from looking ragged, and there is room for it there. */
+#classic-decision .choice-tray-cards .choice-action {
+  min-height: 0 !important;
+  padding-bottom: 10px;
+}
 
 #classic-decision .choice-tray .card,
 #classic-decision .choice-tray-cards .card {

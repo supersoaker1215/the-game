@@ -30334,8 +30334,23 @@ const UI = {
           left: ln.destroyedTurns | 0, max: Math.max(ln.destroyedTurns | 0, 2),
         });
       }
-      const env = ln._env;
-      if (env && (env.currentHealth == null || env.currentHealth > 0)) {
+      // `ln._env` IS A MAP KEYED BY SIDE ({player, ai}), NOT A CARD. This read
+      // it as a card, so `env.name` was always undefined and every lane holding
+      // anything produced a row reading "Environment — PERMANENT": no name
+      // because there was no name to find, PERMANENT because `_envTurns` was
+      // undefined too, and boon-coloured because `env.owner` was undefined so
+      // "is it pointed at me" answered no. Four wrong answers from one wrong
+      // reference. (Owner, circling three of them: "the enviroments that say
+      // permant can be removed as they say them in the event itself.")
+      //
+      // Read per side, and skip the ones an EVENT placed — the rail already
+      // carries that event's own row with its own countdown, so a row per lane
+      // it seated is the same fact two or three times. A player-played
+      // environment has no event row to hide behind and keeps one.
+      ['player', 'ai'].forEach(side => {
+        const env = ln._env && ln._env[side];
+        if (!env || !(env.currentHealth == null || env.currentHealth > 0)) return;
+        if (env._fromEvent) return;
         // An environment sits on the side it acts AGAINST (owner's note when
         // the art was flipped: "the picture should be on the side its
         // against"). So one pointed at you is a hazard and one pointed at them
@@ -30344,13 +30359,13 @@ const UI = {
         const turns = env._envTurns;
         const perm = !(turns > 0);
         out.push({
-          id: 'env' + i + (env.name || ''), type: againstMe ? 'hazard' : 'boon',
+          id: 'env' + i + side + (env.name || ''), type: againstMe ? 'hazard' : 'boon',
           name: env.name || 'Environment',
           lane: i + 1,
           left: perm ? null : (turns | 0), max: perm ? 0 : Math.max(turns | 0, 4),
           permanent: perm,
         });
-      }
+      });
     });
 
     // THE LIVE EVENT SLOT — MC Ballyhoo, the Shadow Man, a habitat landing.

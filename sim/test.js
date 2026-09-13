@@ -6061,6 +6061,94 @@ test("Gargantua's pull re-reads a card's lane before moving it", function () {
   });
 });
 
+// ==================== OPTIMUS CANNOT COMMAND A LOCKED ALLY =================
+// Owner: "SS shouldnt be able to bonus attack with optimus due to fear stun."
+//
+// Optimus's swing is an EXTRA action, exactly like a queued bonus attack — and
+// that path has refused frozen / stunned / feared / mind-controlled cards for a
+// long time. This one took any adjacent body that existed, so a feared Silver
+// Surfer was ordered to attack while the same fear stopped him swinging in
+// combat two seconds later.
+function optimusRun(G, feared) {
+  for (var i = 0; i < G.LANE_COUNT; i++) { G.state.lanes[i].player = null; G.state.lanes[i].ai = null; }
+  var ss = place(G, 'Silver Surfer', 'ai', 3);
+  ss.attack = 7; ss.isFeared = !!feared; ss.fearedTurns = feared ? 1 : 0;
+  var victim = place(G, 'Hulk', 'player', 4);
+  victim.attack = 2; victim.currentHealth = 9; victim.maxHealth = 9;
+  var op = place(G, 'Optimus Prime', 'ai', 4);
+  op.attack = 4;
+  var before = victim.currentHealth;
+  op.onPlay(G, op, 4);
+  G.cleanupDead();
+  return { before: before, after: victim.currentHealth };
+}
+
+test('Optimus commands a healthy adjacent ally', function () {
+  // The control. Without it, breaking Optimus entirely would pass the test
+  // below for the wrong reason.
+  var G = freshGame();
+  var r = optimusRun(G, false);
+  assert(r.after < r.before, 'the ally struck (' + r.before + ' -> ' + r.after + ')');
+});
+
+test('Optimus cannot command an ally that is action-locked', function () {
+  var G = freshGame();
+  // Every lock the shared predicate covers, not just the one reported — they
+  // are one predicate precisely so they cannot drift apart.
+  ['isFeared', 'isFrozen', 'isStunned', 'isMindControlled'].forEach(function (flag) {
+    for (var i = 0; i < G.LANE_COUNT; i++) { G.state.lanes[i].player = null; G.state.lanes[i].ai = null; }
+    var ss = place(G, 'Silver Surfer', 'ai', 3);
+    ss.attack = 7; ss[flag] = true;
+    var victim = place(G, 'Hulk', 'player', 4);
+    victim.attack = 2; victim.currentHealth = 9; victim.maxHealth = 9;
+    var op = place(G, 'Optimus Prime', 'ai', 4);
+    op.attack = 4;
+    op.onPlay(G, op, 4);
+    G.cleanupDead();
+    assertEq(victim.currentHealth, 9, 'a ' + flag + ' ally does not swing');
+  });
+});
+
+// ==================== THE RAIL STOPS SAYING "ENVIRONMENT" ==================
+// Owner, circling three identical rows: "the enviroments that say permant can
+// be removed as they say them in the event itself."
+//
+// They said "Environment — PERMANENT" because the rail read `ln._env` as a
+// CARD when it is a MAP KEYED BY SIDE ({player, ai}). One wrong reference gave
+// four wrong answers at once: no name (there is none on a map), PERMANENT
+// (`_envTurns` undefined), boon-coloured (`owner` undefined, so "pointed at me"
+// answered no), and one row per lane regardless of what was in it.
+test('the event rail reads lane._env per side, not as a card', function () {
+  var src = readFile('ui.js');
+  var i = src.indexOf('_eventRailModel(s) {');
+  assert(i > 0, 'found the rail model');
+  var body = src.slice(i, i + 3000);
+  assert(/\['player', 'ai'\]\.forEach/.test(body), 'it walks both sides of the lane');
+  assert(!/const env = ln\._env;/.test(body), 'and no longer treats the map as a card');
+});
+
+test('an event stamps the environments it seats, so the rail can skip them', function () {
+  // The ENGINE half, which the sim can run. The rail half is a UI method the
+  // sim's shim does not model, so it is pinned from source in the test above
+  // and was measured live in the browser: with three Sewers environments seated
+  // by the event, the rail showed "Sewers | 3 left" and no env rows at all;
+  // clearing the stamp on one brought back a single row reading "Sewers",
+  // NOT "Environment".
+  var G = freshGame();
+  G._placeEventEnvironment('player', 1, 'Sewers');
+  var seated = G.state.lanes[1]._env.player;
+  assert(!!seated, 'it was seated');
+  assertEq(!!seated._fromEvent, true, 'and stamped as event-placed');
+  // The skip reads that stamp, and only that stamp — a player-played
+  // environment has no event row to hide behind and must keep its own.
+  var ui = readFile('ui.js');
+  var i = ui.indexOf('_eventRailModel(s) {');
+  var body = ui.slice(i, i + 3000);
+  assert(/if \(env\._fromEvent\) return;/.test(body), 'the rail skips event-placed environments');
+  assert(/name: env\.name \|\| 'Environment'/.test(body),
+    'and still names the ones it keeps');
+});
+
 // ==================== BLOWN AWAY MEANS BLOWN AWAY =========================
 // Owner: "jason was bloawn away with the blowayay candy, he jumped in afet
 // harley dies, shouldnt happen his abilitesa re stripped so no jump."
