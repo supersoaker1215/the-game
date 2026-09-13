@@ -155,5 +155,79 @@ check('panels re-parent, so one built earlier cannot stay loose',
       'found ' + ((UI.match(/parentNode !== _c\) _c\.appendChild|parentNode !== _col\) _col\.appendChild/g) || []).length) +
       ' of the 3 right-hand panels re-parenting');
 
+// ---- 11. a door opens ITS OWN panel ----------------------------------------
+// Owner: "for leaderbords for shadow man that should be in the events tab that
+// you can click on to view."
+//
+// The rail has two doors now — the Cog Invasion row and the Shadow Man row —
+// and this is the seam where they went wrong. The row builder used to hand the
+// consumer a STRING OF ATTRIBUTES (`onclick="UI._toggleShadowTracker()"`) but
+// the consumer writes rows through innerHTML on an inner node and wires the
+// row's handler as a PROPERTY, so it only ever read `def.door` as a yes/no and
+// wired the Cog handler to every door. The Shadow Man row was a perfect button
+// that opened the wrong panel. Nothing in the markup looked wrong, which is
+// exactly why it needs a test: the builder and the consumer have to agree on
+// what `door` IS.
+// `const door =`, `def.door` and `doorExpanded` appear ONLY in the rail, so the
+// whole file is a safe scope — and a scope that cannot silently shrink to
+// nothing the way a brace-counting slice can, which would turn every check
+// below into a free pass.
+var railFn = UI_CODE;
+check('the rail renderer was found', /_renderEventRail\(/.test(railFn));
+
+// The builder must publish a KIND, never markup. An attribute string here is
+// the defect itself.
+var doorExpr = (railFn.match(/const door = [^;]*;/) || [''])[0];
+check('a door names which panel it opens, it does not carry markup',
+      !!doorExpr && !/onclick=|role=|tabindex=/.test(doorExpr),
+      doorExpr.replace(/\s+/g, ' ').slice(0, 120) || 'no door expression');
+
+// Every kind the builder can produce must have a branch in the consumer, and
+// every branch must name a real UI method. A kind with no branch silently
+// falls through to whatever the last `else` happens to be.
+var kinds = (doorExpr.match(/'([a-z]+)'/g) || []).map(function (q) { return q.slice(1, -1); });
+check('the builder produces exactly the two door kinds',
+      kinds.length === 2 && kinds.indexOf('cog') >= 0 && kinds.indexOf('shadow') >= 0,
+      'kinds: ' + kinds.join(', '));
+var wiring = (railFn.match(/if \(def\.door\)[\s\S]*?el\.onkeydown = null;/) || [''])[0];
+check('the consumer forks on the door kind, it does not wire one handler to all',
+      /def\.door === '/.test(wiring),
+      'the consumer still treats every door as the same panel');
+check('the shadow door opens the shadow tracker',
+      /def\.door === 'shadow'[\s\S]{0,80}_toggleShadowTracker/.test(wiring));
+check('and the other door still opens the Cog panel',
+      /_toggleCogPanel/.test(wiring));
+kinds.forEach(function (k) {
+  check("the '" + k + "' door reaches a handler",
+        k === 'shadow' ? /_toggleShadowTracker/.test(wiring) : /_toggleCogPanel/.test(wiring));
+});
+
+// Rows are REUSED across renders (that is the whole point of the diff), so a
+// row whose event changes from one door to the other must re-wire. Keyed on
+// the kind, not on "does it have a role yet" — the old guard was
+// `!el.hasAttribute('role')`, which is true exactly once per element and then
+// never again, so a row that changed door kept the first panel forever.
+check('a reused row re-wires when its door kind changes',
+      /el\.dataset\.door !== def\.door/.test(wiring),
+      'the handler is still wired once per element and never revisited');
+check('and a row that loses its door is fully unwired',
+      /delete el\.dataset\.door/.test(wiring) && /el\.onclick = null/.test(wiring) &&
+      /el\.onkeydown = null/.test(wiring));
+
+// A door is a button, so it answers the keyboard as well as the mouse.
+check('a door answers Enter and Space',
+      /ev\.key === 'Enter'/.test(wiring) && /ev\.key === ' '/.test(wiring));
+
+// The scoreboard is CLOSED until asked for. It used to stand in the gutter for
+// the whole challenge — 178px of a 452px column, permanently, for four numbers
+// you look at between rounds.
+check('the tracker is closed until the row is clicked',
+      /_shadowOpen: false/.test(UI_CODE) &&
+      /if \(!live \|\| !this\._shadowOpen\)/.test(UI_CODE),
+      'the tracker still draws for the whole challenge');
+check('and the row says whether it is open',
+      /doorExpanded:/.test(railFn) && /aria-expanded/.test(railFn),
+      'a toggle with no aria-expanded is a button that never reports its state');
+
 print('event-rail: ' + pass + ' passed, ' + fails.length + ' failed');
 if (fails.length) { print('Failures:'); fails.forEach(function (f) { print('  - ' + f); }); }

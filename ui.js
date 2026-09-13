@@ -14083,6 +14083,18 @@ const UI = {
   //
   // The leader in each row is marked, because the whole point of the panel is
   // "am I winning this one" and four numbers alone make you do the comparing.
+  // Closed until the rail's Shadow Man row is clicked. Session state, not
+  // persisted: a challenge lasts a few rounds, and a scoreboard you left open
+  // three matches ago is not a preference.
+  _shadowOpen: false,
+  _shadowLive() {
+    const sh = (typeof Game !== 'undefined' && Game.state) ? Game.state._shadow : null;
+    return !!(sh && sh.shows && sh.appeared && sh.stats && !sh.returned);
+  },
+  _toggleShadowTracker() {
+    this._shadowOpen = !this._shadowOpen;
+    try { this.renderSync ? this.renderSync() : this.render(); } catch (e) {}
+  },
   _renderShadowTracker(s) {
     let el = document.getElementById('shadow-tracker');
     const sh = s && s._shadow;
@@ -14095,7 +14107,12 @@ const UI = {
     // live race during the challenge — is done and it leaves. (Owner: "once the
     // shadow mans challenge is done his scoreboard should leave.")
     const live = !!(sh && sh.shows && sh.appeared && sh.stats && !sh.returned);
-    if (!live) { if (el) el.style.display = 'none'; return; }
+    // OPEN ON REQUEST, not for the whole challenge. See the door in the event
+    // rail: the row states that he is watching and how long is left, and the
+    // scoreboard is what you open when you want the numbers. Closed is the
+    // resting state because the column has three other occupants and this one
+    // was taking 178px of it permanently.
+    if (!live || !this._shadowOpen) { if (el) el.style.display = 'none'; return; }
     if (!el) {
       el = document.createElement('div');
       el.id = 'shadow-tracker';
@@ -30221,13 +30238,27 @@ const UI = {
       // have traded a real control for a tidier column. So the rail states the
       // event in the same grammar as everything else, and clicking it opens
       // the panel that can actually be used.
-      const door = e.boss ? ` role="button" tabindex="0" onclick="UI._toggleCogPanel()"`
-                          + ` onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();UI._toggleCogPanel();}"` : '';
+      // THE SHADOW MAN'S ROW IS A DOOR TOO. Owner: "for leaderbords for shadow
+      // man that should be in the events tab that you can click on to view."
+      // His scoreboard used to stand in the gutter for the whole challenge —
+      // 178px of a 452px column, permanently, for four numbers you look at
+      // between rounds. It is the same shape of thing the Cog panel is: a
+      // readout the rail can point AT rather than contain. Same grammar, same
+      // door, so there is one way to open a panel from this rail and not two.
+      const isShadow = this._shadowLive && this._shadowLive() && /shadow/i.test(e.name || '');
+      // `door` names WHICH panel the row opens, it does not carry markup. The
+      // rail's diff renderer writes rows through `innerHTML` on an inner node
+      // and wires handlers as PROPERTIES on the row itself, so an attribute
+      // string authored here never reached the DOM — every door silently got
+      // the boss handler. A kind is the thing the consumer can actually act on.
+      const door = e.boss ? 'cog' : (isShadow ? 'shadow' : '');
       return {
         id: e.id,
-        cls: `ev-row ${t.cls}${isOpen ? ' is-open' : ''}${e.boss ? ' is-door' : ''}`,
+        cls: `ev-row ${t.cls}${isOpen ? ' is-open' : ''}${(e.boss || isShadow) ? ' is-door' : ''}${isShadow && this._shadowOpen ? ' is-showing' : ''}`,
         rgb: t.rgb,
         door: door,
+        doorExpanded: isShadow ? (this._shadowOpen ? 'true' : 'false') : '',
+        doorTitle: isShadow ? `${this._shadowOpen ? 'Hide' : 'Show'} the four challenges` : '',
         html: `<div class="ev-line">
           <span class="ev-tick" aria-hidden="true"></span>
           <span class="ev-name">${esc(e.name)}</span>
@@ -30314,11 +30345,31 @@ const UI = {
       }
       if (el.className !== def.cls) el.className = def.cls;
       if (el.style.getPropertyValue('--ev-rgb') !== def.rgb) el.style.setProperty('--ev-rgb', def.rgb);
-      if (def.door && !el.hasAttribute('role')) {
-        el.setAttribute('role', 'button'); el.setAttribute('tabindex', '0');
-        el.onclick = () => this._toggleCogPanel();
-      } else if (!def.door && el.hasAttribute('role')) {
-        el.removeAttribute('role'); el.removeAttribute('tabindex'); el.onclick = null;
+      if (def.door) {
+        if (!el.hasAttribute('role')) { el.setAttribute('role', 'button'); el.setAttribute('tabindex', '0'); }
+        // Re-wire only when the KIND changes. A row that keeps its door keeps
+        // its handler across every render; a row that changes door gets the
+        // other panel's handler instead of both.
+        if (el.dataset.door !== def.door) {
+          el.dataset.door = def.door;
+          const open = def.door === 'shadow'
+            ? () => this._toggleShadowTracker()
+            : () => this._toggleCogPanel();
+          el.onclick = open;
+          el.onkeydown = (ev) => {
+            if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); open(); }
+          };
+        }
+        // aria-expanded/title track the panel's state, so they are re-read on
+        // every render, not just when the door appears.
+        if (def.doorExpanded) el.setAttribute('aria-expanded', def.doorExpanded);
+        else el.removeAttribute('aria-expanded');
+        if (def.doorTitle) el.setAttribute('title', def.doorTitle);
+        else el.removeAttribute('title');
+      } else if (el.hasAttribute('role')) {
+        el.removeAttribute('role'); el.removeAttribute('tabindex');
+        el.removeAttribute('aria-expanded'); el.removeAttribute('title');
+        delete el.dataset.door; el.onclick = null; el.onkeydown = null;
       }
       if (el.dataset.h !== def.html) { el.innerHTML = def.html; el.dataset.h = def.html; }
     });
