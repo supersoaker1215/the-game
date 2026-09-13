@@ -25860,6 +25860,24 @@ const UI = {
   // a rounding effect looks like and what a mis-measured plate does not. Aim
   // two pixels inside instead of exactly at the edge.
   CN_FIT_PAD: 2,
+  // A NAME NEVER TOUCHES THE EDGE. Owner, circling Peacemaker against Han Solo:
+  // "the names on some characters are too close to the edge there should always
+  // be like some space on the edges. HAN SOLO is perfect the name has room to
+  // breathe all names should fit like this."
+  //
+  // The plate is 94px inside a 110px hand card, so a name was allowed to run to
+  // within 8px of the card edge and nothing shrank it — the fit only engaged
+  // once a name was WIDER than the plate. Measured across that hand, gap from
+  // the card edge to the name's ink: Han Solo 21.9, Spider-Man 13.6,
+  // Peacemaker 11.4, Deathstroke 8.7. The complaint tracks that column exactly.
+  //
+  // This is a reserve INSIDE the plate rather than more padding ON it, and the
+  // difference matters: padding narrows the box the text wraps in, so a 11%
+  // pad sent Spider-Man to two lines at its hyphen and Lasso of Truth to
+  // three. Holding the plate and shrinking the type instead keeps every name on
+  // the lines it had. A fraction rather than a flat px because the same overlay
+  // is 94px on a hand card and 280 in the codex.
+  CN_FIT_BREATH: 0.14,
   _cnFitPending: false,
   _cnFitFontsHooked: false,
   // The webfont race, which cost a measurable wrong answer before it was found:
@@ -26015,11 +26033,34 @@ const UI = {
       j.avail = plate;
       j.natural = j.el.getBoundingClientRect().width;
       j.key = this._cnPlateKey(j.el, plate);
+      // THE ELEMENT'S BOX IS NOT THE TEXT'S WIDTH, which is what the breathing
+      // clamp below has to work from. `.cn-text` is capped at `max-width: 100%`,
+      // so a name too long for the plate reports the PLATE's width and overflows
+      // it — measured on Optimus Prime in a 110px hand card: box 94.0 (the plate
+      // exactly), painted ink 107.9. Anything comparing `natural` against the
+      // plate is therefore comparing the plate against itself, which is why a
+      // name could sit 8.6px from the card edge and read as already fitting.
+      // Range rects give what actually painted; the widest visible line is the
+      // same quantity _inkCardNames measures for --cn-ink.
+      j.ink = this._cnInkWidth(j.el);
+      const host = j.el.closest('.card, .trick-card');
+      j.hostW = host ? host.getBoundingClientRect().width : 0;
     });
     jobs.forEach(j => {
-      const need = (j.natural > 0 && j.avail > 0 && j.natural > j.avail + this.CN_FIT_SLOP)
+      let need = (j.natural > 0 && j.avail > 0 && j.natural > j.avail + this.CN_FIT_SLOP)
         ? (j.avail - this.CN_FIT_PAD) / j.natural
         : 1;
+      // AND THEN THE BREATHING CLAMP, measured against the CARD rather than the
+      // plate. The plate is 94px inside a 110px hand card, so "fits the plate"
+      // still allowed a name 8.6px from the card's edge — which is the whole
+      // complaint. This asks the question the owner actually asked: how close
+      // does the painted name come to the edge of the card?
+      // Wrapped names are left alone: the widest LINE is what ink measures, so a
+      // two-line name is already inside the limit and this is a no-op for it.
+      if (j.hostW > 0 && j.ink > 0) {
+        const limit = j.hostW * (1 - this.CN_FIT_BREATH * 2);
+        if (j.ink > limit) need = Math.min(need, limit / j.ink);
+      }
       const fit = Math.max(this.CN_FIT_MIN, need);
       if (fit < 1) j.el.style.setProperty('--cn-fit', fit.toFixed(4));
       // Pinned at the floor and STILL too wide — a very long name on a very
@@ -26088,6 +26129,26 @@ const UI = {
   // The pad is a percent for the same reason. It exists so a line measured at
   // exactly its own width cannot round into a re-wrap.
   CN_INK_PAD: 0.4,
+  // The widest VISIBLE line of painted text, in px. Shared definition with
+  // _inkCardNames — a name is clamped to two rows, and a third line still has a
+  // rect, so measuring it would size against text nobody can see.
+  _cnInkWidth(el) {
+    if (!el || typeof document.createRange !== 'function') return 0;
+    let rects;
+    try {
+      const r = document.createRange();
+      r.selectNodeContents(el);
+      rects = r.getClientRects();
+    } catch (e) { return 0; }
+    if (!rects || !rects.length) return 0;
+    const floor = el.getBoundingClientRect().bottom;
+    let ink = 0;
+    for (let i = 0; i < rects.length; i++) {
+      if (rects[i].top >= floor) continue;
+      if (rects[i].width > ink) ink = rects[i].width;
+    }
+    return ink;
+  },
   _inkCardNames(els) {
     if (!els || !els.length || typeof document.createRange !== 'function') return;
     requestAnimationFrame(() => {

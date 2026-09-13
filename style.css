@@ -45545,7 +45545,17 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    ratio here stays the only place the SIZE is decided, and the var only ever
    multiplies it. Default 1, so every name that already fits is untouched —
    which, measured, is 123 of 126. */
-.card .card-name-overlay .cn-text {
+.card .card-name-overlay .cn-text,
+/* ...AND THE TRICK, which never had this line. A trick does NOT carry the
+   `card` class — the trap this file warns about in the block right below —
+   so the multiplier reached every card surface and no trick one. On the
+   in-match tray the name's size is INHERITED rather than set, so there was no
+   other rule carrying --cn-fit either: fitCardNames measured Kryptonite's ink
+   at 80.1px in an 88px tile, computed the shrink, and the ratio went nowhere.
+   Proved by slamming --cn-fit to 0.2 on a live element: a hand card's name went
+   13px -> 2.6px, the tray trick's did not move. 1em multiplies whatever the
+   surface inherited, so this needs no knowledge of which rule set it. */
+.trick-card .card-name-overlay .cn-text {
   font-size: calc(1em * var(--cn-fit, 1));
 }
 
@@ -46457,7 +46467,14 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
      looks like, while reading unmistakably as the border's hue. */
   color: var(--cn-colour) !important;
   /* the fit is off here — see above; --cn-fit is ignored and the name wraps */
-  font-size: calc(var(--card-w) * 0.0982) !important;
+  /* * var(--cn-fit, 1) — WITHOUT IT THE FIT IS DEAD ON THIS SURFACE. This rule
+     is later and !important, so it beat the two rules that DO carry the
+     multiplier, and every ratio fitCardNames computed for a draft card, a codex
+     card, an inspected card or a trick was thrown away. Proved by slamming
+     --cn-fit to 0.2 on a live element: a hand card's name went 13px -> 2.6px, a
+     draft card's and a tray trick's did not move at all. Default 1, so a name
+     that never needed fitting is unchanged. */
+  font-size: calc(var(--card-w) * 0.0982 * var(--cn-fit, 1)) !important;
   white-space: normal !important;
   line-height: 1.02 !important;
   text-wrap: balance;

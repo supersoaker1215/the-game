@@ -800,6 +800,79 @@ check('and the old fixed green is gone from it',
         'the container-query guess never matched above 520px');
 })();
 
+// ---- a name never touches the edge of its card ------------------------------
+// Owner, circling Peacemaker against Han Solo: "the names on some characters are
+// too close to the edge there should always be like some space on the edges.
+// HAN SOLO is perfect the name has room to breathe all names should fit like
+// this."
+//
+// Measured gap from the card edge to the painted name, 110px hand card:
+// Han Solo 21.9, Spider-Man 13.6, Peacemaker 11.4, Deathstroke 8.7. The
+// complaint tracks that column exactly.
+//
+// TWO THINGS WERE WRONG, and the first hid the second.
+//   1. The fit compared the name against the PLATE (94px inside a 110px card),
+//      so a name could sit 8px from the card's edge and count as fitting.
+//   2. It compared the wrong WIDTH. `.cn-text` is capped at `max-width: 100%`,
+//      so a name too long for the plate reports the plate's own width and
+//      overflows it — Optimus Prime: box 94.0, painted ink 107.9. Comparing
+//      that against the plate is comparing the plate against itself.
+// And the ratio it produced was thrown away on two surfaces anyway (below).
+(function () {
+  // Same decomment the rest of this suite uses on the CSS — the prose in ui.js
+  // quotes these very identifiers, so the comments go first.
+  var UISRC = read('ui.js').replace(/\/\*[\s\S]*?\*\//g, function (c) { return c.replace(/[^\n]/g, ' '); })
+                           .replace(/\/\/[^\n]*/g, '');
+  function body(name) {
+    var open = UISRC.indexOf('\n  ' + name + '(');
+    if (open < 0) return '';
+    var brace = UISRC.indexOf('{', open), depth = 0, i = brace;
+    for (; i < UISRC.length; i++) {
+      var ch = UISRC.charAt(i);
+      if (ch === '{') depth++;
+      else if (ch === '}') { depth--; if (depth === 0) break; }
+    }
+    return UISRC.slice(brace, i + 1);
+  }
+  var fit = body('fitCardNames');
+  check('fitCardNames still exists', fit.length > 400, 'the name fit is gone');
+  check('the clamp measures against the CARD, not the plate',
+        /closest\('\.card, \.trick-card'\)/.test(fit) && /hostW/.test(fit),
+        'the plate is 94px inside a 110px card — fitting the plate is not the same as clearing the edge');
+  check('and it measures PAINTED ink, not the clamped box',
+        /_cnInkWidth\(/.test(fit),
+        'getBoundingClientRect on .cn-text returns max-width: 100%, i.e. the plate');
+  check('the breathing reserve is a fraction of the card',
+        /CN_FIT_BREATH:\s*0?\.\d+/.test(UISRC),
+        'a flat px reserve cannot serve a 94px hand plate and a 280px codex one');
+  var ink = body('_cnInkWidth');
+  check('the ink helper only counts VISIBLE lines',
+        /getClientRects\(\)/.test(ink) && /floor/.test(ink),
+        'a name is clamped to two rows and a third line still has a rect');
+})();
+
+// ---- ...and the ratio has to reach the type on every surface ----------------
+// The fit computed ratios for years that two surfaces threw away. Proved by
+// slamming --cn-fit to 0.2 on live elements: a hand card's name went
+// 13px -> 2.6px; a draft card's and an in-match tray trick's did not move.
+//   - the read-state rule set `font-size: calc(var(--card-w) * 0.0982)` with
+//     !important and no multiplier, and being later it beat the two rules that
+//     DO carry one;
+//   - a trick has no `card` class, so `.card .card-name-overlay .cn-text` — the
+//     1em multiplier rule — never matched one at all.
+(function () {
+  var sized = BARE.match(/font-size:\s*calc\(var\(--card-w\) \* 0\.0982[^;]*;/g) || [];
+  check('the read-state name rules were found', sized.length > 0, 'the selector moved');
+  var naked = sized.filter(function (d) { return d.indexOf('--cn-fit') < 0; });
+  check('every one of them carries the fit multiplier',
+        naked.length === 0,
+        naked.length + ' rule(s) size the name without var(--cn-fit) — the fit is dead wherever one wins: ' +
+        (naked[0] || ''));
+  check('and a TRICK name can be fitted too',
+        /\.trick-card \.card-name-overlay \.cn-text \{[\s\S]{0,80}font-size: calc\(1em \* var\(--cn-fit, 1\)\)/.test(BARE),
+        'a trick carries no `card` class, so the .card 1em rule never matches one');
+})();
+
 // ---- the badge glow is an edge, not a halo ---------------------------------
 // Owner: "its too much outer glow on the icons i like the glow just too much on
 // the black behind the icons if that makes sense."
