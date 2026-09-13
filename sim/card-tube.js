@@ -849,6 +849,21 @@ check('and the old fixed green is gone from it',
   check('the ink helper only counts VISIBLE lines',
         /getClientRects\(\)/.test(ink) && /floor/.test(ink),
         'a name is clamped to two rows and a third line still has a rect');
+  // AND THE VERIFY PASS CHECKS THE SAME RULE. The first pass sizes from
+  // `limit / ink`, which assumes text width is LINEAR in font-size — it is not,
+  // glyph advances round individually (the same effect CN_FIT_PAD exists for),
+  // so one pass lands wide. Measured: a 110px hand card ~1px over its limit, an
+  // 88px trick tile ~3.4px, i.e. 12% against the 14% asked for. Owner, circling
+  // KRYPTONITE in the tray: "same for tricks." _refineCardNameFit is the only
+  // step that reads what actually PAINTED, so it is the only one that can close
+  // that — and it verified only the plate, never the card edge.
+  var refine = body('_refineCardNameFit');
+  check('the verify pass re-checks the card edge, not just the plate',
+        /CN_FIT_BREATH/.test(refine) && /_cnInkWidth\(/.test(refine),
+        'without this the first pass\'s rounding error is never corrected — 12% instead of 14%');
+  check('and it still only ever shrinks',
+        /Math\.min\(ideal/.test(refine) && /next < cur/.test(refine),
+        'a verify pass that can GROW the name would fight the first pass every frame');
 })();
 
 // ---- ...and the ratio has to reach the type on every surface ----------------

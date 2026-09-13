@@ -26201,9 +26201,35 @@ const UI = {
         const avail = this._cnPlateWidth(box);
         if (avail <= 0) return;
         const painted = el.getBoundingClientRect().width;
-        if (painted <= avail + this.CN_FIT_SLOP) return;
         const cur = parseFloat(el.style.getPropertyValue('--cn-fit')) || 1;
-        const ideal = cur * ((avail - this.CN_FIT_PAD) / painted);
+        let ideal = 1, over = false;
+        // (a) the plate: the name must not overrun the box it sits in.
+        if (painted > avail + this.CN_FIT_SLOP) {
+          ideal = cur * ((avail - this.CN_FIT_PAD) / painted);
+          over = true;
+        }
+        // (b) THE CARD EDGE, verified the same way. The first pass sizes from
+        // `limit / ink` and that assumes text width is LINEAR in font-size,
+        // which it is not — glyph advances round individually, the same effect
+        // CN_FIT_PAD exists for. Measured after one pass: a hand card landed
+        // ~1px wide of its limit and an 88px trick tile ~3.4px, which is 12% of
+        // the tile against the 14% asked for. Owner, circling KRYPTONITE: "same
+        // for tricks."
+        // This is the only step that reads what actually PAINTED, so it is the
+        // one that can close that gap; it re-runs up to CN_FIT_ROUNDS times and
+        // converges. A wrapped name measures its widest LINE, which is already
+        // inside the limit, so this is a no-op for it.
+        const host = el.closest('.card, .trick-card');
+        const hostW = host ? host.getBoundingClientRect().width : 0;
+        const ink = this._cnInkWidth(el);
+        if (hostW > 0 && ink > 0) {
+          const limit = hostW * (1 - this.CN_FIT_BREATH * 2);
+          if (ink > limit + this.CN_FIT_SLOP) {
+            ideal = Math.min(ideal, cur * (limit / ink));
+            over = true;
+          }
+        }
+        if (!over) return;
         const next = Math.max(this.CN_FIT_MIN, ideal);
         // The wrap flag has to be decided HERE as well as in the first pass. It
         // was only set there, from the ratio the first measurement produced —
