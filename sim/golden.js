@@ -71,6 +71,73 @@ function place(c, lane, side) {
 }
 
 // ============================================================
+// THE SPLASH'S RIDER IS PART OF THE SPLASH
+// ------------------------------------------------------------
+// Owner, on a live board: "hawkeye will splsh sandman losing 1 damage and xeno
+// will survive" — against a board printing a skull on that Xenomorph.
+//
+// A swing resolves even when the attacker dies to the counter, so Hawkeye's
+// splash lands after The Thing has killed him. applyHawkeyePassive found its
+// Hawkeye with getAllCardsOf, which filters currentHealth > 0 — so the Hawkeye
+// who had just dealt that splash was not in the list, and the ATK strip that
+// comes with it was silently skipped. Traced in the engine log: `[SPLASH]
+// Hawkeye hits Sandman for 1` with no `[HAWKEYE]` line after it, then
+// `[LANE 6] Xenomorph (1/2) vs Sandman (2/1)` — full 2 ATK into a 2 HP body.
+//
+// This pins the RESOLUTION. sim/snapshots.js GS-HAWK pins the forecast of the
+// same board; both were wrong, and the engine's fault hid the predictor's,
+// because a forecast that agrees with a broken resolver looks correct.
+function goldDef(name) {
+  for (var i = 0; i < CARD_DEFS.length; i++) if (CARD_DEFS[i].name === name) return CARD_DEFS[i];
+  throw new Error('no card def named ' + name);
+}
+function goldReal(name, owner, atk, hp) {
+  var c = Game.createCardInstance(goldDef(name), owner);
+  Game.applyAbilities(c);
+  if (atk != null) { c.attack = atk; c.baseAttack = atk; }
+  if (hp != null) { c.currentHealth = hp; c.maxHealth = hp; c.baseHealth = hp; }
+  return c;
+}
+
+gold('HAWK-1 a Hawkeye who dies trading still strips 1 ATK with his splash', function () {
+  reset();
+  // The owner's board, lanes 5 and 6 (indices 4 and 5).
+  var hawk  = place(goldReal('Hawkeye',   'player', 2, 3), 4);
+  var thing = place(goldReal('The Thing', 'ai',     3, 2), 4);
+  var xeno  = place(goldReal('Xenomorph', 'player', 1, 2), 5);
+  var sand  = place(goldReal('Sandman',   'ai',     2, 2), 5);
+  eq('hawkeye carries the passive', hawk.passive, 'splashWeaken');
+  eq('hawkeye splashes',            hawk.splashRange > 0, true);
+
+  Game.resolveCombat();
+
+  // He dies to The Thing — armour eats his swing entirely.
+  eq('hawkeye died', hawk.currentHealth <= 0, true);
+  // ...and his splash still stripped Sandman, which is the whole point.
+  eq('sandman lost 1 ATK', sand.attack, 1);
+  // So Sandman's swing is a 1 into a 2 HP body.
+  eq('xenomorph survived', xeno.currentHealth > 0, true);
+  eq('xenomorph on 1 HP',  xeno.currentHealth, 1);
+});
+
+// The other half of the same rule: the strip is an ALLY aura too, so a living
+// Hawkeye standing elsewhere still weakens what another ally splashes.
+gold('HAWK-2 a living Hawkeye weakens an ALLY\'s splash, not just his own', function () {
+  reset();
+  var hawk = place(goldReal('Hawkeye', 'player', 1, 9), 0);   // far away, alive
+  place(goldReal('Sandman', 'ai', 0, 9), 0);                  // harmless opposite
+  var splasher = goldReal('Hawkeye', 'player', 1, 9);         // any ally splasher
+  splasher.passive = null;                                    // ...that is NOT the weakener
+  place(splasher, 3);
+  place(goldReal('Sandman', 'ai', 0, 9), 3);
+  var victim = place(goldReal('Sandman', 'ai', 3, 9), 4);     // adjacent to the splasher
+  place(goldReal('Xenomorph', 'player', 0, 9), 4);
+  eq('the weakener is alive', hawk.currentHealth > 0, true);
+  Game.resolveCombat();
+  eq('the ally\'s splash still stripped', victim.attack, 2);
+});
+
+// ============================================================
 // IMMUNITY vs UNRESISTIBLE (tryApplyDebuff gate). Stun was merged into Freeze
 // (2026-07-24) — stunCard is now a back-compat alias for freezeCard, so these
 // still call stunCard (verifying the alias routes correctly) but assert on

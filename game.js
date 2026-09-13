@@ -8672,7 +8672,7 @@ const Game = {
         }
       }
     });
-    this.applyHawkeyePassive(card.owner, splashed);
+    this.applyHawkeyePassive(card.owner, splashed, card);
   },
 
   handleOverdrive(card, laneIdx) {
@@ -15168,9 +15168,29 @@ const Game = {
     if (card.currentHealth <= 0) this.handleDeath(card, laneIdx, null);
   },
 
-  applyHawkeyePassive(owner, splashedEnemies) {
+  // `source` is the card that DEALT the splash, and it is here because of one
+  // asymmetry: a swing resolves even when the attacker dies to the counter, so
+  // Hawkeye's splash still lands — but this lookup reads the BOARD, and
+  // getAllCardsOf filters currentHealth > 0, so the Hawkeye who just dealt that
+  // splash is not in it. The splash landed and the rider it comes with silently
+  // did not.
+  //
+  // Owner, on a board where Hawkeye traded with an armoured Thing: "hawkeye will
+  // splsh sandman losing 1 damage and xeno will survive." Traced: Hawkeye dies
+  // to The Thing, `[SPLASH] Hawkeye hits Sandman for 1` still prints, no
+  // [HAWKEYE] line follows, and Sandman swings into lane 6 at its full 2 ATK —
+  // killing a 2 HP Xenomorph that should have survived a 1.
+  //
+  // If the splash lands, its rider lands. The board lookup stays for the case it
+  // was written for — another ALLY splashing while a living Hawkeye watches,
+  // which is what "Splash damage from allies removes 1 ATK" means — and the
+  // source is consulted first so a Hawkeye who paid for that splash with his
+  // life still gets it.
+  applyHawkeyePassive(owner, splashedEnemies, source) {
     if (!splashedEnemies.length) return;
-    const hawkeye = this.getAllCardsOf(owner).find(c => c.passive === 'splashWeaken');
+    const hawkeye = (source && source.passive === 'splashWeaken' && source.owner === owner)
+      ? source
+      : this.getAllCardsOf(owner).find(c => c.passive === 'splashWeaken');
     if (!hawkeye) return;
     // Roguelite Text+ ("Trick Arrows") — _hawkeyeSplashWeaken raises
     // the per-hit ATK strip from 1 to 3.
@@ -15277,7 +15297,7 @@ const Game = {
       this.dealDamage(t, amount, source);
       if (t.currentHealth > 0 && t.currentHealth < hpBefore) splashed.push(t);
     }
-    this.applyHawkeyePassive(owner, splashed);
+    this.applyHawkeyePassive(owner, splashed, source);
   },
 
   // ===================== VADER CHAIN DAMAGE =====================
@@ -19595,6 +19615,10 @@ const Game = {
             ref: c, owner: c.owner, lane: i,
             hp: c.currentHealth, dmgIn: 0,
             evade: c.evadeCharges | 0,
+            // ATK this card has LOST to Hawkeye's splash earlier in this same
+            // forecast. Held on the snapshot rather than the card because the
+            // predictor must not mutate live state. See the cone below.
+            atkPenalty: 0,
           });
         }
       });
@@ -19635,6 +19659,12 @@ const Game = {
         if (this.yodaShieldCount(final.ref.owner) > 0 && raw > 0) raw = this.yodaHalve(final.ref.owner, raw);
       } else {
         raw = this._computeIncomingDamage(attacker, final.ref, { silent: true }) | 0;
+        // ...less any ATK this attacker has already lost to a splash earlier in
+        // this forecast. Only the SWING: the strip lowers `attack`, and splash
+        // is sized by splashRange, which it does not touch — so the flatRaw
+        // branch above is deliberately left alone.
+        const aPen = snap.get(attacker.id);
+        if (aPen && aPen.atkPenalty > 0) raw = Math.max(0, raw - aPen.atkPenalty);
       }
       if (raw <= 0) return 0;
       const landed = attacker.ignoresArmor ? raw : Math.max(0, raw - (final.ref.armorValue | 0));
@@ -19758,10 +19788,31 @@ const Game = {
         // enemy damage to the defending side's taunter — so EACH cone hit that
         // would land on an enemy is soaked by the taunter if one stands.
         const taunt = taunterFor(attacker, attacker.owner);
+        // HAWKEYE'S RIDER, mirroring applyHawkeyePassive: splash that actually
+        // LANDS on an enemy which SURVIVES strips 1 ATK from it (3 with the
+        // roguelite etch), capped at what it has. Without this the forecast
+        // over-reported the splashed card's next swing — owner, on a Hawkeye
+        // trading with an armoured Thing: "hawkeye will splsh sandman losing 1
+        // damage and xeno will survive", against a board printing a skull on
+        // that Xenomorph. Lanes resolve left to right in both the resolver and
+        // here, so the RIGHT-adjacent target is stripped before its own
+        // exchange is computed, and the left-adjacent one is not — which is
+        // exactly when each one swings in the real fight.
+        const weakener = (attacker.passive === 'splashWeaken')
+          ? attacker
+          : this.getAllCardsOf(attacker.owner).find(c => c.passive === 'splashWeaken');
+        const strip = weakener ? (weakener._hawkeyeSplashWeaken || 1) : 0;
         [i - 1, i + 1].forEach(li => {
           if (li < 0 || li >= this.LANE_COUNT) return;
           const ln = this.state.lanes[li];
-          if (ln && !ln.destroyed && ln[foe]) applyHit(taunt || ln[foe], attacker, s);
+          if (!ln || ln.destroyed || !ln[foe]) return;
+          const hit = taunt || ln[foe];
+          const landed = applyHit(hit, attacker, s);
+          if (!strip || landed <= 0) return;
+          const hs = snap.get(hit.id);
+          if (!hs || hs.hp <= 0) return;                  // dead splash targets keep nothing
+          const left = Math.max(0, (hit.attack | 0) - hs.atkPenalty);
+          hs.atkPenalty += Math.min(strip, left);
         });
       };
       // NOT pCanAttack — the resolver gates splash on canSplash, which drops

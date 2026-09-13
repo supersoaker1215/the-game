@@ -629,6 +629,72 @@ snap('GS-27 predictLaneOutcome: hypothetical card injection', function () {
 });
 
 // ============================================================
+// GS-HAWK — THE SPLASH'S RIDER IS PART OF THE SPLASH.
+// Owner, on a live board: "hawkeye will splsh sandman losing 1 damage and xeno
+// will survive" — against a board printing a skull on that Xenomorph.
+//
+// The board: lane 5 Hawkeye 2/3 (Bullseye, Splash 1, passive splashWeaken) vs
+// The Thing 3/2 Armor 2; lane 6 Xenomorph 1/2 vs Sandman 2/2.
+//
+// Traced in the resolver: The Thing's armour eats Hawkeye's swing, The Thing's 3
+// kills Hawkeye, and his splash STILL lands on Sandman — a swing resolves even
+// when the attacker dies to the counter. But applyHawkeyePassive found its
+// Hawkeye through getAllCardsOf, which filters currentHealth > 0, so the
+// Hawkeye who had just dealt that splash was not in the list: the splash landed
+// and the ATK strip that comes with it silently did not. Sandman swung at its
+// full 2 into a 2 HP Xenomorph.
+//
+// Two separate faults, and the second was hidden by the first — with the engine
+// dropping the rider, the forecast agreed with it and looked correct.
+//   1. the resolver dropped the rider (fixed: the splash source is consulted
+//      before the board lookup);
+//   2. this predictor never modelled the strip at all — 36 mentions of splash,
+//      zero of Hawkeye.
+snap('GS-HAWK Hawkeye dies trading, his splash still strips 1 ATK next door', function () {
+  reset();
+  // lane 5 (index 4)
+  var hawk = place(makeCard({ owner: 'player', name: 'Hawkeye', attack: 2,
+    currentHealth: 3, maxHealth: 3, splashRange: 1, isBullseye: true }), 4);
+  hawk.passive = 'splashWeaken';
+  var thing = place(makeCard({ owner: 'ai', name: 'The Thing', attack: 3,
+    currentHealth: 2, maxHealth: 2, armorValue: 2 }), 4);
+  // lane 6 (index 5)
+  var xeno = place(makeCard({ owner: 'player', name: 'Xenomorph', attack: 1,
+    currentHealth: 2, maxHealth: 2 }), 5);
+  var sand = place(makeCard({ owner: 'ai', name: 'Sandman', attack: 2,
+    currentHealth: 2, maxHealth: 2 }), 5);
+
+  var r = Game.predictCombatGlobal();
+  var px = predOf(r, xeno.id), ps = predOf(r, sand.id), ph = predOf(r, hawk.id);
+
+  // Hawkeye trades: armour eats his swing, The Thing's 3 kills him.
+  assertEquals('hawkeye.dies', ph.dies, true);
+  // Sandman: 1 from the splash + 1 from Xenomorph = dead.
+  assertEquals('sandman.dmgIn', ps.dmgIn, 2);
+  // THE POINT. Sandman swings at 1, not 2, so Xenomorph lives on 1 HP.
+  assertEquals('xeno.dmgIn',   px.dmgIn,   1);
+  assertEquals('xeno.hpAfter', px.hpAfter, 1);
+  assertEquals('xeno.dies',    px.dies,    false);
+});
+
+// GS-HAWK2 — and the strip is capped at what the target HAS, never negative.
+snap('GS-HAWK2 the strip cannot take a 0-ATK card below zero', function () {
+  reset();
+  var hawk = place(makeCard({ owner: 'player', name: 'Hawkeye', attack: 2,
+    currentHealth: 4, maxHealth: 4, splashRange: 1 }), 2);
+  hawk.passive = 'splashWeaken';
+  place(makeCard({ owner: 'ai', name: 'Wall', attack: 0, currentHealth: 5, maxHealth: 5 }), 2);
+  var pacifist = place(makeCard({ owner: 'ai', name: 'Pacifist', attack: 0,
+    currentHealth: 4, maxHealth: 4 }), 3);
+  var mine = place(makeCard({ owner: 'player', name: 'Mine', attack: 1,
+    currentHealth: 3, maxHealth: 3 }), 3);
+  var r = Game.predictCombatGlobal();
+  // It takes the splash and survives, but has no ATK to lose and deals none.
+  assertEquals('pacifist.dmgIn', predOf(r, pacifist.id).dmgIn, 2);   // 1 splash + 1 swing
+  assertEquals('mine.dmgIn',     predOf(r, mine.id).dmgIn,     0);
+  assertEquals('mine.dies',      predOf(r, mine.id).dies,      false);
+});
+
 // ---- RUNNER -----------------------------------------------
 // ============================================================
 
