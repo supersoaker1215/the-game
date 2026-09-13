@@ -17376,6 +17376,51 @@ const Game = {
     return pick;
   },
 
+  // WHAT THE RAIL WILL CALL IT WHEN IT LANDS. The up-next row and the live row
+  // have to say the SAME words — the hand-off is the whole feature ("the row
+  // that was counting down goes, and the one that was waiting takes its
+  // place"), and a row that renames itself the moment it is promoted is a
+  // different row, not a promotion. Each arm mirrors that event's own
+  // _eventSlotClaim.
+  _EVENT_SET_PIECES: { 'Shadow Man': ['The Shadow Man', 'modifier'],
+                       'MC Ballyhoo': ['MC Ballyhoo', 'boon'],
+                       'Cog Invasion': ['Cog Invasion', 'hazard'] },
+  _eventLabelFor(pick, place) {
+    const sp = this._EVENT_SET_PIECES[pick];
+    if (sp) return sp[0];
+    return place || pick;          // a habitat is announced by its PLACE
+  },
+  _eventKindFor(pick) {
+    const sp = this._EVENT_SET_PIECES[pick];
+    return sp ? sp[1] : 'hazard';  // every habitat claims the slot as a hazard
+  },
+
+  // ONE EVENT ON DECK, DRAWN EARLY SO IT CAN BE NAMED.
+  // Owner: "now the next event should show the name of the upcomng event."
+  //
+  // The rail could only ever say "Next event" before, and that was honest at
+  // the time: the draw happened ON the due round, so until then there was no
+  // answer to give and inventing one would have been a prediction the draw had
+  // not made. Drawing a round early turns it into a fact — the same uniform
+  // pull from the same pool, just resolved sooner, so nothing about WHICH event
+  // lands or how often changes.
+  //
+  // The place is resolved here too, not at landing. _habitatPlacement consumes
+  // RNG for Jigsaw (The Bathroom or Game Over), so rolling it twice would let
+  // the rail announce one room and the board open the other.
+  _ensureNextEventDrawn() {
+    const s = this.state;
+    if (!s) return;
+    if (s._eventNextUp && s._eventNextUp.name) return;
+    if (!this._randomEventsEnabled()) return;
+    const pick = this._drawEventFor();
+    if (!pick) return;
+    const place = this._EVENT_SET_PIECES[pick] ? null : this._habitatPlacement(pick);
+    s._eventNextUp = { name: pick, place: place,
+                       label: this._eventLabelFor(pick, place),
+                       kind: this._eventKindFor(pick) };
+  },
+
   // Draw and dispatch this round's event, once. Called from both round starts,
   // ahead of the three _maybe* runners, which then do the actual work — they
   // still run EVERY round because the Shadow Man returns later to pay out and a
@@ -17429,14 +17474,27 @@ const Game = {
     const s = this.state;
     if (!s) return;
     const r = roundNow | 0;
+    // EVERY ROUND, not just a due one: the rail has to be able to name what is
+    // coming while the clock is still counting down to it.
+    this._ensureNextEventDrawn();
     if (!this._eventRoundDue(r)) return;
     // Before drawing: anything that was drawn and never got to show goes back,
-    // so this round's draw sees the honest pool.
+    // so this round's draw sees the honest pool. (It cannot reclaim the one on
+    // deck — that is not a pending SHOWING, it is a pending draw, and
+    // _eventDrawsPending only knows about events already dispatched.)
     this._reclaimUnshownEvents(r);
     if (!s._eventRounds) s._eventRounds = {};
     if (s._eventRounds[r]) return;                 // this round already drew
-    const pick = this._drawEventFor();
+    // Take the one that was announced, so the rail's promise and the board
+    // agree. Falling back to a fresh pull covers a reclaim that refilled an
+    // empty pool between the on-deck draw and now.
+    const nextUp = s._eventNextUp || null;
+    s._eventNextUp = null;
+    const pick = (nextUp && nextUp.name) || this._drawEventFor();
     s._eventRounds[r] = pick || 'none';
+    // Line the following one up immediately, so the row that just landed is
+    // replaced in the rail rather than leaving a gap.
+    this._ensureNextEventDrawn();
     if (!pick) return;
     this.log(`[EVENT] Round ${r} rolls: ${pick}.`);
     s._matchEventName = pick;
@@ -17478,7 +17536,10 @@ const Game = {
     s._habitats.push({
       shows: true,
       name: pick,
-      place: this._habitatPlacement(pick),
+      // The place the rail already NAMED, not a fresh roll — see
+      // _ensureNextEventDrawn. Jigsaw's room is an RNG pull, so re-rolling it
+      // here would announce The Bathroom and open Game Over.
+      place: (nextUp && nextUp.place) || this._habitatPlacement(pick),
       appearAt: r,
       fired: false,
     });
@@ -18944,13 +19005,26 @@ const Game = {
       const used = Array.isArray(s._eventsUsed) ? s._eventsUsed : [];
       let anyLeft = false;
       try { anyLeft = this.matchEventPool().some(n => used.indexOf(n) < 0); } catch (e) { anyLeft = true; }
-      if (!anyLeft) return null;
-      // Nothing drawn yet — but the clock is. Find the next round the event
-      // draw is due, which is a real, knowable number even though the outcome
-      // is not.
+      const onDeck = s._eventNextUp;
+      if (!anyLeft && !(onDeck && onDeck.name)) return null;
+      // The clock's next due round is a real, knowable number.
       let r = Math.max(round + 1, this._EVENT_FIRST_ROUND);
       for (let i = 0; i < 64 && !this._eventRoundDue(r); i++) r++;
       const at = Math.max(r, freeAt);
+      // AND NOW SO IS THE NAME. Owner: "the next event should show the name of
+      // the upcomng event." The draw used to happen ON the due round, so this
+      // branch genuinely had nothing to say and said so; one event is drawn a
+      // round ahead now (_ensureNextEventDrawn), which turns "something is due
+      // in 2" into "Wetlands is due in 2" without inventing anything — it is
+      // the same pull from the same pool, resolved sooner.
+      //
+      // Labelled exactly as the live row will label it, so the hand-off is a
+      // promotion rather than a rename: a habitat by its PLACE, the three set
+      // pieces by the names their own slot claims use.
+      if (onDeck && onDeck.name) {
+        return { name: onDeck.label || onDeck.name, kind: onDeck.kind || 'hazard',
+                 at, inRounds: Math.max(0, at - round) };
+      }
       return { name: null, kind: 'modifier', at, inRounds: Math.max(0, at - round) };
     }
     return { name: best.name, kind: best.kind, at: best.at,

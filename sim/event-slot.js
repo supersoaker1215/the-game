@@ -401,6 +401,97 @@ t('ES-Q5 the rail does not promise an event that cannot come', function () {
   eq('an honest countdown survives', !!un, true);
 });
 
+// ============================================================
+// ES-N — THE RAIL NAMES WHAT IS COMING
+// ------------------------------------------------------------
+// Owner: "now the next event should show the name of the upcomng event."
+//
+// It could not before, and honestly so: the draw happened ON the due round, so
+// until then there was no answer and the row said "Next event". One event is
+// drawn a round ahead now, which turns "something is due in 2" into "Wetlands
+// is due in 2" — the same uniform pull from the same pool, resolved sooner.
+//
+// The thing that can go wrong is the rail promising one event and the board
+// opening another, so that is what these check: not that a name appears, but
+// that the name is KEPT.
+t('ES-N1 the rail names the next event instead of saying "Next event"', function () {
+  Game.init();
+  if (Game.setSeed) Game.setSeed(4242);
+  Game.startMatch('classic');
+  Game.state.player.isHuman = false; Game.state.ai.isHuman = false;
+  Game.state.round = 1;
+  Game.startRound();
+  var un = Game.eventUpNext();
+  eq('there is an answer', !!un, true);
+  eq('and it has a name', !!(un && un.name), true);
+  eq('drawn and held on deck', !!(Game.state._eventNextUp && Game.state._eventNextUp.name), true);
+});
+
+t('ES-N2 the name it promises is the name that lands', function () {
+  var checked = 0, broken = [];
+  for (var seed = 1; seed <= 6; seed++) {
+    Game.init();
+    if (Game.setSeed) Game.setSeed(seed * 31337);
+    Game.startMatch('classic');
+    Game.state.player.isHuman = false; Game.state.ai.isHuman = false;
+    var promises = [], landed = {};
+    for (var r = 1; r <= 24; r++) {
+      Game.state.round = r;
+      Game.startRound();
+      var now = Game.state.round | 0;
+      var un = null; try { un = Game.eventUpNext(); } catch (e) {}
+      if (un && un.name && un.at > now) promises.push({ at: un.at, name: un.name });
+      var sl = Game.state._eventSlot;
+      if (sl && Game._eventSlotFor(now)) landed[sl.start] = sl.name;
+    }
+    promises.forEach(function (pr) {
+      if (landed[pr.at] == null) return;            // match ended before it landed
+      checked++;
+      if (landed[pr.at] !== pr.name) {
+        broken.push('said "' + pr.name + '" for round ' + pr.at + ', got "' + landed[pr.at] + '"');
+      }
+    });
+  }
+  eq('some promises were actually testable', checked > 40, true);
+  eq('every named promise landed as named', broken.slice(0, 4).join(' | '), '');
+});
+
+t('ES-N3 Jigsaw\'s room is decided once, not announced and then re-rolled', function () {
+  // _habitatPlacement consumes RNG for Jigsaw (The Bathroom / Game Over). Roll
+  // it at announce AND again at landing and the rail says one room while the
+  // board opens the other — a mismatch no amount of correct scheduling fixes.
+  Game.init();
+  Game.state.mode = { deck: 'classic', players: '1v1' };
+  Game.state._eventsUsed = Game.matchEventPool().filter(function (n) { return n !== 'Jigsaw'; });
+  Game.state.round = 1;
+  Game._ensureNextEventDrawn();
+  var deck = Game.state._eventNextUp;
+  eq('Jigsaw is on deck', !!deck && deck.name, 'Jigsaw');
+  eq('and its room is already chosen', ['The Bathroom', 'Game Over'].indexOf(deck.place) >= 0, true);
+  var announced = deck.place;
+  eq('the rail announces the room, not the card', Game.eventUpNext().name, announced);
+  Game.state.round = 3;
+  Game._maybeMatchEvent(3);
+  var h = (Game.state._habitats || []).filter(function (x) { return x && x.name === 'Jigsaw'; })[0];
+  eq('the habitat was queued', !!h, true);
+  eq('with the SAME room that was announced', h && h.place, announced);
+});
+
+t('ES-N4 a habitat is announced by its place, the set pieces by their own names', function () {
+  // The up-next row and the live row must say the same words — the hand-off is
+  // a promotion, not a rename.
+  eq('Shadow Man',   Game._eventLabelFor('Shadow Man', null),  'The Shadow Man');
+  eq('MC Ballyhoo',  Game._eventLabelFor('MC Ballyhoo', null), 'MC Ballyhoo');
+  eq('Cog Invasion', Game._eventLabelFor('Cog Invasion', null),'Cog Invasion');
+  eq('a habitat',    Game._eventLabelFor('Jigsaw', 'Game Over'), 'Game Over');
+  // …and the kinds match the slot each one claims, so the tick colour does not
+  // change when the row is promoted.
+  eq('shadow kind',  Game._eventKindFor('Shadow Man'),  'modifier');
+  eq('ballyhoo kind',Game._eventKindFor('MC Ballyhoo'), 'boon');
+  eq('cog kind',     Game._eventKindFor('Cog Invasion'),'hazard');
+  eq('habitat kind', Game._eventKindFor('Open Water'),  'hazard');
+});
+
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];
   try { c.fn(); } catch (e) {
