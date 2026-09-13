@@ -698,29 +698,52 @@ window.CARD_ART_ACCENT_OVERRIDE = {
   // which re-derives all 259 borders — a much larger change than one card.
   'Superman': '240,57,76',
 
-  // FOUR MORE THE GENERATOR READ HONESTLY AND STILL GOT WRONG FOR A PERSON.
-  // Owner: "power battery green border, time stone green border, iron man his
-  // red lex luthor his green".
+  // NAMED BY THE OWNER, SAMPLED FROM THE CARD'S OWN PAINTING.
+  // "power stone puple, fear toxin orange, mind stone yellow, jokers purple,
+  // jango his blue, carnage red, green goblin green, optimus blue, raven
+  // purple, grinch green, art white, captain ameica white" — and the rule that
+  // came with it: "when i say green blue red etc i wnat you to mathc the color
+  // in thier art to the border, not a generic color".
   //
-  // Each was sampled the same way Superman was — the art's own hue population,
-  // run through the shipped neon() — and each needed a correction the sampler
-  // cannot make on its own. The proof sheets are what decided it; the numbers
-  // below are what they showed.
+  // So none of these is a canned red/green/purple. Each is the vivid quartile
+  // of that hue family in that card's own art, with floors on saturation and
+  // luma so it still reads as a lit line on black —
+  // sim/tools/card-art-border.py, which documents why the generator's neon()
+  // transform is not used for these (it keeps only the hue and slams saturation
+  // to 0.86, which returns hot pink for Carnage's crimson and mint for the
+  // Power Battery's green). Every value was checked against its painting on a
+  // proof sheet before it shipped.
   //
-  //   IRON MAN. The default variant is 'Iron Man 2.png', a blue-lit shot whose
-  //   armour is a dark, low-saturation maroon — only 0.3% of its pixels read as
-  //   red at all, and the hue peak lands on a handful of pink highlights
-  //   (241,67,118). The value used instead is the one the SAME generator
-  //   derived from 'Iron Man.png', which is his red taken from his own
-  //   painting; keyed by name, so whichever variant is selected wears it.
-  //
-  //   THE THREE GREENS. A glow photographs cyan-shifted, so the honest peak for
-  //   the Power Battery is 142 deg and the Time Stone 140 — both read as mint
-  //   rather than green — while Lex's armour peaks at 99, which reads olive.
-  //   Clamped into the band that actually reads GREEN (110-135) and checked
-  //   against the paintings side by side.
-  'Iron Man':      '240,53,57',
-  'Lex Luthor':    '72,239,39',
-  'Power Battery': '58,240,103',
-  'Time Stone':    '58,240,103',
+  // WHAT THE GENERATOR ACTUALLY GOT WRONG on these is mostly not the shade but
+  // the SUBJECT — the failure this file's header already describes. It reported
+  // Carnage blue, Raven blue, Green Goblin red, Optimus orange, Jango red, the
+  // Grinch cyan: in every one of those it found the LIGHTING or the background
+  // rather than the character. That is a saliency problem, and the note at the
+  // top still stands — telling subject from setting is a lot of machinery for a
+  // border colour, so the escape hatch carries them.
+  'Power Stone':          '226,85,254',
+  'Fear Toxin':           '247,104,0',
+  'Mind Stone':           '242,195,0',
+  'Joker\'s Playing Card': '186,98,249',
+  'Jango Fett':           '102,121,255',
+  'Carnage':              '255,87,122',
+  'Green Goblin':         '73,150,60',
+  'Optimus Prime':        '51,131,255',
+  'Raven':                '242,64,255',
+  'The Grinch':           '109,145,58',
+  'Art the Clown':        '245,245,245',
+  'Captain America':      '245,244,245',
+
+  // Re-derived with the same sampler. These three were clamped to a hand-picked
+  // 110/135 deg in the previous pass, which put Power Battery and the Time Stone
+  // on the SAME value — the exact "generic colour" the rule above rules out.
+  'Lex Luthor':           '93,147,59',
+  'Power Battery':        '2,190,105',
+  'Time Stone':           '14,181,99',
+
+  // IRON MAN keeps its hand-reasoned value: his default variant is a blue-lit
+  // shot whose armour is dark low-saturation maroon — 0.3% of its pixels read as
+  // red at all — so the sampler returns a pink highlight. This is the red the
+  // SAME generator derived from 'Iron Man.png', his own painting.
+  'Iron Man':             '240,53,57',
 };

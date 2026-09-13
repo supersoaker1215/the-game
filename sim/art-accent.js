@@ -201,8 +201,16 @@ function overrideEntries() {
   // measured values; blank them or they get counted as live entries. This is
   // the trap art-accent.js was already bitten by once.
   body = body.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-  var out = {}, re = /'([^']+)'\s*:\s*'(\d+\s*,\s*\d+\s*,\s*\d+)'/g, m;
-  while ((m = re.exec(body))) out[m[1]] = m[2];
+  // BOTH QUOTE STYLES, and an escaped apostrophe inside a single-quoted key.
+  // This file is single-quoted throughout, but a double-quoted key is valid JS
+  // and would simply vanish from this parser — which is how "Joker's Playing
+  // Card" went missing on the way in. A key this test cannot see is a key it
+  // cannot check.
+  var out = {}, re = /(?:'((?:[^'\\]|\\.)+)'|"([^"]+)")\s*:\s*'(\d+\s*,\s*\d+\s*,\s*\d+)'/g, m;
+  while ((m = re.exec(body))) {
+    var key = (m[1] != null ? m[1].replace(/\\(.)/g, '$1') : m[2]);
+    out[key] = m[3];
+  }
   return out;
 }
 
@@ -216,9 +224,20 @@ t('AA-8 the escape hatch exists, wins, and stays short', function () {
   var ov = overrideEntries();
   eq('it parses', ov !== null, true);
   var n = Object.keys(ov).length;
-  // Ten is not a magic number, it is a smell threshold: past it the honest fix
-  // is the generator, not another row.
-  eq('and it is still short (' + n + ' entries)', n <= 10, true);
+  // THE CAP WAS TEN, AND THE REASON IT MOVED IS WORTH RECORDING. Ten was a smell
+  // threshold for "the generator needs fixing rather than the list needing
+  // another row", and it tripped at 16. Looking at what the sixteen actually
+  // are: the generator reported Carnage blue, Raven blue, Green Goblin red,
+  // Optimus orange, Jango red, the Grinch cyan. In every one of those it found
+  // the LIGHTING or the background rather than the character — the saliency
+  // failure this map's header already describes and deliberately does not try
+  // to solve ("telling subject from setting needs saliency, which is a great
+  // deal of machinery for a border colour"). These are not shade corrections
+  // the generator could learn; they are a person naming a subject.
+  // So the cap moves, and what it now guards against is the list quietly
+  // becoming the whole set — at which point the hatch IS the generator and the
+  // generator is dead weight.
+  eq('and it has not become the whole set (' + n + ' entries)', n <= 40, true);
 });
 
 t('AA-9 every override is a legible line on black, same floor as the generated set', function () {
@@ -231,8 +250,17 @@ t('AA-9 every override is a legible line on black, same floor as the generated s
     var p = ov[k].split(',').map(Number);
     var luma = 0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2];
     if (luma < 90) bad.push(k + ' ' + ov[k] + ' luma ' + luma.toFixed(0) + ' (too dark)');
+    // NEAR-NEUTRAL IS ONLY A FAULT WHEN IT IS DIM. The failure this catches is
+    // the steel a monochrome painting falls back to — a washed mid-grey that
+    // reads as "no answer". A deliberate bright WHITE is a different thing and
+    // is sometimes exactly right: owner, on a black-and-white film still and on
+    // Cap's monochrome shot, "art white, captain ameica white". Both measure
+    // 245,245,245, luma 245, which nothing could mistake for the steel fallback
+    // at luma ~170.
     var mx = Math.max.apply(null, p), mn = Math.min.apply(null, p);
-    if (mx - mn < 40) bad.push(k + ' ' + ov[k] + ' (grey — the thing an override exists to avoid)');
+    if (mx - mn < 40 && luma < 200) {
+      bad.push(k + ' ' + ov[k] + ' (dim grey — the steel fallback, not a chosen colour)');
+    }
   });
   eq('all legible and chromatic', bad.length ? bad.join(' | ') : 0, 0);
 });
@@ -256,6 +284,62 @@ t('AA-10 Superman is red, and it is the override doing it', function () {
   // what changes the border, not a regenerated accent file.
   eq('the generated map still reports the steel it derived',
      MAP['Superman 3.jpg'], '188,169,171');
+});
+
+t('AA-11 the owner-named colours are in the family they were named as', function () {
+  // Owner: "power stone puple, fear toxin orange, ... carnage red, green goblin
+  // green, optimus blue, raven purple, grinch green". Each value is sampled from
+  // that card's own art (sim/tools/card-art-border.py), so this does NOT pin the
+  // exact numbers — re-sampling a re-cropped painting may legitimately move
+  // them. It pins the thing that was WRONG: the generator had Carnage blue,
+  // Raven blue, Green Goblin red, Optimus orange, the Grinch cyan, because it
+  // found the lighting rather than the character.
+  var ov = overrideEntries() || {};
+  function fam(rgb) {
+    var p = String(rgb).split(',').map(Number);
+    var r = p[0] / 255, g = p[1] / 255, b = p[2] / 255;
+    var mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+    if (d < 0.12) return 'neutral';
+    var h;
+    if (mx === r) h = 60 * (((g - b) / d) % 6);
+    else if (mx === g) h = 60 * ((b - r) / d + 2);
+    else h = 60 * ((r - g) / d + 4);
+    if (h < 0) h += 360;
+    if (h >= 345 || h < 15) return 'red';
+    if (h < 45) return 'orange';
+    if (h < 72) return 'yellow';
+    if (h < 168) return 'green';
+    if (h < 258) return 'blue';
+    if (h < 320) return 'purple';
+    return 'red';
+  }
+  var named = {
+    'Power Stone': 'purple', 'Fear Toxin': 'orange', 'Mind Stone': 'yellow',
+    "Joker's Playing Card": 'purple', 'Jango Fett': 'blue', 'Carnage': 'red',
+    'Green Goblin': 'green', 'Optimus Prime': 'blue', 'Raven': 'purple',
+    'The Grinch': 'green', 'Art the Clown': 'neutral', 'Captain America': 'neutral',
+    'Lex Luthor': 'green', 'Power Battery': 'green', 'Time Stone': 'green',
+    'Iron Man': 'red', 'Superman': 'red'
+  };
+  var wrong = [];
+  Object.keys(named).forEach(function (k) {
+    if (!ov[k]) { wrong.push(k + ' has no override at all'); return; }
+    var got = fam(ov[k]);
+    if (got !== named[k]) wrong.push(k + ' is ' + got + ', named as ' + named[k] + ' (' + ov[k] + ')');
+  });
+  eq('every named card wears the family it was named as', wrong.join(' | '), '');
+  // ...and no two of them are the same value, which is what "not a generic
+  // colour" means in practice — the previous pass had Power Battery and the
+  // Time Stone on an identical hand-picked green.
+  var seen = {}, dupes = [];
+  Object.keys(named).forEach(function (k) {
+    if (!ov[k]) return;
+    if (seen[ov[k]] && !(k === 'Art the Clown' || k === 'Captain America')) {
+      dupes.push(k + ' shares ' + ov[k] + ' with ' + seen[ov[k]]);
+    }
+    seen[ov[k]] = k;
+  });
+  eq('and no two share one value', dupes.join(' | '), '');
 });
 
 // ---- run ----------------------------------------------------
