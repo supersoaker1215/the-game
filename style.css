@@ -7740,12 +7740,29 @@ body.hit-pause .ai-hand * {
 /* Same near-total desaturation as .unafford (see that rule's comment) —
    the old 0.6 grayscale left warm art reading as vivid/playable. */
 .card.unplayable { filter: grayscale(0.95) brightness(0.6) !important; }
-.trick-card.unplayable { filter: grayscale(0.6) brightness(0.65);
+/* DIM ENOUGH TO READ AS UNPLAYABLE, BRIGHT ENOUGH TO READ AT ALL. Owner, on a
+   trick in the tray: "i cant see the draw 1 icon."
+   A trick is unplayable for the WHOLE cards phase, not just when you cannot
+   afford it, so this filter is what a trick looks like most of a turn — and at
+   brightness 0.65 it took the Draw badge's orange (239,95,40) down to about
+   (110,72,58), which on a black card is a shape you can find but not read. The
+   badge is the only thing on a trick tile that says what it DOES.
+   0.82 measures to about (143,90,70) for the same badge: still obviously
+   dimmer than the playable card beside it, and legible. The grayscale does most
+   of the "not now" work anyway — that is the half that was raised from 0.6 when
+   .unafford was tuned, for exactly the opposite reason (warm art still reading
+   as playable). */
+.trick-card.unplayable { filter: grayscale(0.55) brightness(0.82);
   /* AMBIENT rung: it is unplayable, so it emits nothing. It was
      inheriting the base trick-card bloom — 3 layers out to 18px —
      which made the one card you CANNOT use among the brightest
      objects on the board. */
   box-shadow: none; }
+/* ...and hovering clears it entirely, which is what an unaffordable HAND card
+   has always done (`.hand-card-wrapper:hover .card.hand-card.unafford`). A
+   trick never got the same treatment, so the one way to read a dimmed card did
+   not work on the one kind of card that is dimmed most of the time. */
+.trick-cards .trick-card.unplayable:hover { filter: none; }
 
 /* ---- CARD ANIMATIONS ----
    Tron-style "construct" entrance: the card builds from the bottom
@@ -39228,7 +39245,7 @@ body.low-fx .card-frost::after {
   min-width: 0;
   height: calc(var(--sb-i) * 1.42);
   max-width: 100%;
-  text-shadow: 0 0 calc(var(--sb-i) * 0.5) currentColor;
+  text-shadow: 0 0 calc(var(--sb-i) * 0.28) currentColor;
 }
 /* THE COUNT RIDES ITS GLYPH'S CORNER, rather than sitting beside it.
    Inline, the count was 86% of the icon, so a two-digit value like 12 was
@@ -39253,7 +39270,7 @@ body.low-fx .card-frost::after {
   font-size: calc(var(--sb-i) * 0.60);
   line-height: 1;
   margin-left: 0;
-  text-shadow: 0 0 2px #000, 0 0 2px #000, 0 0 calc(var(--sb-i) * 0.42) currentColor;
+  text-shadow: 0 0 2px #000, 0 0 2px #000, 0 0 calc(var(--sb-i) * 0.24) currentColor;
 }
 /* ============================================================
    BUSY CARDS GET A FOURTH COLUMN
@@ -39336,7 +39353,16 @@ body.low-fx .card-frost::after {
 .player-hand-section .hand-cards .card .status-badge .sb-i,
 .trick-cards .trick-card .status-badge .sb-i {
   /* text-shadow does nothing for an SVG; the glyph needs its own glow. */
-  filter: drop-shadow(0 0 calc(var(--sb-i) * 0.34) currentColor);
+  /* TIGHTER, NOT GONE. Owner: "its too much outer glow on the icons i like the
+     glow just too much on the black behind the icons." Three glows stack on one
+     badge — this drop-shadow on the icon, a text-shadow on the badge, and
+     another on the number — and every one of them is currentColor at FULL
+     alpha, so on a black card they compound into a halo rather than an edge.
+     Each radius is cut to about 55% of what it was (0.34 -> 0.19, 0.5 -> 0.28,
+     0.42 -> 0.24), which keeps the lit-glass look and pulls the bloom back onto
+     the glyph. currentColor is kept on purpose: the glow has to follow whatever
+     colour the badge is, and a badge does not always take the card's accent. */
+  filter: drop-shadow(0 0 calc(var(--sb-i) * 0.19) currentColor);
 }
 /* ============================================================
    BADGE SCALE — one share of the card, every screen.

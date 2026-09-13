@@ -800,6 +800,57 @@ check('and the old fixed green is gone from it',
         'the container-query guess never matched above 520px');
 })();
 
+// ---- the badge glow is an edge, not a halo ---------------------------------
+// Owner: "its too much outer glow on the icons i like the glow just too much on
+// the black behind the icons if that makes sense."
+//
+// THREE glows stack on one badge — a drop-shadow on the icon, a text-shadow on
+// the badge, and another on the number — and every one is currentColor at FULL
+// alpha, so on a black card they compound into a halo instead of an edge. Each
+// radius is cut to about 55%. Measured on a live hand card: badge glow
+// 6.12px -> 3.43px, icon 4.16px -> 2.33px.
+//
+// currentColor is kept deliberately: the glow has to follow whatever colour the
+// badge is, and a badge does not always take the card's accent.
+(function () {
+  var trio = [
+    ['the icon glow',   /drop-shadow\(0 0 calc\(var\(--sb-i\) \* ([\d.]+)\) currentColor\)/, 0.19],
+    ['the badge glow',  /text-shadow: 0 0 calc\(var\(--sb-i\) \* ([\d.]+)\) currentColor/,      0.28],
+    ['the number glow', /0 0 2px #000, 0 0 2px #000, 0 0 calc\(var\(--sb-i\) \* ([\d.]+)\) currentColor/, 0.24]
+  ];
+  trio.forEach(function (t) {
+    var m = t[1].exec(BARE);
+    check(t[0] + ' is the tightened radius', !!m && parseFloat(m[1]) === t[2],
+          m ? 'radius multiplier is ' + m[1] + ', expected ' + t[2] : 'the glow declaration is gone entirely');
+  });
+  check('and all three still follow the badge\'s own colour',
+        (BARE.match(/calc\(var\(--sb-i\) \* [\d.]+\) currentColor/g) || []).length >= 3,
+        'a literal colour here would stop matching badges that are not the card accent');
+})();
+
+// ---- an unplayable trick is dim, not unreadable -----------------------------
+// Owner, on a trick in the tray: "i cant see the draw 1 icon."
+// A trick is unplayable for the WHOLE cards phase, not only when it is
+// unaffordable, so this filter is what a trick looks like for most of a turn. At
+// brightness 0.65 the Draw badge's orange (239,95,40) resolved to about
+// (110,72,58) — findable, not readable — and that badge is the only thing on the
+// tile that says what the trick DOES.
+(function () {
+  var m = /\.trick-card\.unplayable \{ filter: grayscale\(([\d.]+)\) brightness\(([\d.]+)\)/.exec(BARE);
+  check('the unplayable trick filter is still there', !!m,
+        'the dim is what says "not now" — it should not be removed, only softened');
+  check('and it is bright enough to read',
+        !!m && parseFloat(m[2]) >= 0.8,
+        m ? 'brightness is ' + m[2] + ' — below 0.8 the badge stops being legible on black' : 'no filter');
+  check('while still obviously desaturated',
+        !!m && parseFloat(m[1]) >= 0.5,
+        m ? 'grayscale is ' + m[1] + ' — the grayscale does most of the "not now" work' : 'no filter');
+  // Hovering clears it, which is what an unaffordable HAND card has always done.
+  check('and hovering clears it, like an unaffordable hand card',
+        /\.trick-cards \.trick-card\.unplayable:hover \{ filter: none; \}/.test(BARE),
+        'the one way to read a dimmed card did not work on the kind that is dimmed most');
+})();
+
 // ---- the holographic sheen does not wait for a hover ------------------------
 // Owner: "the white highlight when you hover over the card to give it a shimmer
 // can you give that to the card all the time it looks so much better like that."
