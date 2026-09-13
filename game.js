@@ -4785,6 +4785,10 @@ const Game = {
     // …and the seven habitat events, from the same seam. All three are no-ops
     // unless the match actually rolled them, and _rollMatchEvent picks exactly
     // one, so no two can ever fire together.
+    // Clear last event's lanes BEFORE this round's habitat looks for room —
+    // otherwise a habitat due the very round its predecessor expires finds the
+    // board still full and waits a round for nothing.
+    this._expireEventEnvironments(this.state.round);
     this._maybeHabitatEvent(this.state.round);
     // …and Cog Invasion, from the same seam and through the same slot door as
     // the other three. A no-op unless the clock actually rolled it.
@@ -17239,19 +17243,29 @@ const Game = {
              : (typeof window !== 'undefined' && window.EVENT_FRANCHISES) ? window.EVENT_FRANCHISES
              : [];
     FR.forEach(fr => (fr.events || []).forEach(ev => { if (ev && ev.name) out.push(ev.name); }));
-    // TEMPORARY — only the Shadow Man and MC Ballyhoo may roll right now. The
-    // seven habitat events (Jurassic Park's Wetlands/Enclosure, Sewers, Open
-    // Water, Boiler Room, Gargantua, Saw's Jigsaw) are being reworked into a new
-    // in-game random-event system and must not appear in play yet. They stay in
-    // EVENT_FRANCHISES so the codex still lists them; this filter is the one
-    // place that gates what can actually be ROLLED. Remove the filter (or widen
-    // the allow-list) to bring the habitats back. (Owner: "the only ones i want
-    // showing up in the game right now is MC and Shadow man, everything else is
-    // being worked on.")
-    // Cog Invasion joined this list when it stopped being a whole-match VP
-    // engine and became a single wave like every other event (_maybeCogEvent).
-    const ALLOWED = ['Shadow Man', 'MC Ballyhoo', 'Cog Invasion'];
-    return out.filter(name => ALLOWED.indexOf(name) !== -1);
+    // THE WHOLE REGISTRY ROLLS. Owner: "the evenst didnt go off on round 12, 15
+    // etc, tehre were a lot that could roll, jaws, jurrasc park, it, feddy and
+    // it never happened."
+    //
+    // THIS LIFTS A GATE THE OWNER ASKED FOR. It used to be an allow-list of
+    // three — "the only ones i want showing up in the game right now is MC and
+    // Shadow man, everything else is being worked on" — while the seven habitat
+    // events were reworked. The four names in the new report (Jaws = Open
+    // Water, Jurassic Park = Wetlands / Enclosure, IT = Sewers, Freddy = Boiler
+    // Room) are exactly four of the seven it was holding back, so the gate has
+    // outlived its purpose.
+    //
+    // AND IT IS WHY THE CLOCK WENT QUIET. _drawEventFor is one-showing-per-
+    // event-per-match, so three allowed events fill exactly three due rounds —
+    // 3, 6 and 9 — and every due round after that draws from an empty pool and
+    // gets nothing. Measured across three seeded matches before this change:
+    // rounds 3/6/9 each held an event, and rounds 12, 15, 18 and 21 all read
+    // `drew: none, holding: (nothing)`. It was not a roll going badly; there
+    // was nothing left to roll.
+    //
+    // Verified with the filter lifted, six seeded matches to round 21: every
+    // due round drew, all ten events held the slot at least once, zero throws.
+    return out;
   },
 
   // ============================================================
@@ -17517,6 +17531,50 @@ const Game = {
     }
   },
 
+  // AN EVENT'S ENVIRONMENTS LEAVE WITH THE EVENT.
+  // Owner: "the evenst didnt go off on round 12, 15 etc ... jaws, jurrasc park,
+  // it, feddy and it never happened."
+  //
+  // A habitat seats an environment on two lanes and nothing ever took them
+  // away. They accumulate — 2 lanes, then 4, then 6 — and _runHabitatEvent
+  // needs TWO lanes clear of environments to land, so the third habitat fills
+  // the board and the fourth can never place. Measured over a seeded 21-round
+  // match: Gargantua landed on round 6, Wetlands on 9, Open Water on 12, and
+  // from there all six lanes carried an environment; rounds 18 and 21 DREW
+  // (Boiler Room, Jigsaw) and simply had nowhere to go. The draw was working
+  // the whole time — the board had silted up.
+  //
+  // The rule was already written, just not enforced on this half: "the events
+  // only last 3 rounds after that the next event takes over." The slot honours
+  // that; the environments it seated did not. They expire on the same round the
+  // slot lets go, which is the round the next event is due — so the board is
+  // clear exactly when something new wants it.
+  //
+  // Torn down the same way _placeEventEnvironment retires one it is replacing,
+  // so an expiring environment cleans up its effects instead of being left as a
+  // zombie still receiving broadcasts.
+  _expireEventEnvironments(roundNow) {
+    const s = this.state;
+    if (!s || !Array.isArray(s._habitats)) return;
+    const r = roundNow | 0;
+    s._habitats.forEach(h => {
+      if (!h || !h.fired || h.cleared || !Array.isArray(h.seated)) return;
+      if (h.endsAt == null || r < (h.endsAt | 0)) return;
+      h.seated.forEach(spot => {
+        const lane = s.lanes[spot.lane];
+        if (!lane || !lane._env) return;
+        const env = lane._env[spot.owner];
+        if (!env) return;
+        env.currentHealth = 0;
+        try { this.handleDeath(env, spot.lane, null); } catch (e) {}
+        lane._env[spot.owner] = null;
+      });
+      h.cleared = true;
+      this.log(`[EVENT] ${h.place || h.name} closes — its lanes are clear again.`);
+    });
+    try { this.cleanupDead(); } catch (e) {}
+  },
+
   _runHabitatEvent(h, roundNow) {
     const s = this.state;
     if (!h || h.fired || !h.shows) return;
@@ -17548,12 +17606,17 @@ const Game = {
     const pick = free.slice();
     this.shuffle(pick);
     h.fired = true;
+    // WHAT IT SEATED, AND WHEN IT LETS GO. Recorded at landing rather than at
+    // draw, because a habitat can wait several rounds for two clear lanes and
+    // only the round it actually LANDS sets its clock running.
+    h.endsAt = this._eventSlotEndsAt(roundNow | 0);
     // Claimed only on the round it actually LANDS, not when it was scheduled —
     // a habitat can wait several rounds for two clear lanes, and holding the
     // slot while it waited would have blocked every other event for nothing.
     this._eventSlotClaim(roundNow, name, 'hazard');
     this._placeEventEnvironment('player', pick[0], name);
     this._placeEventEnvironment('ai', pick[1], name);
+    h.seated = [{ lane: pick[0], owner: 'player' }, { lane: pick[1], owner: 'ai' }];
     this._announceHabitatEvent(h, name, def);
   },
 
@@ -18867,6 +18930,21 @@ const Game = {
     });
 
     if (!best) {
+      // ...UNLESS THERE IS NOTHING LEFT TO DRAW. The clock is a schedule, not a
+      // promise: `_drawEventFor` shows each event at most once per match, so a
+      // long enough match empties the registry and every later due round finds
+      // nothing. This branch asked only the clock, so the rail kept counting
+      // down to an event that could not arrive — which is how the quiet stretch
+      // in the report looked from the outside: "Next event IN 2", every round,
+      // forever, and never an event.
+      //
+      // Nothing pending (that is what `!best` means) plus nothing undrawn means
+      // nothing is coming, and saying so is more useful than a countdown that
+      // never lands.
+      const used = Array.isArray(s._eventsUsed) ? s._eventsUsed : [];
+      let anyLeft = false;
+      try { anyLeft = this.matchEventPool().some(n => used.indexOf(n) < 0); } catch (e) { anyLeft = true; }
+      if (!anyLeft) return null;
       // Nothing drawn yet — but the clock is. Find the next round the event
       // draw is due, which is a real, knowable number even though the outcome
       // is not.
@@ -20814,6 +20892,9 @@ const Game = {
     // just ended is paid out before he is asked to return again.
     this._shadowSettleDuels(tt.round);
     this._maybeShadowMan(tt.round);
+    // Same seam as 1v1: an event's lanes are freed before this round's habitat
+    // goes looking for two of them.
+    this._expireEventEnvironments(tt.round);
     this._maybeHabitatEvent(tt.round);
     this._maybeCogEvent(tt.round);
     // DEV ONLY — a no-op unless _cogForce is set.

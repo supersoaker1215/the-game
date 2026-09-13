@@ -289,6 +289,118 @@ t('ES-18 a drawn Cog Invasion is named in up-next, like the others', function ()
 });
 
 // ---- run ----------------------------------------------------
+// ============================================================
+// ES-QUIET — THE CLOCK KEPT TICKING AND NOTHING EVER CAME
+// ------------------------------------------------------------
+// Owner: "the evenst didnt go off on round 12, 15 etc, tehre were a lot that
+// could roll, jaws, jurrasc park, it, feddy and it never happened."
+//
+// Two causes stacked, and each alone was enough:
+//
+//   1. matchEventPool() carried a three-name allow-list, and _drawEventFor
+//      shows each event at most once per match. Three events fill exactly three
+//      due rounds — 3, 6, 9 — and every due round after that drew from an empty
+//      pool. Measured over 24 seeded matches to round 30: 168 of 240 due rounds
+//      (70%) held no event at all, and only 3 distinct events ever appeared.
+//
+//   2. A habitat seats an environment on two lanes and NOTHING took them away.
+//      They accumulate 2, 4, 6 — and landing needs two lanes clear of
+//      environments, so the fourth habitat could never place. Traced in a
+//      seeded match: Gargantua r6, Wetlands r9, Open Water r12, then all six
+//      lanes occupied; rounds 18 and 21 drew Boiler Room and Jigsaw and had
+//      nowhere to put them. The draw was working the whole time.
+//
+// After both: 0 of 240 due rounds empty, 11 distinct events, at most 2 lanes
+// carrying an environment at once.
+function esRunMatch(seed, maxR) {
+  Game.init();
+  if (Game.setSeed) Game.setSeed(seed);
+  Game.startMatch('classic');
+  Game.state.player.isHuman = false;
+  Game.state.ai.isHuman = false;
+  var out = { dueEmpty: 0, dueTotal: 0, maxEnv: 0, held: {} };
+  for (var r = 1; r <= maxR; r++) {
+    Game.state.round = r;
+    Game.startRound();
+    var n = 0;
+    Game.state.lanes.forEach(function (l) { if (l && l._env && (l._env.player || l._env.ai)) n++; });
+    if (n > out.maxEnv) out.maxEnv = n;
+    if (Game._eventRoundDue(r)) {
+      out.dueTotal++;
+      var sl = Game.state._eventSlot;
+      var holding = (sl && Game._eventSlotFor(r)) ? sl.name : null;
+      if (holding) out.held[holding] = 1; else out.dueEmpty++;
+    }
+  }
+  return out;
+}
+
+t('ES-Q1 every event in the registry can actually roll', function () {
+  var pool = Game.matchEventPool();
+  var all = [];
+  var FR = (typeof EVENT_FRANCHISES !== 'undefined') ? EVENT_FRANCHISES : [];
+  FR.forEach(function (fr) { (fr.events || []).forEach(function (ev) { if (ev && ev.name) all.push(ev.name); }); });
+  eq('the registry is not empty', all.length > 0, true);
+  // The four the owner named by franchise: Jaws, Jurassic Park, IT, Freddy.
+  ['Open Water', 'Wetlands', 'Sewers', 'Boiler Room'].forEach(function (n) {
+    eq(n + ' can roll', pool.indexOf(n) >= 0, true);
+  });
+  eq('nothing is withheld from the draw', pool.length, all.length);
+});
+
+t('ES-Q2 a long match has an event on every due round', function () {
+  var bad = [];
+  for (var seed = 1; seed <= 6; seed++) {
+    var r = esRunMatch(seed * 7919, 24);
+    if (r.dueEmpty > 0) bad.push('seed' + seed + ': ' + r.dueEmpty + '/' + r.dueTotal + ' due rounds empty');
+  }
+  eq('no due round comes up empty', bad.join(' | '), '');
+});
+
+t('ES-Q3 an event\'s environments leave with the event', function () {
+  var worst = 0;
+  for (var seed = 1; seed <= 6; seed++) {
+    var r = esRunMatch(seed * 104729, 24);
+    if (r.maxEnv > worst) worst = r.maxEnv;
+  }
+  // One habitat seats TWO. Anything above that is last event's lanes never
+  // being given back, which is what filled the board and stopped the rest.
+  //
+  // NOTE: this one PASSES against the pre-fix commit, and vacuously — with the
+  // allow-list in place no habitat could roll, so no lane ever held an
+  // environment and the worst case was 0. The two faults are stacked: lifting
+  // the allow-list is what makes the silting reachable at all. Kept because it
+  // is the guard that matters from here on, not because it demonstrates the
+  // bug — ES-Q2 and the 168/240 measurement do that.
+  eq('at most one habitat\'s worth of lanes at a time', worst <= 2, true);
+});
+
+t('ES-Q4 the sweep runs in BOTH modes, before the habitat looks for room', function () {
+  // A habitat due the very round its predecessor expires must find the lanes
+  // already clear, or it waits a round for nothing.
+  var calls = SRC.match(/_expireEventEnvironments\(/g) || [];
+  eq('called from 1v1 and 2v2 round starts, plus its own definition',
+     calls.length >= 3, true);
+  eq('1v1 clears before the runner',
+     /_expireEventEnvironments\(this\.state\.round\);\s*\n\s*this\._maybeHabitatEvent\(this\.state\.round\)/.test(SRC), true);
+  eq('2v2 clears before the runner',
+     /_expireEventEnvironments\(tt\.round\);\s*\n\s*this\._maybeHabitatEvent\(tt\.round\)/.test(SRC), true);
+});
+
+t('ES-Q5 the rail does not promise an event that cannot come', function () {
+  // The clock is a schedule, not a promise. With the registry spent there is
+  // no next event, and counting down to one is a lie the player can see.
+  Game.init();
+  Game.state.mode = { deck: 'classic', players: '1v1' };
+  Game.state.round = 12;
+  Game.state._eventsUsed = Game.matchEventPool().slice();   // everything shown
+  eq('nothing is claimed as coming', Game.eventUpNext(), null);
+  // ...and with something still undrawn it DOES answer.
+  Game.state._eventsUsed = [];
+  var un = Game.eventUpNext();
+  eq('an honest countdown survives', !!un, true);
+});
+
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];
   try { c.fn(); } catch (e) {

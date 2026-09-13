@@ -5828,28 +5828,33 @@ test('Every environment is claimed by exactly one event franchise', function () 
   });
 });
 
-test('Only Shadow Man, MC Ballyhoo and Cog Invasion can roll (habitats held back)', function () {
-  // TEMPORARY GATE (owner): "the only ones i want showing up in the game right
-  // now is MC and Shadow man, everything else is being worked on." The seven
-  // habitat events stay in EVENT_FRANCHISES so the codex still lists them, but
-  // matchEventPool() filters the rollable set. Cog Invasion joined it once it
-  // stopped being a whole-match VP engine and became one wave like the others.
-  // When the habitats come back, widen the allow-list in matchEventPool and
-  // restore the full-registry assertion below.
-  var ALLOWED = ['Shadow Man', 'MC Ballyhoo', 'Cog Invasion'];
+test('EVERY event in the registry can roll — the temporary gate is lifted', function () {
+  // THE GATE IS GONE. This used to assert the opposite, pinning an allow-list
+  // of three: "the only ones i want showing up in the game right now is MC and
+  // Shadow man, everything else is being worked on." Its own note said what to
+  // do when that ended — "widen the allow-list in matchEventPool and restore
+  // the full-registry assertion below" — and this is that.
+  //
+  // The gate is also what made the clock go quiet. _drawEventFor shows each
+  // event at most once per match, so three rollable events fill exactly three
+  // due rounds (3, 6, 9) and every one after that draws from an empty pool.
+  // Owner: "the evenst didnt go off on round 12, 15 etc, tehre were a lot that
+  // could roll, jaws, jurrasc park, it, feddy and it never happened."
   var pool = Game.matchEventPool();
   var listed = [];
   EVENT_FRANCHISES.forEach(function (fr) {
     (fr.events || []).forEach(function (ev) { listed.push(ev.name); });
   });
-  // The registry still holds every event…
-  assert(listed.length > ALLOWED.length, 'the registry still lists the held-back habitats');
-  // …but only the two allowed ones are rollable.
-  assertEq(pool.slice().sort().join(','), ALLOWED.slice().sort().join(','),
-    'the rollable pool is exactly the allow-list');
+  assertEq(pool.slice().sort().join(','), listed.slice().sort().join(','),
+    'nothing in the registry is withheld from the draw');
+  // The four the owner named, by the franchise he named them with.
+  [['Jaws', 'Open Water'], ['Jurassic Park', 'Wetlands'], ['IT', 'Sewers'],
+   ['Freddy', 'Boiler Room']].forEach(function (pair) {
+    assert(pool.indexOf(pair[1]) >= 0, pair[0] + ' (' + pair[1] + ') can roll');
+  });
 
-  // Drive the real roll over many seeds: only the two allowed events ever come
-  // up, and no habitat is ever reachable.
+  // Drive the real roll over many seeds: every event is reachable, none is
+  // unreachable, and nothing outside the registry appears.
   var seen = {};
   for (var i = 0; i < 900; i++) {
     var G = freshGame();
@@ -5860,9 +5865,9 @@ test('Only Shadow Man, MC Ballyhoo and Cog Invasion can roll (habitats held back
     seen[pick] = (seen[pick] || 0) + 1;
   }
   Object.keys(seen).forEach(function (n) {
-    assert(ALLOWED.indexOf(n) >= 0, n + ' should not be rollable right now');
+    assert(listed.indexOf(n) >= 0, n + ' is not in the registry at all');
   });
-  ALLOWED.forEach(function (n) {
+  listed.forEach(function (n) {
     assert(seen[n] > 20, n + ' comes up at a plausible rate (' + (seen[n] || 0) + '/900)');
   });
 });
@@ -6081,22 +6086,34 @@ test('Events land on 3, 6, 9 — one per round, and never twice in a match', fun
   assertEq(G._eventRoundDue(6), true,  'round 6 is');
   assertEq(G._eventRoundDue(9), true,  'round 9 is');
 
-  var rollable = Game.matchEventPool().length;   // 3 while the habitats are held back
+  var rollable = Game.matchEventPool().length;
+  // ONE DUE ROUND PER EVENT. The clock runs 3, 6, 9, … so showing N events
+  // needs N due rounds — this used to stop at 18, which was three events' worth.
+  var lastRound = Game._EVENT_FIRST_ROUND + (rollable - 1) * Game._EVENT_EVERY;
+  var expectRounds = [];
+  for (var q = Game._EVENT_FIRST_ROUND; q <= lastRound; q += Game._EVENT_EVERY) expectRounds.push(q);
   var drawn = [];
-  for (var r = 1; r <= 18; r++) {
+  for (var r = 1; r <= lastRound; r++) {
     G.state.round = r;
     // THE WHOLE SEAM, not just the draw. An event that is drawn and never gets
     // to SHOW goes back in the pool (see _reclaimUnshownEvents), so driving the
     // draw alone makes every event look reusable — which is what this test
     // caught on its first run.
+    //
+    // _expireEventEnvironments IS PART OF THAT SEAM. startRound calls it before
+    // the habitat runner; without it here, a habitat's two lanes are never
+    // given back, the third habitat fills the board and the fourth can never
+    // land — so it is drawn, recycled, and drawn AGAIN, which reads as an event
+    // showing twice when it has never shown once.
     G._maybeMatchEvent(r);
     G._maybeBallyhoo(r); G._maybeShadowMan(r);
+    G._expireEventEnvironments(r);
     G._maybeHabitatEvent(r); G._maybeCogEvent(r);
     var got = (G.state._eventRounds || {})[r];
     if (got && got !== 'none') drawn.push(r + ':' + got);
   }
   assertEq(drawn.length, rollable, 'every event shows once — got ' + drawn.join(', '));
-  assertEq(drawn.map(function (d) { return d.split(':')[0]; }).join(','), '3,6,9',
+  assertEq(drawn.map(function (d) { return d.split(':')[0]; }).join(','), expectRounds.join(','),
     'and they land on the clock, not near it');
 
   var names = drawn.map(function (d) { return d.split(':').slice(1).join(':'); });
@@ -6114,8 +6131,11 @@ test('WHICH round an event lands on is a flat random pull', function () {
   // or round 18 its just a random pull ... zombies can show up on 3, or 9, or
   // 12 etc its all RNG equal randomnees."
   //
-  // The draw is uniform over the unshown pool, so with three events the round
-  // an event lands on is its position in a uniform shuffle: a third each.
+  // The draw is uniform over the unshown pool, so the round an event lands on
+  // is its position in a uniform shuffle: 1/pool each, NOT a flat third. That
+  // "third" was the old three-event allow-list showing through the expectation
+  // — with the registry open it is a tenth, and 10.3% measured is the fix
+  // working rather than the property breaking.
   // Measured rather than asserted from the code, because "equal" is a property
   // of the OUTCOME — the earlier recycle read as uniform and was not.
   var N = 1200, at = {};
@@ -6131,11 +6151,20 @@ test('WHICH round an event lands on is a flat random pull', function () {
       if (got && got !== 'none') (at[got] = at[got] || {})[r] = ((at[got] || {})[r] || 0) + 1;
     }
   }
+  // The band is derived from the sample, not chosen: 4 standard errors on a
+  // binomial at p = 1/pool over N draws. Hardcoding a window is how a test ends
+  // up asserting the pool size by accident, which is exactly what happened to
+  // the "third" above. See [[size-the-sample-to-the-precision]].
+  var pLen = Game.matchEventPool().length;
+  var p = 1 / pLen;
+  var band = 4 * Math.sqrt(p * (1 - p) / N);
   Game.matchEventPool().forEach(function (name) {
     [3, 6, 9].forEach(function (r) {
       var share = ((at[name] || {})[r] || 0) / N;
-      assert(share > 0.27 && share < 0.40,
-        name + ' lands on round ' + r + ' about a third of the time (' + (share * 100).toFixed(1) + '%)');
+      assert(Math.abs(share - p) < band,
+        name + ' lands on round ' + r + ' about 1-in-' + pLen + ' of the time ('
+        + (share * 100).toFixed(1) + '%, expected ' + (p * 100).toFixed(1)
+        + '% +/- ' + (band * 100).toFixed(1) + ')');
     });
   });
 });
