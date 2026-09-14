@@ -1,0 +1,11 @@
+# balance baseline — captured 2026-09-14T19:05Z
+# regenerate with sim/run-balance.sh --update, in the SAME commit as the change that moved it
+aggression.avgIncoming=5.66
+aggression.defensiveTurns=22.8
+aggression.turnsLeftAPlay=3.0
+combatdiff.diverged=222
+combatdiff.matched=1784
+difficulty.games=200
+difficulty.hardWinrate=52.0
+round1.aiDeadOpen=32.0
+round1.playerDeadOpen=27.5

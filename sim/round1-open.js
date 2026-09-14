@@ -74,9 +74,13 @@ function measureSeat(s, seat) {
 
 for (var g = 0; g < opts.games; g++) {
   offeredCost1 = { player: false, ai: false };
-  Game.init();
+  // SEEDED — see the note in sim/shim.js runSimGame. Without it the draft this
+  // measures is a different draft every run and the percentages below move a
+  // point or two on their own, which is the same size as a change worth
+  // noticing. startSeededRun, not seedMatch: startMatch re-seeds itself from
+  // Math.random unless _seedLocked is set, and this is the call that sets it.
+  Game.startSeededRun((20260914 + g) >>> 0, 'classic');
   Game._syncMode = true;
-  Game.startMatch('classic');
   Game.state.player.isHuman = false;
   Game.state.ai.isHuman = false;
 
@@ -124,3 +128,10 @@ for (var i = 0; i < keys.length; i++) {
   print('    cost ' + keys[i] + ': ' + stats.cheapestHist[keys[i]]);
 }
 print('');
+
+// MACHINE-READABLE METRICS, for sim/run-balance.sh to diff against a committed
+// baseline. These are MEASUREMENTS, not assertions — a balance change SHOULD
+// move them — so they gate nothing. What the baseline buys is that the change
+// shows up as a number instead of a feeling.
+try { print('METRIC round1.aiDeadOpen=' + ((100*stats.deadOpen.ai/Math.max(1,opts.games)).toFixed(1))); } catch (e) { print('METRIC round1.aiDeadOpen=?'); }
+try { print('METRIC round1.playerDeadOpen=' + ((100*stats.deadOpen.player/Math.max(1,opts.games)).toFixed(1))); } catch (e) { print('METRIC round1.playerDeadOpen=?'); }

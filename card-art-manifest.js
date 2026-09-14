@@ -827,4 +827,44 @@ window.CARD_ART_ACCENT_OVERRIDE = {
   // ON here — the floor is what decides whether a warm hue reads as a colour or
   // as a material.
   'Wonder Woman':         '241,210,96',
+
+  // ---- THE STEEL COLLAPSE, SWEPT (2026-09-14) ------------------------------
+  // Fourteen borders were rendering the same washed grey — rgb ~188,180,169 at
+  // saturation 0.101, which is not a colour, it is the generator giving up. The
+  // header at the top of this map describes the mechanism on Superman: a dark
+  // painting whose only colour is a small lit area bottoms out the chroma ramp,
+  // the saturation floor kicks in, and a hue it had read perfectly well is
+  // thrown away. These are the other thirteen.
+  //
+  // FAMILY CHOSEN BY MEASUREMENT, NOT BY EYE. Each painting's pixels were binned
+  // into the six hue families, weighted s*s*v the way the generator bins them,
+  // and the family holding the most of what colour exists won. The value is then
+  // that family's own vivid quartile through the shipped sampler — the same
+  // card-art-border.py every owner-named colour in this file went through.
+  //
+  // THREE OF THE FOURTEEN ARE DELIBERATELY STILL STEEL:
+  //   Collapsed Lane   0.0% of its pixels carry any chroma
+  //   Solomon Grundy   0.0% — likewise
+  //     Steel is the honest answer for a painting with no colour in it, which
+  //     is what this file's header says the fallback is FOR.
+  //   Ultron 2         red, but it lands at luma 80 and AA-9 holds every
+  //     override to 90. Not a taste call: a saturated red cannot reach the
+  //     brightness floor (red carries 21% of Rec.709 luma, so pure red maxes
+  //     at 54), which is the same wall Spider-Man hit and the reason his value
+  //     came from art_match. Here even art_match is short, so it stays steel
+  //     rather than shipping the darkest border in the file by 13 points.
+  //
+  // FIVE OF THE ELEVEN ARE CLOSE CALLS and the runner-up is recorded beside
+  // them, because "53% of 1.8% of the pixels" is a real answer and a thin one.
+  'Bane 2.jpg':              '65,143,164',   // blue  (1.8% colour: blue 53%, orange 44% — the suit against the sodium light behind it)
+  'Bane.png':                '214,104,86',   // red  (3.3% colour: red 54%, orange 40%)
+  'Battle Droid.png':        '162,122,65',   // orange  (4.1% colour: orange 98% — no real second option)
+  'Freddy Fazbear.png':      '159,125,64',   // orange  (0.4% colour: orange 54%, blue 31% — only 0.4% colour either way)
+  'Han Solo.jpg':            '173,117,69',   // orange  (2.2% colour: orange 77%)
+  'Jason Voorhees 2.png':    '75,137,187',   // blue  (0.3% colour: blue 53%, green 27%)
+  'Jigsaw 3.jpg':            '189,113,75',   // orange  (3.8% colour: orange 64%)
+  'Martian Manhunter.png':   '181,116,72',   // orange  (4.6% colour: orange 45%, yellow 28%)
+  'Silver Surfer 2.png':     '66,142,166',   // blue  (3.1% colour: blue 74%)
+  'Venom 2.png':             '80,133,200',   // blue  (1.7% colour: blue 40%, red 36%)
+  'Sewers.png':              '100,143,57',   // green  (6.9% colour: green 56%)
 };

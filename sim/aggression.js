@@ -27,6 +27,15 @@ function parseArgs(argv) {
   return o;
 }
 var opts = parseArgs((typeof arguments !== 'undefined') ? arguments : []);
+// SEEDED BY DEFAULT, so this number can be COMPARED and not just read.
+// Unseeded, every run measured a different set of games — a real balance
+// change and run-to-run noise looked identical. Pass --seed to vary it.
+var __seed = 20260914;
+for (var __i = 0; __i < (typeof arguments !== 'undefined' ? arguments.length : 0); __i++) {
+  if (arguments[__i] === '--seed' && arguments[__i + 1]) __seed = parseInt(arguments[__i + 1], 10) >>> 0;
+}
+runSimGame.seed = __seed;
+
 
 var laneCounts = [0,0,0,0,0,0,0,0];
 var placements = 0;
@@ -136,3 +145,11 @@ print('defensiveTurns   ' + (100 * defensiveTurns / Math.max(1, postureTurns)).t
 print('  by incoming    ' + (100 * defByIncoming / Math.max(1, postureTurns)).toFixed(1) + '%');
 print('  by farBehind   ' + (100 * defByFarBehind / Math.max(1, postureTurns)).toFixed(1) + '%');
 print('avgIncoming      ' + (incomingSum / Math.max(1, postureTurns)).toFixed(2));
+
+// MACHINE-READABLE METRICS, for sim/run-balance.sh to diff against a committed
+// baseline. These are MEASUREMENTS, not assertions — a balance change SHOULD
+// move them — so they gate nothing. What the baseline buys is that the change
+// shows up as a number instead of a feeling.
+try { print('METRIC aggression.turnsLeftAPlay=' + ((100*turnsWithUnplayed/Math.max(1,turnsEnded)).toFixed(1))); } catch (e) { print('METRIC aggression.turnsLeftAPlay=?'); }
+try { print('METRIC aggression.defensiveTurns=' + ((100*defensiveTurns/Math.max(1,turnsEnded)).toFixed(1))); } catch (e) { print('METRIC aggression.defensiveTurns=?'); }
+try { print('METRIC aggression.avgIncoming=' + ((incomingSum/Math.max(1,postureTurns)).toFixed(2))); } catch (e) { print('METRIC aggression.avgIncoming=?'); }

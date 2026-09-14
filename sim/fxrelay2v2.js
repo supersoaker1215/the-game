@@ -35,6 +35,22 @@ var UIJS = src('ui.js');
 var GAMEJS = src('game.js');
 var ABIL = src('abilities.js');
 var TRICKS = src('tricks.js');
+// EVERY FILE THAT RUNS ON THE HOST, not just the three obvious ones. The scan
+// used to read game.js / abilities.js / tricks.js only, which is narrower than
+// the claim above it — ai.js drives a seat, engine/combat.js resolves a swing
+// and leaderboard.js reacts to a match ending, and all three are engine-side.
+// Measured when this was widened: ai.js 4 UI calls, leaderboard.js 3,
+// engine/combat.js 0 — none of them a host-only effect, but nothing had ever
+// looked, and "we never checked" is indistinguishable from "it is fine" until
+// someone does.
+var AI = src('ai.js');
+var COMBAT = src('engine/combat.js');
+var LEADER = src('leaderboard.js');
+// roguelite.js makes 34 UI calls and is DELIBERATELY not scanned: it is a solo
+// mode, so there is no second client for an effect to be missing from. That
+// exemption is checked below rather than trusted — if roguelite ever grows a
+// multiplayer surface, the check fails and says to add it here.
+var ROGUE = src('roguelite.js');
 
 var findings = [];
 function note(kind, what, detail) { findings.push({ kind: kind, what: what, detail: detail }); }
@@ -85,6 +101,12 @@ var NOT_FX = {
   render: 1, _mpInit: 1, _mpName: 1, _persistGet: 1, _statsGet: 1, _statsSet: 1,
   aiStepDelay: 1, startPromptCountdown: 1, stopPromptCountdown: 1, closeMatchOverlays: 1,
   showAITrickToast: 1,   // a local advisory toast (settings saved, illegal play) — per client by design
+  // Surfaced by widening the scan past game/abilities/tricks. Each one is
+  // per-client by design, and saying so here is the point: an exemption with a
+  // reason is checkable, an unscanned file is not.
+  _whenAnnouncementsIdle: 1,  // ai.js — local pacing: waits for THIS client's notices to clear
+  _renderLeaderboard: 1,      // leaderboard.js — a local modal, drawn from data every client fetches
+  _renderMenuLeaderboard: 1,  // leaderboard.js — likewise, the always-on menu panel
 };
 
 function callsTo(text) {
@@ -93,7 +115,8 @@ function callsTo(text) {
   return out;
 }
 var called = {};
-[['game.js', GAMEJS], ['abilities.js', ABIL], ['tricks.js', TRICKS]].forEach(function (pair) {
+[['game.js', GAMEJS], ['abilities.js', ABIL], ['tricks.js', TRICKS],
+ ['ai.js', AI], ['engine/combat.js', COMBAT], ['leaderboard.js', LEADER]].forEach(function (pair) {
   var c = callsTo(pair[1]);
   Object.keys(c).forEach(function (n) { (called[n] = called[n] || []).push(pair[0]); });
 });
@@ -107,6 +130,15 @@ Object.keys(called).sort().forEach(function (name) {
     'fired from ' + called[name].join(', ') + ' but not _fx-prefixed, not in RELAY_ALSO, '
     + 'and has no relay event — only the host sees/hears it');
 });
+
+// THE ROGUELITE EXEMPTION, CHECKED. It is left out of the scan because it is a
+// solo mode — no second client, so "only the host sees it" has no meaning. The
+// day that stops being true, the 34 UI calls in it become 34 unchecked ones, so
+// the exemption is asserted rather than assumed.
+if (/isMultiplayer\s*\(|is2v2\s*\(|twoVTwo|Multiplayer4?\./.test(ROGUE)) {
+  note('HARNESS', 'roguelite.js',
+    'now references a multiplayer surface, so it is no longer solo-only — add it to the scanned files above');
+}
 
 // A RELAY_ALSO entry for something nobody fires any more is dead weight, and
 // worse, it hides the fact that the effect was renamed.

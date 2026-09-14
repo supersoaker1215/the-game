@@ -100,6 +100,32 @@ for (var __i = 0; __i < __SIM_FILES.length; __i++) {
   // was invisible to every fuzz run and every unit test by construction.
   // Recording each prompt's owner and routed seat here costs nothing, changes
   // no behaviour, and lets a harness assert on routing for the first time.
+  // THE SHIM'S OWN COIN, AND WHY IT IS NOT Math.random UNCONDITIONALLY.
+  //
+  // The two pickers below answer prompts at random on purpose — picking
+  // cards[0] biased every 'player'-owned prompt toward the front of the list,
+  // which is silent seat bias in a balance measurement. Random fixes the bias
+  // and costs reproducibility, and for the FUZZ that trade is right: it wants a
+  // different game every run.
+  //
+  // For a balance number it is exactly wrong. aggression.js and difficulty.js
+  // came out different on every run, so a real change and run-to-run noise were
+  // indistinguishable — you could read the number but not compare it.
+  //
+  // So: a seeded stream of its own when the caller asked for one (runSimGame.seed),
+  // Math.random otherwise. Its OWN stream, deliberately — drawing from Game.rng()
+  // would consume the engine's seeded stream and make a seeded run diverge from
+  // an unseeded one for reasons that have nothing to do with the prompts.
+  var _simCoinState = 0;
+  this.simCoin = function () {
+    if (typeof runSimGame.seed !== 'number') return Math.random();
+    var t = (_simCoinState += 0x6D2B79F5) >>> 0;
+    t = Math.imul(t ^ (t >>> 15), 1 | t);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  this.simCoinReset = function (seed) { _simCoinState = (seed >>> 0); };
+
   Game._simPromptLog = [];
   Game._simNotePrompt = function (kind, owner, title) {
     var tt = Game.state && Game.state.twoVTwo;
@@ -137,7 +163,7 @@ for (var __i = 0; __i < __SIM_FILES.length; __i++) {
     if (aiPicker) {
       pick = aiPicker(cards);
     } else {
-      pick = cards[Math.floor(Math.random() * cards.length)];
+      pick = cards[Math.floor(simCoin() * cards.length)];
     }
     try { callback(pick); } catch (e) { console.error('[sim:promptCard]', e.message || e); }
     Game.resumeCombatIfWaiting();
@@ -148,7 +174,7 @@ for (var __i = 0; __i < __SIM_FILES.length; __i++) {
     // Random pick — matches the `const to = open[Math.floor(Math.random()*open.length)]`
     // pattern the real abilities use for AI-owned cards. Previously picking
     // lanes[0] biased 'player'-owned effects toward the left side of the board.
-    var pick = lanes[Math.floor(Math.random() * lanes.length)];
+    var pick = lanes[Math.floor(simCoin() * lanes.length)];
     try { callback(pick); } catch (e) { console.error('[sim:promptLane]', e.message || e); }
     Game.resumeCombatIfWaiting();
   };
@@ -322,14 +348,37 @@ this.runSimGame = function (weightsP, weightsA, collect) {
   _simWP = wP; _simWA = wA;
   _installSeatWeightDispatch();
 
-  Game.init();
+  // SEEDED, IF THE CALLER ASKED. Game.init() leaves state._rngState null, so
+  // Game.rng() falls back to Math.random and every balance run measures a
+  // DIFFERENT set of games — a number you can report but not one you can
+  // compare. sim/test.js's freshGame() learned this the hard way ("one run of
+  // the suite failed and could not be reproduced in the 27 runs after it").
+  //
+  // Through startSeededRun, which is the door built for this: a plain
+  // seedMatch() here would be overwritten a moment later, because startMatch
+  // re-seeds itself from Math.random unless _seedLocked is set, and
+  // startSeededRun is what sets it. (Measured: seeding before startMatch
+  // changed nothing at all, which is how this was found.)
+  //
+  // Opt-in, because the tuner and the fuzz WANT fresh streams: a caller sets
+  // runSimGame.seed and each game draws seed+1, seed+2, seed+3 …
+  var _seeded = (typeof this.runSimGame.seed === 'number');
+  if (_seeded) {
+    // Re-seed the prompt coin per game, from the same number, so game N is
+    // always game N no matter how many games ran before it.
+    simCoinReset((this.runSimGame.seed + (this.runSimGame._n || 0) + 1) >>> 0);
+    Game.startSeededRun((this.runSimGame.seed + (this.runSimGame._n = (this.runSimGame._n || 0) + 1)) >>> 0,
+                        (typeof this !== 'undefined' && this.SIM_MODE) || 'classic');
+  } else {
+    Game.init();
+  }
   // First-class logic/presentation separation: the engine resolves every
   // combat/AI beat SYNCHRONOUSLY through Game._schedule instead of relying on
   // this shim's global setTimeout stub. (The stub stays as a belt for any
   // legacy raw-setTimeout path like _aiActionDelay.)
   Game._syncMode = true;
   var simMode = (typeof this !== 'undefined' && this.SIM_MODE) || 'classic';
-  Game.startMatch(simMode);
+  if (!_seeded) Game.startMatch(simMode);   // startSeededRun already did it
   // Force both seats to AI-controlled in sim. Game.init() defaults player
   // to isHuman=true (for browser single-player); headless sim wants both
   // seats running the AI branch of every ability so the two sides are

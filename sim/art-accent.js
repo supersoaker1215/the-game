@@ -414,6 +414,47 @@ t('AA-12 Ahsoka is orange, the Equation is orange, and Groot is BROWN', function
   }
 });
 
+
+t('AA-13 the steel collapse is swept, and the three exceptions are principled', function () {
+  // Fourteen borders rendered the same washed grey — rgb ~188,180,169 at
+  // saturation 0.101, which is not a colour, it is the generator giving up on a
+  // dark painting whose only chroma is a small lit area. Eleven now carry the
+  // family their own pixels are mostly made of; three deliberately do not.
+  var ov = overrideEntries() || {};
+  var SWEPT = ['Bane 2.jpg', 'Bane.png', 'Battle Droid.png', 'Freddy Fazbear.png',
+               'Han Solo.jpg', 'Jason Voorhees 2.png', 'Jigsaw 3.jpg',
+               'Martian Manhunter.png', 'Silver Surfer 2.png', 'Venom 2.png', 'Sewers.png'];
+  var STILL_STEEL = ['Collapsed Lane.png', 'Solomon Grundy.png', 'Ultron 2.png'];
+
+  SWEPT.forEach(function (k) {
+    eq(k + ' is overridden', !!ov[k], true);
+    if (!ov[k]) return;
+    var p = String(ov[k]).split(',').map(Number);
+    // OFF THE STEEL, which is the whole point — and the generated map must
+    // still hold it, proving the override is what changed the border.
+    eq(k + ' is no longer the steel value', ov[k] !== '188,180,169', true);
+    eq(k + ' generated value is still the collapse',
+       /^\d+,\d+,\d+$/.test(String(MAP[k] || '')) && Math.max.apply(null, String(MAP[k]).split(',').map(Number))
+         - Math.min.apply(null, String(MAP[k]).split(',').map(Number)) < 30, true);
+    // …and chromatic enough to read as a colour rather than as dirt.
+    eq(k + ' is chromatic', Math.max.apply(null, p) - Math.min.apply(null, p) >= 40, true);
+  });
+
+  // THE THREE THAT STAY. Not taste — each has a reason that can be checked.
+  STILL_STEEL.forEach(function (k) {
+    eq(k + ' is deliberately NOT overridden', !!ov[k], false);
+  });
+  // Collapsed Lane and Solomon Grundy carry 0.0% chroma: steel is what this
+  // file's header says the fallback is for. Ultron 2 is the interesting one —
+  // his red is real but lands at luma 80, and AA-9 holds every override to 90,
+  // so shipping it would have failed the suite two cases up. A saturated red
+  // cannot reach that floor (pure red maxes at luma 54), which is the same wall
+  // Spider-Man hit. This asserts the floor is what excludes him, not a whim.
+  var LOW_RED = [255, 30, 65];
+  var luma = 0.2126 * LOW_RED[0] + 0.7152 * LOW_RED[1] + 0.0722 * LOW_RED[2];
+  eq('Ultron\'s best red really is under the floor', luma < 90, true);
+});
+
 // ---- run ----------------------------------------------------
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];

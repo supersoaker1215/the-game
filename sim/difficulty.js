@@ -23,6 +23,15 @@ function parseArgs(argv) {
   return o;
 }
 var opts = parseArgs((typeof arguments !== 'undefined') ? arguments : []);
+// SEEDED BY DEFAULT, so this number can be COMPARED and not just read.
+// Unseeded, every run measured a different set of games — a real balance
+// change and run-to-run noise looked identical. Pass --seed to vary it.
+var __seed = 20260914;
+for (var __i = 0; __i < (typeof arguments !== 'undefined' ? arguments.length : 0); __i++) {
+  if (arguments[__i] === '--seed' && arguments[__i + 1]) __seed = parseInt(arguments[__i + 1], 10) >>> 0;
+}
+runSimGame.seed = __seed;
+
 
 var aWins = 0, bWins = 0, draws = 0;
 for (var g = 0; g < opts.games; g++) {
@@ -49,3 +58,10 @@ print('');
 print(Math.abs(rate - 0.5) < 0.03
   ? '=> indistinguishable from a coin flip at this sample size.'
   : '=> ' + opts.a + ' is ' + ((rate - 0.5) * 100).toFixed(1) + 'pp ' + (rate > 0.5 ? 'stronger' : 'weaker') + ' than ' + opts.b + '.');
+
+// MACHINE-READABLE METRICS, for sim/run-balance.sh to diff against a committed
+// baseline. These are MEASUREMENTS, not assertions — a balance change SHOULD
+// move them — so they gate nothing. What the baseline buys is that the change
+// shows up as a number instead of a feeling.
+try { print('METRIC difficulty.hardWinrate=' + ((100*aWins/Math.max(1,aWins+bWins)).toFixed(1))); } catch (e) { print('METRIC difficulty.hardWinrate=?'); }
+try { print('METRIC difficulty.games=' + ((aWins+bWins+draws))); } catch (e) { print('METRIC difficulty.games=?'); }

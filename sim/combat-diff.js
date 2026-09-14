@@ -20,9 +20,15 @@ load('./sim/shim.js');
 
 // ---- arg parse + seeded RNG (cosmetic; never touches the engine stream) ----
 var __games = 2000, __seed = 1;
-for (var ai = 0; ai < arguments.length; ai++) {
-  if (arguments[ai] === '--games' && arguments[ai + 1]) __games = parseInt(arguments[ai + 1], 10) | 0;
-  if (arguments[ai] === '--seed' && arguments[ai + 1]) __seed = parseInt(arguments[ai + 1], 10) >>> 0;
+// GUARDED, like every other suite here. `arguments` does not exist at jsc's top
+// level unless the script was given some, so an unguarded read throws
+// ReferenceError on line 1 — this tool has been dead on arrival, printing a
+// stack instead of a comparison. The same bug sim/repro-zombie.js had, and the
+// same reason nothing noticed: neither was in the gate.
+var __argv = (typeof arguments !== 'undefined') ? arguments : [];
+for (var ai = 0; ai < __argv.length; ai++) {
+  if (__argv[ai] === '--games' && __argv[ai + 1]) __games = parseInt(__argv[ai + 1], 10) | 0;
+  if (__argv[ai] === '--seed' && __argv[ai + 1]) __seed = parseInt(__argv[ai + 1], 10) >>> 0;
 }
 var __s = __seed >>> 0;
 function rnd() {
@@ -260,3 +266,10 @@ if (__fail > 0) {
 } else {
   print('✅ predictor matches the resolver on every board.');
 }
+
+// MACHINE-READABLE METRICS, for sim/run-balance.sh to diff against a committed
+// baseline. These are MEASUREMENTS, not assertions — a balance change SHOULD
+// move them — so they gate nothing. What the baseline buys is that the change
+// shows up as a number instead of a feeling.
+try { print('METRIC combatdiff.matched=' + (__pass)); } catch (e) { print('METRIC combatdiff.matched=?'); }
+try { print('METRIC combatdiff.diverged=' + (__fail)); } catch (e) { print('METRIC combatdiff.diverged=?'); }
