@@ -342,6 +342,60 @@ t('AA-11 the owner-named colours are in the family they were named as', function
   eq('and no two share one value', dupes.join(' | '), '');
 });
 
+
+t('AA-12 Ahsoka is orange, the Equation is orange, and Groot is BROWN', function () {
+  // Owner: "ahsoka should be ornage like her skin, grroot brown like his bark,
+  // anti equation orsnnge like its middle." Three more saliency misses — the
+  // generator found the smoke around Ahsoka, the sky behind Groot, and the void
+  // around the Equation's atom.
+  var ov = overrideEntries() || {};
+  function hsv(rgb) {
+    var p = String(rgb).split(',').map(Number);
+    var r = p[0] / 255, g = p[1] / 255, b = p[2] / 255;
+    var mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+    var h = 0;
+    if (d > 0) {
+      if (mx === r) h = 60 * (((g - b) / d) % 6);
+      else if (mx === g) h = 60 * ((b - r) / d + 2);
+      else h = 60 * ((r - g) / d + 4);
+      if (h < 0) h += 360;
+    }
+    return { h: h, s: mx ? d / mx : 0, v: mx, max255: Math.max.apply(null, p) };
+  }
+  ['Ahsoka', 'Groot', 'Anti-Life Equation'].forEach(function (k) {
+    eq(k + ' is overridden', !!ov[k], true);
+  });
+  if (!ov['Ahsoka'] || !ov['Groot'] || !ov['Anti-Life Equation']) return;
+
+  // All three sit in the ORANGE hue band — brown is not a hue, it is what an
+  // orange looks like when it is neither bright nor saturated.
+  ['Ahsoka', 'Groot', 'Anti-Life Equation'].forEach(function (k) {
+    var c = hsv(ov[k]);
+    eq(k + ' is in the orange band (' + c.h.toFixed(1) + ' deg)', c.h >= 15 && c.h < 45, true);
+  });
+
+  // …AND THAT IS THE WHOLE TEST FOR GROOT. His bark is dim and muted; the sky
+  // the generator sampled is bright and saturated (239,113,36 -> v 0.94,
+  // s 0.85). If a future re-sample pushes him back over these, it has found the
+  // sky again.
+  var gr = hsv(ov['Groot']);
+  eq('Groot reads brown, not fire — muted (' + gr.s.toFixed(2) + ' sat)', gr.s < 0.65, true);
+  eq('…and dim (' + gr.max255 + ' max channel)', gr.max255 < 200, true);
+  eq('which is exactly what the generated map still has NOT got',
+     MAP['Groot.png'], '239,113,36');
+
+  // Ahsoka and the Equation are the opposite case: they must be vivid, because
+  // her skin and the atom both are.
+  var ah = hsv(ov['Ahsoka']), al = hsv(ov['Anti-Life Equation']);
+  eq('Ahsoka is a lit orange, not the tan the generator found', ah.s > 0.60, true);
+  eq('and no longer the washed 190,127,83', ov['Ahsoka'] !== '190,127,83', true);
+  eq('the Equation is a lit orange', al.s > 0.60, true);
+  // The generated map must still hold the BLUE it derived — proving the border
+  // changed because of the override, not because the accent file was rebuilt.
+  eq('the generated map still reports the void it sampled',
+     MAP['Anti-Life Equation.png'], '117,183,245');
+});
+
 // ---- run ----------------------------------------------------
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];

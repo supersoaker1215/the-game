@@ -769,4 +769,39 @@ window.CARD_ART_ACCENT_OVERRIDE = {
   // exactly with the two pure reds already shipped and approved: Iron Man 93.0
   // and Superman 97.3.
   'Spider-Man':           '255,49,49',
+
+  // AHSOKA / GROOT / ANTI-LIFE EQUATION — owner: "ahsoka should be ornage like
+  // her skin, grroot brown like his bark, anti equation orsnnge like its
+  // middle". Three more of the saliency misses this map exists for, and each
+  // one names WHERE in the painting to look, which is the part the generator
+  // cannot know.
+  //
+  // AHSOKA — the generator had 190,127,83, a washed tan. It is not wrong about
+  // the hue, it is averaging her skin together with the grey smoke she is
+  // standing in: across the whole painting the orange family measures s 0.56,
+  // and in the crop that is only her face and shoulders it measures s 0.63 at a
+  // redder hue (18.8 deg vs 24.0). Sampled from her skin -> 207,109,64.
+  //
+  // GROOT — the generator had 239,113,36, a hot orange, and that colour is in
+  // the painting: it is the sunlit dust and sky behind him, not his bark. His
+  // bark measures hue 25.6 at s 0.51.
+  //   AND BROWN NEEDED THE SATURATION FLOOR TURNED OFF. card-art-border.py
+  //   holds every border to s >= 0.60 because "below s 0.60 a hue stops reading
+  //   AS that colour" — which is true of green and purple and precisely
+  //   backwards here, because brown IS orange at low saturation. Forcing the
+  //   floor on Groot returns the sky colour a second time. So his keeps the
+  //   paint's own saturation and only the luma floor is applied, at 118 (the
+  //   art_match floor) rather than 125 -> 162,115,80.
+  //
+  // ANTI-LIFE EQUATION — the generator had 117,183,245, BLUE, and by area it is
+  // right: the orange atom is 4.0% of that painting and the blue void is nearly
+  // all the rest. "its middle" is the owner pointing at the subject. Sampled
+  // from the centre 40% -> 220,121,59; the whole-image orange family agrees to
+  // within 2 points (222,125,62), so the crop is confirming the subject rather
+  // than inventing a colour.
+  //
+  // All three proved on a before/after sheet against their own paintings.
+  'Ahsoka':               '207,109,64',
+  'Groot':                '162,115,80',
+  'Anti-Life Equation':   '220,121,59',
 };
