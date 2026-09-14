@@ -24723,12 +24723,23 @@ const UI = {
       // turns, have the counter like the destroyed lanes at the bottom."
       // One per side, because both may hold an environment in the same lane;
       // coloured by side so it is obvious whose is running out.
+      // ONE CLOCK PER ENVIRONMENT. A full-lane event seats BOTH sides of its
+      // lane, so this loop printed the same countdown twice — a red 3 and a
+      // blue 3 for one hole running on one timer. Same duplication the backdrop
+      // had, in the status row. It prints once, in neutral white rather than a
+      // side colour, because a lane-wide hazard belongs to neither player.
+      let _envPipDone = false;
       ['ai', 'player'].forEach(side => {
         const env = lane._env && lane._env[side];
         const left = env && (env._envTurns | 0);
         if (!env || !(left > 0)) return;
+        if (env._fullLane) {
+          if (_envPipDone) return;
+          _envPipDone = true;
+        }
+        const tone = env._fullLane ? 'full' : side;
         const title = `${env.name} — ${left} round${left === 1 ? '' : 's'} left`;
-        statusRow.push(`<span class="lane-glyph glyph-env glyph-env-${side}" title="${this._esc ? this._esc(title) : title}">${left}</span>`);
+        statusRow.push(`<span class="lane-glyph glyph-env glyph-env-${tone}" title="${this._esc ? this._esc(title) : title}">${left}</span>`);
       });
       if (lane.protected) statusRow.push(`<span class="lane-glyph glyph-protected glyph-${lane.protected}" title="Protected from ${lane.protected}">&#x1F6E1;</span>`);
       if (lane.trap) statusRow.push(`<span class="lane-glyph glyph-trap glyph-${lane.trap.placedBy}" title="Bear Trap by ${lane.trap.placedBy}">&#x26A0;</span>`);
@@ -24843,14 +24854,32 @@ const UI = {
           // Same flag releaseHabitatMonster uses to decide where to put the
           // monster, so the picture cannot end up on a different half from the
           // thing that comes out of it.
-          const _halves = { top: null, bottom: null };
-          [envAi, envPl].forEach(env => {
-            if (!env) return;
-            const lands = env.actsOnOpponentSide ? Game.opponent(env.owner) : env.owner;
-            _halves[lands === 'ai' ? 'top' : 'bottom'] = env;
-          });
+          //
+          // A FULL-LANE ENVIRONMENT IS ONE PICTURE. Gargantua seats both sides
+          // of a single lane (Game._ONE_LANE_EVENTS), so the half-painter drew
+          // the black hole TWICE — two independent `cover` crops of the same
+          // art, each framed for its own half, with the two masks fading to
+          // nothing across the middle of what is meant to be a single hole.
+          // (Owner: "gargantua can cover the whoe lane like before just onw
+          // pircture.") It gets one box that IS the lane, which also means the
+          // art is framed once, for the space it actually occupies. The flag is
+          // stamped on the instance at the seat rather than tested by name here,
+          // so the rule lives in one place for every surface.
+          const _halves = { top: null, bottom: null, full: null };
+          const _full = (envAi && envAi._fullLane) ? envAi
+                      : (envPl && envPl._fullLane) ? envPl : null;
+          if (_full) {
+            _halves.full = _full;
+          } else {
+            [envAi, envPl].forEach(env => {
+              if (!env) return;
+              const lands = env.actsOnOpponentSide ? Game.opponent(env.owner) : env.owner;
+              _halves[lands === 'ai' ? 'top' : 'bottom'] = env;
+            });
+          }
           paintHalf('top', _halves.top);
           paintHalf('bottom', _halves.bottom);
+          paintHalf('full', _halves.full);
 
           // The container itself only paints for the RIFT, which belongs to
           // nobody and so has no half to sit in — it keeps the full lane.
@@ -29843,7 +29872,15 @@ const UI = {
     const pos  = this._artFocalFor(env.name, artFile, 'card')
       || ENV_FOCAL[env.name] || 'center';
     const zoom = this._artSizeFor(env.name, artFile, 'card');
-    const size = (zoom && zoom !== 'cover') ? zoom : 'cover';
+    // A FULL-LANE ENVIRONMENT IS FRAMED FOR THE LANE, NOT FOR A CARD FACE. The
+    // gallery zoom is tuned against a ~360x472 portrait; a lane that owns both
+    // halves is more like 142x566, so Gargantua's 60% came out as a small disc
+    // floating in a tall empty column instead of the hole filling the lane.
+    // (Owner: "gargantua can cover the whoe lane like before".) The FOCAL still
+    // comes from the gallery — where the subject sits is a property of the
+    // picture; how far in to zoom is a property of the box it lands in.
+    const size = env._fullLane ? 'cover'
+      : (zoom && zoom !== 'cover') ? zoom : 'cover';
     return `linear-gradient(rgba(0,0,0,0.35), rgba(0,0,0,0.35)), url("${artPath}") ${pos}/${size} no-repeat`;
   },
 

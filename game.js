@@ -17804,6 +17804,16 @@ const Game = {
       }
     });
     const env = this.createCardInstance(def, owner);
+    // ONE LANE, ONE ENVIRONMENT. A _ONE_LANE_EVENTS habitat seats BOTH sides of
+    // a single lane, and every surface downstream read that as two environments
+    // that happen to share a lane: the backdrop painted the black hole twice,
+    // once per half, with a fade seam across the middle of the thing that is
+    // supposed to be one hole, and the lane printed two identical countdown
+    // pips for one clock. (Owner: "gargantua can cover the whoe lane like
+    // before just onw pircture.") The instance says so here, at the seat, so
+    // the renderers read a fact instead of each re-deriving it from the name —
+    // and this is the only path that can seat one, since they are _spawnOnly.
+    if (this._ONE_LANE_EVENTS[name]) env._fullLane = true;
     // PLACED BY AN EVENT, not by a player. The rail reports the EVENT — "Sewers,
     // 2 left" — so a second row for each lane it seated would be the same fact
     // twice. A player-played environment has no event row to hide behind and

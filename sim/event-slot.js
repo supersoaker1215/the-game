@@ -492,6 +492,71 @@ t('ES-N4 a habitat is announced by its place, the set pieces by their own names'
   eq('habitat kind', Game._eventKindFor('Open Water'),  'hazard');
 });
 
+
+// ============================================================
+// ONE LANE, ONE ENVIRONMENT (2026-09-13)
+// A _ONE_LANE_EVENTS habitat seats BOTH sides of a single lane, and every
+// surface downstream read that as two environments sharing a lane: the lane
+// backdrop painted the black hole twice (one `cover` crop per half, each masked
+// to nothing at the midline, so a seam ran through the middle of a single
+// hole), and the status row printed two identical countdown pips for one clock.
+// Owner: "gargantua can cover the whoe lane like before just onw pircture."
+// The fact lives on the INSTANCE, stamped at the seat, so the renderers read it
+// instead of each re-deriving it from the card's name.
+// ============================================================
+
+t('ES-FL1 a one-lane event stamps both of its seats; an ordinary habitat stamps neither', function () {
+  Game.init();
+  Game.state.lanes.forEach(function (l) { l._env = null; });
+  Game._placeEventEnvironment('player', 0, 'Gargantua');
+  Game._placeEventEnvironment('ai', 0, 'Gargantua', { keepOpposite: true });
+  var g = Game.state.lanes[0]._env;
+  eq('both sides seated', !!(g && g.player && g.ai), true);
+  eq('player seat is full-lane', !!(g.player && g.player._fullLane), true);
+  eq('ai seat is full-lane',     !!(g.ai && g.ai._fullLane), true);
+  // …and the ordinary case is untouched: two lanes, one side each, no flag, so
+  // they keep their halves and their two side-coloured clocks.
+  Game._placeEventEnvironment('ai', 2, 'Boiler Room');
+  Game._placeEventEnvironment('player', 2, 'Sewers', { keepOpposite: true });
+  var two = Game.state.lanes[2]._env;
+  eq('boiler room is not full-lane', !!(two.ai && two.ai._fullLane), false);
+  eq('sewers is not full-lane',      !!(two.player && two.player._fullLane), false);
+});
+
+t('ES-FL2 nothing can seat a one-lane event except this path', function () {
+  // The flag is stamped in _placeEventEnvironment only. That is safe precisely
+  // because a one-lane event is _spawnOnly — it is out of the draw pile, the
+  // draft pool and the summon deck, so no other route can produce an instance
+  // that is missing the flag and would paint two pictures again.
+  var defs = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS : [];
+  Object.keys(Game._ONE_LANE_EVENTS).forEach(function (name) {
+    var d = null;
+    for (var i = 0; i < defs.length; i++) if (defs[i].name === name) { d = defs[i]; break; }
+    eq(name + ' has a definition', !!d, true);
+    eq(name + ' is spawn-only', !!(d && d._spawnOnly), true);
+  });
+});
+
+t('ES-FL3 the lane renderer reads the flag, not the card name', function () {
+  // The sim has no DOM, so this asserts the SHIPPED source: the half-picker
+  // branches on the instance flag and paints one full-lane box, the countdown
+  // loop drops the duplicate, and the art builder frames a full-lane
+  // environment for the lane instead of for a card face.
+  var half = UISRC.slice(UISRC.indexOf('const paintHalf = (where, env)'));
+  half = half.slice(0, half.indexOf("paintHalf('bottom'") + 140);
+  eq('half-picker branches on the flag', half.indexOf('_fullLane') !== -1, true);
+  eq('a full-lane box is painted',       half.indexOf("paintHalf('full'") !== -1, true);
+
+  var pip = UISRC.slice(UISRC.indexOf("['ai', 'player'].forEach(side => {"));
+  pip = pip.slice(0, pip.indexOf('glyph-env') + 200);
+  eq('one clock per full-lane environment', pip.indexOf('_fullLane') !== -1, true);
+
+  var art = UISRC.slice(UISRC.indexOf('_envArtBackground(env) {'));
+  art = art.slice(0, art.indexOf('no-repeat`'));
+  eq('a full-lane environment is framed for the lane',
+     art.indexOf("env._fullLane ? 'cover'") !== -1, true);
+});
+
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];
   try { c.fn(); } catch (e) {

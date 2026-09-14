@@ -12901,6 +12901,9 @@ body.turn-combat .board .lane.lane-active {
    out rather than by what it does, so the row reads as one family of timers. */
 .lane-glyph.glyph-env-player { color: rgb(var(--theme-rgb, 79,195,247)); }
 .lane-glyph.glyph-env-ai     { color: rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 1); }
+/* A full-lane hazard belongs to NEITHER player, so its countdown is not tinted
+   by side — one neutral pip for one clock (see the _fullLane note in ui.js). */
+.lane-glyph.glyph-env-full   { color: rgba(255, 255, 255, 0.82); }
 .lane-glyph.glyph-hill { color: #ffcf5c; font-weight: 700; letter-spacing: 0.06em; background: rgba(40,30,6,0.85); }
 /* King of the Hill — a gold glow so the contested lane is unmistakable. */
 .lane.lane-hill {
@@ -48490,6 +48493,15 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   top: 50%; bottom: 0;
   -webkit-mask-image: linear-gradient(to top, #000 0%, #000 62%, transparent 100%);
           mask-image: linear-gradient(to top, #000 0%, #000 62%, transparent 100%);
+}
+/* ONE LANE, ONE PICTURE. A full-lane event (Gargantua) owns BOTH sides of its
+   lane, so the top/bottom pair painted the same black hole twice — two separate
+   `cover` crops, each masked to nothing at the midline, which put a seam across
+   the middle of a single hole. (Owner: "gargantua can cover the whoe lane like
+   before just onw pircture.") This box IS the lane: no mask, because there is no
+   other half for it to give way to, and one crop framed for the whole space. */
+.env-half-full {
+  top: 0; bottom: 0;
 }
 /* NO OWNERSHIP WASH. .env-own-ai::before painted the top half red and
    .env-own-player::after painted the bottom half theme-blue, answering "whose
