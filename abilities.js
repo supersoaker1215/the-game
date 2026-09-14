@@ -524,8 +524,12 @@ const CARD_ABILITIES = {
       // Stun / freeze gates the whole ability. The arrival debuff now lives
       // in onMoved (fired by moveCard), so this callback only handles the
       // flight itself — no explicit debuff here or it would double-sting.
-      if (Game.isActionLocked(self)) {
-        G.log(`  [SKIP] ${self.name} is ${self.isStunned ? 'STUNNED' : 'FROZEN'} — stays put.`);
+      // isMoveLocked, not isActionLocked: the freeze/fear lock PLUS Gargantua's
+      // hold. moveCard refuses either way, but asking here is what stops the
+      // card offering a move prompt it cannot honour — a lane picker that does
+      // nothing when you answer it.
+      if (Game.isMoveLocked(self)) {
+        G.log(`  [SKIP] ${self.name} is ${Game.moveLockLabel(self)} — stays put.`);
         return;
       }
       const open = G.getOpenLanes(self.owner).filter(l => l !== lane);
@@ -594,8 +598,12 @@ const CARD_ABILITIES = {
     },
     onBeforeTricks(G, self, lane) {
       // Stun / freeze grounds him — no flutter and no growth this round.
-      if (Game.isActionLocked(self)) {
-        G.log(`  [SKIP] ${self.name} is ${self.isStunned ? 'STUNNED' : 'FROZEN'} — stays put.`);
+      // isMoveLocked, not isActionLocked: the freeze/fear lock PLUS Gargantua's
+      // hold. moveCard refuses either way, but asking here is what stops the
+      // card offering a move prompt it cannot honour — a lane picker that does
+      // nothing when you answer it.
+      if (Game.isMoveLocked(self)) {
+        G.log(`  [SKIP] ${self.name} is ${Game.moveLockLabel(self)} — stays put.`);
         return;
       }
       // "Open" here means EMPTY ON BOTH SIDES — Killer Moth relocates to
@@ -683,8 +691,12 @@ const CARD_ABILITIES = {
       // existing onMoved handler picks up the arrival splash. Classic
       // Jango has no movement of his own — this hook is gated.
       if (!self._jangoMoveLikeManBat) return;
-      if (Game.isActionLocked(self)) {
-        G.log(`  [SKIP] ${self.name} is ${self.isStunned ? 'STUNNED' : 'FROZEN'} — stays put.`);
+      // isMoveLocked, not isActionLocked: the freeze/fear lock PLUS Gargantua's
+      // hold. moveCard refuses either way, but asking here is what stops the
+      // card offering a move prompt it cannot honour — a lane picker that does
+      // nothing when you answer it.
+      if (Game.isMoveLocked(self)) {
+        G.log(`  [SKIP] ${self.name} is ${Game.moveLockLabel(self)} — stays put.`);
         return;
       }
       const open = G.getOpenLanes(self.owner).filter(l => l !== lane);
@@ -1662,8 +1674,12 @@ const CARD_ABILITIES = {
       // Stun / freeze blocks the move AND the follow-up splash. Same
       // guard as Man-Bat — moveCard alone isn't enough because the
       // splash fires after the refused move.
-      if (Game.isActionLocked(self)) {
-        G.log(`  [SKIP] ${self.name} is ${self.isStunned ? 'STUNNED' : 'FROZEN'} — stays put.`);
+      // isMoveLocked, not isActionLocked: the freeze/fear lock PLUS Gargantua's
+      // hold. moveCard refuses either way, but asking here is what stops the
+      // card offering a move prompt it cannot honour — a lane picker that does
+      // nothing when you answer it.
+      if (Game.isMoveLocked(self)) {
+        G.log(`  [SKIP] ${self.name} is ${Game.moveLockLabel(self)} — stays put.`);
         return;
       }
       const opp = G.opponent(self.owner);
@@ -5527,8 +5543,12 @@ const CARD_ABILITIES = {
     // on the destination's opposite enemy — Omni-Man is already an
     // AOE damage threat on entry; the move is purely repositioning.
     onBeforeTricks(G, self, lane) {
-      if (Game.isActionLocked(self)) {
-        G.log(`  [SKIP] ${self.name} is ${self.isStunned ? 'STUNNED' : 'FROZEN'} — stays put.`);
+      // isMoveLocked, not isActionLocked: the freeze/fear lock PLUS Gargantua's
+      // hold. moveCard refuses either way, but asking here is what stops the
+      // card offering a move prompt it cannot honour — a lane picker that does
+      // nothing when you answer it.
+      if (Game.isMoveLocked(self)) {
+        G.log(`  [SKIP] ${self.name} is ${Game.moveLockLabel(self)} — stays put.`);
         return;
       }
       const open = G.getOpenLanes(self.owner).filter(l => l !== lane);
@@ -6891,8 +6911,12 @@ const CARD_ABILITIES = {
     },
     onBeforeTricks(G, self, lane) {
       if (self.anakinMoved) return;           // fires exactly once per instance
-      if (Game.isActionLocked(self)) {
-        G.log(`  [SKIP] ${self.name} is ${self.isStunned ? 'STUNNED' : 'FROZEN'} — stays put.`);
+      // isMoveLocked, not isActionLocked: the freeze/fear lock PLUS Gargantua's
+      // hold. moveCard refuses either way, but asking here is what stops the
+      // card offering a move prompt it cannot honour — a lane picker that does
+      // nothing when you answer it.
+      if (Game.isMoveLocked(self)) {
+        G.log(`  [SKIP] ${self.name} is ${Game.moveLockLabel(self)} — stays put.`);
         return;
       }
       // Roguelite Text+ ("Twin Strike") — _anakinDoubleMove lets Anakin

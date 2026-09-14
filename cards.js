@@ -117,7 +117,7 @@ const CARD_DEFS = [
     // bathroom is on my side my cards are gtting chained becasue im in the
     // bathroom." The rule is unchanged; the picture moved to where it applies.
     actsOnOpponentSide: true,
-    desc: "While Active: Enemy cards that enter this lane take (−2/−2) and are Chained — a Chained card loses (−1/−1) at the start of every round it stays." },
+    desc: "While Active: Enemy cards that enter this lane take (−2/−2) and are Chained — a Chained card loses (−1/−1) at the start of every round it stays, and (−1/−1) again each time it moves." },
   { name: "Game Over", cost: 2, attack: 0, health: 1, type: "environment",
     isEnvironment: true,
     _spawnOnly: true,
@@ -500,7 +500,7 @@ const CARD_DEFS = [
     _spawnOnly: true,
     isEnvironment: true,
     abilities: [],
-    desc: "While Active: At the start of each round, every card on the board is pulled 1 lane closer — no Energy, from either player. A card in this lane loses (−3/−3), and is destroyed if it is still here at the start of the next round." },
+    desc: "While Active: At the start of each round, every card on the board is pulled 1 lane closer — no Energy, from either player. A card in this lane loses (−3/−3), can't move out, and is destroyed if it is still here at the start of the next round." },
 
   // ==================== COST 6 ====================
   { name: "Hela", cost: 6, attack: 5, health: 6, type: "villain",

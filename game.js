@@ -13140,6 +13140,34 @@ const Game = {
     return !!(card && (card.isFrozen || card.isStunned || card.isFeared || card.isMindControlled));
   },
   // Which status to name in the "blocked" log line.
+  // NOTHING LEAVES THE HOLE. Owner: "add to gargantua cannot move from this
+  // lane once in". Asked of the LANE the card is standing in rather than of a
+  // mark on the card, because the mark (_gargHeld) is stamped at the start of a
+  // round — a card dragged in mid-round does not carry it yet and would have a
+  // free turn to walk back out of a black hole.
+  gargantuaHolds(card) {
+    if (!card || card.isEnvironment) return false;
+    const lane = this.findCardLane(card);
+    if (lane < 0) return false;
+    const env = this.state.lanes[lane] && this.state.lanes[lane]._env;
+    if (!env) return false;
+    return ['player', 'ai'].some(side => {
+      const e = env[side];
+      return !!(e && e.name === 'Gargantua' && e.currentHealth > 0);
+    });
+  },
+  // MOVING HAS ITS OWN LOCK LIST. isActionLocked answers "can this card act at
+  // all" — it gates bonus attacks and hunts as well — and Gargantua does not
+  // stop a card fighting, only leaving. So the two questions are separate, and
+  // every mover asks this one.
+  isMoveLocked(card) {
+    return this.isActionLocked(card) || this.gargantuaHolds(card);
+  },
+  moveLockLabel(card) {
+    if (this.isActionLocked(card)) return this.actionLockLabel(card);
+    if (this.gargantuaHolds(card)) return 'CAUGHT IN THE SINGULARITY';
+    return 'FROZEN';
+  },
   actionLockLabel(card) {
     if (!card) return 'FROZEN';
     if (card.isFeared) return 'FEARED';
@@ -15130,8 +15158,14 @@ const Game = {
     // feared are too panicked to reposition (user: "feared opponents are frozen
     // ... they can't bonus attack/move"). Previously tricks and abilities that
     // moved cards (Bifrost, Ahsoka's swap, Gojo's displace) bypassed the freeze.
-    if (this.isActionLocked(card)) {
-      this.log(`  [MOVE BLOCKED] ${card.name} is ${this.actionLockLabel(card)} — can't move.`);
+    // ONE GATE FOR EVERY MOVER. isMoveLocked folds the freeze/fear lock together
+    // with Gargantua's hold, and it sits at this choke point — Bifrost, Gojo's
+    // displace, Ahsoka's swap, a Hunt chase, Killer Moth's flutter, Jigsaw's
+    // drag — so "cannot move from this lane once in" is true by construction
+    // rather than by finding every mover. (Gargantua's own pull writes the slots
+    // directly and never comes through here, so the hole can still take you in.)
+    if (this.isMoveLocked(card)) {
+      this.log(`  [MOVE BLOCKED] ${card.name} is ${this.moveLockLabel(card)} — can't move.`);
       return;
     }
     // A hidden card cannot be relocated either — Gojo, Jigsaw, Darth Vader and
@@ -15145,14 +15179,15 @@ const Game = {
     this.state.lanes[from][card.owner] = null;
     this.state.lanes[to][card.owner] = card;
     this.log(`  [MOVE] ${card.name} moves from lane ${from + 1} to lane ${to + 1}`);
-    // NO TOLL ON MOVING ANY MORE. The Bathroom's chain used to charge (−2/−2)
-    // for leaving (and before that it refused the move outright), which made
-    // standing still the correct answer to a room whose whole idea is that you
-    // do not want to be in it. The owner's rewrite moves the cost to the other
-    // side of the choice — "they take (−2/−2) and are chained, losing (−1/−1)
-    // every turn they stay" — so the round-tick in The Bathroom's onTurnStart
-    // IS the chain now, and leaving is what it is supposed to push you into.
-    // _chargeChainToll went with it; nothing else ever called it.
+    // AND THE CHAIN CHARGES YOU ON THE WAY OUT — (−1/−1), not the (−2/−2) it
+    // used to be. Owner: "chained means you can move you lose (-1/-1) when you
+    // do." The emphasis is the first half: unlike Gargantua's hold above, a
+    // Chained card CAN leave. It just drags the chain with it.
+    // Here, in moveCard, because this is the single choke point every mover
+    // funnels through — taxing the movers one by one would silently miss the
+    // next one added. Charged AFTER the move lands, so a move refused above for
+    // any other reason is never billed for.
+    if (card._chained) this._chargeChainToll(card, to);
     // ENTRANCE-THEN-TRAP (see checkLaneTrap) — onMoved first, trap second.
     // Killer Moth arrives at 0/1 and grows on arrival; trapping him mid-step
     // killed him before the growth he moved for ever landed.
@@ -16606,6 +16641,30 @@ const Game = {
   // once ended up shielding a card that Pym Particles did not.
   // The chain STAYS after the move: it is a ball being dragged, so a second
   // move costs again.
+  // THE CHAIN'S TOLL ON LEAVING. (−1/−1), matching the round-tick The Bathroom
+  // charges for staying, so the two halves of Chained cost the same and the
+  // choice between them is about position rather than arithmetic.
+  //
+  // Same canonical shield rule as everything else that strips stats — the
+  // statStripShieldsHp predicate checkLaneTrap, debuffCard and the room's own
+  // entry hit use — so Invincible / Damage Immunity blocks the health loss
+  // while the ATK strip still lands. Re-implementing that rule is exactly how
+  // the Bear Trap once ended up shielding a card that Pym Particles did not.
+  _chargeChainToll(card, laneIdx) {
+    if (!card || card.currentHealth <= 0) return;
+    const D = 1;
+    const hpShielded = this.statStripShieldsHp(card);
+    card.attack = Math.max(0, card.attack - D);
+    if (!hpShielded) {
+      card.maxHealth = Math.max(1, card.maxHealth - D);
+      card.currentHealth = Math.max(0, card.currentHealth - D);
+    }
+    this.log(hpShielded
+      ? `  [CHAINED] ${card.name} drags the chain — −${D} ATK, health shielded → ${card.attack}/${card.currentHealth}`
+      : `  [CHAINED] ${card.name} drags the chain — −${D}/−${D} → ${card.attack}/${card.currentHealth}`);
+    if (card.currentHealth <= 0) this.handleDeath(card, laneIdx, null);
+  },
+
   // Marks a summoner that places SEVERAL cards into lanes it picked up front
   // (Knull, Hela). summonCardChoice reads this: a nested summon must resolve
   // synchronously while such a loop is mid-flight, because the loop will not

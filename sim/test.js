@@ -6016,6 +6016,80 @@ test('The T-Rex clears the lane it lands in, and eats what cannot move', functio
   assertEq(rex.currentHealth, 7 + hp, 'and the health');
 });
 
+test("Nothing leaves Gargantua's lane", function () {
+  // Owner: "add to gargantua cannot move from this lane once in".
+  var G = freshGame();
+  G.state.lanes.forEach(function (l) { l.player = null; l.ai = null; l._env = null; });
+  G._placeEventEnvironment('player', 2, 'Gargantua');
+  G._placeEventEnvironment('ai', 2, 'Gargantua', { keepOpposite: true });
+
+  var caught = place(G, 'Hulk', 'player', 2);
+  assertEq(G.gargantuaHolds(caught), true, 'a card in the lane is held');
+  assertEq(G.isMoveLocked(caught), true, 'and move-locked');
+  G.moveCard(caught, 2, 4);
+  assertEq(G.state.lanes[2].player, caught, 'it is still in the hole');
+  assertEq(G.state.lanes[4].player, null, 'and did not arrive anywhere else');
+
+  // ASKED OF THE LANE, NOT OF A MARK ON THE CARD. _gargHeld is stamped at the
+  // start of a round, so a card dragged in mid-round does not carry it yet —
+  // keying the lock on the mark would give it one free turn to walk back out of
+  // a black hole.
+  assertEq(!!caught._gargHeld, false, 'this one has never been round-stamped');
+  assertEq(G.gargantuaHolds(caught), true, 'and is held anyway');
+
+  // A card OUTSIDE the hole is untouched.
+  var free = place(G, 'Sandman', 'player', 0);
+  assertEq(G.gargantuaHolds(free), false, 'a card elsewhere is not held');
+  G.moveCard(free, 0, 4);
+  assertEq(G.state.lanes[4].player, free, 'and moves normally');
+});
+
+test("…but the hole can still pull you IN", function () {
+  // The lock lives in moveCard, and Gargantua's own pull writes the lane slots
+  // directly rather than calling it — which is what keeps the intake working.
+  // If the pull is ever routed through moveCard, this fails and says why.
+  var G = freshGame();
+  G.state.lanes.forEach(function (l) { l.player = null; l.ai = null; l._env = null; });
+  var garg = G._placeEventEnvironment('player', 2, 'Gargantua');
+  G._placeEventEnvironment('ai', 2, 'Gargantua', { keepOpposite: true });
+  var far = place(G, 'Groot', 'player', 0);
+
+  G.state.round = 2; G.state.lanes[2]._gargRound = null;
+  CARD_ABILITIES['Gargantua'].onTurnStart(G, garg);
+  assertEq(G.state.lanes[1].player, far, 'one lane closer');
+
+  G.state.round = 3; G.state.lanes[2]._gargRound = null;
+  CARD_ABILITIES['Gargantua'].onTurnStart(G, garg);
+  assertEq(G.state.lanes[2].player, far, 'and into the hole');
+  assertEq(far.attack + '/' + far.currentHealth, '1/1', 'taking the (-3/-3) on arrival');
+  assertEq(!!far._gargHeld, true, 'marked for next round\'s crush');
+
+  // …and now it cannot walk back out.
+  G.moveCard(far, 2, 5);
+  assertEq(G.state.lanes[2].player && G.state.lanes[2].player.name, 'Groot', 'the hole keeps it');
+  assertEq(G.state.lanes[5].player, null, 'and it did not arrive in lane 6');
+});
+
+test("A Gargantua-held card is not offered a move it cannot make", function () {
+  // moveCard refuses either way, but a self-mover that prompts first would hand
+  // the player a lane picker that does nothing when they answer it. Every
+  // self-mover asks isMoveLocked before it offers.
+  var G = freshGame();
+  G.state.lanes.forEach(function (l) { l.player = null; l.ai = null; l._env = null; });
+  G._placeEventEnvironment('player', 2, 'Gargantua');
+  G._placeEventEnvironment('ai', 2, 'Gargantua', { keepOpposite: true });
+  var moth = place(G, 'Killer Moth', 'player', 2);
+  var before = G.state.lanes.map(function (l) { return l.player && l.player.name; });
+  CARD_ABILITIES['Killer Moth'].onBeforeTricks(G, moth, 2);
+  assertEq(JSON.stringify(G.state.lanes.map(function (l) { return l.player && l.player.name; })),
+           JSON.stringify(before), 'Killer Moth does not flutter out of a black hole');
+  // And the freeze/fear lock still works through the same door.
+  var G2 = freshGame();
+  var m2 = place(G2, 'Killer Moth', 'player', 2);
+  G2.freezeCard(m2, null, 1);
+  assertEq(G2.isMoveLocked(m2), true, 'a frozen card is still move-locked');
+});
+
 test("Gargantua's pull re-reads a card's lane before moving it", function () {
   // The fuzz once found "duplicate id 8 on lane: Trigon + Trigon" — ONE object
   // in two lanes at once. The pull reads curLane at the top of each iteration
@@ -7642,7 +7716,7 @@ test("Jigsaw places two rooms instead of Bear Traps", function () {
   assertEq(room.name, 'The Bathroom', 'and it is the room asked for');
 });
 
-test("The Bathroom chains the first enemy in — and leaving is free now", function () {
+test("The Bathroom chains the first enemy in — and leaving costs (-1/-1)", function () {
   var G = freshGame();
   var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 2, 'The Bathroom');
 
@@ -7655,22 +7729,25 @@ test("The Bathroom chains the first enemy in — and leaving is free now", funct
   assertEq(victim.currentHealth, hp0 - 2, 'and -2 HP');
   assertEq(!!victim._chained, true, 'and carries the Chained status');
 
-  // LEAVING COSTS NOTHING. The chain used to be a toll on MOVING — first a
-  // refusal, then (-2/-2) a move — which made standing still the right answer
-  // to a room you do not want to be standing in. The rewrite puts the cost on
-  // staying instead, so moveCard must charge nothing.
+  // YOU CAN LEAVE, AND IT COSTS (-1/-1). Owner: "chained means you can move you
+  // lose (-1/-1) when you do." The emphasis is the first half — unlike
+  // Gargantua's hold, a Chained card is not stuck, it just drags the chain.
+  // It was (-2/-2) once, and briefly nothing at all.
   var atkBefore = victim.attack, hpBefore = victim.currentHealth;
+  assertEq(G.isMoveLocked(victim), false, 'a Chained card is NOT move-locked');
   G.moveCard(victim, 2, 4);
   assertEq(G.state.lanes[4].ai, victim, 'it leaves the bathroom');
   assertEq(G.state.lanes[2].ai, null, 'and really left the old lane');
-  assertEq(victim.attack, atkBefore, 'the move costs no ATK');
-  assertEq(victim.currentHealth, hpBefore, 'and no health');
+  assertEq(victim.attack, atkBefore - 1, 'the move costs 1 ATK');
+  assertEq(victim.currentHealth, hpBefore - 1, 'and 1 health');
 
   // …and once it is gone, the room is not still draining it: onTurnStart reads
-  // the card standing in the lane, and nobody is.
+  // the card standing in the lane, and nobody is. So the two halves of Chained
+  // cannot both bill the same round.
+  var atkGone = victim.attack, hpGone = victim.currentHealth;
   CARD_ABILITIES['The Bathroom'].onTurnStart(G, room);
-  assertEq(victim.attack, atkBefore, 'a body that left takes no round tick');
-  assertEq(victim.currentHealth, hpBefore, 'nor loses health to a room it escaped');
+  assertEq(victim.attack, atkGone, 'a body that left takes no round tick');
+  assertEq(victim.currentHealth, hpGone, 'nor loses health to a room it escaped');
 });
 
 test("Game Over raises an enemy body that dies in its lane, as a (2/2)", function () {
@@ -8957,11 +9034,12 @@ test("A destroyed lane never blocks the cover rule", function () {
   assertEq(G.canPlaceEnvironment('player', 0), true,  'and the void does not block covering elsewhere');
 });
 
-test("A Chained card moves for free — the cost is on staying", function () {
-  // REWRITTEN 2026-09-14 with the room itself. Chained was a toll on MOVING:
-  // first a refusal, then (-2/-2) per move. Owner: "when enemy cards enter this
-  // lane they take (-2/-2) and are chained, losing (-1/-1) every turn they
-  // stay." Moving is now the way OUT, so it cannot also be the punishment.
+test("A Chained card CAN move, and pays (-1/-1) every time", function () {
+  // Owner: "chained means you can move you lose (-1/-1) when you do." This
+  // number has now been (-2/-2), then nothing, then (-1/-1) — so what the test
+  // pins is the SHAPE: leaving is allowed, leaving is billed, and the bill
+  // matches the round-tick for staying, so the choice between the two halves of
+  // Chained is about position rather than arithmetic.
   var G = freshGame();
   var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 1, 'The Bathroom');
   CARD_ABILITIES['The Bathroom'].onPlay(G, room, 1);
@@ -8972,19 +9050,32 @@ test("A Chained card moves for free — the cost is on staying", function () {
   assertEq(v.currentHealth, 7, 'and 2 HP');
   assertEq(!!v._chained, true, 'and it is Chained');
 
+  assertEq(G.isMoveLocked(v), false, 'Chained does not LOCK the card in place');
   G.moveCard(v, 1, 4);
   assertEq(G.state.lanes[4].ai, v, 'the move is allowed');
-  assertEq(v.attack, 7, 'and costs no ATK');
-  assertEq(v.currentHealth, 7, 'and no health');
+  assertEq(v.attack, 6, 'and costs 1 ATK');
+  assertEq(v.currentHealth, 6, 'and 1 HP');
   G.moveCard(v, 4, 5);
-  assertEq(v.attack, 7, 'a second move is free too');
+  assertEq(G.state.lanes[5].ai, v, 'it can move again');
+  assertEq(v.attack, 5, 'and pays again');
+  assertEq(v.currentHealth, 5, 'each time');
+
+  // The toll matches the tick, which is the thing that makes the card readable.
+  var G2 = freshGame();
+  var r2 = CARD_ABILITIES['Jigsaw']._placeRoom(G2, 'player', 1, 'The Bathroom');
+  CARD_ABILITIES['The Bathroom'].onPlay(G2, r2, 1);
+  var w = place(G2, 'Sabertooth', 'ai', 1);
+  w.attack = 9; w.maxHealth = 9; w.currentHealth = 9;
+  CARD_ABILITIES['The Bathroom'].onAnyCardPlayed(G2, r2);
+  CARD_ABILITIES['The Bathroom'].onTurnStart(G2, r2);
+  assertEq(w.attack, 6, 'a round STAYING costs the same 1 ATK as a move');
+  assertEq(w.currentHealth, 6, 'and the same 1 HP');
 });
 
-test("The round tick respects the shield rule, and can be lethal", function () {
-  // The (-1/-1) a round goes through the same statStripShieldsHp predicate the
-  // entry hit, checkLaneTrap and debuffCard use — re-implementing that rule is
-  // exactly how the Bear Trap once ended up shielding a card Pym Particles did
-  // not.
+test("The chain toll respects the shield rule, and can be lethal", function () {
+  // Same canonical statStripShieldsHp predicate as the entry hit and the round
+  // tick — re-implementing that rule is how the Bear Trap once ended up
+  // shielding a card Pym Particles did not.
   var G = freshGame();
   var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 1, 'The Bathroom');
   CARD_ABILITIES['The Bathroom'].onPlay(G, room, 1);
@@ -8993,11 +9084,11 @@ test("The round tick respects the shield rule, and can be lethal", function () {
   CARD_ABILITIES['The Bathroom'].onAnyCardPlayed(G, room);   // -> 7/7
   v.invincibleTurns = 1;   // the field statStripShieldsHp actually reads
   var hp = v.currentHealth;
-  CARD_ABILITIES['The Bathroom'].onTurnStart(G, room);
-  assertEq(v.currentHealth, hp, 'Invincible blocks the health half of the tick');
+  G.moveCard(v, 1, 3);
+  assertEq(v.currentHealth, hp, 'Invincible blocks the health half of the toll');
   assertEq(v.attack, 6, 'but the ATK strip still lands');
 
-  // lethal: a tick that empties the bar routes through the death path rather
+  // lethal: a toll that empties the bar routes through the death path rather
   // than leaving a 0-HP body standing in the lane.
   var G2 = freshGame();
   var r2 = CARD_ABILITIES['Jigsaw']._placeRoom(G2, 'player', 1, 'The Bathroom');
@@ -9005,10 +9096,9 @@ test("The round tick respects the shield rule, and can be lethal", function () {
   var w = place(G2, 'Sabertooth', 'ai', 1);
   w.attack = 3; w.maxHealth = 3; w.currentHealth = 3;
   CARD_ABILITIES['The Bathroom'].onAnyCardPlayed(G2, r2);   // -> 1/1
-  assert(w.currentHealth > 0, 'it survives the entry');
-  CARD_ABILITIES['The Bathroom'].onTurnStart(G2, r2);       // -> 0/0
-  assert(w.currentHealth <= 0, 'the tick can kill');
-  assertEq(G2.state.lanes[1].ai, null, 'and the body does not linger in the lane');
+  G2.moveCard(w, 1, 3);                                     // -> 0/0
+  assert(w.currentHealth <= 0, 'the toll can kill');
+  assertEq(G2.state.lanes[3].ai, null, 'and the body does not linger in the lane');
 });
 
 test("A nested summon still lets a HUMAN pick the lane (Gorr -> Darkseid -> Parademon)", function () {
