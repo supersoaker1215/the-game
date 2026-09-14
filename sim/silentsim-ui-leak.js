@@ -112,3 +112,10 @@ results.forEach(function (r) {
 print('');
 print(leaks ? (leaks + ' LEAKING CALL SITE(S) — a forecast is drawing on the live board')
             : 'NO LEAKS — the forecast resolves in silence.');
+
+// ONE MACHINE-READABLE LINE, so this audit can gate a build.
+// Everything above is written for a person. run-tests.sh reads only this, and
+// printing a count it can grep is what turns a tool nobody runs into one that
+// fails the build — which is the whole reason the sfx.playEffect relay gap sat
+// in this very output, correct and unread, for as long as it did.
+print('AUDIT silentsim-ui-leak: ' + (leaks) + ' findings');

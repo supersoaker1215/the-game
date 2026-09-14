@@ -159,3 +159,10 @@ soft.forEach(function (s) {
   if (VERBOSE) print('  WAIT ' + s.name + ' → ' + s.pend + '  actingSeat=' + s.seat + ' owner=' + s.owner);
 });
 if (!hard.length) print('NO HANGS — every prompt an AI seat raised has someone who can answer it.');
+
+// ONE MACHINE-READABLE LINE, so this audit can gate a build.
+// Everything above is written for a person. run-tests.sh reads only this, and
+// printing a count it can grep is what turns a tool nobody runs into one that
+// fails the build — which is the whole reason the sfx.playEffect relay gap sat
+// in this very output, correct and unread, for as long as it did.
+print('AUDIT aiStall2v2: ' + (hard.length) + ' findings');

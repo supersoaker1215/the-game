@@ -164,6 +164,48 @@ run_suite sim/attack-cue.js
 echo "=== viewport-fit.js (the layout re-solves on every device) ==="
 run_suite sim/viewport-fit.js
 
+# ---- AUDITS -----------------------------------------------------------------
+# These nine sweep the whole card set for a class of fault rather than asserting
+# named cases, and they used to print their findings and exit 0 — so they only
+# ever spoke when somebody ran them by hand, and nothing failed if they had
+# something to say. The sfx.playEffect relay gap sat in fxrelay2v2's output,
+# correct and unread, until a sound went missing and sent someone looking.
+#
+# Each now ends with one machine-readable line — `AUDIT <name>: N findings` —
+# which is the same variable its own human-readable summary prints. A non-zero
+# count fails the build. Verified both ways: every one reports its forced count
+# when its counter is bumped, and fxrelay2v2 reports the real historical 1 when
+# run against the commit before the playEffect fix.
+run_audit() {
+  local file="$1"
+  [ -f "$file" ] || { echo "· skip $file (not present)"; return; }
+  local out
+  out="$("$JSC" "$file" 2>&1)"
+  echo "$out" | grep -E "^AUDIT " | tail -1
+  if echo "$out" | grep -qE "^AUDIT [^:]*: [1-9]"; then
+    echo "  ❌ $file — findings (run it directly for the detail)"
+    echo "$out" | grep -vE "^\[SEED\]|^\[WARN\]" | tail -12 | sed 's/^/     /'
+    FAIL=1
+  elif ! echo "$out" | grep -qE "^AUDIT "; then
+    echo "  ❌ $file — no verdict line (it threw before finishing?)"
+    echo "$out" | tail -6 | sed 's/^/     /'
+    FAIL=1
+  else
+    echo "  ✅ $file"
+  fi
+}
+
+echo "=== audits (whole-set sweeps; each fails the build on any finding) ==="
+run_audit sim/fx-cannot-break-abilities.js
+run_audit sim/invisible-cards.js
+run_audit sim/silentsim-ui-leak.js
+run_audit sim/repro-zombie.js
+run_audit sim/ownership2v2.js
+run_audit sim/parity2v2.js
+run_audit sim/aiStall2v2.js
+run_audit sim/fxrelay2v2.js
+run_audit sim/audit2v2.js
+
 echo ""
 echo "=== pointer-cost.js (no <body> custom-prop write on every mousemove) ==="
 run_suite sim/pointer-cost.js

@@ -190,3 +190,10 @@ if (VERBOSE) {
   Object.keys(HAS_OWN_PATH).forEach(function (n) { print('  ' + n + ' — ' + HAS_OWN_PATH[n]); });
   Object.keys(SFX_HAS_OWN_PATH).forEach(function (n) { print('  sfx.' + n + ' — ' + SFX_HAS_OWN_PATH[n]); });
 }
+
+// ONE MACHINE-READABLE LINE, so this audit can gate a build.
+// Everything above is written for a person. run-tests.sh reads only this, and
+// printing a count it can grep is what turns a tool nobody runs into one that
+// fails the build — which is the whole reason the sfx.playEffect relay gap sat
+// in this very output, correct and unread, for as long as it did.
+print('AUDIT fxrelay2v2: ' + (total) + ' findings');
