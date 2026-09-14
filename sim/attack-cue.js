@@ -3,8 +3,9 @@
 //
 //   jsc sim/attack-cue.js
 //
-// The SFX registry has always had an `attack` slot and four cards fill it —
-// Jango Fett, Xenomorph, Thor, Droideka — but a grep for playCardSfx(…,
+// The SFX registry has always had an `attack` slot and a handful of cards fill
+// it — Jango Fett, Padme Amidala, Xenomorph, Thor, Droideka — but a grep for
+// playCardSfx(…,
 // 'attack') across the whole codebase returned exactly ONE call, inside
 // Droideka's own ability. Three recorded cues had been registered, shipped and
 // cached by every player, and never once been audible. It only surfaced because
@@ -117,8 +118,8 @@ t('AC-5 only cards with a recorded attack can ever make this sound', function ()
   var names = [], re = /'([^']+)':\s*(\{[^\n]*)/g, m;
   while ((m = re.exec(block))) if (/(^|[{,]\s*)attack:/.test(m[2])) names.push(m[1]);
   names.sort();
-  eq('four cards, named', JSON.stringify(names),
-     JSON.stringify(['Droideka', 'Jango Fett', 'Thor', 'Xenomorph']));
+  eq('five cards, named', JSON.stringify(names),
+     JSON.stringify(['Droideka', 'Jango Fett', 'Padme Amidala', 'Thor', 'Xenomorph']));
 });
 
 __cases.forEach(function (c) {

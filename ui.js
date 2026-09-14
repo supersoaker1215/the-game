@@ -2287,7 +2287,18 @@ const UI = {
       'Luke Skywalker':   { hover: { src: 'audio/cards/luke-hover.mp3?v=2', maxDur: 99 } },
       'Yoda':             { hover: { src: 'audio/cards/yoda-hover.mp3', maxDur: 52 }, play: 'audio/cards/yoda-play.mp3', death: 'audio/cards/yoda-death.mp3' },
       'Darth Maul':       { hover: { src: 'audio/cards/darth-maul-hover.mp3?v=2', maxDur: 126 } },
-      'Padme Amidala':    { hover: { src: 'audio/cards/padme-amidala-hover.mp3', maxDur: 106 } },
+      // Padme's blaster: the Naboo pistol volley at 0:11 -> 0:13 of the source
+      // the owner supplied — trimmed at the FRONT to 11.62. The window they
+      // picked holds the right shot, but a whole second lands 0.63s early:
+      // silencedetect puts the silence at 10.731 -> 11.631, so taken verbatim
+      // the cue would have fired most of a second after the swing that made it.
+      // Starting on the transient gives 1.38s, decaying to -47 dB by the end,
+      // and that is under the attack slot's 1.5s default cap so it needs no
+      // maxDur of its own (unlike Jango's 2.0s volley). Two-pass loudnorm
+      // (linear) to -15.2 LUFS / -5.4 dB peak — the same family as his.
+      // New filename, so the global ?cv= stamp busts the cache and no per-entry
+      // ?v= is needed (see the note on Gamora).
+      'Padme Amidala':    { hover: { src: 'audio/cards/padme-amidala-hover.mp3', maxDur: 106 }, attack: 'audio/cards/padme-amidala-attack.mp3' },
       'General Grievous': { hover: { src: 'audio/cards/general-grievous-hover.mp3?v=3', maxDur: 50 }, kill: { src: 'audio/cards/general-grievous-kill.mp3', maxDur: 3 } },
       // maxDur 3 — the house cap for a play sting (hover beds run long, casts
       // do not). If the source runs longer it is trimmed at playback rather
@@ -12781,15 +12792,15 @@ const UI = {
   // here rather than by widening playCardSfx:
   //
   //   • NOTHING CALLED IT. One playCardSfx(..., 'attack') exists in the whole
-  //     codebase, inside Droideka's own ability. Jango Fett, Thor and Xenomorph
-  //     have had recorded attack cues registered and shipped that have never
-  //     once been audible.
+  //     codebase, inside Droideka's own ability. Every other recorded attack cue
+  //     — Jango Fett, Padme Amidala, Thor, Xenomorph — was registered, shipped
+  //     and never once audible.
   //   • ROUTING IT THROUGH THE NORMAL CHAIN WOULD BE FAR TOO LOUD A CHANGE.
   //     playCardSfx falls back CARD_SFX -> CARD_PROCEDURAL -> DEFAULT_CARD_SFX,
   //     and CARD_PROCEDURAL carries a synthesised `attack` for dozens of
   //     characters, so asking for the slot by name would switch all of them on
   //     at once. This asks CARD_SFX directly: a card with no recorded attack is
-  //     untouched, which is all but four of them, and the generic 'hit' impact
+  //     untouched, which is all but a handful, and the generic 'hit' impact
   //     still carries every ordinary swing.
   _playAttackerCue(attackerId) {
     if (attackerId == null || !this.sfx || !this.sfx.CARD_SFX) return;
@@ -13148,15 +13159,14 @@ const UI = {
           }
           this.sfx.play('hit', fx.sfxGain, pan);
           // THE ATTACKER'S OWN CUE, at the same frame as the impact.
-          // The registry has had an `attack` slot since the beginning and four
-          // cards fill it (Jango Fett, Thor, Xenomorph, Droideka) — but nothing
-          // in combat ever asked for it. A grep for playCardSfx(..., 'attack')
+          // The registry has had an `attack` slot since the beginning and a
+          // handful of cards fill it — but nothing in combat ever asked for it. A grep for playCardSfx(..., 'attack')
           // across the whole codebase returns exactly ONE call, inside
           // Droideka's own ability, so for the other three the sound was
           // registered, shipped and never once audible. That is what "jango
           // attack" turned out to need: the clip AND a way to hear it.
           // Deliberately narrow — a card with no `attack` entry is untouched,
-          // which is all but four of them, and the generic 'hit' above still
+          // which is all but a handful, and the generic 'hit' above still
           // carries every ordinary swing.
           this._playAttackerCue(ev.attackerId);
           // Haptic — one honest tick per hit, either side.
