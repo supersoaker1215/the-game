@@ -158,6 +158,9 @@ echo ""
 echo "=== gutter-stack.js (everything right of the board is one stack) ==="
 run_suite sim/gutter-stack.js
 
+echo "=== attack-cue.js (a registered sound has to be reachable) ==="
+run_suite sim/attack-cue.js
+
 echo ""
 echo "=== pointer-cost.js (no <body> custom-prop write on every mousemove) ==="
 run_suite sim/pointer-cost.js

@@ -2225,7 +2225,19 @@ const UI = {
       'Hulk':             { hover: { src: 'audio/cards/hulk-hover.mp3?v=1', maxDur: 43 }, play: 'audio/cards/hulk-play.mp3' },
       'Groot':            { play: { src: 'audio/cards/groot-play.mp3', maxDur: 5 } },
       'Symbiote Spider-Man': { play: { src: 'audio/cards/symbiote-spider-man-play.mp3', maxDur: 5.0 } },
-      'Jango Fett':       { attack: 'audio/cards/jango-fett-attack.mp3', death: 'audio/cards/jango-fett-death.mp3' },
+      // Jango's WESTAR-34s: 2s of a blaster-pistol volley (0:20 -> 0:22 of the
+      // source the owner supplied). The window is one self-contained burst —
+      // silence from 19.4s, the volley starts exactly on 20.0, decays out by
+      // 21.7, and the next burst does not begin until 22.3 — so neither end
+      // cuts a transient. Two-pass loudnorm (linear, static gain) to -15 LUFS /
+      // -4.6 dB peak, which is where the other short combat cues sit (his own
+      // death is -14.3, Anakin's -14.2, the Battle Droid's -14.6).
+      // maxDur 2.0 because the attack slot's DEFAULT is 1.5s (it shares the
+      // death branch in playCardSfx) and would clip the tail off the volley.
+      // ?v=2 because the filename did not change — see the note on The Grinch:
+      // without it _bustCache leaves the URL alone, the service worker serves
+      // the old bytes out of ASSET_CACHE, and the new clip never arrives.
+      'Jango Fett':       { attack: { src: 'audio/cards/jango-fett-attack.mp3?v=2', maxDur: 2.0 }, death: 'audio/cards/jango-fett-death.mp3' },
       'Jason Voorhees':   { play: { src: 'audio/cards/jason-play.mp3', maxDur: 5.0 } },
       'Art the Clown':    { play: { src: 'audio/cards/art-the-clown-play.mp3', maxDur: 5.0 } },
       'Knull':            { hover: { src: 'audio/cards/knull-hover.mp3' }, play: { src: 'audio/cards/knull-play.mp3', fullDuration: true, gain: 4.5 } },
@@ -12764,6 +12776,42 @@ const UI = {
     if (!q.length) { this._sigFxDraining = false; this._sigFxBatchN = 0; return; }
     setTimeout(() => this._sigFxDrainStep(), this._sigFxStepMs());
   },
+  // THE ATTACKER'S OWN SOUND, ON THE SWING THAT MADE IT.
+  // Two things kept the registry's `attack` slot silent, and both are answered
+  // here rather than by widening playCardSfx:
+  //
+  //   • NOTHING CALLED IT. One playCardSfx(..., 'attack') exists in the whole
+  //     codebase, inside Droideka's own ability. Jango Fett, Thor and Xenomorph
+  //     have had recorded attack cues registered and shipped that have never
+  //     once been audible.
+  //   • ROUTING IT THROUGH THE NORMAL CHAIN WOULD BE FAR TOO LOUD A CHANGE.
+  //     playCardSfx falls back CARD_SFX -> CARD_PROCEDURAL -> DEFAULT_CARD_SFX,
+  //     and CARD_PROCEDURAL carries a synthesised `attack` for dozens of
+  //     characters, so asking for the slot by name would switch all of them on
+  //     at once. This asks CARD_SFX directly: a card with no recorded attack is
+  //     untouched, which is all but four of them, and the generic 'hit' impact
+  //     still carries every ordinary swing.
+  _playAttackerCue(attackerId) {
+    if (attackerId == null || !this.sfx || !this.sfx.CARD_SFX) return;
+    // ONE CUE PER SWING, NOT ONE PER VICTIM. A splashing attacker emits a `hit`
+    // event for every card it touches and they all land on the same deferred
+    // impact frame, so without this Jango's volley would fire three times on
+    // top of itself. Keyed by the attacker, because that is what a swing is.
+    const now = Date.now();
+    if (!this._attackCueAt) this._attackCueAt = Object.create(null);
+    if (now - (this._attackCueAt[attackerId] || 0) < 400) return;
+    let name = null;
+    try { const c = Game.findCard && Game.findCard(attackerId); name = c && c.name; } catch (e) { return; }
+    if (!name) return;
+    const entry = this.sfx.CARD_SFX[name];
+    if (!entry || !entry.attack) return;
+    // Bounded — ids are per-match, but a long roguelite run keeps handing out
+    // new ones and this map has no other reason to be reset.
+    if (Object.keys(this._attackCueAt).length > 400) this._attackCueAt = Object.create(null);
+    this._attackCueAt[attackerId] = now;
+    try { this.sfx.playCardSfx(name, 'attack'); } catch (e) {}
+  },
+
   showDamageFloats() {
     const events = Game.flushDmg();
     for (const ev of events) {
@@ -13099,6 +13147,18 @@ const UI = {
             if (br.width > 0) pan = Math.max(-0.5, Math.min(0.5, ((cr.left + cr.width / 2 - br.left) / br.width - 0.5)));
           }
           this.sfx.play('hit', fx.sfxGain, pan);
+          // THE ATTACKER'S OWN CUE, at the same frame as the impact.
+          // The registry has had an `attack` slot since the beginning and four
+          // cards fill it (Jango Fett, Thor, Xenomorph, Droideka) — but nothing
+          // in combat ever asked for it. A grep for playCardSfx(..., 'attack')
+          // across the whole codebase returns exactly ONE call, inside
+          // Droideka's own ability, so for the other three the sound was
+          // registered, shipped and never once audible. That is what "jango
+          // attack" turned out to need: the clip AND a way to hear it.
+          // Deliberately narrow — a card with no `attack` entry is untouched,
+          // which is all but four of them, and the generic 'hit' above still
+          // carries every ordinary swing.
+          this._playAttackerCue(ev.attackerId);
           // Haptic — one honest tick per hit, either side.
           if (ev.amount > 0) this._haptic('hit');
           // Concussive ring burst — size scales with tier via --burst-scale.
