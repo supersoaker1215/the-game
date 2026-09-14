@@ -8590,6 +8590,29 @@ const Game = {
 
   applyCombatDamage(attacker, target, opts) {
     if (!target || target.currentHealth <= 0) return false;
+    // THE CUE BELONGS TO THE SWING, NOT TO THE DAMAGE.
+    //
+    // A card's `attack` sound used to be fired by the UI off the 'hit' event,
+    // which is the damage LANDING — so every way a swing can connect without
+    // dealing damage went silent. Owner: "padmes attack audio not firing", and
+    // the case was an Evade: Padme swung, Nightwing dodged, the stream carried
+    // an 'evade' event and no 'hit', and her blaster never sounded. Invincible,
+    // Damage Immunity, a fully-absorbed Armor hit and a face-down target are
+    // all the same shape. (The killing blow was this same mistake in a
+    // different branch, and was patched there rather than here.)
+    //
+    // This is the one door every swing goes through — main swings, bonus
+    // attacks, Overdrive, an uncontested lane, Droideka's ability — so firing
+    // it here makes "the sound of swinging" true by construction instead of by
+    // enumerating outcomes. It sits AFTER the dead-target guard on purpose: a
+    // swing into a corpse is a whiff nobody sees, and should not sound.
+    //
+    // Owner AND name travel with it so the UI never has to look the attacker
+    // back up: by the time the cue's beat comes round the attacker may have
+    // died in the same exchange and left the entity index.
+    if (attacker && attacker.id != null) {
+      try { this.emitFX('swing', { attackerId: attacker.id, owner: attacker.owner, name: attacker.name }); } catch (e) {}
+    }
     // Face-down cards can't be damaged by a combat swing — the whole point of
     // "hidden" is that it's untouchable until it reveals (matches dealDamage /
     // killCard / canEffectLand, which already bail on isFaceDown). A card that

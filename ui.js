@@ -12917,7 +12917,7 @@ const UI = {
     catch (e) { return null; }
   },
 
-  _playAttackerCue(attackerId) {
+  _playAttackerCue(attackerId, knownName) {
     if (attackerId == null || !this.sfx || !this.sfx.CARD_SFX) return;
     // ONE CUE PER SWING, NOT ONE PER VICTIM. A splashing attacker emits a `hit`
     // event for every card it touches and they all land on the same deferred
@@ -12926,8 +12926,13 @@ const UI = {
     const now = Date.now();
     if (!this._attackCueAt) this._attackCueAt = Object.create(null);
     if (now - (this._attackCueAt[attackerId] || 0) < 400) return;
-    let name = null;
-    try { const c = Game.findCard && Game.findCard(attackerId); name = c && c.name; } catch (e) { return; }
+    // The name the event carried, when there is one. A lookup is the fallback,
+    // not the rule: an attacker that died in its own exchange is off the board
+    // and out of the entity index by the time this beat runs.
+    let name = knownName || null;
+    if (!name) {
+      try { const c = Game.findCard && Game.findCard(attackerId); name = c && c.name; } catch (e) { return; }
+    }
     if (!name) return;
     const entry = this.sfx.CARD_SFX[name];
     if (!entry || !entry.attack) return;
@@ -13075,6 +13080,23 @@ const UI = {
       // only, the host already played it live at the engine call (_statusSfx).
       if (ev.type === 'sfx') {
         if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') this._replaySfx(ev);
+        continue;
+      }
+      // A SWING HAPPENED — the attacker's own cue, on the beat its side owns.
+      // Emitted by Game.applyCombatDamage, which is the one door every swing
+      // goes through, so this fires whether the hit lands, is dodged, is
+      // absorbed, or kills. It used to hang off the 'hit' event in two separate
+      // branches below, which meant it went silent on exactly the swings a
+      // player most wants to hear. Riding the FX stream also means a guest
+      // hears it — they never run the engine line.
+      if (ev.type === 'swing') {
+        const beat = (this._reducedMotion && this._reducedMotion()) ? 0 : this._swingBeatMs(ev.owner);
+        if (beat > 0) {
+          this._bookLaneAudioUntil(beat);
+          setTimeout(() => this._playAttackerCue(ev.attackerId, ev.name), beat);
+        } else {
+          this._playAttackerCue(ev.attackerId, ev.name);
+        }
         continue;
       }
       if (ev.type === 'statusSfx') {
@@ -13239,12 +13261,6 @@ const UI = {
             if (fx.shake) this._screenShake(fx.shake);
             if (fx.hitPause) this._hitPauseFreeze(fx.hitPause);
             try { this.sfx.play('hit', fx.sfxGain, 0); } catch (e) {}
-            // AND THE ATTACKER'S OWN CUE. This branch exists because the victim
-            // is already off the board on a killing blow, and it fired every
-            // board-level channel EXCEPT this one — so Jango's blasters played
-            // on every swing that missed a kill and went silent on the swing
-            // that landed one, which is the opposite of what it is for.
-            this._playAttackerCue(ev.attackerId);
             if (ev.amount > 0) this._haptic('hit');
           };
           if (beat) setTimeout(fire, beat); else fire();
@@ -13307,17 +13323,11 @@ const UI = {
             if (br.width > 0) pan = Math.max(-0.5, Math.min(0.5, ((cr.left + cr.width / 2 - br.left) / br.width - 0.5)));
           }
           this.sfx.play('hit', fx.sfxGain, pan);
-          // THE ATTACKER'S OWN CUE, at the same frame as the impact.
-          // The registry has had an `attack` slot since the beginning and a
-          // handful of cards fill it — but nothing in combat ever asked for it. A grep for playCardSfx(..., 'attack')
-          // across the whole codebase returns exactly ONE call, inside
-          // Droideka's own ability, so for the other three the sound was
-          // registered, shipped and never once audible. That is what "jango
-          // attack" turned out to need: the clip AND a way to hear it.
-          // Deliberately narrow — a card with no `attack` entry is untouched,
-          // which is all but a handful, and the generic 'hit' above still
-          // carries every ordinary swing.
-          this._playAttackerCue(ev.attackerId);
+          // (The attacker's own cue is NOT fired here any more — it belongs to
+          // the swing, not to the damage. See the 'swing' event above: hanging
+          // it off 'hit' meant it went silent on every Evade, Invincible,
+          // Damage Immunity and fully-absorbed Armor, which are exactly the
+          // swings a player most wants to hear.)
           // Haptic — one honest tick per hit, either side.
           if (ev.amount > 0) this._haptic('hit');
           // Concussive ring burst — size scales with tier via --burst-scale.
