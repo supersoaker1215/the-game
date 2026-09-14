@@ -161,6 +161,9 @@ run_suite sim/gutter-stack.js
 echo "=== attack-cue.js (a registered sound has to be reachable) ==="
 run_suite sim/attack-cue.js
 
+echo "=== viewport-fit.js (the layout re-solves on every device) ==="
+run_suite sim/viewport-fit.js
+
 echo ""
 echo "=== pointer-cost.js (no <body> custom-prop write on every mousemove) ==="
 run_suite sim/pointer-cost.js

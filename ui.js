@@ -5250,6 +5250,7 @@ const UI = {
     this.installUiHoverSfx();
     this.installLongPressInspect();
     this._installCombatForecast();
+    this._installViewportFit();
     this._installPortraitSnap();
     this.installDrawAnimation();
     this.installTronGridFx();
@@ -7643,6 +7644,43 @@ const UI = {
   // setTimeout after that), so one frame is not enough to read the final width.
   // The snap skips every node whose height is already correct, so the trailing
   // pass costs nothing when the first one already got it right.
+  // THE HAND, THE DRAFT AND THE BOARD RE-SOLVE WHEN THE VIEWPORT CHANGES.
+  //
+  // These three listeners lived inside _installCombatForecast, which returns
+  // early on anything without a fine hover pointer — so on a PHONE OR TABLET
+  // they were never registered at all. Rotating the device, or the URL bar
+  // sliding away (which is a real viewport-height change on mobile, and a
+  // frequent one), left the hand, the draft and the board solved against a
+  // viewport that no longer existed.
+  //
+  // The note above _installPortraitSnap had already spotted exactly this and
+  // said why it installed itself unconditionally instead of joining them —
+  // "art framing is not a desktop affordance, a phone rotating is exactly the
+  // resize that matters most". That is just as true of the layout the art sits
+  // in, so these come out from behind the gate and follow the same shape:
+  // orientationchange as well as resize, and coalesced, because mobile fires
+  // resize in a stream while the URL bar animates.
+  _installViewportFit() {
+    if (this._viewportFitInstalled) return;
+    this._viewportFitInstalled = true;
+    const run = () => {
+      try { this._fitHandToViewport && this._fitHandToViewport(); } catch (e) {}
+      try { this._fitDraftToViewport && this._fitDraftToViewport(); } catch (e) {}
+      try { this._fitBoardToViewport && this._fitBoardToViewport(); } catch (e) {}
+    };
+    const schedule = () => {
+      if (this._viewportFitRaf) cancelAnimationFrame(this._viewportFitRaf);
+      this._viewportFitRaf = requestAnimationFrame(() => { this._viewportFitRaf = 0; run(); });
+      // …and a tail, for the same reason _installPortraitSnap has one: each of
+      // these solves its width inside its own rAF, so one frame after the last
+      // resize event is not always the settled size.
+      clearTimeout(this._viewportFitTail);
+      this._viewportFitTail = setTimeout(run, 250);
+    };
+    window.addEventListener('resize', schedule, { passive: true });
+    window.addEventListener('orientationchange', schedule, { passive: true });
+  },
+
   _installPortraitSnap() {
     if (this._portraitSnapInstalled) return;
     this._portraitSnapInstalled = true;
@@ -9639,11 +9677,9 @@ const UI = {
     // the window, and never blocks the scroll itself.
     window.addEventListener('scroll', schedule, { capture: true, passive: true });
     window.addEventListener('resize', schedule, { passive: true });
-    // Hand size is a function of viewport height, so it re-solves on resize as
-    // well as on render — dragging the window changes nothing in game state.
-    window.addEventListener('resize', () => { try { UI._fitHandToViewport(); } catch (e) {} }, { passive: true });
-    window.addEventListener('resize', () => { try { UI._fitDraftToViewport(); } catch (e) {} }, { passive: true });
-    window.addEventListener('resize', () => { try { UI._fitBoardToViewport(); } catch (e) {} }, { passive: true });
+    // (The three viewport-fit listeners that used to sit here have moved to
+    // _installViewportFit — see the note there. They were unreachable on touch,
+    // because this function returns early without a fine hover pointer.)
 
     // FOLLOW THE CARD WHILE IT MOVES. Scroll and resize were handled; the card
     // ITSELF moving was not. The hover magnify scales it, a play or move
