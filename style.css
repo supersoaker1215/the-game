@@ -35486,10 +35486,24 @@ body.dragging-trick .tut-callout { pointer-events: none; }
    (Owner: "just extend the textbox so you can see the art and make sure you do
    the same for the others if needed" — it is on the shared reveal, so every
    card gets it, not just the weapons.) */
+/* AND IT TAKES THE SLACK, so the card's top edge IS the art's top edge.
+   The column below is `justify-content: flex-end` — that is what keeps the name
+   and the rules pinned to the bottom — so with `flex: 0 0 auto` here every pixel
+   the card was taller than its contents piled up ABOVE the art, and the art (the
+   only thing that draws a frame) started partway down a transparent card. The
+   cost badge is pinned to the CARD's corner, so it floated in that empty band
+   with nothing behind it. Measured before the change, badge clear of the frame:
+   Batarangs 10.4px, Pym Particles 25.2px, Fear Toxin 40.1px — the SHORTER the
+   rules text, the further out the number sat. (Owner, circling it on Batarangs:
+   "the energy needs to be in the corner.")
+   Growing instead of holding gives both ends at once: art flush to the top, name
+   and rules flush to the bottom, and the slack spent showing more of the picture.
+   A long-text card has no slack to take, so it still grows downward exactly as
+   the note above describes — nothing there changes. */
 .trick-reveal-card::before {
   content: '';
   display: block;
-  flex: 0 0 auto;
+  flex: 1 0 auto;
   min-height: calc(min(200px, 52vw) * 7 / 5 * 0.62);
   background:
     linear-gradient(rgba(10,2,16,0.20), rgba(10,2,16,0.20)),

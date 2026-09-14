@@ -532,6 +532,80 @@ t('GS-BP5 no card may be played through an open decision', function () {
   eq('and it is checked before anything is placed', guard > -1 && play > -1 && guard < play, true);
 });
 
+
+// ---- THE COST SITS IN THE CARD'S CORNER (2026-09-14) -----------------------
+// Owner, circling the "1" on a Batarangs reveal: "the energy needs to be in the
+// corner."
+//
+// It was pinned to the card's corner all along — top:6px/left:6px — but the only
+// thing that DRAWS a frame on that card is the art (a ::before carrying the
+// border), and the art did not start at the card's top. The column is
+// `justify-content: flex-end`, which is what keeps the name and rules flush to
+// the bottom; with a non-growing art every pixel the card was taller than its
+// contents piled up ABOVE the art, and the badge floated in that empty band with
+// nothing behind it. Measured in a live reveal, badge clear of the frame's top:
+//
+//     Batarangs ....... 10.4px   (16.4px of dead space above the art)
+//     Pym Particles ... 25.2px   (31.2)
+//     Fear Toxin ...... 40.1px   (46.1)
+//
+// The SHORTER the rules text, the further out the number sat — which is why it
+// looks like a different bug on different tricks. Letting the art take the slack
+// puts its top edge on the card's top edge for every one of them, and the badge
+// lands 6px inside the corner.
+function trickRevealBeforeBlock() {
+  return (CSS.match(/\.trick-reveal-card::before\s*\{([\s\S]*?)\n\}/) || ['', ''])[1];
+}
+function trickRevealCardBlock() {
+  return (CSS.match(/\n\.trick-reveal-card\s*\{([\s\S]*?)\n\}/) || ['', ''])[1];
+}
+
+t('GS-TR1 the reveal art takes the slack, so its top edge is the card top edge', function () {
+  var art = trickRevealBeforeBlock();
+  eq('found the art block', art.length > 40, true);
+  // flex-grow must be non-zero. `flex: 0 0 auto` is what left the gap.
+  var flex = /(?:^|\s)flex:\s*([^;]+);/.exec(art);
+  var grow = /(?:^|\s)flex-grow:\s*([^;]+);/.exec(art);
+  var growValue = grow ? grow[1].trim() : (flex ? flex[1].trim().split(/\s+/)[0] : null);
+  eq('the art declares a grow', growValue !== null, true);
+  eq('and it is not zero', growValue !== '0', true);
+  // It must still refuse to SHRINK and keep its floor, or a wordy card eats the
+  // picture from below — the whole reason the spacer exists.
+  var shrinkValue = flex ? (flex[1].trim().split(/\s+/)[1] || null) : null;
+  eq('the art never shrinks', shrinkValue, '0');
+  eq('and keeps its reserved height', /min-height:\s*calc\(min\(200px, 52vw\) \* 7 \/ 5 \* 0\.62\)/.test(art), true);
+});
+
+t('GS-TR2 …because the column pins its text to the bottom', function () {
+  // The grow above is only load-bearing while this holds. If the column ever
+  // stops packing to the end, the free space moves and the grow can be revisited
+  // — this test is here so that change is a decision instead of an accident.
+  var card = trickRevealCardBlock();
+  eq('found the card block', card.length > 40, true);
+  eq('the reveal is a column', /flex-direction:\s*column/.test(card), true);
+  eq('packed to the bottom', /justify-content:\s*flex-end/.test(card), true);
+  eq('and it is the art that carries the frame',
+     /border:\s*1px solid rgba\(155, 89, 182/.test(trickRevealBeforeBlock()), true);
+});
+
+t('GS-TR3 nothing later un-grows the art', function () {
+  // One rule authored correctly and a second one further down is this file's
+  // oldest trap (see sim/card-tube.js). Count every declaration that could set
+  // flex-grow on this pseudo and make sure none of them puts it back to 0.
+  var re = /\.trick-reveal-card::before[^{]*\{([\s\S]*?)\n\}/g, m, offenders = [];
+  while ((m = re.exec(CSS))) {
+    var f = /(?:^|\s)flex:\s*([^;]+);/.exec(m[1]);
+    var g = /(?:^|\s)flex-grow:\s*([^;]+);/.exec(m[1]);
+    var v = g ? g[1].trim() : (f ? f[1].trim().split(/\s+/)[0] : null);
+    if (v === '0') offenders.push(m[0].slice(0, 60));
+  }
+  eq('no rule sets flex-grow back to 0', JSON.stringify(offenders), '[]');
+  // And the badge is still in the corner it was always aimed at.
+  var cost = (CSS.match(/\.trick-reveal-card \.tr-cost\s*\{([\s\S]*?)\n\}/) || ['', ''])[1];
+  eq('the cost is pinned top-left', /position:\s*absolute;\s*top:\s*6px;\s*left:\s*6px/.test(cost), true);
+  eq('and sits above the art', /z-index:\s*3/.test(cost), true);
+});
+
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];
   try { c.fn(); } catch (e) {
