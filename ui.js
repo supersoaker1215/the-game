@@ -5843,34 +5843,15 @@ const UI = {
         // The old voiceLine path was retired with the broader SFX cleanup
         // (user spec: "only sounds for card hover, when played, when
         // killed"). Lane-gating still applies so chained deaths in the
-        // same combat don't pile up.
-        let chosen = null;
-        // Lane-gating (one audio slot per lane) only applies during combat
-        // resolution — ability kills outside combat (e.g. Homelander
-        // sacrificing an ally then destroying an enemy) each get their own
-        // slot so neither death sound blocks the other.
-        const inCombat = !!this.sfx._inCombat;
-        const currentDeathCost = inCombat ? (this.sfx._laneDeathCost ?? -1) : -1;
-        const winsLane = (deadCost > currentDeathCost)
-          || (deadCost === currentDeathCost && Math.random() < 0.5);
-        if (winsLane) {
-          if (inCombat && this.sfx._laneAudioEl) {
-            try { this.sfx._laneAudioEl.volume = 0; this.sfx._laneAudioEl.pause(); } catch (e) {}
-          }
-          chosen = this.sfx.playCardSfx(deadName, 'death', card);
-          if (inCombat) this.sfx._laneDeathCost = deadCost;
-          // Mark so handleDeath wrapper doesn't double-play
-          card._deathAudioFired = true;
-        }
-
-        // Record expected end-time so the lane advance can wait on it.
-        if (chosen) {
-          this.sfx._laneAudioEl = chosen;
-          const cap = isDelegateKill ? 3.0 : 1.5;
-          const fileDur = (!isNaN(chosen.duration) && chosen.duration > 0) ? chosen.duration : cap;
-          const playMs = Math.min(cap, fileDur) * 1000;
-          this.sfx._laneAudioEndsAt = performance.now() + playMs + 150; // +150 for fade tail
-        }
+        // same combat don't pile up — and outside combat it does not, so an
+        // ability kill (Homelander sacrificing an ally, then destroying an
+        // enemy) still gets its own slot per death.
+        //
+        // ONE DOOR (see UI._playDeathCue). This block and the handleDeath
+        // wrapper were two copies of the same gate, and only the OTHER one ever
+        // runs for a combat death — so a fix applied here alone would have
+        // looked right in the diff and changed nothing in a fight.
+        this._playDeathCue(card, { capSec: isDelegateKill ? 3.0 : 1.5 });
 
         // Kill sound on the source card (trick/ability kills).
         // Set _killAudioFiredFor so handleDeath wrapper doesn't double-play.
@@ -5897,6 +5878,7 @@ const UI = {
         this.sfx._laneAudioEl = null;
         this.sfx._laneAudioEndsAt = 0;
         this.sfx._laneDeathCost = null;
+        this.sfx._laneAudioBySide = null;
         this.sfx._inCombat = false;
         return origSR(...rest);
       };
@@ -5936,6 +5918,7 @@ const UI = {
         this.sfx._laneAudioEl = null;
         this.sfx._laneAudioEndsAt = 0;
         this.sfx._laneDeathCost = null;
+        this.sfx._laneAudioBySide = null;
         this.sfx._inCombat = true;
         return origRC(...rest);
       };
@@ -5986,6 +5969,7 @@ const UI = {
           this.sfx._laneAudioEl = null;
           this.sfx._laneAudioEndsAt = 0;
           this.sfx._laneDeathCost = null;
+          this.sfx._laneAudioBySide = null;
           return computed;
         };
         Object.defineProperty(Game, 'COMBAT_LANE_DELAY', {
@@ -6012,6 +5996,7 @@ const UI = {
               this.sfx._laneAudioEl = null;
               this.sfx._laneAudioEndsAt = 0;
               this.sfx._laneDeathCost = null;
+              this.sfx._laneAudioBySide = null;
               return computed;
             }
           });
@@ -12679,6 +12664,129 @@ const UI = {
   // flinching before it's struck. Splash / trick / ability hits carry no
   // attackerId (no lunge) and stay immediate.
   _COMBAT_IMPACT_MS: 175,
+
+  // ===================== ONE LANE, ONE BEAT AT A TIME =====================
+  // Owner: "right now the lanes attack simutanously, i want the opponent to
+  // attack first, if they have an attack sound it fires, then the players card
+  // attacks just so the sounds dont get jumbled, if theres a death that fires
+  // opponent then player, then the next lane."
+  //
+  // THIS IS PRESENTATION ONLY. The engine's exchange is simultaneous BY DESIGN
+  // and stays that way — resolveLaneCombat fires both onBeforeAttack hooks
+  // before either swing lands, applies both damages against pre-swing state, and
+  // defers both onKill hooks until after. That is what makes a trade a trade
+  // (Peacemaker's kill buff must not land before Sabertooth's retaliation; a
+  // Hulk who dies in the exchange must still splash). Serialising the RESOLUTION
+  // would change who survives, so nothing here touches it: this only decides
+  // when each already-decided beat is SHOWN and HEARD.
+  //
+  // Measured before, on a lane where both cards had a recorded attack cue and
+  // both died (timestamps from the start of the lane):
+  //
+  //     +2ms    player swings          <- the player went first
+  //    +23ms    opponent swings
+  //    +36ms    a death cue fires      <- BEFORE either impact was heard
+  //   +155ms    impact
+  //   +156ms    impact                 <- 1ms apart
+  //
+  // Everything inside a sixth of a second, in the wrong order, with the second
+  // death muted outright. That is the jumble.
+  //
+  // Both gaps scale with aiSpeed for the same reason COMBAT_LANE_DELAY does —
+  // the setting is the player's statement about how fast they want combat to
+  // read, and a fixed gap would fight it at both ends.
+  get COMBAT_SWING_GAP_MS() {
+    const mode = (this.settings && this.settings.aiSpeed) || 'normal';
+    return { fast: 180, normal: 340, slow: 460 }[mode] || 340;
+  },
+  get COMBAT_DEATH_GAP_MS() {
+    const mode = (this.settings && this.settings.aiSpeed) || 'normal';
+    return { fast: 160, normal: 260, slow: 340 }[mode] || 260;
+  },
+  // THE OPPONENT ALWAYS GOES FIRST. `owner` is the ABSOLUTE side, and the state
+  // is seat-flipped for an online guest, so 'ai' is "the opponent" from whoever
+  // is looking — the same thing every other viewer-relative read in here means
+  // by it.
+  _swingBeatMs(attackerOwner) {
+    return (this._COMBAT_IMPACT_MS || 175)
+         + (attackerOwner === 'player' ? this.COMBAT_SWING_GAP_MS : 0);
+  },
+  // …and the deaths come after BOTH swings, in the same order.
+  _deathBeatMs(deadOwner) {
+    return this._swingBeatMs('player') + this.COMBAT_DEATH_GAP_MS
+         + (deadOwner === 'player' ? this.COMBAT_DEATH_GAP_MS : 0);
+  },
+  // ONE DOOR FOR A DYING CARD'S CUE.
+  // This gate was written twice — once in the killCard wrapper and once in the
+  // handleDeath wrapper — and only the handleDeath copy ever runs for a COMBAT
+  // death, because combat kills reach the UI through cleanupDead. Two copies of
+  // one rule is how a fix lands in the diff and changes nothing on the board, so
+  // they both call this now.
+  //
+  // Two things happen here that did not before:
+  //
+  //   • THE CUE WAITS FOR THE SWING THAT CAUSED IT. It used to fire inside the
+  //     engine's synchronous cleanupDead — measured at +36ms, against impacts
+  //     the UI defers to +155ms — so a card was heard dying before it was heard
+  //     being hit. It now lands on the lane's death beat, after both swings.
+  //   • ONE SLOT PER SIDE, NOT ONE PER LANE. The gate exists so chained deaths
+  //     cannot pile up, and within a side that still holds: the priciest death
+  //     wins its slot exactly as before. But keyed to the whole LANE it also
+  //     silenced the second death of an ordinary trade, and both are a beat the
+  //     owner asked for — "if theres a death that fires opponent then player."
+  //
+  // Returns truthy when it booked a cue, which is what the killCard wrapper
+  // reads to decide whether it owns the lane's audio window.
+  _playDeathCue(card, opts) {
+    if (!card || !card.name || !this.sfx || !this.sfx.playCardSfx) return false;
+    card._deathAudioFired = true;
+    const deadCost = card.baseCost || card.cost || 0;
+    const inCombat = !!this.sfx._inCombat;
+    const side = (card.owner === 'player') ? 'player' : 'ai';
+    if (!this.sfx._laneDeathCost || typeof this.sfx._laneDeathCost !== 'object') {
+      this.sfx._laneDeathCost = { ai: null, player: null };
+    }
+    const currentCost = inCombat ? (this.sfx._laneDeathCost[side] ?? -1) : -1;
+    const wins = (deadCost > currentCost)
+      || (deadCost === currentCost && Math.random() < 0.5);
+    if (!wins) return false;
+    if (inCombat && this.sfx._laneAudioBySide && this.sfx._laneAudioBySide[side]) {
+      const prev = this.sfx._laneAudioBySide[side];
+      try { prev.volume = 0; prev.pause(); } catch (e) {}
+    }
+    const delay = inCombat ? this._deathBeatMs(side) : 0;
+    const name = card.name;
+    const fire = () => {
+      const el = this.sfx.playCardSfx(name, 'death', card);
+      if (el) this.sfx._laneAudioEl = el;
+      if (inCombat) {
+        if (!this.sfx._laneAudioBySide) this.sfx._laneAudioBySide = {};
+        this.sfx._laneAudioBySide[side] = el || null;
+      }
+    };
+    if (delay > 0) setTimeout(fire, delay); else fire();
+    if (inCombat) this.sfx._laneDeathCost[side] = deadCost;
+    // BOOKED FROM THE SCHEDULE, NOT FROM THE SOUND. The lane-advance getter
+    // reads the window the instant the engine finishes the lane, when this cue
+    // has not started and there is no element to measure — so the wait has to be
+    // declared up front, at the capped length.
+    const capMs = ((opts && opts.capSec) || 1.5) * 1000;
+    this._bookLaneAudioUntil(delay + capMs + 150);   // +150 for the fade tail
+    return true;
+  },
+
+  // THE LANE CANNOT ADVANCE OUT FROM UNDER ITS OWN BEATS. COMBAT_LANE_DELAY is
+  // already audio- and FX-aware, but it is read the instant the engine finishes
+  // the lane — when every beat above is still in the future and so invisible to
+  // both `activeTailMs` (nothing is sounding yet) and `activeFxTailMs` (nothing
+  // is animating yet). Booking the end of the sequence into the same slot the
+  // death cue already uses is what makes the existing wait cover it.
+  _bookLaneAudioUntil(msFromNow) {
+    if (!this.sfx) return;
+    const at = performance.now() + msFromNow;
+    if (at > (this.sfx._laneAudioEndsAt || 0)) this.sfx._laneAudioEndsAt = at;
+  },
+
   // 2v2: FX events carry the ABSOLUTE side ('player'=Team A, 'ai'=Team B), but
   // the board renders the VIEWER's team on the 'player' bars and the enemy on
   // the 'ai' bars (Team B sees the board flipped). Map an event's absolute owner
@@ -12802,6 +12910,13 @@ const UI = {
   //     at once. This asks CARD_SFX directly: a card with no recorded attack is
   //     untouched, which is all but a handful, and the generic 'hit' impact
   //     still carries every ordinary swing.
+  // Which side swung. One lookup, used by both the beat clock and the cue.
+  _attackerOwner(attackerId) {
+    if (attackerId == null) return null;
+    try { const c = Game.findCard && Game.findCard(attackerId); return c ? c.owner : null; }
+    catch (e) { return null; }
+  },
+
   _playAttackerCue(attackerId) {
     if (attackerId == null || !this.sfx || !this.sfx.CARD_SFX) return;
     // ONE CUE PER SWING, NOT ONE PER VICTIM. A splashing attacker emits a `hit`
@@ -13101,10 +13216,28 @@ const UI = {
         if (ev.type === 'hit') {
           const tier = this._damageTier(ev.amount, ev.lethal);
           const fx = this._TIER_FX[tier] || this._TIER_FX.medium;
-          if (fx.shake) this._screenShake(fx.shake);
-          if (fx.hitPause) this._hitPauseFreeze(fx.hitPause);
-          try { this.sfx.play('hit', fx.sfxGain, 0); } catch (e) {}
-          if (ev.amount > 0) this._haptic('hit');
+          // ON ITS OWN BEAT, same as the node-anchored branch below. A killing
+          // blow used to take this path IMMEDIATELY while the surviving side's
+          // hit waited for the impact frame, so the two halves of one exchange
+          // were heard 150ms apart in the wrong order — and the louder half was
+          // the kill.
+          const owner = this._attackerOwner(ev.attackerId);
+          const beat = ev.attackerId != null && !(this._reducedMotion && this._reducedMotion())
+            ? this._swingBeatMs(owner) : 0;
+          if (beat) this._bookLaneAudioUntil(beat);
+          const fire = () => {
+            if (fx.shake) this._screenShake(fx.shake);
+            if (fx.hitPause) this._hitPauseFreeze(fx.hitPause);
+            try { this.sfx.play('hit', fx.sfxGain, 0); } catch (e) {}
+            // AND THE ATTACKER'S OWN CUE. This branch exists because the victim
+            // is already off the board on a killing blow, and it fired every
+            // board-level channel EXCEPT this one — so Jango's blasters played
+            // on every swing that missed a kill and went silent on the swing
+            // that landed one, which is the opposite of what it is for.
+            this._playAttackerCue(ev.attackerId);
+            if (ev.amount > 0) this._haptic('hit');
+          };
+          if (beat) setTimeout(fire, beat); else fire();
         }
         continue;
       }
@@ -13115,9 +13248,15 @@ const UI = {
       // number rises exactly when its flash blooms.
       const _combatHit = ev.type === 'hit' && ev.attackerId != null
         && !(this._reducedMotion && this._reducedMotion());
-      const defer = _combatHit
-        ? (fn) => setTimeout(fn, this._COMBAT_IMPACT_MS || 175)
-        : (fn) => fn();
+      // …and WHICH beat it lands on is the attacker's side: the opponent's
+      // swing keeps the impact frame, the player's follows a gap behind it, so
+      // the two are heard as two events instead of one smear. See the note on
+      // COMBAT_SWING_GAP_MS — resolution order is untouched, only playback.
+      const _beatMs = _combatHit
+        ? this._swingBeatMs(this._attackerOwner(ev.attackerId))
+        : 0;
+      if (_combatHit) this._bookLaneAudioUntil(_beatMs);
+      const defer = _combatHit ? (fn) => setTimeout(fn, _beatMs) : (fn) => fn();
       // Hit flash + strike burst ring + card shake — ALL magnitude-
       // scaled. The tier classifier maps this hit's damage (and
       // lethality) to a feedback intensity; every channel below reads
@@ -34639,29 +34778,10 @@ const UI = {
         // reach here directly, so we play the cue here with the same
         // lane-gating logic. The _deathAudioFired flag prevents double-
         // play when killCard already handled it.
-        if (!card._deathAudioFired && card.name && this.sfx && this.sfx.playCardSfx) {
-          card._deathAudioFired = true;
-          const deadCost = card.baseCost || card.cost || 0;
-          const inCombat = !!this.sfx._inCombat;
-          const currentDeathCost = inCombat ? (this.sfx._laneDeathCost ?? -1) : -1;
-          const winsLane = (deadCost > currentDeathCost)
-            || (deadCost === currentDeathCost && Math.random() < 0.5);
-          if (winsLane) {
-            if (inCombat && this.sfx._laneAudioEl) {
-              try { this.sfx._laneAudioEl.volume = 0; this.sfx._laneAudioEl.pause(); } catch (e) {}
-            }
-            const chosen = this.sfx.playCardSfx(card.name, 'death', card);
-            if (inCombat) {
-              this.sfx._laneDeathCost = deadCost;
-              if (chosen) {
-                this.sfx._laneAudioEl = chosen;
-                const fileDur = (!isNaN(chosen.duration) && chosen.duration > 0) ? chosen.duration : 1.5;
-                const playMs = Math.min(1.5, fileDur) * 1000;
-                this.sfx._laneAudioEndsAt = performance.now() + playMs + 150;
-              }
-            }
-          }
-        }
+        // THIS is the one a combat death takes (cleanupDead -> handleDeath);
+        // the killCard wrapper only sees trick/ability kills. Both now call the
+        // same door so the beat and the per-side gate cannot drift apart.
+        if (!card._deathAudioFired) this._playDeathCue(card, {});
         const result = origDeath(card, laneIdx, killer);
         // If the card was revived (Phoenix/etc), _deathHandled is reset to false.
         // Clear our audio flag so the card's death sound plays on its next death.

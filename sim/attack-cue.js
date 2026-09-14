@@ -122,6 +122,125 @@ t('AC-5 only cards with a recorded attack can ever make this sound', function ()
      JSON.stringify(['Droideka', 'Jango Fett', 'Padme Amidala', 'Thor', 'Xenomorph']));
 });
 
+
+// ---- ONE LANE, ONE BEAT AT A TIME (2026-09-14) ----------------------------
+// Owner: "right now the lanes attack simutanously, i want the opponent to
+// attack first, if they have an attack sound it fires, then the players card
+// attacks just so the sounds dont get jumbled, if theres a death that fires
+// opponent then player, then the next lane."
+//
+// Measured before, on a lane where both cards had a recorded attack cue and
+// both died (ms from the start of the lane):
+//
+//     +2ms    player swings          <- the player went first
+//    +23ms    opponent swings
+//    +36ms    a death cue fires      <- BEFORE either impact was heard
+//   +155ms    impact
+//   +156ms    impact                 <- 1ms apart, and the 2nd death muted
+//
+// After, same lane:
+//
+//   +220ms    impact + the OPPONENT's cue
+//   +567ms    impact + the PLAYER's cue
+//   +813ms    the opponent's death
+//  +1069ms    the player's death
+//
+// The engine is not part of any of that and must never become part of it.
+
+t('AC-6 the opponent swings first, and the player follows a gap behind', function () {
+  var swing = decomment(methodBody('_swingBeatMs'));
+  eq('found the swing beat', swing.length > 40, true);
+  // The gap is added for the PLAYER and not for the opponent. Written this way
+  // round so flipping it is a visible edit, not a sign change.
+  eq('the player waits',   /attackerOwner === 'player' \? this\.COMBAT_SWING_GAP_MS : 0/.test(swing), true);
+  eq('off the impact frame', /_COMBAT_IMPACT_MS/.test(swing), true);
+  // Both gaps answer to aiSpeed, like COMBAT_LANE_DELAY — a fixed gap would
+  // fight the setting at both ends.
+  var src = SRC;
+  eq('swing gap scales with speed', /COMBAT_SWING_GAP_MS\(\) \{[\s\S]{0,200}aiSpeed/.test(src), true);
+  eq('death gap scales with speed', /COMBAT_DEATH_GAP_MS\(\) \{[\s\S]{0,200}aiSpeed/.test(src), true);
+});
+
+t('AC-7 deaths come after BOTH swings, opponent first', function () {
+  var death = decomment(methodBody('_deathBeatMs'));
+  eq('found the death beat', death.length > 40, true);
+  // Built ON the later of the two swings, so no arithmetic can put a death
+  // ahead of the swing that caused it.
+  eq('after the last swing', /_swingBeatMs\('player'\)/.test(death), true);
+  eq('plus a gap',           /\+ this\.COMBAT_DEATH_GAP_MS/.test(death), true);
+  eq('and the player last',  /deadOwner === 'player' \? this\.COMBAT_DEATH_GAP_MS : 0/.test(death), true);
+});
+
+t('AC-8 the impact beat is the attacker\'s, on both hit paths', function () {
+  var body = decomment(methodBody('showDamageFloats'));
+  eq('found showDamageFloats', body.length > 400, true);
+  // The ordinary path: victim still on the board.
+  eq('the live-victim hit uses the attacker\'s beat',
+     /_swingBeatMs\(this\._attackerOwner\(ev\.attackerId\)\)/.test(body), true);
+  eq('and the flat impact constant no longer drives it alone',
+     /setTimeout\(fn, this\._COMBAT_IMPACT_MS \|\| 175\)/.test(body), false);
+  // The killing-blow path: victim already gone, so there is no node to anchor
+  // to. It used to fire IMMEDIATELY while the surviving side waited for the
+  // impact frame — the two halves of one exchange, heard out of order.
+  var kill = body.slice(0, body.indexOf('Card-targeted events'));
+  eq('found the killing-blow branch', /if \(!cardEl\)/.test(body), true);
+  var lethal = body.slice(body.indexOf('if (!cardEl)'), body.indexOf('if (!cardEl)') + 1800);
+  eq('the killing blow waits for its beat too', /_swingBeatMs\(owner\)/.test(lethal), true);
+  eq('…and finally plays the attacker\'s cue', /_playAttackerCue\(ev\.attackerId\)/.test(lethal), true);
+});
+
+t('AC-9 one death-cue door, scheduled, gated per side', function () {
+  var door = decomment(methodBody('_playDeathCue'));
+  eq('found the door', door.length > 300, true);
+  // SCHEDULED, not played where it is decided. It used to run inside the
+  // engine's synchronous cleanupDead, which finishes long before the UI's
+  // deferred impact frame.
+  eq('it waits for the death beat', /_deathBeatMs\(side\)/.test(door), true);
+  eq('and schedules rather than plays', /setTimeout\(fire, delay\)/.test(door), true);
+  // Per SIDE, so an ordinary trade gets both deaths instead of one.
+  eq('the slot is keyed by side', /_laneDeathCost\[side\]/.test(door), true);
+  eq('and so is the cut-off of a previous cue', /_laneAudioBySide\[side\]/.test(door), true);
+  // BOTH wrappers call it. Only the handleDeath one runs for a combat death, so
+  // a second copy of this rule is a fix that changes nothing in a fight.
+  var calls = (SRC.match(/this\._playDeathCue\(card,/g) || []).length;
+  eq('called from both wrappers', calls, 2);
+  eq('and the killCard copy of the gate is gone',
+     /const winsLane = \(deadCost > currentDeathCost\)/.test(SRC), false);
+});
+
+t('AC-10 the lane cannot advance out from under its own beats', function () {
+  var book = decomment(methodBody('_bookLaneAudioUntil'));
+  eq('found the booking', book.length > 40, true);
+  eq('it only ever extends the window', /if \(at > \(this\.sfx\._laneAudioEndsAt \|\| 0\)\)/.test(book), true);
+  var door = decomment(methodBody('_playDeathCue'));
+  eq('the death books its own wait', /_bookLaneAudioUntil\(delay \+ capMs/.test(door), true);
+  var body = decomment(methodBody('showDamageFloats'));
+  eq('and so does a swing', /_bookLaneAudioUntil\(/.test(body), true);
+});
+
+t('AC-11 the ENGINE still resolves a lane simultaneously', function () {
+  // The whole change above is playback. If a future edit ever "fixes" the order
+  // in the engine instead, a trade stops being a trade — so this asserts the
+  // outcome, not the source: two cards that can kill each other BOTH die.
+  Game.init();
+  Game.startMatch && Game.startMatch({ difficulty: 'normal' });
+  var s = Game.state;
+  s.lanes.forEach(function (l) { l.player = null; l.ai = null; });
+  var mk = function (n, side) {
+    return Game.createCardInstance(CARD_DEFS.filter(function (d) { return d.name === n; })[0], side);
+  };
+  var p = mk('Padme Amidala', 'player'), a = mk('Jango Fett', 'ai');
+  p.attack = 20; a.attack = 20;
+  s.lanes[0].player = p; s.lanes[0].ai = a;
+  var done = false;
+  Game.resolveLaneCombat(0, function () { done = true; });
+  eq('the lane resolved', done, true);
+  eq('the opponent died', a.currentHealth <= 0, true);
+  eq('and so did the player\'s card', p.currentHealth <= 0, true);
+  // …and neither swing was skipped because the other landed first.
+  eq('both lanes are empty', !s.lanes[0].player && !s.lanes[0].ai, true);
+});
+
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];
   try { c.fn(); } catch (e) {
