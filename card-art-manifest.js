@@ -804,4 +804,27 @@ window.CARD_ART_ACCENT_OVERRIDE = {
   'Ahsoka':               '207,109,64',
   'Groot':                '162,115,80',
   'Anti-Life Equation':   '220,121,59',
+
+  // WONDER WOMAN — owner: "wondermwoan shpuld be a gold border from her armor".
+  //
+  // The generator had 239,101,38, an orange, and it is reading the EMBERS: the
+  // painting is full of drifting sparks and her corset is red, so the orange
+  // family is 18.5% of it while the gold is 0.1%. Scarce the way Superman's red
+  // is scarce — a thin trim on tiara, bracers, belt, lasso and greaves — and
+  // scarcity is exactly what the area vote cannot see past.
+  //
+  // What makes it safe to trust 0.1% of a painting is that the hue does not
+  // move when you look somewhere else in it: tiara and corset trim measure
+  // 46.9 deg, belt and lasso and greaves 47.2, the whole figure 46.8. Three
+  // separate pieces of armour agreeing to within half a degree is the armour
+  // answering, not a stray highlight.
+  //
+  // The saturation floor is doing real work here and is worth naming, because
+  // it cuts the other way from Groot's. Her gold is lit hard and measures only
+  // s 0.37-0.52; kept at the paint's own value it comes back cream and reads as
+  // white on a black card. Held to the shipped 0.60 floor it reads as metal.
+  // Brown needed that floor turned OFF for exactly the same reason it is turned
+  // ON here — the floor is what decides whether a warm hue reads as a colour or
+  // as a material.
+  'Wonder Woman':         '241,210,96',
 };

@@ -7882,12 +7882,30 @@ const CARD_ABILITIES = {
     onPlay(G, self, lane) {
       const opp = G.opponent(self.owner);
       const existing = G.state.lanes[lane][opp];
-      self._bathroomTracked = (existing && existing.currentHealth > 0) ? existing.id : null;
       // The ids this room chained, so it can release them when it leaves —
       // `_chained` is SHARED with Pinhead's hand-chain (told apart everywhere
       // else by _chainPartnerId, which only Pinhead sets), so clearing the flag
       // off anything else would break a card this room never touched.
+      // Set BEFORE the chain below, which pushes into it.
       self._bathroomChained = [];
+      // A ROOM THAT OPENS UNDER A CARD HAS THAT CARD. Owner: "if the bathroom
+      // spawns on a card for the enmy the debuff is applied sma efor
+      // graganta" — the black hole catches whoever is standing in it, and so
+      // does this.
+      //
+      // It used to only RECORD the occupant, as "not an arrival", so a room
+      // that landed on a body did nothing at all until some later card walked
+      // in. That made the placement roll decide the card: land on empty ground
+      // and it works, land on a body and it is blank. Boiler Room and Open
+      // Water both already take the occupant on arrival; this is the room that
+      // did not. (Sewers is deliberately left alone — its trigger is a SPAWN,
+      // not a debuff, and "the first NEW enemy to enter" is its printed rule.)
+      if (existing && existing.currentHealth > 0 && !existing.isEnvironment) {
+        self._bathroomTracked = existing.id;
+        CARD_ABILITIES['The Bathroom']._chain(G, self, existing, lane);
+      } else {
+        self._bathroomTracked = null;
+      }
     },
     _chain(G, self, victim, laneIdx) {
       if (!self._bathroomChained) self._bathroomChained = [];

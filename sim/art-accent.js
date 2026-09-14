@@ -394,6 +394,24 @@ t('AA-12 Ahsoka is orange, the Equation is orange, and Groot is BROWN', function
   // changed because of the override, not because the accent file was rebuilt.
   eq('the generated map still reports the void it sampled',
      MAP['Anti-Life Equation.png'], '117,183,245');
+
+  // WONDER WOMAN — owner: "wondermwoan shpuld be a gold border from her armor".
+  // The generator read the EMBERS: the orange family is 18.5% of that painting
+  // and her gold trim is 0.1%. Gold is the yellow band, bright and saturated —
+  // which is the same floor Groot needed turned OFF, cutting the other way: it
+  // is what decides whether a warm hue reads as a colour or as a material.
+  eq('Wonder Woman is overridden', !!ov['Wonder Woman'], true);
+  if (ov['Wonder Woman']) {
+    var ww = hsv(ov['Wonder Woman']);
+    eq('and it is gold — the yellow band (' + ww.h.toFixed(1) + ' deg)',
+       ww.h >= 42 && ww.h < 60, true);
+    eq('bright, like metal (' + ww.max255 + ' max channel)', ww.max255 >= 200, true);
+    eq('and saturated enough not to read as cream (' + ww.s.toFixed(2) + ')', ww.s >= 0.55, true);
+    eq('no longer the ember orange the generator found',
+       ov['Wonder Woman'] !== '239,101,38', true);
+    eq('and the generated map still reports it',
+       MAP['Wonder Woman.png'], '239,101,38');
+  }
 });
 
 // ---- run ----------------------------------------------------

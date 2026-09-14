@@ -8847,6 +8847,99 @@ test("Burn/bleed kills BEFORE the lane fights, so the survivor hits the healthba
   assert(alive.mine.currentHealth < 9, 'and our card took the trade');
 });
 
+test("The Bathroom takes a card that is already standing there", function () {
+  // Owner: "if the bathroom spawns on a card for the enmy the debuff is applied
+  // sma efor graganta." It used to only RECORD the occupant as "not an
+  // arrival", so a room that landed on a body did nothing at all until some
+  // later card walked in — the placement roll decided whether the card worked.
+  var G = freshGame();
+  G.state.lanes.forEach(function (l) { l.player = null; l.ai = null; l._env = null; });
+  var sitting = place(G, 'Hulk', 'ai', 1);
+  sitting.attack = 4; sitting.maxHealth = 6; sitting.currentHealth = 6;
+
+  var room = G._placeEventEnvironment('player', 1, 'The Bathroom');
+  assertEq(!!room, true, 'the room seated');
+  assertEq(sitting.attack, 2, 'the occupant takes -2 ATK on arrival');
+  assertEq(sitting.currentHealth, 4, 'and -2 HP');
+  assertEq(!!sitting._chained, true, 'and is Chained');
+  assertEq((room._bathroomChained || []).indexOf(sitting.id) !== -1, true,
+    'and the room owns it, so it will be released when the room goes');
+
+  // ONCE. The occupant is recorded as tracked by the same step, so the
+  // onAnyCardPlayed ping does not read it as a fresh arrival next turn.
+  var atk = sitting.attack, hp = sitting.currentHealth;
+  CARD_ABILITIES['The Bathroom'].onAnyCardPlayed(G, room);
+  CARD_ABILITIES['The Bathroom'].onAnyCardPlayed(G, room);
+  assertEq(sitting.attack, atk, 'not chained a second time');
+  assertEq(sitting.currentHealth, hp, 'nor hit again');
+
+  // Landing on EMPTY ground still works the way it always did.
+  var G2 = freshGame();
+  G2.state.lanes.forEach(function (l) { l.player = null; l.ai = null; l._env = null; });
+  var r2 = G2._placeEventEnvironment('player', 1, 'The Bathroom');
+  assertEq((r2._bathroomChained || []).length, 0, 'an empty lane chains nobody');
+  var later = place(G2, 'Hulk', 'ai', 1);
+  later.attack = 4; later.maxHealth = 6; later.currentHealth = 6;
+  CARD_ABILITIES['The Bathroom'].onAnyCardPlayed(G2, r2);
+  assertEq(later.attack, 2, 'and a later arrival is still chained');
+});
+
+test("A habitat's two rooms match: both on a card, or both on empty ground", function () {
+  // Owner: "if abke one spawns on a card, the otehr bathroom needs to spawn on
+  // a card or they both spawn in empty lanes, same for all enviroments."
+  //
+  // Both lanes were drawn at random and independently, so the commonest result
+  // was lopsided — your room opened under a body and theirs opened on bare
+  // ground. Which side got the good half was a coin toss nobody saw flipped.
+  //
+  // WHICH SIDE COUNTS AS "ON A CARD" IS THE OPPONENT'S. An environment acts on
+  // its owner's enemy, so the player's room lands on a body when the AI holds
+  // that lane, and the AI's when the player does — mirror images, which is why
+  // an unconstrained pair came out uneven.
+  function run(seed, setup) {
+    var G = freshGame();
+    G.seedMatch(seed);
+    G.state.lanes.forEach(function (l) { l.player = null; l.ai = null; l._env = null; });
+    setup(G);
+    var h = { name: 'Saw', place: 'The Bathroom', shows: true, fired: false, appearAt: 3 };
+    G._runHabitatEvent(h, 3);
+    return (h.seated || []).map(function (x) {
+      var foe = x.owner === 'player' ? 'ai' : 'player';
+      return !!G.state.lanes[x.lane][foe];
+    });
+  }
+  // A body on each side: every seed must produce a MATCHED pair.
+  [11, 22, 33, 44, 55].forEach(function (seed) {
+    var kinds = run(seed, function (G) {
+      G.state.lanes[0].ai = G.createCardInstance(cardByName('Hulk'), 'ai');
+      G.state.lanes[4].player = G.createCardInstance(cardByName('Groot'), 'player');
+    });
+    assertEq(kinds.length, 2, 'seed ' + seed + ': both rooms seated');
+    assertEq(kinds[0], kinds[1], 'seed ' + seed + ': the two rooms match (' + JSON.stringify(kinds) + ')');
+  });
+  // An empty board: both land on empty ground, which is the same rule.
+  [11, 22, 33].forEach(function (seed) {
+    var kinds = run(seed, function () {});
+    assertEq(JSON.stringify(kinds), JSON.stringify([false, false]),
+      'seed ' + seed + ': an empty board gives two empty lanes');
+  });
+});
+
+test("…and when it cannot match, it still lands and says so", function () {
+  // Only ONE side has a body, so there is no lane that makes the pair even. A
+  // habitat that refuses to land is a round with nothing in it, so it falls
+  // back to the old behaviour — and logs, because uneven is now the exception.
+  var G = freshGame();
+  G.seedMatch(11);
+  G.state.lanes.forEach(function (l) { l.player = null; l.ai = null; l._env = null; });
+  G.state.lanes[0].ai = G.createCardInstance(cardByName('Hulk'), 'ai');
+  var h = { name: 'Saw', place: 'The Bathroom', shows: true, fired: false, appearAt: 3 };
+  G._runHabitatEvent(h, 3);
+  assertEq((h.seated || []).length, 2, 'it still seated both rooms');
+  var said = (G.state.log || []).some(function (l) { return /could not match its two lanes/.test(l); });
+  assertEq(said, true, 'and the log says the pair is uneven');
+});
+
 test("The Bathroom chains everything that walks in, and staying costs (-1/-1)", function () {
   // REWRITTEN 2026-09-14. Owner: "for the bathroom just say when enemy cards
   // enter this lane they take (-2/-2) and are chained, losing (-1/-1) every

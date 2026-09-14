@@ -17861,6 +17861,44 @@ const Game = {
     }
     const pick = free.slice();
     this.shuffle(pick);
+    // RECIPROCAL PLACEMENT. Owner: "if abke one spawns on a card, the otehr
+    // bathroom needs to spawn on a card or they both spawn in empty lanes, same
+    // for all enviroments."
+    //
+    // Both lanes were drawn at random and independently, so the commonest
+    // outcome was a lopsided pair: your room opened under an enemy body and
+    // theirs opened on bare ground, or the reverse. Same card, same event, two
+    // very different prices — and which player got the good half was a coin
+    // toss nobody could see being flipped.
+    //
+    // WHICH SIDE COUNTS AS "ON A CARD" IS NOT THE OWNER'S SIDE. An environment
+    // acts on its owner's OPPONENT ("the first ENEMY card to enter this lane"),
+    // so the PLAYER's room lands on a body when the AI holds that lane, and the
+    // AI's room lands on a body when the player does. The two tests are mirror
+    // images, which is exactly why an unconstrained pair came out uneven.
+    //
+    // The FIRST lane stays random — this constrains only the second, which is
+    // what "the other one needs to as well" asks for. One shuffle, as before:
+    // drawing from extra shuffled pools would consume a different number of
+    // seeded rng steps and move every downstream roll in a replay.
+    const _first = pick[0];
+    const _wantOccupied = !!(this.state.lanes[_first] && this.state.lanes[_first].ai);
+    let _second = null;
+    for (let k = 1; k < pick.length; k++) {
+      const i = pick[k];
+      if (i === _first) continue;
+      if (!!(this.state.lanes[i] && this.state.lanes[i].player) === _wantOccupied) { _second = i; break; }
+    }
+    if (_second == null) {
+      // No lane of the matching kind is free. Fall back to the old behaviour
+      // rather than refusing the event — a habitat that cannot land is a round
+      // with nothing in it — and say so, because an uneven pair is now the
+      // exception rather than the rule.
+      for (let k = 1; k < pick.length; k++) if (pick[k] !== _first) { _second = pick[k]; break; }
+      if (_second != null && need > 1) {
+        this.log(`[EVENT] ${name} could not match its two lanes — one opens on a card, the other on empty ground.`);
+      }
+    }
     h.fired = true;
     // WHAT IT SEATED, AND WHEN IT LETS GO. Recorded at landing rather than at
     // draw, because a habitat can wait several rounds for two clear lanes and
@@ -17875,9 +17913,9 @@ const Game = {
       this._placeEventEnvironment('ai', pick[0], name, { keepOpposite: true });
       h.seated = [{ lane: pick[0], owner: 'player' }, { lane: pick[0], owner: 'ai' }];
     } else {
-      this._placeEventEnvironment('player', pick[0], name);
-      this._placeEventEnvironment('ai', pick[1], name);
-      h.seated = [{ lane: pick[0], owner: 'player' }, { lane: pick[1], owner: 'ai' }];
+      this._placeEventEnvironment('player', _first, name);
+      this._placeEventEnvironment('ai', _second, name);
+      h.seated = [{ lane: _first, owner: 'player' }, { lane: _second, owner: 'ai' }];
     }
     this._announceHabitatEvent(h, name, def);
   },
