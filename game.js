@@ -16634,16 +16634,11 @@ const Game = {
     return out;
   },
 
-  // The chain's price for moving. Uses the CANONICAL shield rule —
-  // statStripShieldsHp, the same predicate checkLaneTrap and debuffCard use —
-  // so Invincible / Damage Immunity blocks the health loss while the ATK strip
-  // still lands. Re-deriving that rule locally is exactly how the Bear Trap
-  // once ended up shielding a card that Pym Particles did not.
-  // The chain STAYS after the move: it is a ball being dragged, so a second
-  // move costs again.
   // THE CHAIN'S TOLL ON LEAVING. (−1/−1), matching the round-tick The Bathroom
   // charges for staying, so the two halves of Chained cost the same and the
-  // choice between them is about position rather than arithmetic.
+  // choice between them is about position rather than arithmetic. The chain
+  // STAYS after the move — it is a ball being dragged, so a second move costs
+  // again.
   //
   // Same canonical shield rule as everything else that strips stats — the
   // statStripShieldsHp predicate checkLaneTrap, debuffCard and the room's own
@@ -17861,7 +17856,11 @@ const Game = {
     }
     const pick = free.slice();
     this.shuffle(pick);
-    // RECIPROCAL PLACEMENT. Owner: "if abke one spawns on a card, the otehr
+    // RECIPROCAL PLACEMENT — TWO-LANE HABITATS ONLY. Gargantua takes one lane
+    // and seats both sides of it, so its pair is the same lane by definition
+    // and there is nothing to match; computing a second lane for it was work
+    // whose answer was then thrown away.
+    // Owner: "if abke one spawns on a card, the otehr
     // bathroom needs to spawn on a card or they both spawn in empty lanes, same
     // for all enviroments."
     //
@@ -17882,20 +17881,19 @@ const Game = {
     // drawing from extra shuffled pools would consume a different number of
     // seeded rng steps and move every downstream roll in a replay.
     const _first = pick[0];
-    const _wantOccupied = !!(this.state.lanes[_first] && this.state.lanes[_first].ai);
     let _second = null;
-    for (let k = 1; k < pick.length; k++) {
-      const i = pick[k];
-      if (i === _first) continue;
-      if (!!(this.state.lanes[i] && this.state.lanes[i].player) === _wantOccupied) { _second = i; break; }
-    }
-    if (_second == null) {
-      // No lane of the matching kind is free. Fall back to the old behaviour
-      // rather than refusing the event — a habitat that cannot land is a round
-      // with nothing in it — and say so, because an uneven pair is now the
-      // exception rather than the rule.
-      for (let k = 1; k < pick.length; k++) if (pick[k] !== _first) { _second = pick[k]; break; }
-      if (_second != null && need > 1) {
+    if (need > 1) {
+      const _wantOccupied = !!(this.state.lanes[_first] && this.state.lanes[_first].ai);
+      for (let k = 1; k < pick.length; k++) {
+        const i = pick[k];
+        if (!!(this.state.lanes[i] && this.state.lanes[i].player) === _wantOccupied) { _second = i; break; }
+      }
+      if (_second == null) {
+        // No lane of the matching kind is free. Fall back to the old behaviour
+        // rather than refusing the event — a habitat that cannot land is a round
+        // with nothing in it — and say so, because an uneven pair is now the
+        // exception rather than the rule.
+        _second = pick[1];
         this.log(`[EVENT] ${name} could not match its two lanes — one opens on a card, the other on empty ground.`);
       }
     }
@@ -17909,9 +17907,9 @@ const Game = {
     // slot while it waited would have blocked every other event for nothing.
     this._eventSlotClaim(roundNow, name, 'hazard');
     if (need === 1) {
-      this._placeEventEnvironment('player', pick[0], name);
-      this._placeEventEnvironment('ai', pick[0], name, { keepOpposite: true });
-      h.seated = [{ lane: pick[0], owner: 'player' }, { lane: pick[0], owner: 'ai' }];
+      this._placeEventEnvironment('player', _first, name);
+      this._placeEventEnvironment('ai', _first, name, { keepOpposite: true });
+      h.seated = [{ lane: _first, owner: 'player' }, { lane: _first, owner: 'ai' }];
     } else {
       this._placeEventEnvironment('player', _first, name);
       this._placeEventEnvironment('ai', _second, name);

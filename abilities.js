@@ -525,9 +525,11 @@ const CARD_ABILITIES = {
       // in onMoved (fired by moveCard), so this callback only handles the
       // flight itself — no explicit debuff here or it would double-sting.
       // isMoveLocked, not isActionLocked: the freeze/fear lock PLUS Gargantua's
-      // hold. moveCard refuses either way, but asking here is what stops the
-      // card offering a move prompt it cannot honour — a lane picker that does
-      // nothing when you answer it.
+      // hold (see Game.isMoveLocked). moveCard refuses either way, but asking
+      // HERE is what stops the card offering a move prompt it cannot honour —
+      // a lane picker that does nothing when you answer it. Every self-mover
+      // asks the same question for the same reason; this is the one that
+      // explains it.
       if (Game.isMoveLocked(self)) {
         G.log(`  [SKIP] ${self.name} is ${Game.moveLockLabel(self)} — stays put.`);
         return;
@@ -598,10 +600,7 @@ const CARD_ABILITIES = {
     },
     onBeforeTricks(G, self, lane) {
       // Stun / freeze grounds him — no flutter and no growth this round.
-      // isMoveLocked, not isActionLocked: the freeze/fear lock PLUS Gargantua's
-      // hold. moveCard refuses either way, but asking here is what stops the
-      // card offering a move prompt it cannot honour — a lane picker that does
-      // nothing when you answer it.
+      // See Man-Bat for why this asks isMoveLocked and not isActionLocked.
       if (Game.isMoveLocked(self)) {
         G.log(`  [SKIP] ${self.name} is ${Game.moveLockLabel(self)} — stays put.`);
         return;
@@ -691,10 +690,7 @@ const CARD_ABILITIES = {
       // existing onMoved handler picks up the arrival splash. Classic
       // Jango has no movement of his own — this hook is gated.
       if (!self._jangoMoveLikeManBat) return;
-      // isMoveLocked, not isActionLocked: the freeze/fear lock PLUS Gargantua's
-      // hold. moveCard refuses either way, but asking here is what stops the
-      // card offering a move prompt it cannot honour — a lane picker that does
-      // nothing when you answer it.
+      // See Man-Bat for why this asks isMoveLocked and not isActionLocked.
       if (Game.isMoveLocked(self)) {
         G.log(`  [SKIP] ${self.name} is ${Game.moveLockLabel(self)} — stays put.`);
         return;
@@ -1674,10 +1670,7 @@ const CARD_ABILITIES = {
       // Stun / freeze blocks the move AND the follow-up splash. Same
       // guard as Man-Bat — moveCard alone isn't enough because the
       // splash fires after the refused move.
-      // isMoveLocked, not isActionLocked: the freeze/fear lock PLUS Gargantua's
-      // hold. moveCard refuses either way, but asking here is what stops the
-      // card offering a move prompt it cannot honour — a lane picker that does
-      // nothing when you answer it.
+      // See Man-Bat for why this asks isMoveLocked and not isActionLocked.
       if (Game.isMoveLocked(self)) {
         G.log(`  [SKIP] ${self.name} is ${Game.moveLockLabel(self)} — stays put.`);
         return;
@@ -5543,10 +5536,7 @@ const CARD_ABILITIES = {
     // on the destination's opposite enemy — Omni-Man is already an
     // AOE damage threat on entry; the move is purely repositioning.
     onBeforeTricks(G, self, lane) {
-      // isMoveLocked, not isActionLocked: the freeze/fear lock PLUS Gargantua's
-      // hold. moveCard refuses either way, but asking here is what stops the
-      // card offering a move prompt it cannot honour — a lane picker that does
-      // nothing when you answer it.
+      // See Man-Bat for why this asks isMoveLocked and not isActionLocked.
       if (Game.isMoveLocked(self)) {
         G.log(`  [SKIP] ${self.name} is ${Game.moveLockLabel(self)} — stays put.`);
         return;
@@ -6911,10 +6901,7 @@ const CARD_ABILITIES = {
     },
     onBeforeTricks(G, self, lane) {
       if (self.anakinMoved) return;           // fires exactly once per instance
-      // isMoveLocked, not isActionLocked: the freeze/fear lock PLUS Gargantua's
-      // hold. moveCard refuses either way, but asking here is what stops the
-      // card offering a move prompt it cannot honour — a lane picker that does
-      // nothing when you answer it.
+      // See Man-Bat for why this asks isMoveLocked and not isActionLocked.
       if (Game.isMoveLocked(self)) {
         G.log(`  [SKIP] ${self.name} is ${Game.moveLockLabel(self)} — stays put.`);
         return;

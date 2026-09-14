@@ -20,8 +20,14 @@ Math.random = function () {
 };
 
 var MAX = 400;
-for (var i = 0; i < arguments.length; i++) {
-  if (arguments[i] === '--max' && arguments[i + 1]) MAX = parseInt(arguments[i + 1], 10);
+// GUARDED, like every other suite in here. `arguments` does not exist at jsc's
+// top level unless the script was given some, so an unguarded read throws
+// ReferenceError on line 1 — this tool has been dead on arrival, printing a
+// stack instead of a scan, and nothing noticed because it is not in the gate
+// (it exits 0 either way, like every audit tool here).
+var argv = (typeof arguments !== 'undefined') ? arguments : [];
+for (var i = 0; i < argv.length; i++) {
+  if (argv[i] === '--max' && argv[i + 1]) MAX = parseInt(argv[i + 1], 10);
 }
 
 function scanZombies(G, tag, hits) {
