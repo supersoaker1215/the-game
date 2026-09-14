@@ -8847,6 +8847,98 @@ test("Burn/bleed kills BEFORE the lane fights, so the survivor hits the healthba
   assert(alive.mine.currentHealth < 9, 'and our card took the trade');
 });
 
+test("EVERY arrival-triggered room takes the card already standing there", function () {
+  // Owner: "do the same for sewers all all enviroments."
+  //
+  // A room that lands on a body used to do nothing until some later card walked
+  // in, which made the placement roll decide whether the card worked at all.
+  // This is the whole set, asserted together, so the next environment added
+  // either joins the rule or fails here on purpose.
+  //
+  // Wetlands and Enclosure are NOT in this list and that is correct: their
+  // triggers are clocks (a Block Meter drain, a toll), not arrivals, and the
+  // release each one ends in already displaces an occupant.
+  function landOn(envName) {
+    var G = freshGame();
+    G.state.lanes.forEach(function (l) { l.player = null; l.ai = null; l._env = null; });
+    var sitting = place(G, 'Hulk', 'ai', 1);
+    sitting.attack = 4; sitting.maxHealth = 6; sitting.currentHealth = 6;
+    var wrapped0 = typeof sitting.onDeath === 'function';
+    G._placeEventEnvironment('player', 1, envName);
+    var live = G.state.lanes[1].ai;
+    return {
+      statsChanged: !!live && (live.attack !== 4 || live.currentHealth !== 6),
+      burning:      !!(live && live.isBurning),
+      chained:      !!(live && live._chained),
+      deathHooked:  !!live && (typeof live.onDeath === 'function') !== wrapped0,
+      spawned:      !!G.state.lanes[1].player && G.state.lanes[1].player.name,
+      G: G
+    };
+  }
+  var br = landOn('Boiler Room');
+  assertEq(br.burning, true, 'Boiler Room lights the occupant');
+  var ow = landOn('Open Water');
+  assertEq(ow.deathHooked, true, 'Open Water hooks the occupant for its death');
+  var go = landOn('Game Over');
+  assertEq(go.deathHooked, true, 'Game Over hooks the occupant for its death');
+  var tb = landOn('The Bathroom');
+  assertEq(tb.chained && tb.statsChanged, true, 'The Bathroom chains and debuffs it');
+  var sw = landOn('Sewers');
+  assertEq(sw.spawned, 'Pennywise', 'Sewers rises immediately — the occupant IS the first enemy');
+  var gg = landOn('Gargantua');
+  assertEq(gg.statsChanged, true, 'Gargantua crushes it on arrival, not a round later');
+});
+
+test("Sewers opening under an enemy rises now; on empty ground it still waits", function () {
+  // The two halves of the same rule. Opening on bare ground must NOT spawn —
+  // that is the case the room was written for and it has to keep working.
+  var G = freshGame();
+  G.state.lanes.forEach(function (l) { l.player = null; l.ai = null; l._env = null; });
+  place(G, 'Hulk', 'ai', 2);
+  G._placeEventEnvironment('player', 2, 'Sewers');
+  var risen = G.state.lanes[2].player;
+  assertEq(!!risen && risen.name, 'Pennywise', 'it rises at once');
+  assertEq(risen.attack + '/' + risen.currentHealth, '3/5', 'at the printed stats');
+  assertEq(!!(G.state.lanes[2]._env && G.state.lanes[2]._env.player), false, 'and the room is spent');
+  assertEq(!!G.state.lanes[2].ai, true, 'the enemy that triggered it is still standing');
+
+  var G2 = freshGame();
+  G2.state.lanes.forEach(function (l) { l.player = null; l.ai = null; l._env = null; });
+  var room = G2._placeEventEnvironment('player', 2, 'Sewers');
+  assertEq(G2.state.lanes[2].player, null, 'an empty lane spawns nothing');
+  assertEq(!!(G2.state.lanes[2]._env && G2.state.lanes[2]._env.player), true, 'and the room is still there');
+  G2.state.lanes[2].ai = G2.createCardInstance(cardByName('Sandman'), 'ai');
+  CARD_ABILITIES['Sewers'].onAnyCardPlayed(G2, room);
+  assertEq(!!G2.state.lanes[2].player && G2.state.lanes[2].player.name, 'Pennywise',
+    'and a later arrival still triggers it');
+});
+
+test("Gargantua seated on BOTH sides weakens its occupants once, not twice", function () {
+  // Gargantua is the one habitat placed twice — once per side of its single
+  // lane — so a crush at onPlay runs twice unless the round stamp stops it. The
+  // second run would find the mark the first one set and kill outright, turning
+  // "loses (-3/-3), destroyed NEXT round" into "destroyed on arrival".
+  var G = freshGame();
+  G.state.round = 5;
+  G.state.lanes.forEach(function (l) { l.player = null; l.ai = null; l._env = null; });
+  var foe = place(G, 'Hulk', 'ai', 1);
+  foe.attack = 4; foe.maxHealth = 6; foe.currentHealth = 6;
+  var garg = G._placeEventEnvironment('player', 1, 'Gargantua');
+  G._placeEventEnvironment('ai', 1, 'Gargantua', { keepOpposite: true });
+  assertEq(foe.attack + '/' + foe.currentHealth, '1/3', 'weakened exactly once');
+  assertEq(!!foe._gargHeld, true, 'and marked for next round');
+
+  // The same round's turn-start must not crush again either.
+  CARD_ABILITIES['Gargantua'].onTurnStart(G, garg);
+  assertEq(foe.currentHealth, 3, 'no second crush on the round it opened');
+
+  // Next round it is gone, which is the printed clock.
+  G.state.round = 6;
+  CARD_ABILITIES['Gargantua'].onTurnStart(G, garg);
+  G.cleanupDead();
+  assertEq(G.state.lanes[1].ai, null, 'destroyed at the start of the next round');
+});
+
 test("The Bathroom takes a card that is already standing there", function () {
   // Owner: "if the bathroom spawns on a card for the enmy the debuff is applied
   // sma efor graganta." It used to only RECORD the occupant as "not an

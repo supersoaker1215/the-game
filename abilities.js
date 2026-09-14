@@ -8224,8 +8224,28 @@ const CARD_ABILITIES = {
     onPlay(G, self, lane) {
       const opp = G.opponent(self.owner);
       const existing = G.state.lanes[lane][opp];
+      // A ROOM THAT OPENS UNDER AN ENEMY HAS ITS FIRST ENEMY. Owner: "do the
+      // same for sewers all all enviroments."
+      //
+      // This used to RECORD the occupant instead, as "not a new arrival", which
+      // made the placement roll decide whether the card did anything: land on
+      // bare ground and it works, land on a body and it sits inert until some
+      // later card happens to walk in. Boiler Room, Open Water, Game Over and
+      // The Bathroom all take the occupant on arrival; this was the last room
+      // that did not.
+      //
+      // TRIGGERED IS LATCHED BEFORE THE SPAWN, not after — _spawnPennywise
+      // summons, the summon broadcasts onAnyCardPlayed, and that re-enters this
+      // card's own onAnyCardPlayed. Game Over's note calls this out as "the
+      // difference between a card and an infinite loop".
+      if (existing && existing.currentHealth > 0 && !existing.isEnvironment) {
+        self._sewersTrackedEnemy = existing.id;
+        self._sewersTriggered = true;
+        CARD_ABILITIES['Sewers']._spawnPennywise(G, self.owner, lane);
+        return;
+      }
       // Record current enemy so onAnyCardPlayed only fires on a NEW arrival
-      self._sewersTrackedEnemy = (existing && existing.currentHealth > 0) ? existing.id : null;
+      self._sewersTrackedEnemy = null;
     },
     onAnyCardPlayed(G, self) {
       if (self._sewersTriggered) return;
@@ -8632,6 +8652,28 @@ const CARD_ABILITIES = {
   // what keeps that one event rather than two — without it the board is pulled
   // two lanes a round and every card inside takes −6/−6.
   "Gargantua": {
+    // THE HOLE CATCHES WHOEVER IS ALREADY STANDING IN IT. The crush ran only at
+    // onTurnStart, so a card in the lane when the singularity opened got a free
+    // round before it felt anything — and the card's own text says "a card in
+    // this lane loses (−3/−3), and is destroyed if it is still here at the
+    // start of the next round", which is a clock that should start the moment
+    // the hole is there. (Owner, using Gargantua as the reference for every
+    // other room: "the debuff is applied sma efor graganta".)
+    //
+    // THE ROUND STAMP IS LOAD-BEARING HERE, not tidiness. Gargantua is seated
+    // TWICE — once per side of its one lane (_ONE_LANE_EVENTS, keepOpposite) —
+    // so without it the second call would find the mark the first one just set
+    // and kill the occupant outright instead of weakening it. It is the same
+    // stamp onTurnStart uses, so the round the hole opens does not also crush
+    // again a moment later.
+    onPlay(G, self, laneIdx) {
+      // CRUSH ONLY, NOT PULL. "Every card on the board is pulled 1 lane closer"
+      // is a start-of-round beat; dragging the whole board the instant the hole
+      // lands would be an extra pull the card does not print — and the pull for
+      // the opening round still runs from onTurnStart as it always did.
+      CARD_ABILITIES['Gargantua']._crush(G, laneIdx);
+      if (typeof UI !== 'undefined' && UI.render) { try { UI.render(); } catch (e) {} }
+    },
     onTurnStart(G, self) {
       const laneIdx = G.findCardLane(self);
       if (laneIdx < 0) return;
@@ -8667,6 +8709,19 @@ const CARD_ABILITIES = {
     _crush(G, laneIdx) {
       const lane = G.state.lanes[laneIdx];
       if (!lane) return;
+      // ONCE A ROUND PER LANE, WHOEVER ASKS. Two callers can reach this in the
+      // same round — onPlay fires TWICE (Gargantua seats both sides of its one
+      // lane), and onTurnStart follows on the round it opens. Unguarded, the
+      // second pass finds the _gargHeld mark the first one set and kills the
+      // occupant outright, turning "loses (−3/−3), destroyed NEXT round" into
+      // "destroyed on arrival".
+      //
+      // Its OWN stamp, not the one onTurnStart uses: that one exists to stop
+      // the two seats both running the whole beat, and sharing it here would
+      // also cancel the PULL on the round the hole opens.
+      const r = G.state.round | 0;
+      if (lane._gargCrushRound === r) return;
+      lane._gargCrushRound = r;
       ['player', 'ai'].forEach(side => {
         const c = lane[side];
         if (!c || c.currentHealth <= 0 || c.isEnvironment) return;

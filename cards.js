@@ -101,7 +101,7 @@ const CARD_DEFS = [
     _spawnOnly: true,
     isEnvironment: true,
     abilities: [],
-    desc: "While Active: The first enemy card to enter this lane turns Sewers into a (3/5) Pennywise on your side. An ally in that lane moves to an empty lane — with no empty lane it is destroyed and Pennywise adds its stats." },
+    desc: "While Active: The first enemy card in this lane turns Sewers into a (3/5) Pennywise on your side. An ally in that lane moves to an empty lane — with no empty lane it is destroyed and Pennywise adds its stats." },
   { name: "Open Water", cost: 2, attack: 0, health: 1, type: "environment",
     _spawnOnly: true,
     isEnvironment: true,
@@ -117,7 +117,7 @@ const CARD_DEFS = [
     // bathroom is on my side my cards are gtting chained becasue im in the
     // bathroom." The rule is unchanged; the picture moved to where it applies.
     actsOnOpponentSide: true,
-    desc: "While Active: Enemy cards that enter this lane take (−2/−2) and are Chained — a Chained card loses (−1/−1) at the start of every round it stays, and (−1/−1) again each time it moves." },
+    desc: "While Active: Enemy cards in this lane take (−2/−2) and are Chained — a Chained card loses (−1/−1) at the start of every round it stays, and (−1/−1) again each time it moves." },
   { name: "Game Over", cost: 2, attack: 0, health: 1, type: "environment",
     isEnvironment: true,
     _spawnOnly: true,
