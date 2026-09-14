@@ -7452,6 +7452,110 @@ test("Re-igniting takes the higher Burning number, never a downgrade", function 
   assertEq(victim.burnStacks, 2, 'a stronger source re-stokes');
 });
 
+test("ANY card that dies Burning raises Freddy — whoever lit it", function () {
+  // Owner: "godzilla gev juggernaiut burning, boiler room on the field,
+  // juggernauth dies freddy didnt spawn he should, doesnt matter if the buring
+  // didnt come form the boiler room the passive is any card that dies with
+  // buring freddy spawns."
+  //
+  // The spawn used to ride a per-card onDeath hook, attached ONLY to cards the
+  // Boiler Room had marked itself. A card set alight by anything else could die
+  // burning with the room sitting right there and nothing happened.
+  var G = freshGame();
+  // placeEnv, not place: an environment lives in lane._env, and seating it in
+  // the combat slot would make every "_env is gone" assertion below pass
+  // whether the room drained or not.
+  var boiler = placeEnv(G, 'Boiler Room', 'player', 3);
+  // Burned by GODZILLA, in a different lane, never touched by the room.
+  var vic = place(G, 'Sabertooth', 'ai', 1);
+  CARD_ABILITIES['Godzilla']._ignite(G, vic, 3);
+  assertEq(!!vic.isBurning, true, 'the victim is burning');
+  assertEq(!!vic._brDeathHooked, false, 'and the room never marked it');
+
+  vic.currentHealth = 0;
+  G.handleDeath(vic, 1, null);
+  G.cleanupDead();
+
+  var risen = G.state.lanes[3].player;
+  assert(!!risen, 'something rises in the Boiler Room lane');
+  assertEq(risen.name, 'Freddy Krueger', 'and it is Freddy');
+  assertEq(!!(G.state.lanes[3]._env && G.state.lanes[3]._env.player), false,
+    'the room is spent and gone');
+});
+
+test("A death that is PREVENTED does not raise Freddy", function () {
+  // The old per-card hook propagated the death-prevention protocol (a truthy
+  // onDeath return means the death was cancelled). Moving the trigger onto the
+  // board-wide hooks has to keep that, or a burning card that revives also
+  // spends the room. It comes free: handleDeath returns before the
+  // death-adjacent broadcasts when onDeath cancels.
+  var G = freshGame();
+  placeEnv(G, 'Boiler Room', 'player', 3);
+  var vic = place(G, 'Sabertooth', 'ai', 1);
+  CARD_ABILITIES['Godzilla']._ignite(G, vic, 3);
+  vic.onDeath = function () { return true; };   // refuses the death
+  vic.currentHealth = 0;
+  G.handleDeath(vic, 1, null);
+  assertEq(!!(G.state.lanes[3]._env && G.state.lanes[3]._env.player), true,
+    'the room is still standing');
+  assertEq(G.state.lanes[3].player, null, 'and nothing rose');
+});
+
+test("A card that dies WITHOUT burning leaves the Boiler Room alone", function () {
+  var G = freshGame();
+  placeEnv(G, 'Boiler Room', 'player', 3);
+  var vic = place(G, 'Sabertooth', 'ai', 1);
+  assertEq(!!vic.isBurning, false, 'not burning');
+  vic.currentHealth = 0;
+  G.handleDeath(vic, 1, null);
+  G.cleanupDead();
+  assertEq(!!(G.state.lanes[3]._env && G.state.lanes[3]._env.player), true,
+    'the room is untouched by an ordinary death');
+});
+
+test("onEnemyKilled is told WHICH card died", function () {
+  // It only ever received (G, self) — so a reaction on the far side could know
+  // THAT something died but never what, and a rule about the state the card
+  // died in had nowhere to look. Additive: the one pre-existing handler (Mace
+  // Windu) ignores the extra argument, which the assertion below pins.
+  var G = freshGame();
+  var seen = [];
+  var watcher = place(G, 'Sabertooth', 'player', 5);
+  watcher.onEnemyKilled = function (g, self, dead) { seen.push(dead && dead.name); };
+  var vic = place(G, 'Nightwing', 'ai', 1);
+  vic.currentHealth = 0;
+  G.handleDeath(vic, 1, null);
+  assertEq(JSON.stringify(seen), JSON.stringify(['Nightwing']), 'the dead card is passed through');
+});
+
+test("Redrawing half a Pinhead chain frees the other half", function () {
+  // Owner: "if you redrraw a kinked card from pinhead, the debuff goes away on
+  // both cards." _playChainedCard already broke a link whose partner had gone,
+  // but only lazily, at the moment you tried to seat the pair — so until then
+  // the survivor wore a chain badge and a rule that no longer applied.
+  var G = freshGame();
+  G.state.player.hand = ['Gizmo', 'Hulk', 'Knull'].map(function (n) {
+    return G.createCardInstance(cardByName(n), 'player');
+  });
+  CARD_ABILITIES['Pinhead'].onDiscard(G, 'ai', G.createCardInstance(cardByName('Pinhead'), 'ai'));
+  var pair = G.state.player.hand.filter(function (c) { return c._chained; });
+  assertEq(pair.length, 2, 'Pinhead bound a pair');
+  assert(pair[0]._chainPartnerId === pair[1].id, 'and they point at each other');
+
+  G.state.phase = 'player-cards';
+  G.state.player.currency = 20;
+  G.state.player.redrawsUsed = 0;
+  // freshGame() is init() without startMatch, so there is no draw pile and the
+  // redraw would refuse with "Nothing to redraw" before reaching the chain.
+  var pile = G.getDrawPile('player');
+  pile.push(cardByName('Nightwing'));
+  assertEq(G.redrawCard('player', pair[0]), true, 'the redraw goes through');
+
+  assertEq(!!pair[0]._chained, false, 'the redrawn card is free');
+  assertEq(!!pair[1]._chained, false, 'and so is its partner');
+  assertEq(pair[1]._chainPartnerId, null, 'with the link cleared, not left dangling');
+});
+
 test("Boiler Room burns with the shared Burning, at the same 1 per turn", function () {
   // Owner picked unification: Boiler Room used to run a private version of the
   // status (flat 1 on onBeforeAttack, forever, no decay), so one printed word
@@ -7538,13 +7642,10 @@ test("Jigsaw places two rooms instead of Bear Traps", function () {
   assertEq(room.name, 'The Bathroom', 'and it is the room asked for');
 });
 
-test("The Bathroom chains the first enemy in — and moving costs it again", function () {
+test("The Bathroom chains the first enemy in — and leaving is free now", function () {
   var G = freshGame();
   var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 2, 'The Bathroom');
 
-  // An enemy walks in. Given stats that survive TWO tolls — base Sabertooth is
-  // 2/3, so entry alone leaves it 0/1 and the move would kill it, which is the
-  // lethal case covered by its own test rather than this one.
   var victim = place(G, 'Sabertooth', 'ai', 2);
   victim.attack = 8; victim.maxHealth = 8; victim.currentHealth = 8;
   var atk0 = victim.attack, hp0 = victim.currentHealth;
@@ -7552,21 +7653,24 @@ test("The Bathroom chains the first enemy in — and moving costs it again", fun
 
   assertEq(victim.attack, atk0 - 2, 'it takes -2 ATK');
   assertEq(victim.currentHealth, hp0 - 2, 'and -2 HP');
+  assertEq(!!victim._chained, true, 'and carries the Chained status');
 
-  // THE CHAIN, tested through moveCard — the choke point every mover uses.
-  // Asserting the flag alone would pass even if nothing read it. The chain is
-  // a TOLL now, not a lock: the move goes through and costs another (−2/−2).
+  // LEAVING COSTS NOTHING. The chain used to be a toll on MOVING — first a
+  // refusal, then (-2/-2) a move — which made standing still the right answer
+  // to a room you do not want to be standing in. The rewrite puts the cost on
+  // staying instead, so moveCard must charge nothing.
   var atkBefore = victim.attack, hpBefore = victim.currentHealth;
   G.moveCard(victim, 2, 4);
-  assertEq(G.state.lanes[4].ai, victim, 'it CAN leave the bathroom now');
+  assertEq(G.state.lanes[4].ai, victim, 'it leaves the bathroom');
   assertEq(G.state.lanes[2].ai, null, 'and really left the old lane');
-  assertEq(victim.attack, atkBefore - 2, 'the move cost 2 more ATK');
-  assertEq(victim.currentHealth, hpBefore - 2, 'and 2 more HP');
+  assertEq(victim.attack, atkBefore, 'the move costs no ATK');
+  assertEq(victim.currentHealth, hpBefore, 'and no health');
 
-  // ONE victim only — the room does not keep chaining the same body.
-  var atk1 = victim.attack;
-  CARD_ABILITIES['The Bathroom'].onAnyCardPlayed(G, room);
-  assertEq(victim.attack, atk1, 'the room does not re-chain it');
+  // …and once it is gone, the room is not still draining it: onTurnStart reads
+  // the card standing in the lane, and nobody is.
+  CARD_ABILITIES['The Bathroom'].onTurnStart(G, room);
+  assertEq(victim.attack, atkBefore, 'a body that left takes no round tick');
+  assertEq(victim.currentHealth, hpBefore, 'nor loses health to a room it escaped');
 });
 
 test("Game Over raises an enemy body that dies in its lane, as a (2/2)", function () {
@@ -8666,58 +8770,91 @@ test("Burn/bleed kills BEFORE the lane fights, so the survivor hits the healthba
   assert(alive.mine.currentHealth < 9, 'and our card took the trade');
 });
 
-test("The Bathroom chains TWO enemies, and only the second death drains it", function () {
-  // Owner: "the next 2 enemy cards lose (-2/-2) and have a chained icon ...
-  // once the 2nd enemy chained dies the bathroom disappears."
+test("The Bathroom chains everything that walks in, and staying costs (-1/-1)", function () {
+  // REWRITTEN 2026-09-14. Owner: "for the bathroom just say when enemy cards
+  // enter this lane they take (-2/-2) and are chained, losing (-1/-1) every
+  // turn they stay."
+  //
+  // What this replaced: the room held exactly TWO victims, Chained was a toll
+  // on MOVING, and the room drained away when the second of the two died. The
+  // correct play against that was to stand still and ignore it — which is the
+  // opposite of what a room you are chained inside should mean.
   var G = freshGame();
   var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 1, 'The Bathroom');
   CARD_ABILITIES['The Bathroom'].onPlay(G, room, 1);
   var AB = CARD_ABILITIES['The Bathroom'];
 
-  // FIRST enemy walks in.
+  // ENTRY: (-2/-2) and the Chained status.
   var a = place(G, 'Sabertooth', 'ai', 1);
-  var aAtk = a.attack, aHp = a.currentHealth;
+  a.attack = 8; a.maxHealth = 8; a.currentHealth = 8;
   AB.onAnyCardPlayed(G, room);
-  assertEq(a.attack, Math.max(0, aAtk - 2), 'first victim loses 2 ATK');
-  assertEq(a.currentHealth, aHp - 2, 'and 2 HP');
-  assertEq(!!a._chained, true, 'and carries the Chained status');
-  assertEq(a._chainedToLane, undefined, 'no longer PINNED to the lane — the chain is a toll now');
+  assertEq(a.attack, 6, 'entry costs 2 ATK');
+  assertEq(a.currentHealth, 6, 'and 2 HP');
+  assertEq(!!a._chained, true, 'and it is Chained');
 
-  // The room is NOT spent after one — it owes a second body.
-  assert(!room._bathroomTriggered, 'still hungry after the first');
-
-  // AND IT MUST NOT RE-CHAIN THE BODY ALREADY STANDING THERE. The one-victim
-  // version was protected by its own spent-flag; holding two removes that
-  // protection, so every later card played re-read the same victim as a fresh
-  // arrival and hit it for another (−2/−2).
-  var atkAfterFirst = a.attack, hpAfterFirst = a.currentHealth;
+  // AND IT MUST NOT RE-CHAIN THE BODY ALREADY STANDING THERE — every card
+  // played pings this hook, and without the guard the same victim reads as a
+  // fresh arrival and is hit for another (-2/-2) each time.
   AB.onAnyCardPlayed(G, room);
   AB.onAnyCardPlayed(G, room);
-  assertEq(a.attack, atkAfterFirst, 'the chained body is not hit again');
-  assertEq(a.currentHealth, hpAfterFirst, 'nor loses more health');
-  assertEq((room._bathroomChained || []).length, 1, 'and is still only ONE victim');
+  assertEq(a.attack, 6, 'the chained body is not hit again on entry');
+  assertEq(a.currentHealth, 6, 'nor loses more health to the intake');
 
-  // SECOND enemy takes the first one's place.
+  // STAYING: (-1/-1) a round, which is the whole rewrite. The old Chained
+  // charged you for LEAVING, so the answer to the room was to stand still.
+  AB.onTurnStart(G, room);
+  assertEq(a.attack, 5, 'a round in the room costs 1 ATK');
+  assertEq(a.currentHealth, 5, 'and 1 HP');
+  AB.onTurnStart(G, room);
+  assertEq(a.attack, 4, 'and it keeps biting');
+  assertEq(a.currentHealth, 4, 'every round it stays');
+
+  // …and only a body THIS room chained. A card standing in the lane that the
+  // room never took (or one Pinhead bound in hand) is not the room's to drain.
   G.state.lanes[1].ai = null;
-  var b = place(G, 'Sabertooth', 'ai', 1);
-  var bAtk = b.attack, bHp = b.currentHealth;
+  var bystander = place(G, 'Sabertooth', 'ai', 1);
+  bystander.attack = 8; bystander.maxHealth = 8; bystander.currentHealth = 8;
+  AB.onTurnStart(G, room);
+  assertEq(bystander.attack, 8, 'an unchained body in the lane is untouched');
+  assertEq(bystander.currentHealth, 8, 'and keeps its health');
+
+  // NO CAP. The old room closed its intake at two; this one chains whatever
+  // walks in for as long as it stands.
   AB.onAnyCardPlayed(G, room);
-  assertEq(b.attack, Math.max(0, bAtk - 2), 'second victim loses 2 ATK');
-  assertEq(b.currentHealth, bHp - 2, 'and 2 HP');
-  assertEq(!!b._chained, true, 'and is Chained too');
-  assertEq(!!room._bathroomTriggered, true, 'intake closes at two');
+  assertEq(!!bystander._chained, true, 'a later arrival is chained too');
+  assertEq((room._bathroomChained || []).length, 2, 'and the room is still taking them');
+  G.state.lanes[1].ai = null;
+  var third = place(G, 'Sabertooth', 'ai', 1);
+  AB.onAnyCardPlayed(G, room);
+  assertEq(!!third._chained, true, 'and a third, with no intake limit');
 
-  // FIRST chained body dies — the room must STAY, one chain still holds.
-  a.currentHealth = 0;
-  G.handleDeath(a, 1, null);
+  // THE ROOM RUNS THE ORDINARY ENVIRONMENT CLOCK. Two bodies it chained are
+  // already dead here; under the old rule that alone drained it.
   assertEq(G.state.lanes[1]._env && G.state.lanes[1]._env.player, room,
-    'the room survives the first death');
+    'two dead victims no longer end the room');
 
-  // SECOND chained body dies — now it drains.
-  b.currentHealth = 0;
-  G.handleDeath(b, 1, null);
-  assertEq(!!(G.state.lanes[1]._env && G.state.lanes[1]._env.player), false,
-    'the room drains away once the second Chained card dies');
+  // AND IT LETS GO WHEN IT LEAVES — a badge from a room that is gone would
+  // otherwise read as Pinhead\'s chain to anything that checks _chained later.
+  CARD_ABILITIES['The Bathroom'].onDeath(G, room);
+  assertEq(!!third._chained, false, 'the chain drops when the room is removed');
+});
+
+test("The Bathroom never releases a Pinhead pair on its way out", function () {
+  // `_chained` is SHARED between the room and Pinhead's hand-chain, told apart
+  // everywhere by _chainPartnerId, which only Pinhead sets. The room clearing
+  // the flag off a card it never took would quietly undo a Pinhead the player
+  // paid for.
+  var G = freshGame();
+  var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 1, 'The Bathroom');
+  CARD_ABILITIES['The Bathroom'].onPlay(G, room, 1);
+  var victim = place(G, 'Sabertooth', 'ai', 1);
+  CARD_ABILITIES['The Bathroom'].onAnyCardPlayed(G, room);
+  assertEq(!!victim._chained, true, 'the room took this one');
+  // Now pretend Pinhead also bound it (partner id set) — the room must not
+  // free a pair it does not own.
+  victim._chainPartnerId = 999;
+  CARD_ABILITIES['The Bathroom'].onDeath(G, room);
+  assertEq(!!victim._chained, true, 'a Pinhead-linked card keeps its chain');
 });
 
 test("Game Over ignores an ALLY dying in its lane — enemy bodies only", function () {
@@ -8820,9 +8957,11 @@ test("A destroyed lane never blocks the cover rule", function () {
   assertEq(G.canPlaceEnvironment('player', 0), true,  'and the void does not block covering elsewhere');
 });
 
-test("A Chained card CAN move — and pays (−2/−2) every time it does", function () {
-  // Owner: "I wanted the chained debuff to just say if moved lose (−2/−2)."
-  // It used to refuse the move outright.
+test("A Chained card moves for free — the cost is on staying", function () {
+  // REWRITTEN 2026-09-14 with the room itself. Chained was a toll on MOVING:
+  // first a refusal, then (-2/-2) per move. Owner: "when enemy cards enter this
+  // lane they take (-2/-2) and are chained, losing (-1/-1) every turn they
+  // stay." Moving is now the way OUT, so it cannot also be the punishment.
   var G = freshGame();
   var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 1, 'The Bathroom');
   CARD_ABILITIES['The Bathroom'].onPlay(G, room, 1);
@@ -8834,41 +8973,42 @@ test("A Chained card CAN move — and pays (−2/−2) every time it does", func
   assertEq(!!v._chained, true, 'and it is Chained');
 
   G.moveCard(v, 1, 4);
-  assertEq(G.state.lanes[4].ai, v, 'the move is ALLOWED now');
-  assertEq(v.attack, 5, 'and the move cost another 2 ATK');
-  assertEq(v.currentHealth, 5, 'and 2 more HP');
-
-  // the ball is still attached — a second move costs again
+  assertEq(G.state.lanes[4].ai, v, 'the move is allowed');
+  assertEq(v.attack, 7, 'and costs no ATK');
+  assertEq(v.currentHealth, 7, 'and no health');
   G.moveCard(v, 4, 5);
-  assertEq(G.state.lanes[5].ai, v, 'it can move again');
-  assertEq(v.attack, 3, 'and pays again');
-  assertEq(v.currentHealth, 3, 'each time');
+  assertEq(v.attack, 7, 'a second move is free too');
 });
 
-test("The chain toll respects the shield rule, and can be lethal", function () {
+test("The round tick respects the shield rule, and can be lethal", function () {
+  // The (-1/-1) a round goes through the same statStripShieldsHp predicate the
+  // entry hit, checkLaneTrap and debuffCard use — re-implementing that rule is
+  // exactly how the Bear Trap once ended up shielding a card Pym Particles did
+  // not.
   var G = freshGame();
   var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 1, 'The Bathroom');
   CARD_ABILITIES['The Bathroom'].onPlay(G, room, 1);
   var v = place(G, 'Sabertooth', 'ai', 1);
   v.attack = 9; v.maxHealth = 9; v.currentHealth = 9;
-  CARD_ABILITIES['The Bathroom'].onAnyCardPlayed(G, room);
-  // shielded: the ATK strip still lands, the health loss does not
+  CARD_ABILITIES['The Bathroom'].onAnyCardPlayed(G, room);   // -> 7/7
   v.invincibleTurns = 1;   // the field statStripShieldsHp actually reads
   var hp = v.currentHealth;
-  G.moveCard(v, 1, 3);
-  assertEq(v.currentHealth, hp, 'Invincible blocks the health half of the toll');
-  assertEq(v.attack, 5, 'but the ATK strip still lands');
+  CARD_ABILITIES['The Bathroom'].onTurnStart(G, room);
+  assertEq(v.currentHealth, hp, 'Invincible blocks the health half of the tick');
+  assertEq(v.attack, 6, 'but the ATK strip still lands');
 
-  // lethal: a toll that empties the bar routes through the death path
+  // lethal: a tick that empties the bar routes through the death path rather
+  // than leaving a 0-HP body standing in the lane.
   var G2 = freshGame();
   var r2 = CARD_ABILITIES['Jigsaw']._placeRoom(G2, 'player', 1, 'The Bathroom');
   CARD_ABILITIES['The Bathroom'].onPlay(G2, r2, 1);
   var w = place(G2, 'Sabertooth', 'ai', 1);
-  w.attack = 4; w.maxHealth = 4; w.currentHealth = 4;
-  CARD_ABILITIES['The Bathroom'].onAnyCardPlayed(G2, r2);   // -> 2/2
-  G2.moveCard(w, 1, 3);                                     // -> 0/0
-  assert(w.currentHealth <= 0, 'the toll can kill');
-  assertEq(G2.state.lanes[3].ai, null, 'and the body does not linger in the lane');
+  w.attack = 3; w.maxHealth = 3; w.currentHealth = 3;
+  CARD_ABILITIES['The Bathroom'].onAnyCardPlayed(G2, r2);   // -> 1/1
+  assert(w.currentHealth > 0, 'it survives the entry');
+  CARD_ABILITIES['The Bathroom'].onTurnStart(G2, r2);       // -> 0/0
+  assert(w.currentHealth <= 0, 'the tick can kill');
+  assertEq(G2.state.lanes[1].ai, null, 'and the body does not linger in the lane');
 });
 
 test("A nested summon still lets a HUMAN pick the lane (Gorr -> Darkseid -> Parademon)", function () {

@@ -91,7 +91,7 @@ const CARD_DEFS = [
     _spawnOnly: true,
     isEnvironment: true,
     abilities: [],
-    desc: "While Active: Apply Burning 1 to enemies in this lane, and each turn Burning spreads to adjacent enemies. When a Burning enemy is destroyed, Freddy Krueger spawns in this lane, replacing Boiler Room, and Burning ends. If an ally is present, choose a lane to move them — if no open lanes exist, the ally is consumed and Freddy absorbs their stats." },
+    desc: "While Active: Apply Burning 1 to enemies in this lane, and each turn Burning spreads to adjacent enemies. When any Burning card is destroyed — whoever set it alight — Freddy Krueger spawns in this lane, replacing Boiler Room, and Burning ends. If an ally is present, choose a lane to move them — if no open lanes exist, the ally is consumed and Freddy absorbs their stats." },
   { name: "Xenomorph", cost: 2, attack: 0, health: 1, type: "villain",
     abilities: [],
     desc: "While Active: Add (+1/+1) each time any other card enters the board. When Destroyed: Splash 1." },
@@ -117,7 +117,7 @@ const CARD_DEFS = [
     // bathroom is on my side my cards are gtting chained becasue im in the
     // bathroom." The rule is unchanged; the picture moved to where it applies.
     actsOnOpponentSide: true,
-    desc: "While Active: The next 2 enemy cards to enter this lane take (−2/−2) and are Chained — if moved they lose (−2/−2). The room drains away when the second one dies." },
+    desc: "While Active: Enemy cards that enter this lane take (−2/−2) and are Chained — a Chained card loses (−1/−1) at the start of every round it stays." },
   { name: "Game Over", cost: 2, attack: 0, health: 1, type: "environment",
     isEnvironment: true,
     _spawnOnly: true,

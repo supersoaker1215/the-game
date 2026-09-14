@@ -1749,6 +1749,10 @@ const Game = {
     } else {
       const idx = p.hand.indexOf(card);
       p.hand.splice(idx, 1);
+      // Both halves of a Pinhead pair go free — see _breakChainWith. Called
+      // AFTER the splice so the partner lookup cannot find the card that is
+      // leaving.
+      this._breakChainWith(card, p);
       p.discardPile.push({
         name: card.name, cost: card.baseCost || card.cost,
         type: card.type, abilities: card.abilities, desc: card.desc,
@@ -1829,6 +1833,10 @@ const Game = {
       }
       const i2 = p.hand.indexOf(live);
       if (i2 > -1) p.hand.splice(i2, 1);
+      // Both halves of a Pinhead pair go free — see _breakChainWith. The SEAT's
+      // hand, not the side proxy: in 2v2 a chain binds two cards in one seat's
+      // hand, and the proxy is whichever teammate the bridge last pointed at.
+      this._breakChainWith(live, seat);
       p.discardPile.push({
         name: live.name, cost: live.baseCost || live.cost,
         type: live.type, abilities: live.abilities, desc: live.desc,
@@ -10046,7 +10054,7 @@ const Game = {
       const livingAllies = this.getAllCardsOf(card.owner);
       livingAllies.forEach(a => { if (a.onAllyKilled) this._2v2RunOwned(a, () => a.onAllyKilled(this, a, card)); });
       const livingEnemiesT = this.getAllCardsOf(this.opponent(card.owner));
-      livingEnemiesT.forEach(a => { if (a.onEnemyKilled) a.onEnemyKilled(this, a); });
+      livingEnemiesT.forEach(a => { if (a.onEnemyKilled) a.onEnemyKilled(this, a, card); });
       this._scaleDoomsdayInHands(card.owner, card);
       livingAllies.forEach(a => this.drainBonusAttacks(a));
       this.checkJumpConditions('allyDied', { owner: card.owner, laneIdx });
@@ -10200,8 +10208,13 @@ const Game = {
     if (killer && killer.onKill) { this._2v2ActFor(killer); killer.onKill(this, killer); }
     const livingAllies = this.getAllCardsOf(card.owner);
     livingAllies.forEach(a => { if (a.onAllyKilled) this._2v2RunOwned(a, () => a.onAllyKilled(this, a, card)); });
+    // THE DEAD CARD IS PASSED TO BOTH SIDES. onAllyKilled always received it;
+    // onEnemyKilled did not, so a reaction on the other side could know THAT
+    // something died but never WHAT — and a rule about the state the card died
+    // in (Boiler Room: anything that dies Burning) had no way to ask. Additive:
+    // the one existing handler (Mace Windu) ignores the extra argument.
     const livingEnemies = this.getAllCardsOf(this.opponent(card.owner));
-    livingEnemies.forEach(a => { if (a.onEnemyKilled) { this._2v2ActFor(a); a.onEnemyKilled(this, a); } });
+    livingEnemies.forEach(a => { if (a.onEnemyKilled) { this._2v2ActFor(a); a.onEnemyKilled(this, a, card); } });
     this._scaleDoomsdayInHands(card.owner, card);
     // Drain bonus attacks immediately on every death — combat or
     // trick-triggered. User spec: "Anakin and bonus attacks in general
@@ -11172,6 +11185,32 @@ const Game = {
   // Both must be affordable together and there must be a second open lane; then
   // both are seated (running their own On Play) and each takes a permanent -1/-1
   // "from the chains weakening them on arrival". The chain is then broken.
+  // A CHAIN NEEDS TWO. Pinhead binds a PAIR — "neither can be played alone,
+  // they must be played the same turn" — so the moment one half leaves the hand
+  // the rule it enforces is gone, and the survivor is a card wearing a chain
+  // badge that means nothing. _playChainedCard already broke the link lazily
+  // when it went to seat the pair and found the partner missing, which is
+  // correct but invisible: until then the player was looking at a chained card
+  // with no partner, told it could not be played alone, and given no way to see
+  // why that was no longer true. (Owner: "if you redrraw a kinked card from
+  // pinhead, the debuff goes away on both cards.")
+  //
+  // Released HERE, where the card leaves, so both halves clear at the same
+  // moment and the badge goes with them. Safe for any other source of
+  // `_chained` — The Bathroom's room-chain sets no partner id, so the guard
+  // below leaves it alone.
+  _breakChainWith(card, holder) {
+    if (!card || !card._chained) return;
+    const partnerId = card._chainPartnerId;
+    card._chained = false; card._chainPartnerId = null; card._chainPartnerName = null;
+    if (partnerId == null) return;
+    const hand = (holder && holder.hand) || [];
+    const partner = hand.find(c => c && c.id === partnerId);
+    if (!partner) return;
+    partner._chained = false; partner._chainPartnerId = null; partner._chainPartnerName = null;
+    this.log(`[PINHEAD] The chain binding ${card.name} to ${partner.name} falls apart — ${partner.name} is free.`);
+  },
+
   _playChainedCard(owner, card, laneIdx, opts) {
     // opts.free — the pair is being seated by an effect rather than bought, so
     // there is no energy check and both halves go through playCardFree. See the
@@ -12621,7 +12660,7 @@ const Game = {
       const _devourAllies = this.getAllCardsOf(card.owner);
       _devourAllies.forEach(a => { if (a.onAllyKilled) this._2v2RunOwned(a, () => a.onAllyKilled(this, a, card)); });
       this.getAllCardsOf(this.opponent(card.owner))
-        .forEach(a => { if (a.onEnemyKilled) a.onEnemyKilled(this, a); });
+        .forEach(a => { if (a.onEnemyKilled) a.onEnemyKilled(this, a, card); });
       _devourAllies.forEach(a => this.drainBonusAttacks(a));
       this.checkJumpConditions('allyDied', { owner: card.owner, laneIdx: l });
     }
@@ -15101,17 +15140,14 @@ const Game = {
     this.state.lanes[from][card.owner] = null;
     this.state.lanes[to][card.owner] = card;
     this.log(`  [MOVE] ${card.name} moves from lane ${from + 1} to lane ${to + 1}`);
-    // THE BATHROOM'S CHAIN — a toll on moving, not a lock. Owner: "I wanted
-    // the chained debuff to just say if moved lose (−2/−2)."
-    // It used to REFUSE the move outright. It sits here, in moveCard, because
-    // this is the single choke point every mover funnels through — Bifrost,
-    // Gojo's displace, Ahsoka's swap, a hunt, Killer Moth's flutter, Jigsaw's
-    // own drag. Taxing the movers individually would mean finding all of them
-    // and would silently miss the next one added; taxing the choke point makes
-    // "if moved" true by construction.
-    // Charged AFTER the move lands, so a move that was refused above for some
-    // other reason is never billed for.
-    if (card._chained) this._chargeChainToll(card, to);
+    // NO TOLL ON MOVING ANY MORE. The Bathroom's chain used to charge (−2/−2)
+    // for leaving (and before that it refused the move outright), which made
+    // standing still the correct answer to a room whose whole idea is that you
+    // do not want to be in it. The owner's rewrite moves the cost to the other
+    // side of the choice — "they take (−2/−2) and are chained, losing (−1/−1)
+    // every turn they stay" — so the round-tick in The Bathroom's onTurnStart
+    // IS the chain now, and leaving is what it is supposed to push you into.
+    // _chargeChainToll went with it; nothing else ever called it.
     // ENTRANCE-THEN-TRAP (see checkLaneTrap) — onMoved first, trap second.
     // Killer Moth arrives at 0/1 and grows on arrival; trapping him mid-step
     // killed him before the growth he moved for ever landed.
@@ -16286,7 +16322,7 @@ const Game = {
   //                       card and an infinite loop")
   //   _obiWanReflecting / _trigonChaining — in-flight re-entrancy guards, not
   //                       lifetime latches; clearing them mid-cascade is a hang
-  //   _bathroomTriggered / _owSpawned / _sewersTriggered / _wetReleased —
+  //   _brSpawned / _owSpawned / _sewersTriggered / _wetReleased —
   //                       environments, which are never revived
   //   _artExhausted     — Art's exhaust also NULLS his hooks, and applyAbilities
   //                       restores keyword flags only, so clearing the flag on
@@ -16557,21 +16593,6 @@ const Game = {
   // once ended up shielding a card that Pym Particles did not.
   // The chain STAYS after the move: it is a ball being dragged, so a second
   // move costs again.
-  _chargeChainToll(card, laneIdx) {
-    if (!card || card.currentHealth <= 0) return;
-    const D = 2;
-    const hpShielded = this.statStripShieldsHp(card);
-    card.attack = Math.max(0, card.attack - D);
-    if (!hpShielded) {
-      card.maxHealth = Math.max(1, card.maxHealth - D);
-      card.currentHealth = Math.max(0, card.currentHealth - D);
-    }
-    this.log(hpShielded
-      ? `  [CHAINED] ${card.name} drags the chain — −${D} ATK, health shielded → ${card.attack}/${card.currentHealth}`
-      : `  [CHAINED] ${card.name} drags the chain — −${D}/−${D} → ${card.attack}/${card.currentHealth}`);
-    if (card.currentHealth <= 0) this.handleDeath(card, laneIdx, null);
-  },
-
   // Marks a summoner that places SEVERAL cards into lanes it picked up front
   // (Knull, Hela). summonCardChoice reads this: a nested summon must resolve
   // synchronously while such a loop is mid-flight, because the loop will not

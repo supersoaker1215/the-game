@@ -7259,29 +7259,41 @@ const CARD_ABILITIES = {
       // isBurning, the ignite one-shot FX and the decaying counter all live in
       // _ignite. Its first arg (G) is unused, hence null.
       CARD_ABILITIES['Godzilla']._ignite(null, card, 1);
-      // Add the Freddy spawn onDeath hook independently of isBurning so
-      // a card pre-marked by another source (Knull, Freddy Krueger passive)
-      // still triggers the spawn when it dies in the Boiler Room's lane.
-      if (boilerRoom && !card._brDeathHooked) {
-        card._brDeathHooked = true;
-        const orig = card.onDeath || null;
-        card.onDeath = function(G, self, laneIdx) {
-          // Propagate death-prevention (see Open Water) — a burning card that
-          // survives via a custom revive must not also spawn Freddy off a
-          // canceled death.
-          const prevented = orig ? orig.call(this, G, self, laneIdx) : false;
-          if (prevented) return true;
-          const AB = CARD_ABILITIES['Boiler Room'];
-          if (AB && !boilerRoom._brSpawned) {
-            const brLane = G.findCardLane(boilerRoom);
-            if (brLane >= 0) {
-              boilerRoom._brSpawned = true;
-              AB._spawnFreddy(G, boilerRoom.owner, brLane);
-            }
-          }
-        };
-      }
+      // _brDeathHooked is now only a "this Boiler Room has already lit you"
+      // marker, read by onAnyCardPlayed so a cleansed card is not silently
+      // re-lit. It no longer carries the spawn — see _watchBurningDeath.
+      if (boilerRoom) card._brDeathHooked = true;
     },
+    // ANY CARD THAT DIES BURNING, WHOEVER LIT IT.
+    // The spawn used to ride a per-card onDeath hook that only existed on cards
+    // THIS Boiler Room had marked — so a card set alight by anything else
+    // (Godzilla's Atomic Breath, Knull, Freddy's own passive) could die burning
+    // with the Boiler Room sitting right there and nothing would happen. Owner:
+    // "godzilla gev juggernaiut burning, boiler room on the field, juggernauth
+    // dies freddy didnt spawn he should, doesnt matter if the buring didnt come
+    // form the boiler room the passive is any card that dies with buring freddy
+    // spawns."
+    //
+    // So the Boiler Room watches the board instead of tagging bodies. One rule
+    // in one place: it is asked about every death, from either side, through the
+    // hooks the engine already broadcasts — which also means a future burn
+    // source inherits this without knowing the Boiler Room exists.
+    //
+    // Death-PREVENTION is still respected: these hooks fire only after
+    // handleDeath has run the dying card's own onDeath and seen it not cancel,
+    // so a burning card that revives cannot also raise Freddy off the death it
+    // just refused.
+    _watchBurningDeath(G, self, dead) {
+      if (!dead || !dead.isBurning) return;
+      if (self._brSpawned || self.currentHealth <= 0) return;
+      const brLane = G.findCardLane(self);
+      if (brLane < 0) return;
+      self._brSpawned = true;
+      G.log(`[BOILER ROOM] ${dead.name} burns to nothing — something stirs in the boiler room.`);
+      CARD_ABILITIES['Boiler Room']._spawnFreddy(G, self.owner, brLane);
+    },
+    onAllyKilled(G, self, dead)  { CARD_ABILITIES['Boiler Room']._watchBurningDeath(G, self, dead); },
+    onEnemyKilled(G, self, dead) { CARD_ABILITIES['Boiler Room']._watchBurningDeath(G, self, dead); },
     _spawnFreddy(G, owner, laneIdx) {
       const lane = G.state.lanes[laneIdx];
       // Clear the environment sub-slot
@@ -7822,45 +7834,43 @@ const CARD_ABILITIES = {
   // JIGSAW'S TWO ROOMS — placed by his discard, never drafted.
   // ============================================================
   "The Bathroom": {
-    // "First enemy to enter" uses the SEWERS pattern: record who is standing
+    // "Enters this lane" uses the SEWERS pattern: record who is standing
     // opposite when the room lands, then watch for a DIFFERENT card showing up.
     // Reusing the established idiom rather than inventing a second definition of
     // "entered" is what keeps the two rooms consistent with Sewers and Open
     // Water instead of subtly disagreeing about what an arrival is.
+    //
+    // REWRITTEN 2026-09-14 to the owner's wording: "for the bathroom just say
+    // when enemy cards enter this lane they take (-2/-2) and are chained,
+    // losing (-1/-1) every turn they stay."
+    //
+    // What that replaced: the room held exactly TWO victims, Chained meant "if
+    // you move, pay another (−2/−2)", and the room drained away when the SECOND
+    // of the two died. Three separate clocks — an intake count, a move penalty
+    // and a bespoke death-driven lifetime — for a card whose whole idea is "do
+    // not stand here". Now there is one: the room chains everything that walks
+    // in, and standing there costs (−1/−1) a round.
+    //
+    // NO CAP, so nothing counts victims any more, and with no "second body"
+    // there is nothing for the old drain to key on — the room simply runs the
+    // standard environment clock (ENV_TURNS) like every other room, which is
+    // also what the lane's countdown pip has always been showing.
     onPlay(G, self, lane) {
       const opp = G.opponent(self.owner);
       const existing = G.state.lanes[lane][opp];
       self._bathroomTracked = (existing && existing.currentHealth > 0) ? existing.id : null;
-      // TWO victims, not one. The room holds the next 2 enemy cards, and it
-      // only drains away once the SECOND one dies — so the count of bodies
-      // still owed and the count already taken both have to survive on the
-      // room itself, not in a closure.
+      // The ids this room chained, so it can release them when it leaves —
+      // `_chained` is SHARED with Pinhead's hand-chain (told apart everywhere
+      // else by _chainPartnerId, which only Pinhead sets), so clearing the flag
+      // off anything else would break a card this room never touched.
       self._bathroomChained = [];
     },
     _chain(G, self, victim, laneIdx) {
-      // The room is spent for INTAKE once it holds two, but it stays on the
-      // board until the second body dies — those are different lifetimes and
-      // conflating them is what would make it vanish with a victim still
-      // chained inside it.
       if (!self._bathroomChained) self._bathroomChained = [];
-      self._bathroomChained.push(victim.id);
-      if (self._bathroomChained.length >= 2) self._bathroomTriggered = true;
-      // THE CHAIN ICON. A visible status, not just an invisible movement flag —
-      // the owner has to be able to see which two cards the room owns.
+      if (self._bathroomChained.indexOf(victim.id) === -1) self._bathroomChained.push(victim.id);
+      // THE CHAIN ICON. A visible status, not just an invisible flag — the
+      // owner has to be able to see which cards the room owns.
       victim._chained = true;
-      // Watch this body: when the SECOND chained card dies the room drains.
-      // Wraps onDeath the same way Game Over hooks its occupants, including
-      // the death-PREVENTION protocol — a truthy return means the death was
-      // cancelled, so a card saved by a revive must not also count as drained.
-      if (!victim._bathroomDeathHooked) {
-        victim._bathroomDeathHooked = true;
-        const prior = victim.onDeath || null;
-        victim.onDeath = function (G2, dead, dLane) {
-          const prevented = prior ? prior.call(this, G2, dead, dLane) : false;
-          if (prevented) return true;
-          try { CARD_ABILITIES['The Bathroom']._drain(G2, self, dead); } catch (e) {}
-        };
-      }
       // (−2/−2) applied with the CANONICAL shield rule — the same
       // statStripShieldsHp predicate checkLaneTrap and debuffCard use, so
       // Invincible / Damage Immunity blocks the health loss while the ATK strip
@@ -7873,52 +7883,64 @@ const CARD_ABILITIES = {
         victim.maxHealth = Math.max(1, victim.maxHealth - D);
         victim.currentHealth = Math.max(0, victim.currentHealth - D);
       }
-      // The chain no longer PINS the victim — moveCard charges it (−2/−2) for
-      // every move instead. `_chained` is the whole status now; the old
-      // _chainedToLane pin is gone.
       if (typeof UI !== 'undefined' && UI._fxBathroomChain) { try { UI._fxBathroomChain(victim); } catch (e) {} }
       G.log(hpShielded
         ? `  [THE BATHROOM] ${victim.name} wakes up chained! −${D} ATK — health shielded → ${victim.attack}/${victim.currentHealth}`
         : `  [THE BATHROOM] ${victim.name} wakes up chained! −${D}/−${D} → ${victim.attack}/${victim.currentHealth}`);
-      G.log(`  [THE BATHROOM] ${victim.name} is Chained — moving costs another (−2/−2).`);
+      G.log(`  [THE BATHROOM] ${victim.name} is Chained — every round it stays costs another (−1/−1).`);
       // A chain that drops the victim to 0 is lethal — route through the
       // canonical death path so it cannot sit as a 0-HP zombie. Same reasoning
       // (and same bug class) as checkLaneTrap.
       if (victim.currentHealth <= 0) G.handleDeath(victim, laneIdx, null);
     },
-    // THE ROOM DRAINS. Only the SECOND chained body ends it — the first dying
-    // leaves the room standing with one victim still owed, which is the whole
-    // point of a room that holds two.
-    _drain(G, self, dead) {
-      const held = self._bathroomChained || [];
-      if (!held.includes(dead.id)) return;
-      self._bathroomDead = (self._bathroomDead || 0) + 1;
-      if (self._bathroomDead < 2) {
-        G.log(`  [THE BATHROOM] ${dead.name} stops moving. One chain still holds.`);
-        return;
-      }
+    // STAYING COSTS. The old Chained was a toll on MOVING, which meant the
+    // correct play against the room was to stand still and ignore it. Reversing
+    // that is the whole point of the rewrite: the clock runs while you are in
+    // there, and leaving is the answer.
+    onTurnStart(G, self) {
       const laneIdx = G.findCardLane(self);
       if (laneIdx < 0) return;
-      const lane = G.state.lanes[laneIdx];
-      // Clear the sub-slot the way Game Over and Sewers hand their lane back.
-      if (lane._env && lane._env[self.owner] === self) lane._env[self.owner] = null;
-      G.log(`[THE BATHROOM] Both chains are empty. The room drains away.`);
-      if (typeof UI !== 'undefined' && UI.emitFX) { try { G.emitFX('envReveal', { lane: laneIdx, owner: self.owner, name: 'The Bathroom' }); } catch (e) {} }
+      const opp = G.opponent(self.owner);
+      const victim = G.state.lanes[laneIdx][opp];
+      if (!victim || victim.currentHealth <= 0 || victim.isEnvironment) return;
+      // Only a body THIS room chained — a card chained by Pinhead's hand-link,
+      // or standing here before the room opened, is not the room's to drain.
+      if ((self._bathroomChained || []).indexOf(victim.id) === -1) return;
+      const D = 1;
+      const hpShielded = G.statStripShieldsHp(victim);
+      victim.attack = Math.max(0, victim.attack - D);
+      if (!hpShielded) {
+        victim.maxHealth = Math.max(1, victim.maxHealth - D);
+        victim.currentHealth = Math.max(0, victim.currentHealth - D);
+      }
+      G.log(hpShielded
+        ? `  [THE BATHROOM] The chains bite ${victim.name} — −${D} ATK, health shielded → ${victim.attack}/${victim.currentHealth}`
+        : `  [THE BATHROOM] The chains bite ${victim.name} — −${D}/−${D} → ${victim.attack}/${victim.currentHealth}`);
+      if (victim.currentHealth <= 0) G.handleDeath(victim, laneIdx, null);
+    },
+    // THE ROOM LETS GO WHEN IT LEAVES. Its own clock removes it (ENV_TURNS, the
+    // same countdown the lane pip prints), and a status applied by a room that
+    // is no longer there must not keep its badge — or keep reading as Pinhead's
+    // chain to anything that checks `_chained` later.
+    onDeath(G, self) {
+      const held = self._bathroomChained || [];
+      if (!held.length) return;
+      G.getAllCardsOf(G.opponent(self.owner)).forEach(c => {
+        // _chainPartnerId is Pinhead's and only Pinhead's — never release one
+        // of his pairs on the way out.
+        if (c && held.indexOf(c.id) !== -1 && c._chainPartnerId == null) c._chained = false;
+      });
     },
     onAnyCardPlayed(G, self) {
-      if (self._bathroomTriggered) return;
       const laneIdx = G.findCardLane(self);
       if (laneIdx < 0) return;
       const opp = G.opponent(self.owner);
       const enemy = G.state.lanes[laneIdx][opp];
       const enemyId = (enemy && enemy.currentHealth > 0) ? enemy.id : null;
-      // ALREADY-CHAINED BODIES ARE NOT NEW ARRIVALS. The one-victim version
-      // could skip this: _chain set _bathroomTriggered, and the guard at the
-      // top of this method then blocked every later ping. Holding TWO means
-      // the flag no longer trips on the first, so without these two lines the
-      // victim standing in the lane reads as an unseen arrival on EVERY card
-      // played and takes (−2/−2) again, and again. Two guards on purpose —
-      // `_chained` also covers a body chained by some other room.
+      // ALREADY-CHAINED BODIES ARE NOT NEW ARRIVALS. Without this the victim
+      // standing in the lane reads as an unseen arrival on EVERY card played
+      // and takes (−2/−2) again, and again. Two guards on purpose — `_chained`
+      // also covers a body chained by some other source.
       if (enemy && enemy._chained) { self._bathroomTracked = enemyId; return; }
       if (enemyId && enemyId !== self._bathroomTracked) {
         self._bathroomTracked = enemyId;
