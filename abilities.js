@@ -3207,25 +3207,44 @@ const CARD_ABILITIES = {
           }
         };
         if (Game.isHuman(self.owner)) {
-          // Skip option — the free play is a GIFT, not a demand. The player
-          // may be saving a cheap card (combo piece, jump body) for later.
-          // User direction: "i want the player to have the option in case
-          // you were saving that character."
-          const skip = { name: 'Skip — Save Your Cards', _artName: 'Black Panther',
-            desc: 'Play nothing for free this time. Your hand stays as it is.', _bpSkip: true };
-          // inlineTray — force ALL options into the choice tray. Without it
-          // the real cards are filtered out of the tray ("already visible on
-          // screen" — they glow in the hand instead) and the tray shows ONLY
-          // the Skip tile; players read that as the whole choice and think
-          // the free play is broken. User report: "he couldn't choose which
-          // 3-cost or lower card he wanted to play and could only skip."
-          G.promptCardChoice(self.owner, [...freeCards, skip], "Black Panther — Free Play",
+          // PICK OUT OF THE HAND, THE WAY YOU PLAY ANY OTHER CARD. Owner: "the
+          // BP decison should be like symbiote where the cards 3 cost or less
+          // are in hand highlighted yellow and you tap to play or drag."
+          //
+          // THIS RETIRES `inlineTray`, AND KEEPS THE POINT THAT PUT IT HERE.
+          // The tray was added because the real cards were being filtered OUT
+          // of it ("already visible on screen") while a synthetic Skip tile
+          // stayed in, so the panel showed only Skip and the free play read as
+          // broken: "he couldn't choose which 3-cost or lower card he wanted to
+          // play and could only skip." Forcing everything into the tray fixed
+          // the missing cards and inherited a worse problem — a full-size
+          // duplicate of a card already painted in the hand, and the Skip tile
+          // pushed below the fold of a 381px panel (measured: it sat at y=636),
+          // so skipping needed a scroll the owner had already ruled out.
+          //
+          // The hand IS the list. Skip stops being a card in that list and
+          // becomes what it always was — a decline — so it renders as a button
+          // in the decision notice and can never be scrolled off.
+          //
+          // `handDrop` is the half Symbiote has no use for: a shuffle has no
+          // lane, but a free PLAY does, so dragging a lit card straight onto a
+          // lane answers both questions in the one gesture cards are played
+          // with everywhere else. Tapping still opens the full face first, with
+          // the commit button inside it — read first, commit second.
+          G.promptCardChoice(self.owner, [...freeCards], "Black Panther — Free Play",
             "Choose a card with base cost 3 or less to play free — or skip", (picked) => {
-              if (picked && picked._bpSkip) { G.log('Black Panther holds back — no free play.'); return; }
               playFree(picked);
             },
-            cards => cards.filter(c => !c._bpSkip).slice().sort((a, b) => (b.baseCost || b.cost) - (a.baseCost || a.cost))[0],
-            { inlineTray: true });
+            cards => cards.slice().sort((a, b) => (b.baseCost || b.cost) - (a.baseCost || a.cost))[0],
+            { fromHand: true, handDrop: true, pickLabel: 'Play Free',
+              // The free play is a GIFT, not a demand — the player may be
+              // saving a cheap card (combo piece, jump body) for later. (User:
+              // "i want the player to have the option in case you were saving
+              // that character.") declineLabel also keeps the prompt from
+              // auto-resolving when exactly one card qualifies, which the Skip
+              // tile used to do by padding the list to two.
+              declineLabel: 'Skip — Save Your Cards',
+              onDecline: () => G.log('Black Panther holds back — no free play.') });
         } else {
           const best = freeCards.slice().sort((a, b) => (b.baseCost || b.cost) - (a.baseCost || a.cost))[0];
           playFree(best);

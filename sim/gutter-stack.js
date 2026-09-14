@@ -416,6 +416,122 @@ t('GS-19 a gutter tile is a thumbnail, sized off the track', function () {
      !!por && /aspect-ratio:\s*auto\s*!important/.test(por[1]), true);
 });
 
+
+// ---- BLACK PANTHER PICKS OUT OF THE HAND TOO (2026-09-14) ------------------
+// Owner: "the BP decison should be like symbiote where the cards 3 cost or less
+// are in hand highlighted yellow and you tap to play or drag."
+//
+// The tray was put here for a real reason — the free-play cards were being
+// filtered OUT of it as "already visible on screen" while a synthetic Skip tile
+// stayed in, so the panel showed only Skip and the free play read as broken.
+// Forcing everything into the tray fixed that and inherited worse: a full-size
+// duplicate of a card already painted in the hand, and the Skip pushed below the
+// fold of a 381px panel (measured at y=636) so skipping needed a scroll.
+//
+// The hand is the list; Skip is a decline, not a card; and because a free PLAY
+// needs a lane — which a Symbiote shuffle does not — a lit card may also be
+// dragged straight onto one, answering both questions in a single gesture.
+
+// The shim replaces promptCardChoice and drops its `options` argument, so the
+// only way to see what an ability ASKED FOR is to intercept the call. Cheaper
+// and far less brittle than grepping the ability for its own option literals.
+function bpPromptOptions(handNames) {
+  Game.init();
+  Game.startMatch && Game.startMatch({ difficulty: 'normal' });
+  var s = Game.state;
+  s.player.hand = (handNames || ['Juggernaut', 'Hulk', 'Galactus']).map(function (n) {
+    return Game.createCardInstance(CARD_DEFS.filter(function (d) { return d.name === n; })[0], 'player');
+  });
+  var bp = Game.createCardInstance(CARD_DEFS.filter(function (d) { return d.name === 'Black Panther'; })[0], 'player');
+  s.lanes[5].player = bp;
+  var seen = null;
+  var real = Game.promptCardChoice;
+  Game.promptCardChoice = function (owner, cards, title, desc, cb, picker, opts) {
+    if (/Black Panther/.test(String(title || ''))) {
+      seen = { names: (cards || []).map(function (c) { return c && c.name; }), opts: opts || {} };
+    }
+    return real.apply(this, arguments);
+  };
+  try { CARD_ABILITIES['Black Panther'].onPlay(Game, bp, 5); }
+  finally { Game.promptCardChoice = real; }
+  return seen;
+}
+
+t('GS-BP1 Black Panther asks the hand, and Skip is a decline rather than a card', function () {
+  var seen = bpPromptOptions();
+  eq('it asked at all', !!seen, true);
+  if (!seen) return;
+  eq('out of the hand',                 !!seen.opts.fromHand, true);
+  eq('and a drag may answer it',        !!seen.opts.handDrop, true);
+  eq('no tray of duplicates',           !!seen.opts.inlineTray, false);
+  eq('the commit button says what it does', seen.opts.pickLabel, 'Play Free');
+  eq('skip is a decline',               seen.opts.declineLabel, 'Skip — Save Your Cards');
+  eq('with something to run',           typeof seen.opts.onDecline, 'function');
+  // The list is the ELIGIBLE CARDS AND NOTHING ELSE. A synthetic Skip tile in
+  // here is what could not be highlighted in the hand and had to be scrolled to.
+  eq('and the options are only the eligible cards',
+     JSON.stringify(seen.names), JSON.stringify(['Juggernaut']));
+});
+
+t('GS-BP2 declining plays nothing, and every eligible card is offered', function () {
+  // Two cost-3-or-less cards must BOTH be offered — the threshold, not the tray,
+  // is what decides the list.
+  var seen = bpPromptOptions(['Juggernaut', 'Human Torch', 'Galactus']);
+  eq('both cheap cards offered', JSON.stringify((seen.names || []).slice().sort()),
+     JSON.stringify(['Human Torch', 'Juggernaut']));
+  // The decline is a real callback that puts nothing on the board.
+  var s = Game.state;
+  s.lanes.forEach(function (l) { l.player = null; });
+  var handBefore = s.player.hand.length;
+  seen.opts.onDecline();
+  eq('nothing was played', s.lanes.filter(function (l) { return !!l.player; }).length, 0);
+  eq('and the hand is untouched', s.player.hand.length, handBefore);
+});
+
+t('GS-BP3 the engine carries the new prompt options through to the UI', function () {
+  var g = read('game.js');
+  eq('handDrop rides the prompt',  /handDrop: !!\(options && options\.handDrop\)/.test(g), true);
+  eq('pickLabel rides the prompt', /pickLabel: \(options && options\.pickLabel\) \|\| null/.test(g), true);
+  var ins = decomment(methodBody('openCardInspect'));
+  eq('and the commit button reads it', /pendingCardChoice\.pickLabel/.test(ins), true);
+});
+
+t('GS-BP4 a drag during a decision answers it — or does not start', function () {
+  var drag = decomment(methodBody('installMobileCardDrag'));
+  eq('found the installer', drag.length > 400, true);
+  // The gate lives in cardFromEl, which touchstart and mousedown SHARE — so the
+  // card never lifts on either input rather than failing at the drop.
+  eq('a prompt of mine is consulted before a card may lift',
+     /pendingCardChoice[\s\S]{0,200}handDrop[\s\S]{0,200}_handPickIndexOf/.test(drag), true);
+  eq('and an option carries its index into the drag', /pickIdx/.test(drag), true);
+  // The drop routes to the decision door, not to the play door.
+  eq('the drop answers the decision', /pickIdx != null[\s\S]{0,900}_resolveHandDrop/.test(drag), true);
+  var res = decomment(methodBody('_resolveHandDrop'));
+  eq('found the resolver', res.length > 80, true);
+  eq('the pick goes through the real door', /cardChoicePick\(idx\)/.test(res), true);
+  eq('and the lane through its own',       /laneChoicePick\(laneIdx\)/.test(res), true);
+  // Narrow on purpose: only a NEW lane prompt, owned by me, that lists that lane.
+  eq('only a lane prompt raised by this pick', /lc !== before/.test(res), true);
+  eq('only one that is mine',                 /promptIsMine\(lc, 'lane'\)/.test(res), true);
+  eq('only one that offers that lane',        /lc\.lanes\.indexOf\(laneIdx\)/.test(res), true);
+});
+
+t('GS-BP5 no card may be played through an open decision', function () {
+  // renderBoard only installs the lane click under `!cc && !lc`, so a TAP was
+  // always blocked. The drag path called onLaneClick directly and inherited
+  // none of that: with the free-play decision open, dragging any hand card onto
+  // a lane placed it for full energy and left the decision pending. Measured
+  // before the fix — Hulk, 6 energy, prompt still open afterwards.
+  var body = decomment(methodBody('onLaneClick'));
+  eq('found onLaneClick', body.length > 200, true);
+  eq('a pending prompt stops the play',
+     /if \(s\.pendingCardChoice \|\| s\.pendingLaneChoice\) return;/.test(body), true);
+  // It has to sit ahead of the play, not after it.
+  var guard = body.indexOf('s.pendingCardChoice || s.pendingLaneChoice');
+  var play  = body.indexOf('submitCommand');
+  eq('and it is checked before anything is placed', guard > -1 && play > -1 && guard < play, true);
+});
+
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];
   try { c.fn(); } catch (e) {

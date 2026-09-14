@@ -14415,6 +14415,18 @@ const Game = {
     // ("Anti-Venom MAY move an ally") gets an explicit opt-out button in the
     // banner, and never auto-resolves just because one candidate is left.
     const declineLabelC = (options && options.declineLabel) || null;
+    // options.fromHand / handDrop / pickLabel — HOW THE PICK IS MADE, not what
+    // is being asked. `fromHand` says the options are cards you are holding, so
+    // the hand itself is the list (lit gold) and the panel is a notice rather
+    // than a tray of duplicates. `handDrop` adds the other half of the gesture
+    // every card already answers to: a lit hand card may be DRAGGED onto a lane,
+    // and the lane it lands on answers the lane question this prompt's callback
+    // raises — one motion instead of pick-then-place. Only meaningful alongside
+    // `fromHand`, and only for a prompt whose callback really does ask for a
+    // lane next (Black Panther's free play). `pickLabel` names the commit button
+    // in the inspect view, so a free play says "Play Free" and not "Pick".
+    // (Owner: "the BP decison should be like symbiote where the cards 3 cost or
+    // less are in hand highlighted yellow and you tap to play or drag.")
     // options.seat — THE OWNING SEAT, DECLARED BY THE CALLER, NOT DERIVED HERE.
     // Every other route to a seat in this function is a guess made from mutable
     // globals (_2v2CurrentActingPlayer, _2v2AIDriving) or from the owning TEAM,
@@ -14449,7 +14461,7 @@ const Game = {
       // sequence number lets the host recognise a stale answer and ignore it
       // instead of acting on it.
       this._promptSeq = (this._promptSeq || 0) + 1;
-      this.state.pendingCardChoice = { owner, cards, title, desc, callback, _seq: this._promptSeq, faceDown: !!(options && options.faceDown), inlineTray: !!(options && options.inlineTray), fromHand: !!(options && options.fromHand), localOnly: !!(options && options.localOnly), declineLabel: declineLabelC, onDecline: (options && options.onDecline) || null, peekStrip: (options && options.peekStrip) || null, aiPicker: (typeof aiPicker === 'function') ? aiPicker : null };
+      this.state.pendingCardChoice = { owner, cards, title, desc, callback, _seq: this._promptSeq, faceDown: !!(options && options.faceDown), inlineTray: !!(options && options.inlineTray), fromHand: !!(options && options.fromHand), handDrop: !!(options && options.handDrop), pickLabel: (options && options.pickLabel) || null, localOnly: !!(options && options.localOnly), declineLabel: declineLabelC, onDecline: (options && options.onDecline) || null, peekStrip: (options && options.peekStrip) || null, aiPicker: (typeof aiPicker === 'function') ? aiPicker : null };
       // 2v2 online: route guest choices to the guest client (same as lane choice)
       const _cap = this._2v2CurrentActingPlayer;
       // Stamp the host (p1) too. Excluding p1 left every host-raised prompt

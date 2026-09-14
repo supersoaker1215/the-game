@@ -13300,6 +13300,32 @@ const UI = {
     return (cc.cards || []).findIndex(c => c && String(c.id) === String(card.id));
   },
 
+  // A LIT HAND CARD WAS DROPPED ON A LANE. Two questions, one gesture: which
+  // card, and where does it go. The pick is resolved through the normal door
+  // (cardChoicePick → resolveActivePrompt, so ownership, replay recording,
+  // snapshots and the 2v2 seat binding all behave exactly as a tap would), and
+  // because that door runs the prompt's callback SYNCHRONOUSLY, a lane question
+  // raised by it is already armed by the time this returns — so the same drop
+  // can answer it.
+  //
+  // Deliberately narrow. The lane is only offered to a lane prompt that (a) was
+  // not there before the pick, (b) is mine, and (c) actually lists that lane.
+  // Anything else and the lane prompt is simply left on screen to be tapped:
+  // the drag has still made the pick, so nothing is lost. That is also what an
+  // MP GUEST gets — cardChoicePick forwards the answer to the host and returns
+  // without arming anything locally, so the guest picks by drag and taps the
+  // lane when the host's prompt arrives.
+  _resolveHandDrop(idx, laneIdx) {
+    const before = Game.state.pendingLaneChoice;
+    try { cardChoicePick(idx); } catch (e) { console.error('[hand-drop]', e); }
+    const lc = Game.state.pendingLaneChoice;
+    if (lc && lc !== before && Game.promptIsMine(lc, 'lane')
+        && (!lc.lanes || lc.lanes.indexOf(laneIdx) !== -1)) {
+      try { laneChoicePick(laneIdx); } catch (e) { console.error('[hand-drop-lane]', e); }
+    }
+    this.render();
+  },
+
   // Render inline choice cards below the board for choices that can't be highlighted on board/hand
   renderInlineChoiceFallback(s) {
     let existing = document.getElementById('inline-choice-row');
@@ -13348,7 +13374,9 @@ const UI = {
             <span class="choice-tray-title">${cc.title || 'Choose a card'}</span>
             ${cc.desc ? `<span class="choice-tray-desc">${cc.desc}</span>` : ''}
           </div>
-          <div class="choice-hand-hint">Pick from your hand \u2014 tap a lit card to read it.</div>
+          <div class="choice-hand-hint">${cc.handDrop
+            ? 'Pick from your hand \u2014 tap a lit card to read it, or drag it to a lane.'
+            : 'Pick from your hand \u2014 tap a lit card to read it.'}</div>
         </div>`;
       document.body.appendChild(tray);
       return;
@@ -32254,7 +32282,26 @@ const UI = {
       // failing only at the drop was the most physical "yes" in the game,
       // attached to the one card that can never be placed.
       if (card && card._neverPlayable) return null;
-      return card ? { card, cardEl } : null;
+      if (!card) return null;
+      // A PROMPT IS WAITING ON THE HAND — the drag means something different,
+      // or it means nothing at all.
+      //   • An option of a `handDrop` prompt IS draggable, and the drop answers
+      //     the decision instead of playing the card (see endAt). Owner: "the BP
+      //     decison … you tap to play or drag."
+      //   • Anything else is not draggable at all. The lane's own click handler
+      //     is not even installed while a prompt is open, so the drag was the
+      //     one way to play a card through a decision — and it worked, for full
+      //     energy, with the decision still pending afterwards.
+      // Asked HERE because touchstart and mousedown share this closure, so the
+      // card never lifts on either input rather than failing at the drop.
+      const _cc = s && s.pendingCardChoice;
+      if (_cc && Game.promptIsMine(_cc, 'card')) {
+        if (!_cc.handDrop) return null;
+        const pickIdx = UI._handPickIndexOf(card);
+        if (pickIdx < 0) return null;
+        return { card, cardEl, pickIdx };
+      }
+      return { card, cardEl, pickIdx: null };
     };
     const laneEls = () => [...document.querySelectorAll('.board > .lane')];
     const laneIdxUnder = (x, y) => {
@@ -32381,6 +32428,7 @@ const UI = {
       if (!hit && !trickHit) return;
       const t = e.touches[0];
       d = { card: hit ? hit.card : null, trick: trickHit ? trickHit.trick : null,
+            pickIdx: hit ? hit.pickIdx : null,
             cardEl: (hit || trickHit).cardEl, x0: t.clientX, y0: t.clientY, moved: false, ghost: null };
     }, { passive: true });
 
@@ -32462,7 +32510,7 @@ const UI = {
     // everything downstream (lane hit-test, trick tray, cancel) is identical.
     const endAt = (px, py) => {
       if (!d) return;
-      const wasDrag = d.moved, card = d.card, trick = d.trick, ghost = d.ghost;
+      const wasDrag = d.moved, card = d.card, trick = d.trick, ghost = d.ghost, pickIdx = d.pickIdx;
       // JUDGE THE DROP BY WHERE THE CARD IS, NOT WHERE THE FINGER IS.
       // The ghost is drawn well above the fingertip (it is centred about 62% of
       // a card height up), so a player who lines the CARD up with a lane is
@@ -32521,6 +32569,19 @@ const UI = {
         if (t && releasedClear) Game.submitCommand({ type: 'playCard', payload: { card, lane: 0 } });
         Game.state.selectedCard = null;
         this.render();
+      } else if (card && pickIdx != null) {
+        // THE DRAG ANSWERS THE DECISION. A `handDrop` prompt's options are cards
+        // in your hand, and a free play needs a lane — so the gesture that
+        // places every other card places this one too, and the lane it lands on
+        // is the answer to the lane question the pick raises. Same hit-test and
+        // same forgiving snap as a normal play; only the resolution differs.
+        let i = t ? laneIdxUnder(t.clientX, t.clientY) : null;
+        if (i == null && t && releasedClear) i = nearestLaneByX(t.clientX, card);
+        // Dropped back into the hand — a change of heart, not an answer. The
+        // decision stays open so the notice and the lit cards are still there.
+        Game.state.selectedCard = null;
+        if (i == null) { this.render(); return; }
+        this._resolveHandDrop(pickIdx, i, card);
       } else if (card) {
         let i = t ? laneIdxUnder(t.clientX, t.clientY) : null;
         // Forgiving drop: the finger/cursor came down clear of the hand (over
@@ -32598,6 +32659,7 @@ const UI = {
       if (!hit) trickHit = trickFromEl(e.target);
       if (!hit && !trickHit) return;
       d = { card: hit && hit.card, trick: trickHit && trickHit.trick,
+            pickIdx: hit ? hit.pickIdx : null,
             cardEl: (hit || trickHit).cardEl, x0: e.clientX, y0: e.clientY,
             moved: false, ghost: null };
     });
@@ -33420,6 +33482,18 @@ const UI = {
   onLaneClick(i) {
     const s = Game.state;
     if (!this.canPlayerPlayCards(s) || !s.selectedCard) return;
+    // A DECISION IS OPEN — NOBODY PLAYS THROUGH IT.
+    // Every CLICK route into this function is already gated at the wiring site:
+    // renderBoard only installs `pSlot.onclick = onLaneClick` under `!cc && !lc`,
+    // so a lane tap during a prompt does nothing. The DRAG path calls this
+    // function directly and inherited none of that, which left a hole big enough
+    // to play through: with Black Panther's free-play decision open, dragging
+    // ANY hand card onto a lane placed it for full energy while the decision sat
+    // there unanswered (measured — Hulk, 6 energy, prompt still pending
+    // afterwards). Same rule, stated once, where every path has to pass.
+    // Ownership is deliberately not consulted, exactly as the wiring gate does
+    // not consult it: a prompt on screen stops plays, whoever it belongs to.
+    if (s.pendingCardChoice || s.pendingLaneChoice) return;
     // Short play-to-play stagger — if a card cue is mid-beat, don't stack a
     // second play on top of it. Shake the selected card so the tap is never
     // silently eaten (the card stays selected so a re-tap lands moments later).
