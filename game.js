@@ -399,6 +399,11 @@ const Game = {
   cardHasBody(card) {
     if (!card) return false;
     if (card.isDiscardEffect || card.isEnvironment || card._neverPlayable) return false;
+    // A PLACEHOLDER IS NOT A CLAIM. Scarlet Witch's printed 0/0 says "ask me
+    // later", not "I do not fight" — see the stamp in createCardInstance. This
+    // branch is for the RAW DEFS the codex, the draft and the deck builder hand
+    // in, which carry no _printed00 to have been stamped correctly.
+    if (card.copiesOpposite) return true;
     // …AND ANYTHING PRINTED 0/0, which is the fact the three flags above were
     // only ever standing in for. Reading the printed numbers instead of a flag
     // is what makes this survive a reclassification, and it just had to: Jigsaw
@@ -15864,7 +15869,15 @@ const Game = {
       // safeHp is floored to 1, so the one fact that distinguishes Jigsaw and
       // Brainiac from a real 0-ATK body is erased the moment an instance
       // exists. Stamped here, where the definition is still in scope.
-      _printed00: ((def.attack | 0) === 0 && (def.health | 0) === 0),
+      //
+      // …EXCEPT WHERE 0/0 IS A PLACEHOLDER. Scarlet Witch prints 0/0 because
+      // her numbers are not knowable until she lands — "Copy the ATK and HP of
+      // the enemy opposite" — which is the opposite of the claim the 0/0 rule
+      // reads it as. She fights; the other five 0/0 cards never reach a lane.
+      // And the flag has to be right HERE rather than excused downstream,
+      // because her own onPlay clears `copiesOpposite` the moment her stats
+      // resolve, so on the board there is nothing left to except her by.
+      _printed00: (!def.copiesOpposite && (def.attack | 0) === 0 && (def.health | 0) === 0),
       abilities: [...(def.abilities || [])], type: def.type || 'neutral',
       // Pristine ability list captured at instance creation. Used by
       // handleDeath's dead-pile reset so a revived card comes back with

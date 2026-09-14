@@ -169,6 +169,85 @@ t('HE-5 both empowers route through Game.cardHasBody', function () {
   eq('a plain card has a body', Game.cardHasBody({ name: 'x' }), true);
 });
 
+
+// ============================================================
+// HE-6 — A PLACEHOLDER IS NOT A CLAIM OF 0/0.
+//        Owner, circling an empty stat row on a played Scarlet Witch:
+//        "scarlit witch needs stats".
+//
+//        cardHasBody reads a printed 0/0 as "this card never fights", which is
+//        true of the five discard/never-placeable cards that print it — and
+//        exactly wrong for Scarlet Witch, whose 0/0 means "ask me later"
+//        ("Copy the ATK and HP of the enemy opposite"). She is the only 0/0
+//        card in the game that stands in a lane.
+//
+//        It cost more than the missing orbs: she was filtered out of Red
+//        Skull's empower and Apocalypse's keyword grant, both of which ask this
+//        predicate — so two cards could never affect her, silently.
+// ============================================================
+t('HE-6 Scarlet Witch has a body — in hand, and after her stats resolve', function () {
+  Game.init();
+  var def = null;
+  for (var i = 0; i < CARD_DEFS.length; i++) if (CARD_DEFS[i].name === 'Scarlet Witch') def = CARD_DEFS[i];
+  eq('found the def', !!def, true);
+  eq('she really is printed 0/0', (def.attack | 0) === 0 && (def.health | 0) === 0, true);
+
+  // The RAW DEF — what the codex, the draft and the deck builder hand in.
+  eq('the raw def has a body', Game.cardHasBody(def), true);
+
+  // The INSTANCE, still in hand with her stats unknown.
+  var w = Game.createCardInstance(def, 'player');
+  eq('not stamped as printed-0/0', !!w._printed00, false);
+  eq('and has a body in hand', Game.cardHasBody(w), true);
+
+  // AND AFTER SHE LANDS. Her own onPlay clears `copiesOpposite` the moment the
+  // numbers resolve, so an exception keyed on that flag would evaporate exactly
+  // where the owner saw the bug — on the board. This is the case that matters.
+  Game.startMatch && Game.startMatch({ difficulty: 'normal' });
+  Game.state.lanes.forEach(function (l) { l.player = null; l.ai = null; });
+  var foeDef = null;
+  for (var j = 0; j < CARD_DEFS.length; j++) if (CARD_DEFS[j].name === 'Mr. Freeze') foeDef = CARD_DEFS[j];
+  var foe = Game.createCardInstance(foeDef, 'ai');
+  foe.attack = 5; foe.currentHealth = 4; foe.maxHealth = 4;
+  Game.state.lanes[3].ai = foe;
+  var live = Game.createCardInstance(def, 'player');
+  Game.state.lanes[3].player = live;
+  CARD_ABILITIES['Scarlet Witch'].onPlay(Game, live, 3);
+  eq('she copied the enemy', live.attack + '/' + live.currentHealth, '5/4');
+  eq('copiesOpposite is cleared', !!live.copiesOpposite, false);
+  eq('and she STILL has a body', Game.cardHasBody(live), true);
+});
+
+t('HE-7 …and the five cards that really are bodyless still are', function () {
+  Game.init();
+  // Every other 0/0 card is a discard effect or never-placeable. If one of them
+  // ever grows a body this fails, which is the point — the exception is meant
+  // to be one card wide.
+  ['Mr. Fantastic', 'Brainiac', 'Professor X', 'Jigsaw', 'Iron Giant'].forEach(function (n) {
+    var d = null;
+    for (var i = 0; i < CARD_DEFS.length; i++) if (CARD_DEFS[i].name === n) d = CARD_DEFS[i];
+    eq(n + ' def has no body', Game.cardHasBody(d), false);
+    eq(n + ' instance has no body', Game.cardHasBody(Game.createCardInstance(d, 'player')), false);
+  });
+  // The bodyless sweep still finds a real set, and no longer names her.
+  var names = bodylessNames();
+  eq('still several bodyless cards', names.length >= 5, true);
+  eq('and Scarlet Witch is not one of them', names.indexOf('Scarlet Witch') === -1, true);
+});
+
+t('HE-8 Red Skull can now empower her', function () {
+  // The filter is `hand.filter(c => c.id !== self.id && G.cardHasBody(c))`, so
+  // before the fix a hand of Scarlet Witch + Brainiac gave Red Skull an EMPTY
+  // pool and he did nothing at all.
+  reset();
+  var witch = realCard('Scarlet Witch', 'player');
+  var brainiac = realCard('Brainiac', 'player');
+  Game.state.player.hand = [witch, brainiac];
+  var pool = Game.state.player.hand.filter(function (c) { return Game.cardHasBody(c); });
+  eq('the pool is her alone', JSON.stringify(pool.map(function (c) { return c.name; })),
+     JSON.stringify(['Scarlet Witch']));
+});
+
 // ---- run ----------------------------------------------------
 __cases.forEach(function (c) {
   __caseFailed = false; __caseMsgs = [];
