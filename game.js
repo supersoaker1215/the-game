@@ -69,6 +69,28 @@ const Game = {
     if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.play) { try { UI.sfx.play(name); } catch (e) {} }
     try { this.emitFX('statusSfx', { sound: name }); } catch (e) {}
   },
+  // EFFECT CUE — the twin of _statusSfx, for the same reason and with the same
+  // shape. An event's fanfare (the Jurassic Park welcome, the Saw line, a Cog
+  // VP's battle theme) is fired from engine code, and in multiplayer the engine
+  // only runs on the HOST — the guest receives serialized state and never
+  // executes the line. So every one of those landed silently for everyone but
+  // the host, which the 2v2 sound audit has been reporting for as long as it
+  // has existed (sim/fxrelay2v2.js, SFXHOSTONLY).
+  //
+  // A RELAY HELPER, NOT A WRAPPER ON playEffect. installSfxBridge wraps four
+  // sound entry points and rebroadcasts whatever the host calls — which works
+  // because those four are only ever called from engine code. playEffect is
+  // not: ui.js fires it for heal, damage, death and mind control from paths
+  // that run on EVERY client, so wrapping it would relay those too and the
+  // guest would hear them twice. Naming the relay at the engine call site is
+  // what keeps the two kinds apart.
+  _effectSfx(name) {
+    if (!name) return;
+    if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.playEffect) {
+      try { UI.sfx.playEffect(name); } catch (e) {}
+    }
+    try { this.emitFX('effectSfx', { sound: name }); } catch (e) {}
+  },
   // ONE Art-the-Clown Hacksaw bleed tick on a card: blood FX + damage + decrement
   // the remaining rounds, clearing the wound when it runs out. Extracted so the
   // FIRST tick can fire the instant Art picks his target (see Art the Clown's
@@ -17990,11 +18012,11 @@ const Game = {
       const jig = CARD_DEFS.find(d => d.name === 'Jigsaw');
       if (jig) { showName = 'Jigsaw'; showDef = jig; }
     }
-    const opts = isJurassic ? { onShow: () => {
-      try { if (UI.sfx && UI.sfx.playEffect) UI.sfx.playEffect('jurassicWelcome'); } catch (e) {}
-    } } : isSaw ? { onShow: () => {
-      try { if (UI.sfx && UI.sfx.playEffect) UI.sfx.playEffect('sawGame'); } catch (e) {}
-    } } : undefined;
+    // `Game.`, not `this.` — onShow is invoked by the reveal panel, so `this`
+    // inside it is the UI, not the engine.
+    const opts = isJurassic ? { onShow: () => { Game._effectSfx('jurassicWelcome'); } }
+      : isSaw ? { onShow: () => { Game._effectSfx('sawGame'); } }
+      : undefined;
     try {
       UI.showCardReveal(showName, showDef.desc || '', showDef.cost, true, title.toUpperCase(), opts);
     } catch (e) { /* an announcement must never be able to stop the event */ }
@@ -18269,8 +18291,7 @@ const Game = {
   _COG_VP_THEME: { vp: 'cogThemeVp', cfo: 'cogThemeCfo', cj: 'cogThemeCj', chairman: 'cogThemeChairman' },
   _cogPlayTheme(vpKey) {
     try {
-      const fx = this._COG_VP_THEME[vpKey];
-      if (fx && typeof UI !== 'undefined' && UI.sfx && UI.sfx.playEffect) UI.sfx.playEffect(fx);
+      this._effectSfx(this._COG_VP_THEME[vpKey]);
     } catch (e) { /* presentation must never break the event */ }
   },
   // A VP arriving gets a reveal so the player SEES it and reads what it does —

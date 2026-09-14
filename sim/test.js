@@ -8847,6 +8847,64 @@ test("Burn/bleed kills BEFORE the lane fights, so the survivor hits the healthba
   assert(alive.mine.currentHealth < 9, 'and our card took the trade');
 });
 
+test("An event's fanfare reaches the guests, not just the host", function () {
+  // The 2v2 sound audit has been reporting this for as long as it has existed:
+  // playEffect is fired from ENGINE code (the Jurassic Park welcome, the Saw
+  // line, a Cog VP's battle theme), and in multiplayer the engine only runs on
+  // the HOST — a guest receives serialized state and never executes the line.
+  // So those cues landed silently for everyone but the host.
+  var G = freshGame();
+  var heard = [];
+  UI.sfx = UI.sfx || {};
+  var prior = UI.sfx.playEffect;
+  UI.sfx.playEffect = function (n) { heard.push(n); };
+  try {
+    if (G.state._fx) G.state._fx.events.length = 0;
+    G._effectSfx('jurassicWelcome');
+  } finally { UI.sfx.playEffect = prior; }
+
+  // LOCALLY, so the host still hears it at the moment the engine fires…
+  assertEq(JSON.stringify(heard), JSON.stringify(['jurassicWelcome']), 'it plays here');
+  // …AND on the stream, which is the half that was missing.
+  var evs = (G.state._fx && G.state._fx.events) || [];
+  var relayed = evs.filter(function (e) { return e.type === 'effectSfx'; });
+  assertEq(relayed.length, 1, 'and rides the FX stream for the guests');
+  assertEq(relayed[0].sound, 'jurassicWelcome', 'carrying the cue name');
+
+  // A nameless call is a no-op, not an event with undefined in it.
+  if (G.state._fx) G.state._fx.events.length = 0;
+  G._effectSfx(null);
+  assertEq(((G.state._fx && G.state._fx.events) || []).length, 0, 'and nothing is relayed for no cue');
+});
+
+test("…and playEffect is NOT in the sound bridge, on purpose", function () {
+  // The obvious-looking fix is to add 'playEffect' to installSfxBridge's RELAY
+  // list, which rebroadcasts whatever the host calls. That works for the four
+  // names already in it because those are only ever called from engine code.
+  // playEffect is not: ui.js fires it for heal, damage, death and mind control
+  // from paths that run on EVERY client, so the bridge would relay those too
+  // and the guest would hear them twice. This pins the distinction.
+  var ui = read('ui.js');
+  var m = /const RELAY = \[([^\]]*)\];/.exec(ui);
+  assert(!!m, 'found the bridge list');
+  // The QUOTED name, not a substring: 'playEffectSfx' is legitimately in that
+  // list and contains 'playEffect'.
+  assertEq(/'playEffect'/.test(m[1]), false, 'playEffect is deliberately not bridged');
+  assertEq(/'playEffectSfx'/.test(m[1]), true, '…while playEffectSfx still is');
+
+  // The engine reaches it through the named helper instead, and no engine file
+  // calls it directly any more — a fourth bypass would be silent on the guest.
+  var eng = read('game.js') + read('abilities.js') + read('tricks.js');
+  var direct = eng.split('UI.sfx.playEffect(').length - 1;
+  assertEq(direct, 1, 'the only UI.sfx.playEffect in engine code is inside _effectSfx');
+  assert(/_effectSfx\(name\)\s*\{/.test(read('game.js')), 'and that helper is _effectSfx');
+
+  // The guest replays it, and ONLY the guest — the host already played it live.
+  assert(/ev\.type === 'effectSfx'/.test(ui), 'the guest handler exists');
+  var handler = ui.slice(ui.indexOf("ev.type === 'effectSfx'"), ui.indexOf("ev.type === 'effectSfx'") + 400);
+  assert(/onlineRelayRole\(\) === 'guest'/.test(handler), 'and it is gated to guests');
+});
+
 test("EVERY arrival-triggered room takes the card already standing there", function () {
   // Owner: "do the same for sewers all all enviroments."
   //

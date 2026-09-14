@@ -76,6 +76,9 @@ var HAS_OWN_PATH = {
 // installSfxBridge's four-name list.
 var SFX_HAS_OWN_PATH = {
   play: "Game._statusSfx emits its own 'statusSfx' event alongside the local play",
+  playEffect: "Game._effectSfx emits its own 'effectSfx' event alongside the local play "
+            + "(a helper, not a bridge wrapper: ui.js fires playEffect from paths that run on "
+            + "every client, so wrapping it would double-play on the guest)",
 };
 // Not effects at all: plumbing, state, or things that legitimately run per client.
 var NOT_FX = {

@@ -13083,6 +13083,16 @@ const UI = {
         }
         continue;
       }
+      // Effect cue relayed from the host — the event fanfares (Jurassic Park's
+      // welcome, the Saw line, a Cog VP's theme) are fired from engine code, so
+      // a guest, who never runs the engine, heard none of them. Guests ONLY:
+      // the host already played it live inside Game._effectSfx.
+      if (ev.type === 'effectSfx') {
+        if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
+          try { if (this.sfx && this.sfx.playEffect && ev.sound) this.sfx.playEffect(ev.sound); } catch (e) {}
+        }
+        continue;
+      }
       if (ev.type === 'envReveal') {
         this.fxEnvReveal(ev.lane, ev.name);
         continue;
