@@ -6087,9 +6087,25 @@ const Game = {
       // with whatever seat happened to be current and its own onPlay prompt
       // then went to that person — measured: p3 plays Mother Box, p1 got
       // "Catwoman — Steal". summonCard has asked in this order all along.
-      const _by = this._2v2AbilityOwner()
+      let _by = this._2v2AbilityOwner()
         || this._2v2CurrentActingPlayer
         || (this._2v2ActivePlayer && this._2v2ActivePlayer()) || null;
+      // THE SUB-PHASE IS THE AUTHORITY, THE GLOBAL IS A HINT.
+      // `_2v2CurrentActingPlayer` is a mutable global that survives across async
+      // gaps, so a bot teammate's finished action can leave it pointing at the
+      // PREVIOUS actor while a new seat's sub-phase is already up — and a normal
+      // play made then got stamped onto the wrong teammate. That is how an AI
+      // teammate's Green Lantern banked its energy on the human next round
+      // (unstamped/mis-stamped cards fall to the first seat on the team, which
+      // is usually the human). When the engine's own turn tracker
+      // (_2v2ActivePlayer, whose sub-phase it actually is) is available and
+      // disagrees, it wins for a NORMAL play. A FREE play keeps its ability
+      // owner (that actor is not the sub-phase seat), and combat — where there
+      // is no card sub-phase, so _active is null — keeps trusting the global a
+      // jump/block set. (User: "my AI teammate played green lantern and it gave
+      // me the extra currency.")
+      const _active = this._2v2ActivePlayer && this._2v2ActivePlayer();
+      if (!this._2v2AbilityOwner() && _active && _by !== _active) _by = _active;
       if (_by) card._2v2PlayedBy = _by;
     }
     // Multiplayer guest: forward to host instead of executing locally.
@@ -6550,9 +6566,14 @@ const Game = {
       // with whatever seat happened to be current and its own onPlay prompt
       // then went to that person — measured: p3 plays Mother Box, p1 got
       // "Catwoman — Steal". summonCard has asked in this order all along.
-      const _by = this._2v2AbilityOwner()
+      let _by = this._2v2AbilityOwner()
         || this._2v2CurrentActingPlayer
         || (this._2v2ActivePlayer && this._2v2ActivePlayer()) || null;
+      // Same authority rule as the main play path: a normal play trusts the
+      // sub-phase seat over the stale global, while a free play (ability owner
+      // set) and combat (no sub-phase) are untouched. See the note there.
+      const _active = this._2v2ActivePlayer && this._2v2ActivePlayer();
+      if (!this._2v2AbilityOwner() && _active && _by !== _active) _by = _active;
       if (_by) card._2v2PlayedBy = _by;
     }
     // Multiplayer guest: forward the free-play action and let the host run it.
@@ -6850,9 +6871,16 @@ const Game = {
     // authoritative playerKey before we get here, and this catches the other
     // doors (an AI seat's trick, a Time Stone intercept).
     if (trick && this.state.twoVTwo && this.state.twoVTwo.online && !trick._2v2PlayedBy) {
-      const _by = this._2v2CurrentActingPlayer
+      let _by = this._2v2CurrentActingPlayer
         || this._2v2AIDriving
         || (this._2v2ActivePlayer && this._2v2ActivePlayer()) || null;
+      // Same authority rule as the card stamps: during a seat's tricks
+      // sub-phase the engine's turn tracker wins over the stale global, so a
+      // trick an AI teammate plays is not attributed to the human. A trick
+      // fired in COMBAT (a block-meter free trick) has no sub-phase, so _active
+      // is null and the global a block set is kept.
+      const _active = this._2v2ActivePlayer && this._2v2ActivePlayer();
+      if (_active && _by !== _active) _by = _active;
       if (_by) trick._2v2PlayedBy = _by;
     }
     this.log(`[TRICK] ${who} play ${trick.name} for ${cost} energy`);
