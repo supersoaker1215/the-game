@@ -242,10 +242,22 @@ t('GS-10 the stacking override beats the !important grid it overrides', function
   // matter how specific, so the text rule has to be !important too — and it is
   // written directly beneath what it overrides rather than 36,000 lines away,
   // which is how a correct rule ends up dead. (See [[css-audit-traps]].)
-  var m = CSS.match(/#classic-decision \.choice-tray-cards:has\(\.choice-opt-text\)\s*\{([^}]*)\}/);
+  // The selector is a GROUP: text options and hand-pick bars are both rows,
+  // not portraits, and both need the grid switched off. Matched from the first
+  // selector through the shared block rather than as one literal string, so
+  // adding a third row-shaped option to the group does not fail this.
+  var m = CSS.match(/#classic-decision \.choice-tray-cards:has\(\.choice-opt-text\)[^{]*\{([^}]*)\}/);
   eq('the override exists', !!m, true);
   eq('it is !important', !!m && /display:\s*flex\s*!important/.test(m[1]), true);
   eq('and stacks them', !!m && /flex-direction:\s*column/.test(m[1]), true);
+  // THE HAND-PICK BARS ARE IN THE SAME GROUP. Without this they were laid into
+  // the auto-fit portrait grid three across, which squeezed .choice-fh-name —
+  // `flex: 1 1 auto; min-width: 0; overflow: hidden` — to ZERO: measured at the
+  // real 286px column, six card names at 0px. Owner, on the Symbiote shuffle
+  // picker: "i just want the name of the cards here."
+  eq('the hand-pick bars are in it too',
+    /#classic-decision \.choice-tray-cards:has\(\.choice-from-hand-opt\)\s*\{/.test(CSS)
+    || /:has\(\.choice-from-hand-opt\)[^{]*\{/.test(CSS), true);
   // It must come AFTER the grid rule in source order, so equal-weight
   // declarations resolve its way too.
   var gridAt = CSS.indexOf('#classic-decision .choice-tray-cards {');

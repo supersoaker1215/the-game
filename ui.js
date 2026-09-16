@@ -13674,9 +13674,17 @@ const UI = {
           ? `<span class="choice-fh-cost">${card.cost}</span>` : '';
         const nm = String((card && card.name) || 'Card')
           .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        // The commit word comes from the PROMPT, not from this branch. It was
+        // hardcoded to "Redraw", which is not what any caller here does:
+        // fromHand is used by Symbiote Spider-Man (a shuffle back into the
+        // deck) and Black Panther (a free play). The actual redraw flow passes
+        // inlineTray and never reaches this code at all, so the one word this
+        // row printed was wrong for every prompt that could print it.
+        const pick = String(cc.pickLabel || 'Pick')
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         return `<div class="choice-opt choice-from-hand-opt">`
           + `${cost}<span class="choice-fh-name">${nm}</span>`
-          + `<button type="button" class="choice-pick-btn" data-pick="${idx}">Redraw</button>`
+          + `<button type="button" class="choice-pick-btn" data-pick="${idx}">${pick}</button>`
           + `</div>`;
       }).join('');
       tray.innerHTML = `
@@ -25956,7 +25964,7 @@ const UI = {
             const splashBit = splash
               ? `<span class="dp-sub">${myAtk} ATK + ${splash} Splash = ${total}</span>`
               : '';
-            let directRow = `<div class="dp-row"><span class="dp-side">Direct</span><span class="dp-nums">&minus;${total} HP</span></div>${splashBit}`;
+            let directRow = `<div class="dp-row dp-theirs"><span class="dp-side">Face</span><span class="dp-nums">&minus;${total} HP</span></div>${splashBit}`;
             if (incoming > 0) {
               const dies = me && me.dies;
               directRow += `<div class="dp-row dp-mine${dies ? ' dp-will-die' : ''}"><span class="dp-side">You</span><span class="dp-nums">${myHp}&nbsp;&rarr;&nbsp;${myHpAfter}</span></div>`;
@@ -26015,7 +26023,7 @@ const UI = {
       const splashBit = splash
         ? `<span class="dp-sub">${myAtk} ATK + ${splash} Splash = ${total}</span>`
         : '';
-      let directRow = `<div class="dp-row"><span class="dp-side">Direct</span><span class="dp-nums">&minus;${total} HP</span></div>${splashBit}`;
+      let directRow = `<div class="dp-row dp-theirs"><span class="dp-side">Face</span><span class="dp-nums">&minus;${total} HP</span></div>${splashBit}`;
       try {
         const result = Game.predictLaneOutcome(laneIdx, { player: myHypoSnap });
         if (result && result.player && result.player.dmgIn > 0) {

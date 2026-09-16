@@ -2736,8 +2736,8 @@ const CARD_ABILITIES = {
               cycleDraw(p, 2, () => G.state[p].hand);
               G.log("Symbiote Spider-Man: You shuffle 2 cards back and draw 2!");
               if (onDone) onDone();
-            }, null, { fromHand: true });
-          }, null, { fromHand: true });
+            }, null, { fromHand: true, pickLabel: 'Shuffle' });
+          }, null, { fromHand: true, pickLabel: 'Shuffle' });
         }
       };
       // Process owner first, then opponent, then heal
@@ -2861,8 +2861,8 @@ const CARD_ABILITIES = {
                     const i2 = hand.findIndex(c => c.id === c2.id);
                     if (i2 >= 0) { shuffleBack(hand[i2], seatSide); hand.splice(i2, 1); }
                     finalizeDraw();
-                  }, lowest, { seat: seatKey, fromHand: true });
-              }, lowest, { seat: seatKey, fromHand: true });
+                  }, lowest, { seat: seatKey, fromHand: true, pickLabel: 'Shuffle' });
+              }, lowest, { seat: seatKey, fromHand: true, pickLabel: 'Shuffle' });
           }
         };
         // Owner first, then the rest — chained so human pick prompts never
@@ -8720,13 +8720,50 @@ const CARD_ABILITIES = {
           G.killCard(c, { name: 'Gargantua' });
           return;
         }
-        c._gargHeld = true;
-        G.log(`[GARGANTUA] ${c.name} is caught in the pull — (\u22123/\u22123).`);
-        // allowKill true: a card small enough to be finished by the weaken is
-        // finished by it, rather than sitting at 0 HP waiting a round for the
-        // crush to notice.
-        G.debuffCard(c, 3, 3, true, { name: 'Gargantua' });
+        CARD_ABILITIES['Gargantua']._catch(G, c);
       });
+    },
+
+    // THE HOLE CATCHES YOU WHEN YOU WALK IN, not at the next round tick.
+    // _crush runs once a round per lane, over whoever is standing there at that
+    // moment — so a card that arrived LATER in the round was simply never seen.
+    // Owner: "i played red hulk into gargantua, he should lose 3/3, and
+    // predator moved in he should also lose 3/3." Measured before: Red Hulk
+    // played in stayed at his printed 4/5 and Predator moved in stayed 3/4,
+    // neither marked.
+    //
+    // This hangs off onAnyCardPlayed because that is the door the engine
+    // ALREADY knocks on for exactly this: checkLaneTrap pokes every room in a
+    // lane a card just settled in, and it is reached from the play path AND
+    // from _trapOnSettle on the move path (which is why a card dragged into
+    // The Bathroom gets chained). Gargantua simply was not listening. Nothing
+    // new is wired — no second definition of "entered", no per-mover patching.
+    //
+    // The broadcast also fires for cards played in OTHER lanes, which is
+    // harmless: _catch is a no-op on anything already held.
+    onAnyCardPlayed(G, self) {
+      const laneIdx = G.findCardLane(self);
+      if (laneIdx < 0) return;
+      const lane = G.state.lanes[laneIdx];
+      if (!lane) return;
+      ['player', 'ai'].forEach(side => {
+        CARD_ABILITIES['Gargantua']._catch(G, lane[side]);
+      });
+    },
+
+    // One card, once. The mark is the guard, NOT a round stamp: two seats and
+    // two doors can reach this in the same round (Gargantua is seated on both
+    // sides of its lane, and a play broadcasts while checkLaneTrap also pokes),
+    // and a card must not pay (-3/-3) twice for one arrival.
+    _catch(G, c) {
+      if (!c || c.currentHealth <= 0 || c.isEnvironment) return;
+      if (c._gargHeld) return;
+      c._gargHeld = true;
+      G.log(`[GARGANTUA] ${c.name} is caught in the pull — (\u22123/\u22123).`);
+      // allowKill true: a card small enough to be finished by the weaken is
+      // finished by it, rather than sitting at 0 HP waiting a round for the
+      // crush to notice.
+      G.debuffCard(c, 3, 3, true, { name: 'Gargantua' });
     },
 
     // One lane closer, both sides, no toll.

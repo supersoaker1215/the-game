@@ -11132,6 +11132,56 @@ test('Wolverine: sniped, revived mid-phase, Overdrive still fires in his lane', 
   assertEq(said('hits health bar for 6'), true, 'and it reached the health bar for his full 6');
 });
 
+// Regression: the black hole catches a card that ARRIVES, not only the one
+// standing there when the round ticked. _crush runs once a round per lane over
+// whoever is in it at that moment, so anything that walked in later in the
+// round was never seen. Owner: "i played red hulk into gargantua, he should
+// lose 3/3, and predator moved in he should also lose 3/3." Measured before:
+// Red Hulk played in stayed at his printed stats, Predator moved in stayed 3/4,
+// neither marked _gargHeld.
+//
+// Driven through playCard and moveCard on purpose — the fix rides checkLaneTrap,
+// the lane-entry door both of those already pass through, and a test built on
+// place() would never reach it.
+test('Gargantua catches a card played into its lane, and one moved in', function () {
+  var G = freshGame();
+  G.state.round = 4;
+  // Seated on BOTH sides of the one lane, the way _ONE_LANE_EVENTS does it.
+  placeEnv(G, 'Gargantua', 'player', 1);
+  placeEnv(G, 'Gargantua', 'ai', 1);
+
+  // --- played in ---------------------------------------------------------
+  var rh = G.createCardInstance(cardByName('Red Hulk'), 'player');
+  G.state.player.hand.push(rh);
+  G.state.player.currency = 20;
+  assertEq(G.playCard('player', rh, 1), true, 'Red Hulk actually reached lane 2');
+  var onBoard = G.state.lanes[1].player;
+  assertEq(onBoard, rh, 'and he is the card standing there');
+  assertEq(!!rh._gargHeld, true, 'the hole marked him on arrival');
+  // He enters alone, so Lone Wolf's +1/+1 lands first: 4/5 -> 5/6 -> 2/3.
+  assertEq(rh.attack, 2, 'played in: ATK 5 (after Lone Wolf) less 3');
+  assertEq(rh.currentHealth, 3, 'played in: HP 6 (after Lone Wolf) less 3');
+
+  // --- moved in ----------------------------------------------------------
+  var pred = place(G, 'Predator', 'ai', 4);
+  assertEq(pred.attack, 3, 'Predator starts on his printed ATK');
+  assertEq(pred.currentHealth, 4, 'and his printed HP');
+  G.moveCard(pred, 4, 1);
+  assertEq(G.state.lanes[1].ai, pred, 'Predator reached lane 2');
+  assertEq(!!pred._gargHeld, true, 'the hole marked him on arrival too');
+  assertEq(pred.attack, 0, 'moved in: 3 less 3');
+  assertEq(pred.currentHealth, 1, 'moved in: 4 less 3');
+
+  // --- and only once -----------------------------------------------------
+  // The broadcast fires for every card played anywhere and Gargantua is seated
+  // twice; a second pass must not bill the same arrival again.
+  var spare = G.createCardInstance(cardByName('Harley Quinn'), 'player');
+  G.state.player.hand.push(spare);
+  G.playCard('player', spare, 3);
+  assertEq(pred.attack, 0, 'a later play elsewhere does not re-crush Predator');
+  assertEq(pred.currentHealth, 1, 'nor take more of his health');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

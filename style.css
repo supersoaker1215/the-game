@@ -10283,7 +10283,18 @@ body.turn-combat .board .lane.lane-active {
      one-word verdict + the key number), and the numbers carry the meaning on
      their own: "-5 HP" against an empty lane, "8 -> 3" for a contested one.
      nowrap then makes clipping structurally impossible rather than merely
-     unlikely at the current font size. */
+     unlikely at the current font size.
+
+     "THE NUMBERS CARRY THE MEANING ON THEIR OWN" WAS NOT TRUE, and the row
+     this note uses as its example is the one it was wrong about. The
+     face-damage row is damage you DEAL, but it carried neither dp-mine nor
+     dp-theirs, so it fell through to the .dp-nums base colour — salmon red,
+     authored so "HP changes read as damage". With its label hidden here, an
+     uncontested lane printed a red "-3 HP" directly under a red LOSE verdict,
+     and it reads as one sentence: you lose 3 HP. Owner: "why does it say lose
+     -3 hp its just an enviroment." The row is tagged dp-theirs now (green,
+     the established "costs them" colour) and its label reads "Face", so the
+     direction survives both this rule and the colour. */
   .dmg-preview .dp-row { gap: 3px; white-space: nowrap; }
   .dmg-preview .dp-side { display: none; }
   .dmg-preview .dp-nums { white-space: nowrap; }
@@ -49067,7 +49078,17 @@ body.in-match #classic-decision:has(.cd-slot > *) { display: flex; }
    authored 36,000 lines earlier in this file would have been silently dead, the
    trap sim/card-tube.js exists for. This sits directly under what it overrides,
    and is more specific, so both halves of the cascade agree. */
-#classic-decision .choice-tray-cards:has(.choice-opt-text) {
+/* The same is true of the hand-pick BARS. `.choice-from-hand-opt` is authored
+   as a full-width row — cost, name, button reading across — and the auto-fit
+   grid above laid six of them into three 70px tracks. A 20px cost bubble plus
+   the commit button already exceeds that, and the name between them is
+   `flex: 1 1 auto; min-width: 0; overflow: hidden`, so it collapsed to ZERO
+   and the bars spilled past the panel: measured at the real 286px column, six
+   names at 0px across two grid lines. What the owner photographed was a wall
+   of identical buttons with no card names at all — "i just want the name of
+   the cards here". Same shape as a text option, so the same override. */
+#classic-decision .choice-tray-cards:has(.choice-opt-text),
+#classic-decision .choice-tray-cards:has(.choice-from-hand-opt) {
   display: flex !important;
   flex-direction: column;
   gap: 6px !important;
