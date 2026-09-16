@@ -13213,15 +13213,13 @@ const UI = {
         if (side === 'player') this._maybeTeachBlockMeter();
       }
       if (ev.type === 'blocked') {
-        // BLOCKED! banner
-        const banner = document.createElement('div');
-        banner.className = 'blocked-banner';
-        banner.textContent = 'BLOCKED!';
-        document.body.appendChild(banner);
-        setTimeout(() => banner.remove(), 1100);
-        // Flash the HP bar
-        const fill = document.getElementById(ev.owner === 'player' ? 'player-hp-fill' : 'ai-hp-fill');
-        if (fill) { fill.classList.add('hp-flash'); setTimeout(() => fill.classList.remove('hp-flash'), 500); }
+        // VIEWER-RELATIVE SIDE. ev.owner is the ABSOLUTE side whose meter fired
+        // (Team A = 'player', Team B = 'ai'); every side-anchored effect below
+        // has to land on the bar the VIEWER sees it on, or in 2v2 the whole
+        // block animation played on the wrong half of the screen (a guest on
+        // Team B saw their own block flash the enemy bar). hpHit already routes
+        // through _fxDomSide for exactly this; the block FX never did.
+        const bside = this._fxDomSide ? this._fxDomSide(ev.owner) : ev.owner;
         // The energy-shield activation cue (audio/block-full.mp3) — the meter
         // just turned this hit aside. Its own cue so the triple-multikill reuse
         // of 'blockFull' stays the procedural chord.
@@ -13229,11 +13227,20 @@ const UI = {
         // Haptic for the block trigger — distinctive punch so the
         // player feels the moment their meter saved them.
         this._haptic('block');
+        // THE BIG, UNMISSABLE ONE. A hex energy-shield flares up over the bar
+        // that blocked, throws a shockwave ring, and drops a "BLOCKED!" title —
+        // so the moment reads at a glance even across a busy 2v2 board, matching
+        // the shield-activation sound. (User: "make it have an animation too so
+        // people know.")
+        this.fxBlockShield(bside);
+        // Flash the HP bar
+        const fill = document.getElementById(bside === 'player' ? 'player-hp-fill' : 'ai-hp-fill');
+        if (fill) { fill.classList.add('hp-flash'); setTimeout(() => fill.classList.remove('hp-flash'), 500); }
         // Shield ring on the HP bar — the meter was spent absorbing this.
-        this.fxBlockAbsorb(ev.owner);
+        this.fxBlockAbsorb(bside);
         // Charge burst on the block circle itself — the ring flares and
         // radiates shock rings as it discharges into the free Trick.
-        this.fxBlockCharge(ev.owner);
+        this.fxBlockCharge(bside);
         continue;
       }
       if (ev.type === 'hpHit') {
@@ -27995,6 +28002,41 @@ const UI = {
       ring.remove();
       cont.classList.remove('block-absorb-pulse');
     }, 640);
+  },
+
+  // THE BLOCK MOMENT, MADE VISIBLE. A hex energy-shield flares up over the bar
+  // that blocked and throws two shockwave rings, with a "BLOCKED" title under
+  // it — the visual twin of the shield-activation sound, so the moment reads at
+  // a glance instead of only being felt. Anchored on the blocking side's HP bar
+  // (already mapped viewer-relative by the caller) so it says WHOSE meter fired;
+  // falls back to screen centre when that bar isn't in the DOM. One element,
+  // self-removing, and gated on reduced-motion like every other burst.
+  // (User: "make it have an animation too so people know.")
+  fxBlockShield(side) {
+    if (this._reducedMotion && this._reducedMotion()) return;
+    const fill = document.getElementById((side === 'player' ? 'player' : 'ai') + '-hp-fill');
+    const cont = fill && fill.closest('.health-container');
+    const wrap = document.createElement('div');
+    wrap.className = 'block-shield-fx';
+    wrap.innerHTML =
+      '<svg class="bsf-hex" viewBox="0 0 100 100" aria-hidden="true">' +
+        '<polygon class="bsf-hex-outer" points="50,3 91,26.5 91,73.5 50,97 9,73.5 9,26.5"></polygon>' +
+        '<polygon class="bsf-hex-inner" points="50,15 80,32.5 80,67.5 50,85 20,67.5 20,32.5"></polygon>' +
+      '</svg>' +
+      '<span class="bsf-ring"></span>' +
+      '<span class="bsf-ring bsf-ring-2"></span>' +
+      '<span class="bsf-label">BLOCKED</span>';
+    const r = cont && cont.getBoundingClientRect();
+    if (r && r.width > 0 && r.height > 0) {
+      wrap.style.left = (r.left + r.width / 2) + 'px';
+      wrap.style.top  = (r.top + r.height / 2) + 'px';
+    } else {
+      // No laid-out bar to anchor to — sit it just above board centre.
+      wrap.style.left = '50%';
+      wrap.style.top  = '42%';
+    }
+    document.body.appendChild(wrap);
+    setTimeout(() => { try { wrap.remove(); } catch (e) {} }, 1200);
   },
 
   // ===================== HERO AVATARS (Snap/PvZ duel identity) ==========

@@ -8705,6 +8705,67 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   100% { opacity: 0; transform: translate(-50%, -50%) scale(1.05); }
 }
 
+/* ---- BLOCK SHIELD BURST (fxBlockShield) --------------------------------
+   The unmissable block animation: a hex energy-shield flares up over the bar
+   that blocked, two shockwave rings punch outward, and a "BLOCKED" title lands
+   under it. Anchored on that side's HP bar by JS (left/top set inline), so it
+   reads as "this player's meter saved them". */
+.block-shield-fx {
+  position: fixed;
+  transform: translate(-50%, -50%);
+  width: 0; height: 0;
+  z-index: 1000;
+  pointer-events: none;
+}
+.block-shield-fx .bsf-hex {
+  position: absolute; left: 50%; top: 50%;
+  width: 168px; height: 168px; margin: -84px 0 0 -84px;
+  filter: drop-shadow(0 0 12px rgba(53,201,255,0.85)) drop-shadow(0 0 30px rgba(53,201,255,0.45));
+  animation: bsfHexFlare 1s cubic-bezier(0.2,0.8,0.3,1) forwards;
+}
+.block-shield-fx .bsf-hex polygon { fill: none; }
+.block-shield-fx .bsf-hex-outer { stroke: #57d6ff; stroke-width: 3; fill: rgba(53,201,255,0.10); }
+.block-shield-fx .bsf-hex-inner { stroke: rgba(210,244,255,0.92); stroke-width: 1.5; }
+@keyframes bsfHexFlare {
+  0%   { opacity: 0; transform: scale(0.4) rotate(-8deg); }
+  18%  { opacity: 1; transform: scale(1.14) rotate(0deg); }
+  34%  { transform: scale(0.98) rotate(0deg); }
+  46%  { transform: scale(1.02); }
+  70%  { opacity: 0.9; }
+  100% { opacity: 0; transform: scale(1.05); }
+}
+.block-shield-fx .bsf-ring {
+  position: absolute; left: 50%; top: 50%;
+  width: 120px; height: 120px; margin: -60px 0 0 -60px;
+  border: 3px solid rgba(87,214,255,0.9);
+  border-radius: 50%;
+  opacity: 0;
+  animation: bsfRing 0.9s ease-out forwards;
+}
+.block-shield-fx .bsf-ring-2 { animation-delay: 0.14s; border-color: rgba(255,255,255,0.6); }
+@keyframes bsfRing {
+  0%   { opacity: 0.9; transform: scale(0.3); }
+  100% { opacity: 0; transform: scale(3.2); }
+}
+.block-shield-fx .bsf-label {
+  position: absolute; left: 50%; top: 50%;
+  margin-top: 96px;
+  transform: translateX(-50%);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 30px; font-weight: 800; letter-spacing: 6px;
+  color: #d8f4ff;
+  text-shadow: 0 0 14px rgba(53,201,255,0.9), 0 0 28px rgba(53,201,255,0.5);
+  white-space: nowrap;
+  opacity: 0;
+  animation: bsfLabel 1.1s ease-out forwards;
+}
+@keyframes bsfLabel {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(8px) scale(0.9); }
+  20%  { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  75%  { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-4px); }
+}
+
 /* ---- PLAYER HAND ---- */
 .player-hand-section {
   /* Extra top padding (was 4px) so the player banner's energy orb — which
