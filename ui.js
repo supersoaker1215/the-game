@@ -2122,7 +2122,16 @@ const UI = {
       // Already under the 1.5s death-cap so no maxDur needed.
       'Harley Quinn':     { death: 'audio/cards/harley-death.mp3' },
       // Joker deathfall — 0.83s clip, plays on every Joker kill.
-      'Joker':            { hover: { src: 'audio/cards/joker-hover.mp3', maxDur: 46, gain: 6.0 }, play: 'audio/cards/joker-play.mp3', death: 'audio/cards/joker-death.mp3' },
+      // Joker hover: the source file was mastered ~18 dB under every other
+      // cinematic hover (measured −38.6 dB mean), and `gain` cannot rescue it —
+      // the sample plays through a plain HTMLAudioElement whose volume is capped
+      // at 1.0, and 0.55 (sfxVolume) × 0.85 (hover) × 6.0 already saturates that
+      // ceiling, so raising the number did nothing. Fixed at the source instead:
+      // the mp3 is loudnorm'd to the house −20 LUFS baseline (peak −1.6 dB, no
+      // clip), which is the only lever that actually makes it louder. `?v=2`
+      // busts the old quiet file from the browser + service-worker caches.
+      // (User: "increase the sound of the jokers hover by a lot.")
+      'Joker':            { hover: { src: 'audio/cards/joker-hover.mp3?v=2', maxDur: 46, gain: 6.0 }, play: 'audio/cards/joker-play.mp3', death: 'audio/cards/joker-death.mp3' },
       // Poison Ivy death — 0.58s clip, plays on every Ivy kill.
       // Two takes, cut to 4s each with a 0.3s fade so neither ends on a hard
       // edge; _resolveSfxEntry picks one at random per play. (Was 3.5s —
