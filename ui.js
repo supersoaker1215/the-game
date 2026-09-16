@@ -2103,9 +2103,8 @@ const UI = {
       'Human Torch':      { ability: { src: 'audio/cards/human-torch-ability.mp3', maxDur: 4.0 } },
       // Gorr — the All-Black necrosword lashing out as he lands. 'play' fires
       // automatically from Game.playCard's wrapper (playCardSfx(name, 'play')),
-      // so this is his When Played cue. (User: "add this sound to Gorr's when
-      // played ability.") 1.14s clip, well under the play cap.
-      'Gorr':             { play: 'audio/cards/gorr-play.wav' },
+      // so this is his When Played cue. 2.06s sword-slash swoosh.
+      'Gorr':             { play: 'audio/cards/gorr-play.mp3' },
       'Ant-Man':          { death: { src: 'audio/cards/ant-man-death.m4a', fullDuration: true } },
       // Ghostface hover: 58s of Nick Cave & The Bad Seeds' "Red Right
       // Hand" (start → 0:58 of the source — intro through the first
