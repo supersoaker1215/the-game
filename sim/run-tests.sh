@@ -205,6 +205,7 @@ run_audit sim/parity2v2.js
 run_audit sim/aiStall2v2.js
 run_audit sim/fxrelay2v2.js
 run_audit sim/audit2v2.js
+run_audit sim/lane-centreline.js
 
 echo ""
 echo "=== pointer-cost.js (no <body> custom-prop write on every mousemove) ==="

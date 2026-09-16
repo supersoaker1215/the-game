@@ -12922,7 +12922,56 @@ body.turn-combat .board .lane.lane-active {
   50%      { opacity: 0.78; }
 }
 
-/* Lane status glyph row — sits between the number badge and the AI slot */
+/* THE LANE'S BOTTOM CHIP STACK — and the one thing it must never do.
+   ============================================================
+   `.lane-chips` holds every non-structural thing the lane prints along its
+   bottom edge: the status row (environment countdown, destroyed-lane timer,
+   protected shield, trap warning, forced-placement arrow, the Hill crown) and
+   the Reverse Bear Trap plate.
+
+   IT IS OUT OF FLOW, AND THAT IS THE WHOLE POINT. The lane is a flex column
+   whose two card slots are `flex: 1 1 0` — they split whatever is left after
+   the fixed-height children. Both chips used to be in-flow children, so a lane
+   carrying one split 22px less than its neighbours and the centreline between
+   its slots rose by exactly HALF that: the divider, the lane-number badge and
+   both cards sat 11px high, in that lane only. Two chips, 22px.
+
+   Owner, on a Gargantua lane: "this should be even with the other lanes, it's
+   a little too high." Measured at the real board height: lane 1 and lane 3
+   centreline at y=415, the Gargantua lane at y=404. After: 415 in all three.
+
+   Absolute takes the stack off the flex line, so the slots always split the
+   same space no matter what a lane is carrying, and the centreline lands at
+   the same y in all six lanes. `bottom: 3px` / `left`+`right: 3px` reproduce
+   exactly where the in-flow chips sat — the lane's 3px padding — because an
+   absolute child is placed against the padding box, not the content box.
+
+   It overlaps the last ~22px of the player slot, which is empty: the slot
+   pushes its card to the TOP, toward the centreline, so the slack collects
+   underneath. Measured against the tallest board card there is (278px, five
+   badges) the clearance is 93px. pointer-events are off on the stack and back
+   on for the chips, so a card under it stays clickable while the chips keep
+   their hover-for-title.
+
+   SELECTOR IS `.lane > .lane-chips`, NOT `.lane-chips`. A blanket
+   `.lane > * { position: relative; z-index: 1 }` sits LATER in this file at
+   equal specificity, so a bare class loses BOTH declarations and the stack
+   stays in flow — measured, not assumed: with the absolute rule written and
+   in the file, computed position still read `relative`. The child combinator
+   takes it to (0,2,0) and wins outright. Anything new added to this stack
+   inherits that; anything added to the lane OUTSIDE it must be absolute on a
+   selector that clears `.lane > *`, or it moves the centreline again.
+   ============================================================ */
+.lane > .lane-chips {
+  position: absolute;
+  left: 3px; right: 3px; bottom: 3px;
+  z-index: 5;
+  pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; gap: 0;
+}
+.lane > .lane-chips > * { pointer-events: auto; }
+
+/* Lane status glyph row — one line of pips inside the stack above. */
 .lane-status-row {
   display: flex; justify-content: center; gap: 6px;
   padding: 2px 0;

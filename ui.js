@@ -25103,11 +25103,30 @@ const UI = {
       const _isHill = !!(Game.mod && Game.mod('kingOfHill') && Game.state._hillLane === i);
       el.classList.toggle('lane-hill', _isHill);
       if (_isHill) statusRow.push(`<span class="lane-glyph glyph-hill" title="King of the Hill — hold this lane alone at round's end for +2 HP">&#x1F451; HILL</span>`);
+      // ONE OUT-OF-FLOW STACK FOR BOTH CHIPS. The status row and the trap
+      // plate used to be appended straight onto the lane, which is a flex
+      // column — so each one STOLE height from the two `flex: 1 1 0` card
+      // slots and dragged the centreline between them up by half its own
+      // height. A lane with an environment countdown sat 11px higher than its
+      // neighbours; with a trap as well, higher again. They go in a stack that
+      // is pinned to the lane's bottom edge instead (see `.lane > .lane-chips`
+      // in style.css), so what a lane is CARRYING can no longer move where its
+      // cards and its divider sit. Anything else that wants to print along the
+      // lane's bottom belongs in here, not on the lane.
+      let chips = null;
+      const _chip = (node) => {
+        if (!chips) {
+          chips = document.createElement('div');
+          chips.className = 'lane-chips';
+        }
+        chips.appendChild(node);
+      };
+
       if (statusRow.length) {
         const row = document.createElement('div');
         row.className = 'lane-status-row';
         row.innerHTML = statusRow.join('');
-        el.appendChild(row);
+        _chip(row);
       }
 
       if (lane.trap) {
@@ -25122,8 +25141,9 @@ const UI = {
             <path d="M10 3 L8.5 5 L11.5 5 Z M10 17 L8.5 15 L11.5 15 Z" fill="currentColor"/>
           </svg>
           <span class="lane-trap-label">TRAP</span>`;
-        el.appendChild(trapEl);
+        _chip(trapEl);
       }
+      if (chips) el.appendChild(chips);
 
       // Environment background layer — sits behind both card slots.
       // Reuse existing element across renders so it doesn't flicker.
