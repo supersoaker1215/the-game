@@ -11082,6 +11082,56 @@ test('a card cycled by Symbiote Spider-Man keeps its abilities', function () {
   assert(typeof redrawn.onPlay === 'function', 'and the redrawn card can still fire it');
 });
 
+// Regression: a Wolverine who revives mid-combat still gets his Overdrive.
+// Live report (round 4): "han solo shot first killing him in lane 2, he
+// revived, went against Grundy, killed and survived — he has Overdrive and it
+// should fire." He did revive as 6/5 Overdrive, killed Solomon Grundy in his
+// own lane, and the bonus attack never came: the revive stamped a
+// `justResurrected` flag that the Overdrive check in resolveLaneCombat read as
+// "not this phase". One card set it, two lines read it, and the five other
+// revive paths never set it — so a revived Jason overdrove and a revived
+// Wolverine did not. Both the flag and the guard are gone; this pins it.
+test('Wolverine: sniped, revived mid-phase, Overdrive still fires in his lane', function () {
+  var G = freshGame();
+  G.state.phase = 'combat';
+  G.state.round = 4;
+
+  // Lane 1: Han Solo, whose shot crosses into lane 2. Lane 2: Wolverine
+  // (3/3 after Lone Wolf) against Solomon Grundy.
+  var han  = place(G, 'Han Solo', 'ai', 0);
+  var wolv = place(G, 'Wolverine', 'player', 1);
+  wolv.attack = 3; wolv.currentHealth = 3; wolv.maxHealth = 3;
+  var gr   = place(G, 'Solomon Grundy', 'ai', 1);
+
+  // The cross-lane shot, through the real damage door — it kills him and his
+  // own onDeath brings him back BEFORE lane 2 ever resolves.
+  G.applyCombatDamage(han, wolv);
+  G.cleanupDead();
+  assertEq(wolv.currentHealth, 5, 'Wolverine revived as a 6/5');
+  assertEq(wolv.attack, 6, 'with the Overdrive body\'s attack');
+  assertEq(!!wolv.isOverdrive, true, 'and the keyword itself');
+  assertEq(!!wolv.justResurrected, false, 'and NO revive-round suppression flag');
+  assertEq(G.state.lanes[1].player, wolv, 'standing in lane 2 again');
+
+  // Now his own lane resolves. He kills Grundy and survives the 3 back.
+  var lines = [];
+  var realLog = G.log;
+  G.log = function (m) { lines.push(String(m)); return realLog.apply(G, arguments); };
+  G.resolveLaneCombat(1, function () {});
+  G.log = realLog;
+  var said = function (frag) {
+    return lines.some(function (l) { return l.indexOf(frag) > -1; });
+  };
+
+  assertEq(gr.currentHealth <= 0, true, 'Grundy died to the 6');
+  assertEq(wolv.currentHealth > 0, true, 'Wolverine survived the trade');
+  assertEq(said('[OVERDRIVE]'), true, 'the bonus attack fired');
+  // Grundy was the only body in the lane, so the second swing lands on the
+  // health bar. Asserted on the log, not on the HP delta — the block meter
+  // rolls a d3 and can eat the damage without the Overdrive being wrong.
+  assertEq(said('hits health bar for 6'), true, 'and it reached the health bar for his full 6');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

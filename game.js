@@ -8145,10 +8145,20 @@ const Game = {
         // second, clean hit on the enemy — same rationale as the splash
         // suppression above. (Bug: MC'd Spawn killed an env, then overdrove
         // into the enemy hero opposite and killed it.)
-        if (pCard.isOverdrive && pCard.currentHealth > 0 && pKilled && !pCard.justResurrected && !pCard.isMindControlled && !pCard.isFeared) this.handleOverdrive(pCard, laneIdx);
-        if (aCard.isOverdrive && aCard.currentHealth > 0 && aKilled && !aCard.justResurrected && !aCard.isMindControlled && !aCard.isFeared) this.handleOverdrive(aCard, laneIdx);
-        if (pCard.justResurrected) pCard.justResurrected = false;
-        if (aCard.justResurrected) aCard.justResurrected = false;
+        //
+        // There is deliberately NO "came back this phase" term here. A
+        // `justResurrected` flag used to sit in both conditions, set by exactly
+        // one card (Wolverine's revive) and read by exactly these two lines —
+        // so a Wolverine sniped out of his lane mid-combat, revived as 6/5
+        // Overdrive, and then winning his own lane got no bonus attack, while
+        // the five other revive paths (Spawn, Grundy Text+, Jason, Mahoraga,
+        // the generic Revive keyword) never set it and overdrive normally.
+        // Same keyword, two answers, and his card text promises Overdrive on
+        // the revive. User: "han solo shot first killing him in lane 2, he
+        // revived, went against Grundy, killed and survived — he has Overdrive
+        // and it should fire." Pinned by the Wolverine revive→Overdrive test.
+        if (pCard.isOverdrive && pCard.currentHealth > 0 && pKilled && !pCard.isMindControlled && !pCard.isFeared) this.handleOverdrive(pCard, laneIdx);
+        if (aCard.isOverdrive && aCard.currentHealth > 0 && aKilled && !aCard.isMindControlled && !aCard.isFeared) this.handleOverdrive(aCard, laneIdx);
 
         this.cleanupDead();
         // onLaneResolved — fires as soon as a lane's combat completes, while

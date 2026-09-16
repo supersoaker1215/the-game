@@ -4200,7 +4200,10 @@ const CARD_ABILITIES = {
         self.reviveCharges--;
         self.attack = 6; self.currentHealth = 5; self.maxHealth = 5;
         self.isOverdrive = true;
-        self.justResurrected = true;
+        // NOTE: no `justResurrected` stamp. It existed only to switch this
+        // Overdrive off for the rest of the combat phase he came back in —
+        // see the comment at the Overdrive check in resolveLaneCombat for why
+        // that is gone. Nothing else in the engine ever read it.
         // While-Active passive (onDamaged "destroy attacker cost ≤ 7") is
         // intentionally DISABLED on revive. User spec: "Wolverine's
         // while active needs to disable upon revive." Trade-off: he
