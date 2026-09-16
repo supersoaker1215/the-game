@@ -8090,6 +8090,18 @@ const UI = {
         // fix is that they run at all.
         this._safe('handMeter2v2', () => this.renderHandMeter(s));
         this._safe('laneForecast2v2', () => this.renderLaneForecastStrip(s));
+        // AND THE EVENTS RAIL, THE THIRD ONE OF THESE. Owner, looking at a 2v2
+        // board with Open Water flooding two lanes: "where is the events tab?"
+        // It was nowhere: _renderEventRail hangs off the 1v1 renderer and every
+        // 2v2 path returns ~240 lines before it, so 2v2 ran events — the
+        // environments were on the board, the countdown pips were in the lanes —
+        // with no way to see what was active or what was coming next.
+        //
+        // Nothing to adapt, same as the two above: the rail builds itself from
+        // _eventRailModel(s), which reads state.lanes and the event schedule,
+        // neither of which is per-side. It removes itself in a mode with no
+        // events, so calling it here is free when there are none.
+        this._safe('eventRail2v2', () => this._renderEventRail(s));
         // A COLUMN NOBODY DOCKS INTO IS JUST A MARGIN. The board slides left in
         // 2v2 now (see _fitBoardToViewport) to open a gutter on the right, and
         // this is what puts the decisions and notices in it — the same adopter

@@ -229,5 +229,35 @@ check('and the row says whether it is open',
       /doorExpanded:/.test(railFn) && /aria-expanded/.test(railFn),
       'a toggle with no aria-expanded is a button that never reports its state');
 
+// ============================================================
+// AND IT HAS TO RUN IN 2v2, WHICH IT DID NOT.
+// ============================================================
+// _renderEventRail hangs off the 1v1 renderer, and every 2v2 path returns
+// ~240 lines before it. So a 2v2 board ran events — environments on the board,
+// countdown pips in the lanes — with nowhere to see what was active or what was
+// coming. Owner, on a 2v2 board with Open Water flooding two lanes: "where is
+// the events tab?"
+//
+// This is the THIRD sub-renderer lost to that early return (the hand meter and
+// the lane-forecast strip were the first two, and their comment in ui.js says
+// so). Pinning it as a class: the 2v2 tail must call the rail, and it must be
+// in the SHARED tail, so online / local / overlay cannot each answer
+// differently.
+var tail = UI_CODE.slice(UI_CODE.indexOf("_safe('handMeter2v2'"),
+                         UI_CODE.indexOf("if (is2v2OnlineGame)"));
+check('2v2 renders the event rail at all',
+      /_renderEventRail\(s\)/.test(tail),
+      'the rail hangs off the 1v1 renderer and 2v2 returns before it');
+check('and from the shared tail, so all three 2v2 paths get it',
+      /_safe\('handMeter2v2'/.test(tail) && /_safe\('laneForecast2v2'/.test(tail)
+      && /_safe\('boardV2'/.test(tail),
+      'the call landed somewhere only one 2v2 path runs');
+// The rail decides for itself whether there is anything to show, so calling it
+// on a mode with no events costs nothing — that is what makes an unconditional
+// call in the shared tail correct rather than lazy.
+check('the rail still removes itself when there is nothing to show',
+      /if \(!model\.length && !this\._eventRailGone\.length && !hasUpNext\) \{ if \(rail\) rail\.remove\(\); return; \}/.test(UI_CODE),
+      'without this, every mode would get an empty EVENTS tab');
+
 print('event-rail: ' + pass + ' passed, ' + fails.length + ' failed');
 if (fails.length) { print('Failures:'); fails.forEach(function (f) { print('  - ' + f); }); }
