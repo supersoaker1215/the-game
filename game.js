@@ -6944,8 +6944,16 @@ const Game = {
       // trick an AI teammate plays is not attributed to the human. A trick
       // fired in COMBAT (a block-meter free trick) has no sub-phase, so _active
       // is null and the global a block set is kept.
-      const _active = this._2v2ActivePlayer && this._2v2ActivePlayer();
-      if (_active && _by !== _active) _by = _active;
+      // ...AND THE SUB-PHASE SEAT HAS TO BE ON THIS TRICK'S SIDE, the same guard
+      // the card stamps got. A trick that resolves after the sub-phase has moved
+      // on gets stamped with whoever is up next, and in 2v2 that is as often an
+      // OPPONENT as a teammate — at which point promptCardChoice sees an
+      // ability owner on the wrong side, throws it away, and falls back to "a
+      // seat on the owner's team", which prefers the human. So an AI teammate's
+      // trick handed its target choice to the person sitting next to it.
+      // (Owner: "my ai teammate played batarangs but i got the choice.")
+      if (_active && _by !== _active && this._2v2SeatActsFor(_active, owner)) _by = _active;
+      if (_by && !this._2v2SeatActsFor(_by, owner)) _by = null;
       if (_by) trick._2v2PlayedBy = _by;
     }
     this.log(`[TRICK] ${who} play ${trick.name} for ${cost} energy`);
@@ -20992,6 +21000,52 @@ const Game = {
   // rearranging teams desynced the engine from the lobby (see _2v2TeamOf).
   _2v2PlayerTeam: { p1: 'A', p2: 'B', p3: 'A', p4: 'B' },
   _2v2TeamSide:   { A: 'player', B: 'ai' },
+
+  // ===================== THE BLOCK METER, WHEREVER IT LIVES =====================
+  // In 1v1 the meter is state[side].blockMeter. In 2v2 it belongs to the TEAM —
+  // twoVTwo.teams[A|B].blockMeter — and state[side] is a PROXY the engine
+  // refreshes FROM the team on every bridge (_2v2BridgeSide: `s[side].blockMeter
+  // = tt.teams[ap.team].blockMeter`). So a card that writes the proxy has its
+  // write erased at the next bridge, silently, with the log line already printed.
+  //
+  // Thirteen abilities and one trick were doing exactly that. Owner, on an enemy
+  // Loki: "it says it filled block meter by 8, but on the attack phase jango
+  // hits the health bar no block" — the +8 was announced, written to the proxy,
+  // and gone. Only ONE site in the whole set (the meter-steal at abilities.js
+  // ~893) wrote the team and mirrored the proxy, and damagePlayer's RESET had
+  // been patched the same way one-off, which is how the adds kept looking fine.
+  //
+  // One reader and one writer, so the question "which of the two is real" is
+  // answered here and nowhere else. See [[2v2-side-vs-seat-traps]].
+  _2v2TeamForSide(side) {
+    const m = this._2v2TeamSide || {};
+    return (m.A === side) ? 'A' : (m.B === side) ? 'B' : null;
+  },
+  getBlockMeter(side) {
+    const tt = this.state && this.state.twoVTwo;
+    if (tt && tt.teams) {
+      const t = this._2v2TeamForSide(side);
+      if (t && tt.teams[t]) return tt.teams[t].blockMeter | 0;
+    }
+    const p = this.state && this.state[side];
+    return p ? (p.blockMeter | 0) : 0;
+  },
+  setBlockMeter(side, value) {
+    const v = Math.max(0, Math.min(this.BLOCK_MAX, value | 0));
+    const tt = this.state && this.state.twoVTwo;
+    if (tt && tt.teams) {
+      const t = this._2v2TeamForSide(side);
+      if (t && tt.teams[t]) tt.teams[t].blockMeter = v;
+    }
+    // Mirror onto the proxy too: everything that reads it THIS frame — the HUD,
+    // the combat roll, a second ability in the same chain — reads the proxy,
+    // and waiting for the next bridge would leave them a frame behind.
+    if (this.state && this.state[side]) this.state[side].blockMeter = v;
+    return v;
+  },
+  addBlockMeter(side, delta) {
+    return this.setBlockMeter(side, this.getBlockMeter(side) + (delta | 0));
+  },
   _2v2SLOTS: ['p1', 'p2', 'p3', 'p4'],
 
   // THE one answer to "whose team is this player on".

@@ -502,8 +502,8 @@ const TRICK_DEFS = [
     desc: "Add a random 1-8 to your Block Meter.",
     play(G, owner) {
       const roll = 1 + Math.floor(G.rng() * 8);
-      G.state[owner].blockMeter = Math.min(Game.BLOCK_MAX, G.state[owner].blockMeter + roll);
-      G.log(`Two-Face Coin rolls ${roll}! Block Meter +${roll} → ${G.state[owner].blockMeter}`);
+      G.addBlockMeter(owner, roll);
+      G.log(`Two-Face Coin rolls ${roll}! Block Meter +${roll} → ${G.getBlockMeter(owner)}`);
     }
   },
   { name: "Vibranium", cost: 2,

@@ -11452,6 +11452,85 @@ test('Paul Atreides: the kept free card asks for a lane, and can be declined', f
   G.promptLaneChoice = realPLC; G.playCardFree = realFree;
 });
 
+// Regression: the Block Meter lives on the TEAM in 2v2, and thirteen abilities
+// were writing the side PROXY, which the engine overwrites from the team on
+// every bridge. Owner, on an enemy Loki: "it says it filled block meter by 8,
+// but on the attack phase jango hits the health bar no block."
+test('2v2: a block-meter gain lands on the team, not the proxy that gets overwritten', function () {
+  var G = freshGame();
+  G.state.mode = { deck: 'classic', players: '2v2' };
+  G.state.twoVTwo = {
+    online: true, you: 'p1', round: 5, subPhaseIdx: 0,
+    teams: { A: { health: 30, maxHealth: 30, blockMeter: 0, deadPile: [] },
+             B: { health: 30, maxHealth: 30, blockMeter: 0, deadPile: [] } },
+    players: {
+      p1: { team: 'A', isAI: false, name: 'One',   hand: [], trickHand: [] },
+      p2: { team: 'A', isAI: true,  name: 'Two',   hand: [], trickHand: [] },
+      p3: { team: 'B', isAI: false, name: 'Three', hand: [], trickHand: [] },
+      p4: { team: 'B', isAI: true,  name: 'Four',  hand: [], trickHand: [] }
+    }
+  };
+  // team A is the 'player' side, team B is 'ai'
+  assertEq(G._2v2TeamForSide('player'), 'A', 'side player maps to team A');
+  assertEq(G._2v2TeamForSide('ai'), 'B', 'side ai maps to team B');
+
+  // Loki's fill, through the ability, on the AI side.
+  var loki = G.createCardInstance(cardByName('Loki'), 'ai');
+  CARD_ABILITIES['Loki'].onPlay(G, loki, 6);
+
+  assertEq(G.state.twoVTwo.teams.B.blockMeter, G.BLOCK_MAX,
+    'the TEAM meter is full — this is the one combat reads after a bridge');
+  assertEq(G.getBlockMeter('ai'), G.BLOCK_MAX, 'and the canonical reader agrees');
+
+  // THE PROOF THAT THE PROXY IS NOT ENOUGH: re-bridge the side from the team,
+  // exactly as _2v2BridgeSide does every time a seat's turn comes up. A gain
+  // written only to the proxy does not survive this line.
+  G.state.ai.blockMeter = G.state.twoVTwo.teams.B.blockMeter;
+  assertEq(G.state.ai.blockMeter, G.BLOCK_MAX, 'and it survives the bridge');
+
+  // And the other team is untouched — a fill is not a swap.
+  assertEq(G.state.twoVTwo.teams.A.blockMeter, 0, 'the enemy team gained nothing');
+
+  // The clamp is the accessor's, so no caller can push past the cap.
+  G.addBlockMeter('ai', 5);
+  assertEq(G.getBlockMeter('ai'), G.BLOCK_MAX, 'and it cannot exceed BLOCK_MAX');
+  G.addBlockMeter('ai', -100);
+  assertEq(G.getBlockMeter('ai'), 0, 'nor go below zero');
+});
+
+// Regression: an AI teammate's TRICK must not hand its prompt to the human
+// beside it. Owner: "my ai teammate played batarangs but i got the choice."
+// Same missing team-check the card stamps had: a trick that resolves after the
+// sub-phase advanced was stamped with whoever is up next, which is routinely an
+// opponent — and promptCardChoice, seeing an ability owner on the wrong side,
+// discards it and falls back to a seat on the owner's team, preferring a human.
+test('2v2: a trick is never stamped with a seat on the other team', function () {
+  var G = freshGame();
+  G.state.mode = { deck: 'classic', players: '2v2' };
+  G.state.twoVTwo = {
+    online: true, you: 'p1', round: 5, subPhaseIdx: 0,
+    players: {
+      p1: { team: 'A', isAI: false, name: 'I luv Sy', hand: [], trickHand: [] },
+      p2: { team: 'A', isAI: true,  name: 'Cortex',   hand: [], trickHand: [] },
+      p3: { team: 'B', isAI: true,  name: 'Vega',     hand: [], trickHand: [] },
+      p4: { team: 'B', isAI: true,  name: 'Ryan',     hand: [], trickHand: [] }
+    }
+  };
+  // Cortex (p2, team A = the 'player' side) is mid-trick; the sub-phase has
+  // already moved on to Vega (p3, team B) — the photographed state.
+  var prevActive = G._2v2ActivePlayer;
+  G._2v2ActivePlayer = function () { return 'p3'; };
+  G._2v2CurrentActingPlayer = 'p2';
+  G._2v2AIDriving = 'p2';
+
+  assertEq(G._2v2SeatActsFor('p3', 'player'), false, 'Vega cannot act for a player-side trick');
+  assertEq(G._2v2SeatActsFor('p2', 'player'), true,  'Cortex can');
+
+  G._2v2ActivePlayer = prevActive;
+  G._2v2CurrentActingPlayer = null;
+  G._2v2AIDriving = null;
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

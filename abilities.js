@@ -666,8 +666,8 @@ const CARD_ABILITIES = {
       // into a hard-block defensive payoff.
       const gain = self._harleyBlockOnDmg || 0;
       if (gain <= 0) return;
-      const meter = G.state[self.owner].blockMeter || 0;
-      G.state[self.owner].blockMeter = Math.min(Game.BLOCK_MAX, meter + gain);
+      const meter = G.getBlockMeter(self.owner);
+      G.addBlockMeter(self.owner, gain);
       G.log(`Harley Quinn cackles — +${gain} Block Meter!`);
     }
   },
@@ -883,27 +883,18 @@ const CARD_ABILITIES = {
       }
 
       // ── Steal 1 Block Meter from the enemy ──
-      const BLOCK_MAX = G.BLOCK_MAX || 8;
+      // This was the ONE site in the set that knew the meter lives on the team
+      // in 2v2, and it paid for that with a hand-written 2v2 branch, a manual
+      // team lookup and a manual mirror back onto both proxies. All of that is
+      // getBlockMeter/setBlockMeter's job now, so the card says what it does
+      // ("take one from them, give one to me") in both modes and cannot drift
+      // from the thirteen that were fixed by learning the same lesson.
       try {
-        if (G.is2v2 && G.is2v2() && tt && tt.teams) {
-          const myTeam = (owner === 'player') ? 'A' : 'B';
-          const foeTeam = myTeam === 'A' ? 'B' : 'A';
-          const take = Math.min(1, (tt.teams[foeTeam] && tt.teams[foeTeam].blockMeter) || 0);
-          if (take > 0) {
-            tt.teams[foeTeam].blockMeter = Math.max(0, (tt.teams[foeTeam].blockMeter || 0) - take);
-            tt.teams[myTeam].blockMeter = Math.min(BLOCK_MAX, (tt.teams[myTeam].blockMeter || 0) + take);
-            // Mirror onto the live combat proxies so it shows this turn.
-            if (G.state[owner]) G.state[owner].blockMeter = tt.teams[myTeam].blockMeter;
-            if (G.state[opp]) G.state[opp].blockMeter = tt.teams[foeTeam].blockMeter;
-            G.log(`[PINHEAD] Drags 1 Block Meter from the enemy team onto yours.`);
-          }
-        } else {
-          const take = Math.min(1, (G.state[opp] && G.state[opp].blockMeter) || 0);
-          if (take > 0) {
-            G.state[opp].blockMeter = Math.max(0, (G.state[opp].blockMeter || 0) - take);
-            G.state[owner].blockMeter = Math.min(BLOCK_MAX, (G.state[owner].blockMeter || 0) + take);
-            G.log(`[PINHEAD] Drags 1 Block Meter from the enemy onto yours.`);
-          }
+        const take = Math.min(1, G.getBlockMeter(opp));
+        if (take > 0) {
+          G.addBlockMeter(opp, -take);
+          G.addBlockMeter(owner, take);
+          G.log(`[PINHEAD] Drags 1 Block Meter from the enemy${G.is2v2 && G.is2v2() ? ' team' : ''} onto yours.`);
         }
       } catch (e) { console.error('[Pinhead block steal]', e); }
     }
@@ -2270,7 +2261,7 @@ const CARD_ABILITIES = {
       const fillPct = G.rarityValue(self, { common: 0.5, rare: 1.0, special: 1.0, legendary: 1.0 });
       const allyEvade = G.rarityValue(self, { common: 'none', rare: 'none', special: 'one', legendary: 'all' });
       const fillAmt = Math.floor(Game.BLOCK_MAX * fillPct);
-      G.state[self.owner].blockMeter = Math.min(Game.BLOCK_MAX, G.state[self.owner].blockMeter + fillAmt);
+      G.addBlockMeter(self.owner, fillAmt);
       G.log(`Loki fills the Block Meter by ${fillAmt}!`);
       if (typeof UI !== 'undefined' && UI._fxLokiMagic) { try { UI._fxLokiMagic(self); } catch (e) {} }
       if (allyEvade !== 'none') {
@@ -4041,8 +4032,8 @@ const CARD_ABILITIES = {
       // Capture the opp's meter BEFORE zeroing so the Text+ steal path
       // can transfer it to the player. _ravenStealsBlock = true sets
       // the steal mode; default is just-drain.
-      const drainedAmount = G.state[opp].blockMeter || 0;
-      G.state[opp].blockMeter = 0;
+      const drainedAmount = G.getBlockMeter(opp);
+      G.setBlockMeter(opp, 0);
       if (drainedAmount > 0) G.emitFX('blockDrain', { owner: opp, amount: drainedAmount });
       G.log(`Raven empties the opponent's Block Meter!`);
       G.getAlliesOf(self.owner).forEach(a => {
@@ -4056,7 +4047,7 @@ const CARD_ABILITIES = {
       // drain into a transfer. Default false (classic just zeroes
       // opp); Text+ pours the drained amount into your own meter.
       if (self._ravenStealsBlock && drainedAmount > 0) {
-        G.state[self.owner].blockMeter = Math.min(Game.BLOCK_MAX, (G.state[self.owner].blockMeter || 0) + drainedAmount);
+        G.addBlockMeter(self.owner, drainedAmount);
         G.log(`Raven steals ${drainedAmount} block from the opponent!`);
       }
     }
@@ -4263,7 +4254,7 @@ const CARD_ABILITIES = {
       // _wonderWomanBlockGain scales the block meter add. Default 2
       // (classic); Text+ bumps to 4.
       const blockGain = self._wonderWomanBlockGain || 2;
-      G.state[self.owner].blockMeter = Math.min(Game.BLOCK_MAX, G.state[self.owner].blockMeter + blockGain);
+      G.addBlockMeter(self.owner, blockGain);
       G.log(`Wonder Woman Freezes ${e ? e.name : 'nothing'} (${freezeN}) and adds ${blockGain} Block Meter!`);
     },
     onBeforeAttack(G, self) {
@@ -4635,7 +4626,7 @@ const CARD_ABILITIES = {
       // and 5 block meter — the rage feedback loop scales harder.
       const bonus = self._redHulkRetaliateBonus || 0;
       dmg += bonus;
-      G.state[self.owner].blockMeter = Math.min(Game.BLOCK_MAX, G.state[self.owner].blockMeter + dmg);
+      G.addBlockMeter(self.owner, dmg);
       G.log(`Red Hulk adds ${dmg} to Block Meter!`);
       const lane = G.findCardLane(self);
       if (lane >= 0) {
@@ -5601,7 +5592,7 @@ const CARD_ABILITIES = {
       // scales the per-kill block meter add. Default 1 (classic);
       // Text+ raises to 2.
       const gain = self._omniManBlockOnKill || 1;
-      G.state[self.owner].blockMeter = Math.min(Game.BLOCK_MAX, G.state[self.owner].blockMeter + gain);
+      G.addBlockMeter(self.owner, gain);
       G.log(`Omni-Man adds ${gain} Block Meter!`);
     }
   },
@@ -7220,17 +7211,17 @@ const CARD_ABILITIES = {
       // Signature FX — a hellfire soul-siphon dragging the enemy Block Meter
       // into Trigon (fires regardless of how much is actually stolen).
       if (typeof UI !== 'undefined' && UI._fxTrigonSteal) { try { UI._fxTrigonSteal(self, opp); } catch (e) {} }
-      const enemyMeter = G.state[opp].blockMeter || 0;
+      const enemyMeter = G.getBlockMeter(opp);
       const stolen = Math.floor(enemyMeter * stealPct);
       if (stolen > 0) {
-        G.state[self.owner].blockMeter = Math.min(Game.BLOCK_MAX, G.state[self.owner].blockMeter + stolen);
-        G.state[opp].blockMeter = enemyMeter - stolen;
+        G.addBlockMeter(self.owner, stolen);
+        G.setBlockMeter(opp, enemyMeter - stolen);
         G.log(`Trigon steals ${stolen} Block Meter!`);
       } else {
         G.log(`Trigon reaches for the Block Meter — empty!`);
       }
       if (fillSelfToMax) {
-        G.state[self.owner].blockMeter = Game.BLOCK_MAX;
+        G.setBlockMeter(self.owner, Game.BLOCK_MAX);
         G.log(`Trigon's hatred crests — Block Meter maxed.`);
       }
       if (drainAll) {
