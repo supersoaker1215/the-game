@@ -150,8 +150,18 @@ t('GS-4 the reveal and the decision panel dock into that same column', function 
   eq('only in classic decision-column mode', /decision-column/.test(home) && /board-v2/.test(home), true);
   eq('and the reveal is mounted through it',
      /this\._revealHome\(\)\.appendChild\(wrap\)/.test(UISRC), true);
+  // SCOPED TO THE REVEAL, NOT TO ALL OF ui.js. This scanned the whole file for
+  // `document.body.appendChild(wrap)`, which asserts about the reveal by
+  // matching a variable NAME — so the first unrelated function to build a
+  // `wrap` and mount it on the body failed this check. One did: the block
+  // shield's FX burst, which is a transient body-level overlay and belongs
+  // exactly where it is. The check is about where the REVEAL mounts, so it
+  // reads the reveal's own body. (Same trap as sim/card-tube's: a grep that
+  // names one thing and matches another.)
+  var reveal = decomment(methodBody('_nextTrickReveal'));
+  eq('the reveal function was found', reveal.length > 40, true);
   eq('the reveal no longer mounts to the body',
-     /document\.body\.appendChild\(wrap\)/.test(UISRC), false);
+     /document\.body\.appendChild\(wrap\)/.test(reveal), false);
   var slot = decomment(methodBody('_classicDecisionSlot'));
   eq('the decision panel asks for the column too', slot.indexOf('_rightColumn') > 0, true);
   eq('and adopts a panel built before the column existed',
