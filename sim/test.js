@@ -11531,6 +11531,48 @@ test('2v2: a trick is never stamped with a seat on the other team', function () 
   G._2v2AIDriving = null;
 });
 
+// Regression: a 2v2 unbridge must never install the pile it displaced.
+//
+// Owner, at round 8 with DECK reading 0: "there is no lex luthor on the field
+// and we are not drawing cards, nobody, this is a bug." The engine's own log
+// agreed — "Draw pile: 0 cards remaining", read through getDrawPile, which is
+// 2v2-aware — so the shared pile really was empty. A normal 2v2 match measures
+// 97 cards at round 1 and 63 at round 10, so it was not drawn dry; and the
+// TRICK count in that match read 0 at round 5 and 29 at round 8, which no
+// amount of drawing can do. Both are an ARRAY SWAP.
+//
+// Both 2v2 bridges ended with `tt.drawPile = s.drawPile`, unconditionally. In a
+// 2v2 (or deckbuilder) match startMatch deliberately leaves the 1v1 pile empty
+// — "so any missed retrofit reads an empty array" — and that empty array is
+// exactly what state holds before a bridge. One interleaved restore and it
+// becomes the shared pile.
+test('2v2: an unbridge adopts a replacement pile but never the displaced one', function () {
+  var G = freshGame();
+  var shared      = [{ name: 'A' }, { name: 'B' }, { name: 'C' }];
+  var displaced   = [];                       // the 1v1 pile in a 2v2 match
+  var replacement = [{ name: 'A' }];          // e.g. a reshuffle inside the bridge
+
+  assertEq(G._adoptPile(shared, shared, displaced, 'drawPile'), shared,
+    'the same array back is a no-op');
+  assertEq(G._adoptPile(shared, replacement, displaced, 'drawPile'), replacement,
+    'a genuine replacement is adopted — Paul pushing a reject back, a reshuffle');
+  assertEq(G._adoptPile(shared, displaced, displaced, 'drawPile'), shared,
+    'but the DISPLACED pile is refused — this is the swap that emptied the deck');
+  assertEq(G._adoptPile(shared, undefined, displaced, 'drawPile'), shared,
+    'and so is a non-array, which would make every later draw throw');
+  assertEq(G._adoptPile(shared, null, displaced, 'drawPile'), shared, 'null too');
+
+  // The refusal is not silent. A swap that leaves no trace is what made the
+  // live case unreadable from a screenshot.
+  var lines = [];
+  var real = G.log;
+  G.log = function (m) { lines.push(String(m)); return real.apply(G, arguments); };
+  G._adoptPile(shared, displaced, displaced, 'trickDrawPile');
+  G.log = real;
+  assertEq(lines.some(function (l) { return l.indexOf('Kept the shared trickDrawPile') > -1; }), true,
+    'it says so in the log');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

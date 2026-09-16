@@ -4068,6 +4068,30 @@ const Game = {
   // state.trickDrawPile; Deckbuilder returns the per-player pile. Call
   // sites mutate the returned array directly (push/pop/splice/shuffle);
   // because it's a live reference, the mutations persist correctly.
+  // Which array is the real shared pile after a bridge?
+  //
+  //   shared   — what tt held going in
+  //   current  — what state holds now
+  //   displaced— what state held BEFORE the bridge (the 1v1 pile: [] in 2v2)
+  //
+  // Adopt `current` only when it is a genuine replacement. Refusing `displaced`
+  // is the whole point: writing it into tt swaps a live deck for an empty array
+  // with nothing in the log to say so. A non-array is refused for the same
+  // reason — an undefined tt.drawPile makes every later draw throw.
+  _adoptPile(shared, current, displaced, label) {
+    if (!Array.isArray(current)) return shared;
+    if (current === shared) return shared;
+    if (current === displaced) {
+      // Reached only if something restored state's pile before this unbridge
+      // ran. Say so — silence here is what made the live case unreadable.
+      try {
+        this.log(`  [2v2] Kept the shared ${label} — an unbridge tried to install the displaced one (${(displaced || []).length} cards).`);
+      } catch (e) {}
+      return shared;
+    }
+    return current;
+  },
+
   getDrawPile(owner) {
     if (this.state.mode && this.state.mode.deck === 'deckbuilder') {
       return this.state[owner].drawPile;
@@ -23503,8 +23527,20 @@ const Game = {
     s.drawPile = tt.drawPile;
     s.trickDrawPile = tt.trickDrawPile;
     const unbridge = () => {
-      tt.drawPile = s.drawPile;
-      tt.trickDrawPile = s.trickDrawPile;
+      // AN UNBRIDGE MAY ADOPT A REPLACEMENT, NEVER THE PILE IT DISPLACED.
+      // `tt.drawPile = s.drawPile` is right when the code inside genuinely
+      // swapped the array (Paul Atreides pushing a rejected card back, a
+      // reshuffle) and a no-op when it did not. What it must never do is write
+      // back `savedDraw` — the 1v1 pile, which startMatch deliberately leaves as
+      // [] in a 2v2/deckbuilder match ("so any missed retrofit reads an empty
+      // array"). One interleaved restore and that empty array becomes the shared
+      // pile: every seat then reads "Draw pile: 0 cards remaining" with a full
+      // deck's worth of cards nowhere, and a later bridge can hand a stale copy
+      // back just as abruptly — which is the only thing that explains a TRICK
+      // count going 0 -> 29 between two screenshots of the same match.
+      // (Owner: "we are not drawing cards, nobody, this is a bug.")
+      tt.drawPile = this._adoptPile(tt.drawPile, s.drawPile, savedDraw, 'drawPile');
+      tt.trickDrawPile = this._adoptPile(tt.trickDrawPile, s.trickDrawPile, savedTrickDraw, 'trickDrawPile');
       s.drawPile = savedDraw;
       s.trickDrawPile = savedTrickDraw;
       this._2v2ReadBackActivePlayer(bridgedSeat);
@@ -23569,7 +23605,10 @@ const Game = {
       const bmDelta = (s[side].blockMeter || 0) - (tt.teams[p.team].blockMeter || 0);
       tt.teams[p.team].health = s[side].health;
       tt.teams[p.team].blockMeter = s[side].blockMeter;
-      tt.drawPile = s.drawPile; tt.trickDrawPile = s.trickDrawPile;
+      // Same rule as the seat-hand bridge above: adopt a replacement, never the
+      // displaced 1v1 pile. See _adoptPile.
+      tt.drawPile = this._adoptPile(tt.drawPile, s.drawPile, saved.draw, 'drawPile');
+      tt.trickDrawPile = this._adoptPile(tt.trickDrawPile, s.trickDrawPile, saved.trickDraw, 'trickDrawPile');
       s[side].hand = saved.hand; s[side].trickHand = saved.trick; s[side].currency = saved.cur;
       s[side].health = saved.hp; s[side].maxHealth = saved.mhp;
       s[side].blockMeter = Math.max(0, Math.min(this.BLOCK_MAX || 8, (saved.bm || 0) + bmDelta));
