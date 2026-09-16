@@ -3309,7 +3309,11 @@ const UI = {
       // 'blocked' FX event, the one moment a meter caps and turns a hit aside.
       // cooldown guards the rare double-block in one tick. (User: "add this
       // sound whenever you block an attack with your block meter.")
-      blockShield: { src: 'audio/block-full.mp3', maxDur: 2.1, fadeIn: 0, fadeOut: 150, cooldownMs: 300 },
+      // category:'play' — a block is a marquee "your meter saved you" beat, not
+      // a supporting layer, so it is exempt from the four-sound concurrency cap
+      // (it fires mid-combat, when that cap is already full) and ducks the combat
+      // noise instead of being buried under it.
+      blockShield: { src: 'audio/block-full.mp3', maxDur: 2.1, fadeIn: 0, fadeOut: 150, cooldownMs: 300, category: 'play' },
     },
     // His sign-off, on the second text beat.
     BALLYHOO_VOICE2_SRC: 'audio/ballyhoo-voice-2.mp3',
@@ -4888,8 +4892,20 @@ const UI = {
           this._cueLast[name] = now;
         }
         try {
+          // A cue can name its own mixing category. Default 'effect' keeps every
+          // existing sample (hpHit, roundStart) exactly where it was — a
+          // supporting layer that is ducked and, crucially, DROPPED once four
+          // non-hover sounds are already going (the concurrency cap in
+          // _playSample). That cap is why the block cue went silent in 2v2: a
+          // block fires in the middle of combat, surrounded by hit and death
+          // sounds, so _activeNonHover is almost always already at four and the
+          // block was suppressed. A marquee moment declares a priority category
+          // (see blockShield → 'play'), which the cap exempts and which ducks the
+          // combat noise so it lands cleanly. (User: "i blocked in a 2v2 game and
+          // never heard the sound fire.")
           return this._playSample(cue.src, {
-            maxDur: cue.maxDur, fadeIn: cue.fadeIn, fadeOut: cue.fadeOut, category: 'effect',
+            maxDur: cue.maxDur, fadeIn: cue.fadeIn, fadeOut: cue.fadeOut,
+            gain: cue.gain, category: cue.category || 'effect',
           });
         } catch (e) { return null; }
       }
