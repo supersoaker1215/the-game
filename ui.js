@@ -38836,30 +38836,22 @@ function kangChoicePick(idx) {
   s.pendingKangChoice = null;
   const picked = kc.cards[idx];
   const other = kc.cards[1 - idx];
-  // The rejected card drops back onto the Kang owner's own pile.
-  Game.getDrawPile(kc.owner).push(other);
-  // Doomsday scales while still in the deck (+1/+1 per card played); a raw
-  // createCardInstance would hand him over at base 1/1. Apply his accumulated
-  // stats the same way the normal draw paths do. User: "when i got doomsday
-  // his stats didnt keep and got reset."
-  const card = Game._applyDoomsdayDrawScaling(Game.createCardInstance(picked, kc.owner), kc.owner);
-  card.cost = Math.max(0, card.cost - 2);
-  Game.log(`  [KANG] Kept ${card.name} (cost reduced to ${card.cost})`);
-  Game.addToHand(kc.owner, card);
-  // Kang's pick counts as this round's draw — skip the end-of-round draw
-  // so the rejected card isn't immediately pulled back from the top of the pile.
-  Game.state[kc.owner]._kangSkipDraw = true;
-  if (card.cost <= 2) {
-    // Environments can go in any non-destroyed lane; normal cards only go in open (empty) lanes.
-    const open = card.isEnvironment
-      ? Game.openEnvLanes(kc.owner)
-      : Game.getOpenLanes(kc.owner);
-    if (open.length && !card.isDiscardEffect) {
-      Game.log(`  [KANG] ${card.name} costs ${card.cost} — bonus free play available!`);
-      Game.promptLaneChoice(kc.owner, open, `Play ${card.name} FREE`,
-        `Paul Atreides allows free play of ${card.name} (cost ${card.cost}). Choose lane or close to keep in hand.`,
-        (lane) => { Game.playCardFree(kc.owner, card, lane); });
-    }
+  // THE ABILITY OWNS THE RESOLUTION, NOT THIS MODAL.
+  //
+  // Everything that used to live here — the rejected card back onto the pile,
+  // Doomsday's deck-scaling, the -2 cost, addToHand, _kangSkipDraw, and the
+  // free play — was a second implementation of what abilities.js already does
+  // for the AI and 2v2 paths. Two copies, and they had drifted: THIS one
+  // prompted for the lane, the other dropped the card in the lowest open lane
+  // without asking. Owner, playing 2v2: "i chose solomon grundy from paul
+  // atredies, and the game automaticlly played it in lane 2 for me no option
+  // to play it in a lane from my choosing which is what i want."
+  //
+  // The renderer's job is to collect the click and hand it to the engine; the
+  // rule belongs in one place. (See [[fix-the-source-not-the-surface]].)
+  const _paul = (typeof CARD_ABILITIES !== 'undefined') && CARD_ABILITIES['Paul Atreides'];
+  if (_paul && _paul._keepOne) {
+    _paul._keepOne(Game, kc.owner, picked, other, kc.kangCard || null);
   }
   UI.draftEl.style.display = 'none';
   document.getElementById('game-area').style.display = '';

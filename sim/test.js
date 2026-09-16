@@ -11399,6 +11399,59 @@ test('2v2: a stall during combat recovers through combat, never by ending a turn
   assertEq(hits.resolveCombat, 0, 'so combat was never re-entered from lane 1');
 });
 
+// Regression: Paul Atreides' free play asks WHICH LANE, and lets you decline.
+//
+// Owner, in 2v2: "i chose solomon grundy from paul atredies, and the game
+// automaticlly played it in lane 2 for me no option to play it in a lane from
+// my choosing which is what i want."
+//
+// The ability and ui.js's 1v1 modal were two implementations of the same
+// resolution, and they had drifted: the modal prompted for the lane, the
+// ability called playCardFree(owner, card, open[0]) — the lowest open lane. The
+// card's own text asks for both halves it was missing: "If the kept card costs
+// <= 2, you MAY play it for free." Both paths go through _keepOne now.
+test('Paul Atreides: the kept free card asks for a lane, and can be declined', function () {
+  var G = freshGame();
+  G.state.player.currency = 20;
+
+  // Lane 1 occupied, so "the lowest open lane" is demonstrably not the only
+  // reasonable answer — the bug always picked it anyway.
+  place(G, 'Groot', 'player', 0);
+
+  var asked = null, played = null;
+  var realPLC = G.promptLaneChoice, realFree = G.playCardFree;
+  G.promptLaneChoice = function (owner, lanes, title, desc, cb, ts, pc, pd, opts) {
+    asked = { lanes: lanes.slice(), decline: (opts && opts.declineLabel) || null, cb: cb };
+  };
+  G.playCardFree = function (owner, card, lane) { played = { name: card.name, lane: lane }; };
+
+  // Solomon Grundy costs 3 -> 1 after Paul's reduction, so he lands in the
+  // "costs <= 2, free play available" branch.
+  var AB = CARD_ABILITIES['Paul Atreides'];
+  AB._keepOne(G, 'player', cardByName('Solomon Grundy'), cardByName('Sandman'), null);
+
+  assert(asked, 'a lane prompt was raised instead of a silent placement');
+  assertEq(played, null, 'and nothing was played before the lane was chosen');
+  assertEq(asked.decline, 'Keep in Hand', 'declining keeps it in hand — the card says "you MAY play it"');
+  assertEq(asked.lanes.indexOf(0), -1, 'lane 1 is occupied, so it is not offered');
+  assert(asked.lanes.length > 1, 'and there is a real choice to make');
+
+  // Answering it plays into the lane the player picked, not open[0].
+  asked.cb(4);
+  assert(played, 'the pick plays the card');
+  assertEq(played.lane, 4, 'into the chosen lane');
+  assertEq(played.name, 'Solomon Grundy', 'the kept card');
+
+  // AN AI SEAT IS NOT PROMPTED. promptLaneChoice would auto-pick for it anyway;
+  // going straight there keeps a bot turn off the prompt plumbing entirely.
+  asked = null; played = null;
+  AB._keepOne(G, 'ai', cardByName('Solomon Grundy'), cardByName('Sandman'), null);
+  assertEq(asked, null, 'no prompt for an AI owner');
+  assert(played, 'it just plays');
+
+  G.promptLaneChoice = realPLC; G.playCardFree = realFree;
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

@@ -3653,26 +3653,16 @@ const CARD_ABILITIES = {
       }
       const card1 = pile.pop();
       const card2 = pile.pop();
-      // The "keep this one" resolution — shared by the AI auto-pick and the 2v2
-      // human choice below. `pick` is one of card1/card2; the other returns to
-      // the top of the deck.
-      const keepCard = (pick) => {
-        const other = pick === card1 ? card2 : card1;
-        pile.push(other);
-        const card = G._applyDoomsdayDrawScaling(G.createCardInstance(pick, self.owner), self.owner);
-        card.cost = Math.max(0, card.cost - 2);
-        G.addToHand(self.owner, card, self, null, 'Chosen by Paul Atreides');
-        G.state[self.owner]._kangSkipDraw = true;
-        G.log(`Paul Atreides keeps ${card.name} (cost reduced to ${card.cost})`);
-        if (card.cost <= 2) {
-          const open = card.isEnvironment
-            ? G.state.lanes.map((l, i) => i).filter(i => !G.state.lanes[i].destroyed)
-            : G.getOpenLanes(self.owner);
-          if (open.length && !card.isDiscardEffect) {
-            G.playCardFree(self.owner, card, open[0]);
-          }
-        }
-      };
+      // The "keep this one" resolution — shared by the AI auto-pick, the 2v2
+      // human choice below, AND the 1v1 modal in ui.js (kangChoicePick), which
+      // used to carry its own copy of the whole thing. The copies had drifted:
+      // 1v1 asked which lane to free-play into, 2v2 dropped the card in the
+      // lowest open lane without asking. Owner: "i chose solomon grundy from
+      // paul atredies, and the game automaticlly played it in lane 2 for me no
+      // option to play it in a lane from my choosing which is what i want."
+      // One door now, so the two modes cannot disagree again.
+      const keepCard = (pick) => CARD_ABILITIES['Paul Atreides']._keepOne(
+        G, self.owner, pick, (pick === card1 ? card2 : card1), self);
       // 2v2 HUMAN: the special pendingKangChoice modal had no 2v2 render path,
       // so Paul silently auto-kept the higher-cost card — the player never got
       // to choose. Route through promptCardChoice's inlineTray instead, which
@@ -3724,7 +3714,50 @@ const CARD_ABILITIES = {
         // is applied inside keepCard so the AI's Paul doesn't hand him over reset.
         keepCard(card1.cost >= card2.cost ? card1 : card2);
       }
-    }
+    },
+    // ONE KEEP, FOR EVERY MODE — see the note at its caller. Takes `owner` and
+    // `source` rather than closing over the ability's `self`, so ui.js's 1v1
+    // modal can call it with nothing but the pending choice in hand.
+    _keepOne(G, owner, pick, other, source) {
+      G.getDrawPile(owner).push(other);
+      const card = G._applyDoomsdayDrawScaling(G.createCardInstance(pick, owner), owner);
+      card.cost = Math.max(0, card.cost - 2);
+      G.addToHand(owner, card, source || null, null, 'Chosen by Paul Atreides');
+      // Paul's keep stands in for this round's draw, so the rejected card is
+      // not pulled straight back off the top of the pile.
+      G.state[owner]._kangSkipDraw = true;
+      G.log(`Paul Atreides keeps ${card.name} (cost reduced to ${card.cost})`);
+      if (card.cost > 2 || card.isDiscardEffect) return;
+      // openEnvLanes, not "any lane that is not destroyed" — the two copies
+      // disagreed here as well, and this one asks canPlaceEnvironment.
+      const open = card.isEnvironment ? G.openEnvLanes(owner) : G.getOpenLanes(owner);
+      if (!open.length) return;
+      // THE LANE IS THE PLAYER'S, AND SO IS THE DECISION. This was
+      // `playCardFree(owner, card, open[0])` — the lowest open lane, no prompt.
+      // The card's own text asks for both halves: "If the kept card costs <= 2,
+      // you MAY play it for free." It was neither optional nor placed.
+      //
+      // An AI seat keeps the old behaviour: promptLaneChoice would auto-pick
+      // for it anyway, and going straight there keeps the turn off the prompt
+      // plumbing. A silent forecast sim (previewPlacement clones the state and
+      // runs onPlay on every hover) must never raise a prompt either.
+      if (!Game.isHuman(owner) || (G.state && G.state._silentSim)) {
+        G.playCardFree(owner, card, open[0]);
+        return;
+      }
+      G.promptLaneChoice(owner, open,
+        `${card.name} — Free Play`,
+        `Paul Atreides' vision drops ${card.name} to ${card.cost}. Choose a lane, or keep it in hand.`,
+        (laneIdx) => { if (laneIdx != null) G.playCardFree(owner, card, laneIdx); },
+        owner, card, 0,
+        {
+          // NOT `forced`, even with one lane open: forcing is for a pick with
+          // ONE outcome, and the decline makes this two — play it here, or
+          // hold it.
+          declineLabel: 'Keep in Hand',
+          onDecline: () => G.log(`${card.name} stays in hand.`)
+        });
+    },
   },
   "Martian Manhunter": {
     onPlay(G, self, lane) {
