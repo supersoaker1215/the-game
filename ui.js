@@ -3292,6 +3292,15 @@ const UI = {
       // a card hover and the combat hpHits. So this adds one rather than
       // replacing anything.
       roundStart: { src: 'audio/new-round.mp3', maxDur: 1.5, fadeIn: 0, fadeOut: 120 },
+      // The Block Meter absorbing a hit — a sci-fi energy-shield activation.
+      // Its OWN cue name, not 'blockFull', on purpose: play('blockFull') is
+      // also reused as a triumphant sting for a TRIPLE multikill (see the
+      // multikill FX), which is not a block — so backing 'blockFull' itself
+      // would leak the shield whoosh onto that. This name is fired only from the
+      // 'blocked' FX event, the one moment a meter caps and turns a hit aside.
+      // cooldown guards the rare double-block in one tick. (User: "add this
+      // sound whenever you block an attack with your block meter.")
+      blockShield: { src: 'audio/block-full.mp3', maxDur: 2.1, fadeIn: 0, fadeOut: 150, cooldownMs: 300 },
     },
     // His sign-off, on the second text beat.
     BALLYHOO_VOICE2_SRC: 'audio/ballyhoo-voice-2.mp3',
@@ -13188,7 +13197,10 @@ const UI = {
         // Flash the HP bar
         const fill = document.getElementById(ev.owner === 'player' ? 'player-hp-fill' : 'ai-hp-fill');
         if (fill) { fill.classList.add('hp-flash'); setTimeout(() => fill.classList.remove('hp-flash'), 500); }
-        this.sfx.play('blockFull');
+        // The energy-shield activation cue (audio/block-full.mp3) — the meter
+        // just turned this hit aside. Its own cue so the triple-multikill reuse
+        // of 'blockFull' stays the procedural chord.
+        this.sfx.play('blockShield');
         // Haptic for the block trigger — distinctive punch so the
         // player feels the moment their meter saved them.
         this._haptic('block');
@@ -17991,7 +18003,8 @@ const UI = {
       proc('evade',     'Combat', 'Evade dodge',     'Quick rising sine sweep + high-shelf noise puff. Fires when evade consumes a charge.'),
       proc('armor',     'Combat', 'Armor block',     'Sawtooth plink + bright noise burst — shield ting.'),
       proc('heal',      'Combat', 'Heal chime',      'Rising major-third triad on soft sines.'),
-      proc('blockFull', 'Combat', 'Block meter full','Three-note major chord — fires when block meter caps and absorbs the next hit.'),
+      proc('blockShield', 'Combat', 'Block meter full', 'Sci-fi energy-shield activation (audio/block-full.mp3) — fires when the block meter caps and turns a hit aside.'),
+      proc('blockFull', 'Combat', 'Triple-kill sting','Three-note major chord — reused as the sting for a triple multikill.'),
       // ---- Tricks ----
       proc('trick',     'Tricks', 'Trick activate',  'Synth-circuit trigger — two-tone sine sweep with delayed harmonic.'),
       // ---- Status effects ----
