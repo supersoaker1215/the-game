@@ -741,6 +741,34 @@ window.CARD_ART_ACCENT_OVERRIDE = {
   'Power Battery':        '2,190,105',
   'Time Stone':           '14,181,99',
 
+  // DR. DOOM — owner: "dr doom border green".
+  //
+  // He was not on steel. The generator already had him GREEN at 101,190,112,
+  // hue 127.4 — the right hue and a saturation of 0.47, which is the whole
+  // problem: below the 0.60 floor a hue stops reading AS that colour, and on a
+  // black card it paints as a washed mint rather than as his.
+  //
+  // AND border_for ALONE GETS THIS ONE WRONG, which is worth writing down. It
+  // takes the top quartile of the family by s*v and averages their RGB — sound
+  // when a family is one pigment, wrong when it spans sixty degrees. 'Dr. Doom
+  // 3.png' is 30.2% green and that green runs 80-140 deg: the dull yellow-green
+  // in the cloak's shadow outweighs the mystic glow at the hem, so the RGB mean
+  // lands at 92.8 deg — 106,158,63, an olive nobody would call Doom's colour.
+  //
+  // So the family is binned to its hue PEAK (132.6 deg) before border_for's own
+  // quartile, saturation floor and luma floor run on it. That is the same
+  // correction the Superman entry above makes, for the same stated reason — a
+  // tail drags a mean — applied to hue spread instead of to a scarce pigment.
+  //
+  //     whole family   ->  106,158,63   hue  92.8   s 0.60   luma 140   olive
+  //     at the peak    ->   61,154,77   hue 130.3   s 0.60   luma 129   his
+  //
+  // Lands in the same luma band as every other green already in this map
+  // (Goblin 73,150,60 - Grinch 109,145,58 - Luthor 93,147,59), so the set still
+  // reads as one family. Proved against the painting side by side before it
+  // shipped.
+  'Dr. Doom':             '61,154,77',
+
   // IRON MAN keeps its hand-reasoned value: his default variant is a blue-lit
   // shot whose armour is dark low-saturation maroon — 0.3% of its pixels read as
   // red at all — so the sampler returns a pink highlight. This is the red the
