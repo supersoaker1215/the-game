@@ -7914,6 +7914,25 @@ const Game = {
     let pCard = this.state.lanes[laneIdx].player;
     let aCard = this.state.lanes[laneIdx].ai;
     if (!pCard || !aCard) { if (doneCallback) doneCallback(); return; }
+    // A CONTESTED LANE FIGHTS ONCE PER COMBAT. Both bodies are stamped
+    // `_combatSwungThisRound` the instant the exchange finishes (see stepFinish
+    // below), and startRound clears that flag across the whole board — so both
+    // cards in a lane wearing it means THIS lane already resolved this combat
+    // and we are being re-entered. Combat is deeply re-entrant (every
+    // mid-combat prompt re-enters it), and a re-entry that reached a
+    // still-contested lane re-ran the ENTIRE exchange: both cards swung a
+    // second time, dealt their damage a second time, and an Overdrive body
+    // (Michael Myers, King Shark, post-revive Wolverine) took its bonus swing
+    // again on top — so one card appeared to attack three or four times.
+    // (User: "there was a weird glitch where michael myers attacked like 4
+    // times.") Guarding the swing on the flag it already sets is cheaper and
+    // safer than making every re-entry path idempotent. A body that DIED in the
+    // first exchange is gone from the lane, so the `!pCard || !aCard` guard
+    // above already covers those lanes; this covers the case where both lived.
+    if (pCard._combatSwungThisRound && aCard._combatSwungThisRound) {
+      if (doneCallback) doneCallback();
+      return;
+    }
     // Snapshot pre-combat stats so the UI can show a "what happened
     // here?" recap after the lane resolves. Captured before any
     // damage / deaths so the summary reads the REAL starting values
@@ -8800,6 +8819,14 @@ const Game = {
       return;
     }
 
+    // ALREADY SWUNG THIS COMBAT — the uncontested twin of resolveLaneCombat's
+    // guard. An uncontested attacker stamps `_combatSwungThisRound` when it
+    // hits the face (below), so seeing it set here means the lane is being
+    // re-entered after it already resolved; swinging again is the same
+    // multi-attack the contested guard stops. Placed AFTER the mind-control
+    // block on purpose: an MC card must keep running its async chain (the
+    // caller stalls if it doesn't), and it never reaches this line anyway.
+    if (card._combatSwungThisRound) return;
     if (card.isStunned || card.isFrozen) return;
     // Parlay — Jack Sparrow singled this card out before combat
     if (card._parlayedThisRound) {
@@ -19840,6 +19867,21 @@ const Game = {
         try { this._runHook(c, 'onPlay', this, c, rearm.laneIdx); }
         catch (e) { this.log('[UNDO] Could not re-arm ' + (c.name || 'ability')); }
         finally { this._suppressAbilityUndoPoint = false; }
+        // MARK THE RE-ARMED CHAIN LIVE, exactly as _runOnPlayWithUndoPoint does
+        // for the original play. Without this, `_abilityChainCard` stays null
+        // through the whole re-armed chain, so resolveActivePrompt pushed a
+        // FRESH snapshot at every step of it (see its `!_abilityChainCard`
+        // guard). Those snapshots are extra undo points, so each undo re-armed
+        // the ability AND left new points to undo into — history grew without
+        // bound and the ability could be re-fired forever. (User: "if you spam
+        // the undo button ... you can retrigger vaders ability as many times as
+        // you want.") With the chain flagged, its steps push nothing, history
+        // empties when the re-armed chain ends, and the next undo correctly
+        // finds nothing left to take back. A multi-step chain (Vader: move,
+        // fear, then the 7-damage chain) keeps one prompt armed across every
+        // transition, so this flag is only cleared by resolveActivePrompt once
+        // the whole chain is genuinely done.
+        if (this._anyPromptArmed()) this.state._abilityChainCard = c.id;
       }
     }
     this.log('[UNDO] Reverted to previous action');

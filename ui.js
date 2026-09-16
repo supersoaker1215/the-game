@@ -2101,6 +2101,11 @@ const UI = {
       // Human Torch's flame-on cue — fired from his onPlay (abilities.js) when
       // he ignites, the same way Spider-Man / Predator fire their 'ability'.
       'Human Torch':      { ability: { src: 'audio/cards/human-torch-ability.mp3', maxDur: 4.0 } },
+      // Gorr — the All-Black necrosword lashing out as he lands. 'play' fires
+      // automatically from Game.playCard's wrapper (playCardSfx(name, 'play')),
+      // so this is his When Played cue. (User: "add this sound to Gorr's when
+      // played ability.") 1.14s clip, well under the play cap.
+      'Gorr':             { play: 'audio/cards/gorr-play.wav' },
       'Ant-Man':          { death: { src: 'audio/cards/ant-man-death.m4a', fullDuration: true } },
       // Ghostface hover: 58s of Nick Cave & The Bad Seeds' "Red Right
       // Hand" (start → 0:58 of the source — intro through the first
@@ -13632,6 +13637,28 @@ const UI = {
       const tray = document.createElement('div');
       tray.id = 'choice-tray';
       tray.className = 'choice-tray choice-from-hand';
+      // AN ALWAYS-PRESENT WAY TO COMMIT, RIGHT HERE IN THE DECISION PANEL.
+      // The lit hand + inspect Pick button is one door, but it depends on the
+      // player finding the small button inside a full-screen read \u2014 and if the
+      // hand-highlight ever fails to land (a mismatched id after a network
+      // round-trip, say) it is the ONLY door, so the prompt reads as "tap to
+      // read, and nothing else happens." (User: "for the symbiote decision
+      // every time i click a card it just lets me read it and not select it to
+      // redraw.") So every candidate also gets a compact name+button row in the
+      // panel itself: a bar, not a second full copy of the card (the objection
+      // that retired the old tray), and it commits through the same door the
+      // regular tray uses \u2014 cardChoicePick(idx). The hand stays lit and tappable.
+      const rows = (cc.cards || []).map((card) => {
+        const idx = cc.cards.indexOf(card);
+        const cost = (card && card.cost != null)
+          ? `<span class="choice-fh-cost">${card.cost}</span>` : '';
+        const nm = String((card && card.name) || 'Card')
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return `<div class="choice-opt choice-from-hand-opt">`
+          + `${cost}<span class="choice-fh-name">${nm}</span>`
+          + `<button type="button" class="choice-pick-btn" data-pick="${idx}">Redraw</button>`
+          + `</div>`;
+      }).join('');
       tray.innerHTML = `
         <div class="choice-tray-backdrop"></div>
         <div class="choice-tray-panel">
@@ -13640,10 +13667,22 @@ const UI = {
             ${cc.desc ? `<span class="choice-tray-desc">${cc.desc}</span>` : ''}
           </div>
           <div class="choice-hand-hint">${cc.handDrop
-            ? 'Pick from your hand \u2014 tap a lit card to read it, or drag it to a lane.'
-            : 'Pick from your hand \u2014 tap a lit card to read it.'}</div>
+            ? 'Tap a lit hand card to read it or drag it to a lane, or pick below.'
+            : 'Tap a lit hand card to read it, or pick it below.'}</div>
+          <div class="choice-tray-cards">${rows}</div>
         </div>`;
       document.body.appendChild(tray);
+      // Same wiring as the regular tray: the button is the commit, and it stops
+      // the click from reaching the document-level flip/dismiss listener after
+      // cardChoicePick has already torn the tray down.
+      tray.querySelectorAll('.choice-pick-btn').forEach(btn => {
+        const idx = +btn.getAttribute('data-pick');
+        btn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          if (Game.state.pendingCardChoice !== cc) return;
+          cardChoicePick(idx);
+        });
+      });
       return;
     }
 

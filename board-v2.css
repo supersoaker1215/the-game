@@ -1733,6 +1733,20 @@ body.board-v2 #bv2-decision {
   flex: 0 1 auto; min-height: 0;
   max-height: 62%; overflow-y: auto; overflow-x: hidden;
 }
+/* AN OPEN CHOICE OUTRANKS THE LOG. When the panel actually holds pick options
+   (a docked tray), 62% of the rail was not enough for two full option rows plus
+   the header, so the second option — Sabertooth in the Mind Control pair — sat
+   below the fold and had to be scrolled to. (User: "for the other decision i
+   have to scroll down to pick sabertooth which i dont like.") A question you
+   must answer is worth more of the column than the running commentary, so give
+   it up to 85% while it is live; the log keeps its own floor below. */
+body.board-v2 #bv2-decision.has-docked { max-height: 85%; }
+/* Keep the title/instruction in view if the list is long enough to scroll, so
+   scrolling never hides WHAT is being chosen. */
+body.board-v2 #bv2-decision.has-docked .choice-tray-header {
+  position: sticky; top: 0; z-index: 2;
+  background: linear-gradient(150deg, #12384d 0%, #0a1c28 60%, #071019 100%);
+}
 /* Zone 3 keeps a floor so there is always some log to read. */
 body.board-v2 #bv2-log { min-height: calc(96 * var(--u)); }
 body.board-v2 #bv2-log      { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
@@ -2663,6 +2677,28 @@ body.board-v2 #bv2-decision .choice-opt .choice-pick-btn {
   padding: 0 calc(10 * var(--u)) !important;
   font-family: var(--fm) !important; font-size: calc(9 * var(--u)) !important;
   letter-spacing: .18em !important;
+}
+/* A HAND-PICK ROW IS ALREADY A BAR — cost, name, button reading across — so it
+   needs none of the card-face-to-bar squeezing above, only the rail's palette
+   and sizing. The name takes the middle, the Redraw button sits at the right. */
+body.board-v2 #bv2-decision .choice-from-hand-opt {
+  border-top: 1px solid rgba(53,201,255,0.22) !important;
+  padding: calc(3 * var(--u)) calc(3 * var(--u)) calc(3 * var(--u)) calc(6 * var(--u)) !important;
+}
+body.board-v2 #bv2-decision .choice-from-hand-opt .choice-fh-cost {
+  flex: 0 0 auto !important;
+  width: calc(18 * var(--u)) !important; height: calc(18 * var(--u)) !important;
+  font-size: calc(10 * var(--u)) !important;
+}
+body.board-v2 #bv2-decision .choice-from-hand-opt .choice-fh-name {
+  flex: 1 1 auto !important; min-width: 0 !important;
+  font-family: var(--fd) !important; font-weight: 700 !important;
+  font-size: calc(15 * var(--u)) !important; letter-spacing: .02em !important;
+  color: #eafaff !important;
+  white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;
+}
+body.board-v2 #bv2-decision .choice-from-hand-opt .choice-pick-btn {
+  border-left: 1px solid rgba(53,201,255,0.35) !important;
 }
 
 /* ===========================================================================

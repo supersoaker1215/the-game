@@ -12558,6 +12558,49 @@ body.turn-combat .board .lane.lane-active {
    gutter does not reserve a tray-sized hole under the notice. */
 #classic-decision .choice-tray.choice-from-hand .choice-tray-panel { min-height: 0; }
 
+/* ---- THE PICK ROWS FOR A HAND PICK (2026-09-15) --------------------------
+   A `fromHand` prompt now carries a compact, always-selectable list under the
+   notice: one bar per candidate — cost, name, and a Redraw button reading
+   across — so the choice can be committed here without hunting for the lit
+   card in the hand. (User: "every time i click a card it just lets me read it
+   and not select it to redraw.") It is a bar, not a second full card face, so
+   it does not re-introduce the duplicate-of-the-hand clutter the old tray had. */
+.choice-tray.choice-from-hand .choice-from-hand-opt {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 4px 6px;
+  border-top: 1px solid rgba(var(--gold-rgb), 0.22);
+}
+.choice-tray.choice-from-hand .choice-fh-cost {
+  flex: 0 0 auto;
+  min-width: 20px; height: 20px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  font-family: 'Rajdhani', sans-serif; font-weight: 800; font-size: 12px;
+  color: #ffd66b;
+  background: rgba(0,0,0,0.35);
+  box-shadow: inset 0 0 0 1px rgba(var(--gold-rgb), 0.5);
+}
+.choice-tray.choice-from-hand .choice-fh-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 13px;
+  letter-spacing: 0.4px;
+  color: #f4ede0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  text-align: left;
+}
+.choice-tray.choice-from-hand .choice-from-hand-opt .choice-pick-btn {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 6px 12px 5px;
+  border: 0;
+  border-left: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.35);
+  border-top: 0;
+}
+
 .choice-tray .choice-facedown {
   width: 150px; height: 190px;
   background: repeating-linear-gradient(45deg, #1a1a2e, #1a1a2e 10px, #16213e 10px, #16213e 20px);
