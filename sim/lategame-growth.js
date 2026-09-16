@@ -13,6 +13,13 @@
 //   jsc sim/lategame-growth.js -- [--rounds 40] [--games 3]
 // ============================================================
 load('./sim/shim.js');
+// THE WIRE IS THE HALF THAT MATTERS ONLINE, and it was never measured: every
+// run printed wireBytes = -1 because Multiplayer.serializeState lives in
+// multiplayer.js, which the shim does not load. A growth harness whose headline
+// online metric is a hardcoded -1 is a harness that cannot answer the question
+// it exists for. (Owner: "after turn 6 the game lags, too much weight or
+// something, how to lighten".)
+load('./multiplayer.js');
 
 var argv = (typeof arguments !== 'undefined') ? arguments : [];
 var MAXR = 40, GAMES = 1;

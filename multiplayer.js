@@ -238,6 +238,42 @@ const Multiplayer = {
       (p.drawPile || []).forEach(collect);
     });
 
+    // PUT THE ZEROES BACK. serializeState drops every stats* accumulator that
+    // is still at 0 and leaves `_sz` on the card to say so. This walks the
+    // received state with the SAME predicate the strip used, so its coverage
+    // cannot be narrower than the strip's — a card the strip reached but this
+    // missed would hand the engine `undefined` where it expects a number.
+    //
+    // The field list is read off a real card instance rather than typed out, so
+    // a new counter added to createCardInstance is covered without anyone
+    // remembering to come back here.
+    (function restoreStatZeros(root) {
+      let keys = Multiplayer._statKeys;
+      if (!keys) {
+        keys = [];
+        try {
+          const def = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS[0] : null;
+          const probe = (def && typeof Game !== 'undefined' && Game.createCardInstance)
+            ? Game.createCardInstance(def, 'player') : null;
+          if (probe) for (const k in probe) if (k.indexOf('stats') === 0) keys.push(k);
+        } catch (e) { keys = []; }
+        Multiplayer._statKeys = keys;
+      }
+      if (!keys.length) return;
+      const seen = new Set();
+      const walk = (o) => {
+        if (!o || typeof o !== 'object' || seen.has(o)) return;
+        seen.add(o);
+        if (Array.isArray(o)) { o.forEach(walk); return; }
+        if (o._sz) {
+          for (let i = 0; i < keys.length; i++) if (o[keys[i]] === undefined) o[keys[i]] = 0;
+          delete o._sz;
+        }
+        for (const k in o) walk(o[k]);
+      };
+      walk(root);
+    })(state);
+
     const rehydrateCard = (c) => {
       if (!c || !c.name) return;
       const def = cardDefs.find(d => d.name === c.name);
@@ -420,7 +456,34 @@ const Multiplayer = {
         // key can never be resurrected with the definition's value.
         if (o.id != null && typeof o.name === 'string'
             && typeof o.attack === 'number' && typeof o.currentHealth === 'number') {
-          for (const k in o) { const v = o[k]; if (v === false || v === null) delete o[k]; }
+          let _sz = false;
+          for (const k in o) {
+            const v = o[k];
+            if (v === false || v === null) { delete o[k]; continue; }
+            // AND THE stats* BLOCK, WHICH IS THE EXCEPTION TO THE RULE ABOVE.
+            // "Zeroes are kept — 0 is arithmetic, not a flag" is right for the
+            // card's own numbers, and wrong for this one family: every card
+            // carries ~21 per-card accumulators (statsDamageAbsorbed,
+            // statsFreezesApplied, statsEnergyGenerated...) whose 0 IS their
+            // starting value, and they are overwhelmingly still at it.
+            //
+            // Measured on a live 2v2 board at round 5: 25 distinct stats*
+            // names across 41 card instances = 873 written fields, 843 of them
+            // (96.6%) still zero, costing 19,068 of a 58,217-byte payload —
+            // 32.8% of EVERY broadcast, sent to three other clients on every
+            // single action. (Owner: "after turn 6 the game lags, too much
+            // weight or something, how to lighten".)
+            //
+            // The zero comes BACK on arrival rather than the readers being
+            // asked to cope with a missing key — there are 246 of them across
+            // game.js, ui.js and abilities.js, and `undefined + 1` is NaN, not
+            // 1. `_sz` marks a card that was trimmed so the restore knows to
+            // run; see restoreStatZeros in _rehydrateState.
+            if (v === 0 && k.charCodeAt(0) === 115 && k.indexOf('stats') === 0) {
+              delete o[k]; _sz = true;
+            }
+          }
+          if (_sz) o._sz = 1;
         }
         for (const k in o) walk(o[k]);
       };

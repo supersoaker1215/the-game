@@ -6816,6 +6816,27 @@ const Game = {
           this._2v2TimeStoneCounter(tsSeat, intercept);   // AI always counters
         } else {
           this.state.pendingTimeStoneIntercept = intercept;
+          // AND IT GETS A CLOCK. The 1v1 arming directly below this already
+          // carries one, and the reason written there is about THIS branch:
+          // "without a clock this one froze the table outright in 2v2, where
+          // its modal was never even rendered." That fix went on the 1v1 site,
+          // which is gated `&& !this.is2v2()`, so the branch it described was
+          // left without it.
+          //
+          // What that costs: pendingTimeStoneIntercept is one of the slots
+          // hasPendingPrompt() counts, and _2v2ActionsLocked() has no expiry on
+          // that term — the two above it do. So one seat never answering takes
+          // the End-turn button away from ALL FOUR players, permanently. The
+          // owner photographed exactly that: their own TRICKS sub-turn, live,
+          // with no button to leave it. sim/lategame-growth reproduces it —
+          // `busy=1 [pendingTimeStoneIntercept]` from round 2 and still set at
+          // round 5.
+          //
+          // Timing out ALLOWS the trick through: the same answer the Allow
+          // button gives, and the same one the 1v1 clock picks.
+          this._2v2ArmPromptTimeout('timeStone', intercept, () => {
+            try { this._2v2TimeStoneAllow(intercept); } catch (e) { console.error('[2v2 timeStone timeout]', e); }
+          });
           if (typeof UI !== 'undefined' && UI.render) UI.render();
           this._2v2OnlineBroadcast();
         }
@@ -22921,7 +22942,62 @@ const Game = {
       if (at && Date.now() - at > 8000) { tt._resolving = false; tt._resolvingAt = 0; }
       else return true;
     }
-    return !!(this.hasPendingPrompt && this.hasPendingPrompt());
+    // AND NEITHER CAN THE PROMPT TERM STICK. Same argument as the flag above,
+    // and it needed making twice: a pending prompt hides the End-turn button
+    // for ALL FOUR seats, and this term had no expiry at all, so one prompt
+    // that never resolves ends the match. The owner photographed it — their own
+    // TRICKS sub-turn with no button to leave it — and the cause was a Time
+    // Stone intercept armed in 2v2 without the 30s clock its 1v1 twin carries.
+    //
+    // That one is fixed at its arming site, which is the real repair. This is
+    // the floor under it, because the clock cannot cover everything:
+    //   • hasPendingPrompt() counts THREE things _2v2_PROMPT_SLOT does not —
+    //     pendingKangChoice, _pendingAIActions and stolenByBWL — so none of
+    //     them can be armed with a timeout today.
+    //   • _2v2ArmPromptTimeout returns early unless this client is the AI
+    //     authority, so a GUEST has no clock of its own at all: it waits for
+    //     the host to resolve and broadcast. A broadcast that never lands
+    //     leaves that guest locked out with nothing on its own side to recover.
+    //
+    // 90s, which is 3x the auto-pick, so this can only ever fire AFTER the
+    // real clock has already failed to. It answers nothing and resolves
+    // nothing — it stops a stale prompt from holding the button hostage, and
+    // every action it re-admits still runs its own checks. The signature is
+    // the prompt OBJECTS, so a new prompt restarts the count rather than
+    // inheriting an old one's age.
+    const pending = !!(this.hasPendingPrompt && this.hasPendingPrompt());
+    if (!pending) { tt._promptLockSig = null; tt._promptLockAt = 0; return false; }
+    const sig = this._promptLockSignature();
+    if (tt._promptLockSig !== sig) { tt._promptLockSig = sig; tt._promptLockAt = Date.now(); }
+    if (tt._promptLockAt && Date.now() - tt._promptLockAt > 90000) {
+      if (!tt._promptLockWarned) {
+        tt._promptLockWarned = sig;
+        this.log('  [2v2] A prompt has been pending 90s without resolving — releasing the turn controls so the table can continue.');
+      }
+      return false;
+    }
+    if (tt._promptLockWarned && tt._promptLockWarned !== sig) tt._promptLockWarned = null;
+    return true;
+  },
+
+  // Identity of whatever is currently holding the prompt lock. Object identity,
+  // not contents: two different prompts can serialise the same (two seats each
+  // asked to pick a lane), and the question here is only "is this still the
+  // same wait I started timing?"
+  _promptLockSignature() {
+    const s = this.state; if (!s) return '';
+    const ids = [];
+    ['pendingCardChoice','pendingLaneChoice','pendingBlockTrick','pendingKangChoice',
+     'pendingJumpOffer','pendingTimeStoneIntercept'].forEach((k) => {
+      const p = s[k];
+      if (!p) return;
+      if (p._lockId == null) { this._lockSeq = (this._lockSeq || 0) + 1; try { p._lockId = this._lockSeq; } catch (e) {} }
+      ids.push(k + ':' + (p._lockId != null ? p._lockId : '?'));
+    });
+    if (s._pendingAIActions > 0) ids.push('ai:' + s._pendingAIActions);
+    if (s.player && s.player.stolenByBWL) ids.push('bwlP');
+    if (s.ai && s.ai.stolenByBWL) ids.push('bwlA');
+    return ids.join('|');
   },
 
   // AN ACTION THAT ARRIVES DURING A LOCK IS HELD, NOT THROWN AWAY.

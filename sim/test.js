@@ -11182,6 +11182,95 @@ test('Gargantua catches a card played into its lane, and one moved in', function
   assertEq(pred.currentHealth, 1, 'nor take more of his health');
 });
 
+// Regression: a 2v2 online Time Stone intercept must carry the same 30s clock
+// its 1v1 twin does, and the turn controls must not be hostage to a prompt that
+// never resolves.
+//
+// Owner, photographed mid-match on their own TRICKS sub-turn: "i dont have an
+// end tricks button so i cant end my turn." pendingTimeStoneIntercept is one of
+// the slots hasPendingPrompt() counts, _2v2ActionsLocked() hides the End button
+// on it, and that term had no expiry — so one seat never answering took the
+// button away from all four players for the rest of the match.
+//
+// The 1v1 arming carries the clock and says why, in a comment about the 2v2
+// case: "without a clock this one froze the table outright in 2v2, where its
+// modal was never even rendered." The fix landed on the 1v1 site, which is
+// gated `&& !this.is2v2()`. sim/lategame-growth reproduced the result —
+// `busy=1 [pendingTimeStoneIntercept]` from round 2, still set at round 5.
+function _tsOnline2v2() {
+  var G = freshGame();
+  G.state.twoVTwo = {
+    online: true, you: 'p1', round: 1, subPhaseIdx: 0,
+    players: {
+      p1: { team: 'A', isAI: false, name: 'One',   hand: [], trickHand: [] },
+      p2: { team: 'A', isAI: true,  name: 'Two',   hand: [], trickHand: [] },
+      p3: { team: 'B', isAI: false, name: 'Three', hand: [], trickHand: [] },
+      p4: { team: 'B', isAI: true,  name: 'Four',  hand: [], trickHand: [] }
+    }
+  };
+  return G;
+}
+
+test('2v2 online: a Time Stone intercept on a human seat arms the 30s clock', function () {
+  var G = _tsOnline2v2();
+  // The arming site needs a real (non-headless) client that is the AI authority
+  // — the host. _syncMode short-circuits the timer for the sim by design.
+  var prevSync = G._syncMode;
+  G._syncMode = false;
+  var armed = { incomingTrick: { name: 'Pym Particles' }, incomingOwner: 'ai',
+                defender: 'player', _2v2Seat: 'p3', _2v2ActingPlayer: 'p3' };
+  G._clearPromptTimeout();
+  assertEq(G._promptTimeout == null, true, 'no clock before arming');
+  G._2v2ArmPromptTimeout('timeStone', armed, function () {});
+  var got = G._promptTimeout != null;
+  G._clearPromptTimeout();
+  G._syncMode = prevSync;
+  assertEq(got, true, 'the timeStone slot is one _2v2ArmPromptTimeout accepts');
+  // And the arming site actually calls it — the bug was a missing call, not a
+  // missing slot, so the slot test alone would have passed all along.
+  var src = String(Game.playTrick);
+  assertEq(/_2v2ArmPromptTimeout\('timeStone'/.test(src) ||
+           /_2v2ArmPromptTimeout\("timeStone"/.test(src), true,
+    'playTrick arms a timeStone timeout');
+  // Twice: once for the 2v2-online branch, once for the 1v1 one.
+  var hits = (src.match(/_2v2ArmPromptTimeout\(['"]timeStone['"]/g) || []).length;
+  assertEq(hits, 2, 'both the 2v2 and the 1v1 arming sites carry a clock');
+});
+
+test('2v2: a prompt that never resolves stops locking the turn controls', function () {
+  var G = _tsOnline2v2();
+  var tt = G.state.twoVTwo;
+  // THE SHIM REPLACES hasPendingPrompt so combat continuations never park
+  // headlessly (sim/shim.js ~190) — see [[sim-fidelity-limits]]. Asserting
+  // through it would test the harness, not the expiry, so the real predicate is
+  // stood back up for this test and the prompt slots drive it.
+  var _realPending = G.hasPendingPrompt;
+  G.hasPendingPrompt = function () {
+    return !!(this.state.pendingTimeStoneIntercept || this.state.pendingCardChoice);
+  };
+
+  // A live prompt locks, as it should — nobody should act mid-decision.
+  G.state.pendingTimeStoneIntercept = { incomingTrick: { name: 'Pym Particles' },
+                                        _2v2Seat: 'p3', _2v2ActingPlayer: 'p3' };
+  assertEq(G._2v2ActionsLocked(), true, 'a fresh prompt locks the table');
+  assertEq(G._2v2ActionsLocked(), true, 'and stays locked on the next read');
+
+  // Backdate it past the floor — 3x the 30s auto-pick, so this can only fire
+  // after the real clock has already failed to.
+  tt._promptLockAt = Date.now() - 95000;
+  assertEq(G._2v2ActionsLocked(), false, 'a 90s-stale prompt releases the controls');
+
+  // A DIFFERENT prompt must not inherit the stale one's age.
+  G.state.pendingTimeStoneIntercept = null;
+  G.state.pendingCardChoice = { cards: [], _2v2ActingPlayer: 'p3' };
+  assertEq(G._2v2ActionsLocked(), true, 'a new prompt starts its own count');
+
+  // And with nothing pending at all the lock is simply off.
+  G.state.pendingCardChoice = null;
+  assertEq(G._2v2ActionsLocked(), false, 'no prompt, no lock');
+  G.hasPendingPrompt = _realPending;
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 
