@@ -6105,7 +6105,16 @@ const Game = {
       // jump/block set. (User: "my AI teammate played green lantern and it gave
       // me the extra currency.")
       const _active = this._2v2ActivePlayer && this._2v2ActivePlayer();
-      if (!this._2v2AbilityOwner() && _active && _by !== _active) _by = _active;
+      // ...AND THE SUB-PHASE SEAT STILL HAS TO BE ON THIS CARD'S SIDE. The
+      // override above is right whenever both candidates are plausible, and it
+      // is a guess like any other: a play that lands after the sub-phase has
+      // moved on gets stamped with whoever is up next. `owner` knows which side
+      // the card is on, so the impossible answers are simply not taken.
+      // (Owner, on an enemy Gorilla Grodd: "it says played by ryan when ryan is
+      // on my team.")
+      if (!this._2v2AbilityOwner() && _active && _by !== _active
+          && this._2v2SeatActsFor(_active, owner)) _by = _active;
+      if (_by && !this._2v2SeatActsFor(_by, owner)) _by = null;
       if (_by) card._2v2PlayedBy = _by;
     }
     // Multiplayer guest: forward to host instead of executing locally.
@@ -6143,7 +6152,7 @@ const Game = {
     // Snapshot before any player-initiated card play so the action can be undone.
     if (this.isPlayerTurn() || (this.isMultiplayer() && this.mp && this.mp.role === 'host'))
       this.snapshot(owner);
-    const who = this.seatLabel(owner);
+    const who = this.seatLabel(owner, card && card._2v2PlayedBy);
 
     // Discard effects — card is spent for its onDiscard effect and goes
     // to the DISCARD pile (not the dead pile). This keeps them out of
@@ -6573,7 +6582,16 @@ const Game = {
       // sub-phase seat over the stale global, while a free play (ability owner
       // set) and combat (no sub-phase) are untouched. See the note there.
       const _active = this._2v2ActivePlayer && this._2v2ActivePlayer();
-      if (!this._2v2AbilityOwner() && _active && _by !== _active) _by = _active;
+      // ...AND THE SUB-PHASE SEAT STILL HAS TO BE ON THIS CARD'S SIDE. The
+      // override above is right whenever both candidates are plausible, and it
+      // is a guess like any other: a play that lands after the sub-phase has
+      // moved on gets stamped with whoever is up next. `owner` knows which side
+      // the card is on, so the impossible answers are simply not taken.
+      // (Owner, on an enemy Gorilla Grodd: "it says played by ryan when ryan is
+      // on my team.")
+      if (!this._2v2AbilityOwner() && _active && _by !== _active
+          && this._2v2SeatActsFor(_active, owner)) _by = _active;
+      if (_by && !this._2v2SeatActsFor(_by, owner)) _by = null;
       if (_by) card._2v2PlayedBy = _by;
     }
     // Multiplayer guest: forward the free-play action and let the host run it.
@@ -10972,15 +10990,53 @@ const Game = {
   // Never "You": the record rides every broadcast, and "You" would name a
   // different person on each client. The renderer decides what to call the
   // local player.
-  _2v2SeatOfPlay(card) {
+  // A SEAT CAN ONLY HAVE PLAYED A CARD ON ITS OWN SIDE.
+  //
+  // Every "who is acting right now" answer in 2v2 comes from a chain of mutable
+  // globals that survive async gaps — _2v2CurrentActingPlayer, _2v2AIDriving,
+  // the live sub-phase. Each is a good guess and none was checked against the
+  // card. When a play lands AFTER the sub-phase has advanced (an ability chain,
+  // a prompt, a broadcast round-trip) the chain answers with whoever is up
+  // next, and that is as often an opponent as a teammate. The owner
+  // photographed both halves: an enemy Gorilla Grodd whose record read "R2
+  // Played by Ryan" — their own teammate — and the play line for the same card
+  // reading "Vega & Cortex play Gorilla Grodd", because seatLabel's own team
+  // check rejected that wrong seat and fell back to naming the whole team.
+  //
+  // The card's owner settles it with certainty: a seat on the other team did
+  // not play this. Cheap, and it turns a confident wrong name into the right
+  // one or none.
+  _2v2SeatActsFor(seat, owner) {
+    const tt = this.state && this.state.twoVTwo;
+    if (!seat || !tt || !tt.players) return false;
+    const p = tt.players[seat];
+    if (!p) return false;
+    if (owner !== 'player' && owner !== 'ai') return true;   // unknown side: no opinion
+    const side = this._2v2TeamSide && this._2v2TeamSide[p.team];
+    return side == null ? true : side === owner;
+  },
+
+  // `ownerHint` — for callers with no card in hand but a side in mind
+  // (playerProperName's own fallback). Without it that fallback re-ran the
+  // chain with NO side to check against, so a stamp this function had already
+  // refused to guess came straight back in through the other door — which is
+  // how the enemy Grodd still printed "Played by Ryan" after the guard landed.
+  _2v2SeatOfPlay(card, ownerHint) {
     const tt = this.state && this.state.twoVTwo;
     if (!tt || !tt.players) return null;
     // Deliberately NOT gated on tt.online — pass-and-play needs a seat too.
-    return (card && card._2v2PlayedBy)
-      || this._2v2CurrentActingPlayer
-      || this._2v2AIDriving
-      || (this._2v2ActivePlayer && this._2v2ActivePlayer())
-      || null;
+    // Each candidate has to be on the card's OWN side; see _2v2SeatActsFor.
+    const owner = (card && card.owner) || ownerHint;
+    const cands = [
+      card && card._2v2PlayedBy,
+      this._2v2CurrentActingPlayer,
+      this._2v2AIDriving,
+      (this._2v2ActivePlayer && this._2v2ActivePlayer())
+    ];
+    for (let i = 0; i < cands.length; i++) {
+      if (cands[i] && this._2v2SeatActsFor(cands[i], owner)) return cands[i];
+    }
+    return null;
   },
 
   // The stable, perspective-free name of whoever is playing for `owner`.
@@ -10989,7 +11045,7 @@ const Game = {
     if (!s) return owner === 'player' ? 'Player' : 'AI';
     const tt = s.twoVTwo;
     if (this.is2v2 && this.is2v2() && tt && tt.players) {
-      const seat = seatKey || this._2v2SeatOfPlay(null);
+      const seat = seatKey || this._2v2SeatOfPlay(null, owner);
       const p = seat && tt.players[seat];
       if (p) return p.name || ('Player ' + String(seat).slice(1));
       const team = (owner === this._2v2TeamSide.A) ? 'A' : 'B';
@@ -11225,7 +11281,13 @@ const Game = {
   //   • the real person's name in 1v1 online / hotseat (state._mpNames) and
   //     in 2v2 (twoVTwo.players[].name)
   //   • "AI" only when the opponent genuinely is the computer
-  seatLabel(owner) {
+  // `seatHint` — a seat the caller KNOWS acted, e.g. the card's own
+  // team-checked _2v2PlayedBy stamp. Without one this falls back to the live
+  // acting chain, and when that chain has moved on to the other team the only
+  // honest answer left is "both teammates" — which is how one AI's play logged
+  // as "Vega & Cortex play Gorilla Grodd", reading as if two people played one
+  // card. The card knows who played it; pass it in.
+  seatLabel(owner, seatHint) {
     const s = this.state;
     if (!s) return owner === 'player' ? 'You' : 'AI';
 
@@ -11240,7 +11302,8 @@ const Game = {
       // or a chained prompt the sub-phase index can lag, which made a single
       // seat's trick log as the whole TEAM ("Ryan & Cortex play Fear Toxin"),
       // reading as if a teammate had played your card. Name the real actor.
-      const active = this._2v2CurrentActingPlayer || this._2v2AIDriving ||
+      const active = (seatHint && tt.players[seatHint] ? seatHint : null)
+                     || this._2v2CurrentActingPlayer || this._2v2AIDriving ||
                      (this._2v2ActivePlayer && this._2v2ActivePlayer());
       if (active && tt.players[active] && tt.players[active].team === team) {
         if (tt.you && active === tt.you) return 'You';
@@ -21744,6 +21807,25 @@ const Game = {
         finish();
       }
     }, 12000);
+    // A TURN NOBODY COULD SEE IS NOT A TURN. When a seat has nothing it can
+    // afford, AI.playCards and AI.playTricks both return immediately and the
+    // chain lands on the 250ms tail below — so the seat's name flashes in the
+    // rail and is gone before anyone reads it, and the table appears to skip
+    // them. Owner: "if the ai cant play a card/trick during their turn its not
+    // possible with energy they skip fast like .25seconds."
+    //
+    // A turn that DID something already paces itself: every play goes through
+    // _aiActionDelay, which holds for UI.aiStepDelay() and toasts what it is
+    // doing. So the fix is only for the empty case — hold long enough to read
+    // the name, scaled by the SAME speed dial the rest of the AI uses, so
+    // whoever set it to fast still gets fast.
+    const _logLen = () => ((this.state && this.state.log && this.state.log.length) | 0);
+    const _logAtStart = _logLen();
+    const _finishDelay = () => {
+      if (_logLen() > _logAtStart) return 250;          // it acted; the pacing was its own
+      const step = (typeof UI !== 'undefined' && UI.aiStepDelay) ? UI.aiStepDelay() : 2000;
+      return Math.max(250, Math.round(step * 0.55));    // fast 385, normal 1100, slow 1540
+    };
     const run = () => {
       try {
         if (typeof AI === 'undefined') { finish(); return; }
@@ -21756,13 +21838,13 @@ const Game = {
           if (!stillOurs()) { finish(); return; }  // reconnected between the two halves
           if (this._2v2CanPlayTricks(subPhase)) {
             const deployThenTricks = () => {
-              if (AI.playTricks) AI.playTricks(side, () => this._schedule(finish, 250));
-              else this._schedule(finish, 250);
+              if (AI.playTricks) AI.playTricks(side, () => this._schedule(finish, _finishDelay()));
+              else this._schedule(finish, _finishDelay());
             };
             if (AI.playTrickPhaseCards) AI.playTrickPhaseCards(side, deployThenTricks);
             else deployThenTricks();
           } else {
-            this._schedule(finish, 250);
+            this._schedule(finish, _finishDelay());
           }
         };
         if (this._2v2CanPlayCards(subPhase) && AI.playCards) {

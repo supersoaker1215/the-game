@@ -11271,6 +11271,73 @@ test('2v2: a prompt that never resolves stops locking the turn controls', functi
   G.hasPendingPrompt = _realPending;
 });
 
+// Regression: a 2v2 play must be credited to a seat on the CARD'S OWN SIDE.
+//
+// Owner, on an enemy Gorilla Grodd: "the log says vega and cortex play gorilla
+// grodd, thats not how it should be it should be vega or cortex not both, also
+// it says played by ryan when ryan is on my team so a big bug."
+//
+// Both halves are the same cause. Every "who is acting" answer comes off a
+// chain of mutable globals, and when a play lands after the sub-phase has
+// advanced — an ability chain, a prompt, a broadcast round-trip — the chain
+// names whoever is up NEXT. In the photographed match that was Ryan (p2, team
+// A) while the card belonged to team B: the provenance stamp took it at face
+// value and printed his name, and seatLabel's team check rejected it and fell
+// back to naming BOTH opponents.
+test('2v2: a card is never credited to a seat on the other team', function () {
+  var G = freshGame();
+  G.state.mode = { deck: 'classic', players: '2v2' };   // is2v2() gates the naming
+  G.state.twoVTwo = {
+    online: true, you: 'p1', round: 2, subPhaseIdx: 0,
+    players: {
+      p1: { team: 'A', isAI: false, name: 'I luv Sy', hand: [], trickHand: [] },
+      p2: { team: 'A', isAI: false, name: 'Ryan',     hand: [], trickHand: [] },
+      p3: { team: 'B', isAI: true,  name: 'Vega',     hand: [], trickHand: [] },
+      p4: { team: 'B', isAI: true,  name: 'Cortex',   hand: [], trickHand: [] }
+    }
+  };
+  // team A -> 'player', team B -> 'ai'
+  assertEq(G._2v2TeamSide.A, 'player', 'team A is the player side');
+  assertEq(G._2v2TeamSide.B, 'ai', 'team B is the ai side');
+
+  // THE MOMENT IT GOES WRONG: an enemy card, and the acting chain pointing at
+  // a seat on the OTHER team because the sub-phase already moved on to Ryan.
+  var grodd = G.createCardInstance(cardByName('Gorilla Grodd'), 'ai');
+  // EVERY candidate in the chain points at Ryan — the exact state the photo
+  // caught, where the sub-phase had already advanced to him. If any single
+  // link still answered, the guard would look like it worked when it had only
+  // been rescued by a different link.
+  var prevActive = G._2v2ActivePlayer;
+  G._2v2ActivePlayer = function () { return 'p2'; };
+  G._2v2CurrentActingPlayer = 'p2';          // Ryan — team A, not this card's side
+  G._2v2AIDriving = 'p2';
+
+  assertEq(G._2v2SeatActsFor('p2', 'ai'), false, 'Ryan cannot act for an enemy card');
+  assertEq(G._2v2SeatActsFor('p3', 'ai'), true,  'Vega can');
+  assertEq(G._2v2SeatActsFor('p2', 'player'), true, 'and Ryan can for his own side');
+
+  assertEq(G._2v2SeatOfPlay(grodd), null,
+    'with only an off-team candidate, the answer is none — not the wrong name');
+  G._stampProvenance(grodd, 'ai');
+  assertEq(grodd._playedByName === 'Ryan', false, 'so the record does not say Ryan');
+
+  // WITH THE RIGHT SEAT KNOWN, both the stamp and the log name that one seat.
+  G._2v2ActivePlayer = prevActive;
+  G._2v2AIDriving = null;
+
+  var grodd2 = G.createCardInstance(cardByName('Gorilla Grodd'), 'ai');
+  grodd2._2v2PlayedBy = 'p3';                 // Vega actually played it
+  assertEq(G._2v2SeatOfPlay(grodd2), 'p3', 'the card own stamp wins');
+  G._stampProvenance(grodd2, 'ai');
+  assertEq(grodd2._playedByName, 'Vega', 'the record names Vega');
+  assertEq(G.seatLabel('ai', grodd2._2v2PlayedBy), 'Vega',
+    'and the play line says Vega, not "Vega & Cortex"');
+  assertEq(G.seatLabel('ai', grodd2._2v2PlayedBy).indexOf(' & '), -1,
+    'one card, one name');
+
+  G._2v2CurrentActingPlayer = null;
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 
