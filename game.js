@@ -1108,6 +1108,32 @@ const Game = {
           this._ai2v2GlobalSig = null; this._ai2v2GlobalAt = 0;
           return;
         }
+        // COMBAT IS NOT A SUB-PHASE, AND end2v2Phase MUST NOT BE THE ANSWER TO IT.
+        //
+        // The recovery below force-ends the current sub-phase. From mid-combat
+        // that walks the turn order round to combat again, and resolveCombat()
+        // starts at lane 1 — so every lane that had already swung swings a
+        // SECOND time. Owner, watching Wonder Woman kill the same Dr. Octopus
+        // twice across two "--- Combat Phase ---" headers: "why did WW attack
+        // again, its skipping turns what is happening."
+        //
+        // _forceEndStalledCombat is the door built for this, and it already
+        // knows the three shapes a combat stall takes — mid-combat goes to
+        // postCombat, post-combat forces the round, pre-combat re-enters
+        // resolveCombat. Its own comment is the rule this branch was breaking:
+        // "Re-running combat here would double-resolve the board."
+        const _s = this.state;
+        const _combatInFlight = !!(_s && (_s._inCombat || _s._combatFinishedThisRound
+                                          || _s.phase === '2v2-combat'));
+        if (!acted && _combatInFlight) {
+          this.log('[2v2] Stuck during combat — recovering through the combat path, not by ending a turn.');
+          try { this._forceEndStalledCombat(); }
+          catch (e) { console.error('[2v2 watchdog] combat recovery threw', e); }
+          this._ai2v2GlobalSig = null; this._ai2v2GlobalAt = 0;
+          this._ai2v2StallSig = null; this._ai2v2StallAt = 0;
+          if (typeof UI !== 'undefined' && UI.render) UI.render();
+          return;
+        }
         if (!acted) {
           try {
             this._2v2AIDriving = null; this._2v2AIDrivingAt = 0; this._2v2CurrentActingPlayer = null;

@@ -11338,6 +11338,67 @@ test('2v2: a card is never credited to a seat on the other team', function () {
   G._2v2CurrentActingPlayer = null;
 });
 
+// Regression: the 2v2 table watchdog must not end a TURN to recover a stalled
+// COMBAT. Owner, watching Wonder Woman kill the same Dr. Octopus twice across
+// two "--- Combat Phase ---" headers: "why did WW attack again, its skipping
+// turns what is happening... table stuck too long then we just skip and like
+// lets not get stuck ya know."
+//
+// The Tier-2 recovery force-ends the current sub-phase. From mid-combat that
+// walks the turn order round to combat again, and resolveCombat() starts at
+// lane 1 — so every lane that already swung swings a second time. The combat
+// watchdog has known this all along; its own comment is the rule this branch
+// was breaking: "Re-running combat here would double-resolve the board."
+//
+// And the table watchdog ALWAYS got there first: it gives up at 15s
+// (_AI_GIVEUP_MS) while the combat one waits 45s (_COMBAT_WATCHDOG_MS), so
+// every mid-combat stall in 2v2 was recovered by the wrong door.
+test('2v2: a stall during combat recovers through combat, never by ending a turn', function () {
+  var G = freshGame();
+  G.state.mode = { deck: 'classic', players: '2v2' };
+  G.state.phase = '2v2-combat';
+  G.state._inCombat = true;
+  G.state.twoVTwo = {
+    online: true, you: 'p1', round: 6, subPhaseIdx: 0,
+    players: {
+      p1: { team: 'A', isAI: false, name: 'I luv Sy', hand: [], trickHand: [] },
+      // AI seats only from here: a human on the clock stops the watchdog dead
+      // (by design), and the branch under test is the one that runs when it
+      // does not.
+      p2: { team: 'A', isAI: true, name: 'Ryan',   hand: [], trickHand: [] },
+      p3: { team: 'B', isAI: true, name: 'Vega',   hand: [], trickHand: [] },
+      p4: { team: 'B', isAI: true, name: 'Cortex', hand: [], trickHand: [] }
+    }
+  };
+  assert(G._AI_GIVEUP_MS < G._COMBAT_WATCHDOG_MS,
+    'the table watchdog gives up first, which is why its branch has to be right');
+
+  var hits = { endPhase: 0, combat: 0, resolveCombat: 0 };
+  var keep = {};
+  ['end2v2Phase','_forceEndStalledCombat','resolveCombat','_autoResolveStuckCombatPrompt',
+   'resolveStack','_2v2DrainLockedActions','_pushOnlineState','_2v2SeatIsLiveHuman'].forEach(function (k) { keep[k] = G[k]; });
+  G.end2v2Phase            = function () { hits.endPhase++; };
+  G._forceEndStalledCombat = function () { hits.combat++; };
+  G.resolveCombat          = function () { hits.resolveCombat++; };
+  G._autoResolveStuckCombatPrompt = function () { return false; };   // nothing to answer
+  G.resolveStack           = function () {};
+  G._2v2DrainLockedActions = function () {};
+  G._pushOnlineState       = function () {};
+  G._2v2SeatIsLiveHuman    = function () { return false; };
+
+  // Same table signature for longer than the give-up budget = a frozen table.
+  G._ai2v2GlobalSig = G._2v2StallSignature() + '||';
+  G._ai2v2GlobalAt  = Date.now() - (G._AI_GIVEUP_MS + 1000);
+  G._ai2v2StallSig  = null; G._ai2v2StallAt = 0;
+  G._2v2AIWatchdogTick(G._matchGen);
+
+  Object.keys(keep).forEach(function (k) { G[k] = keep[k]; });
+
+  assertEq(hits.combat, 1, 'it recovered through the combat path');
+  assertEq(hits.endPhase, 0, 'and did NOT end a turn, which is what walked the order back into combat');
+  assertEq(hits.resolveCombat, 0, 'so combat was never re-entered from lane 1');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 
