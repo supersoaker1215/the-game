@@ -954,7 +954,21 @@ const Game = {
   // round advances. (Owner: "make a timeout for like 3 secs if the AI ever gets
   // stuck.") Armed from _2v2DriveAISeat; self-clears when the match ends.
   _AI_STALL_MS: 3000,
-  _AI_GIVEUP_MS: 15000,     // tier-2 last-resort: force-recover a frozen table
+  // tier-2 last-resort: force-recover a genuinely frozen table. It fires ONLY
+  // after this long with the board's whole signature (phase, active seat,
+  // pending prompt, hand counts, board counts, energy) completely unchanged, and
+  // it stands down entirely for a human's turn/prompt and for MC Ballyhoo's
+  // hold — a legitimate AI turn changes the board on every play and keeps
+  // resetting this clock, so only a true freeze ever reaches the timeout. 15s
+  // was chosen to sit clear of everything, but it also meant every AI-drive hang
+  // (a lost play-queue continuation after a card like Symbiote Spider-Man prompts
+  // a human mid-turn) froze the table for a full FIFTEEN SECONDS before it
+  // recovered — "the table keeps always getting stuck." 6s still clears the
+  // longest real animations and the drive's own 12s watchdog can still beat it
+  // on a clean hang, but a freeze the drive watchdog misses now unsticks in a
+  // beat instead of a quarter-minute.
+  _AI_GIVEUP_MS: 6000,
+
   _ai2v2WatchTimer: null,
   _ai2v2StallSig: null,
   _ai2v2StallAt: 0,
