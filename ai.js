@@ -602,6 +602,33 @@ const AI = {
     const postDelay = this.aiPostPlayMs();
     let i = 0;
     const step = () => {
+      // HOLD FOR ANY PENDING PROMPT — FIRST, before the done-check.
+      //
+      // This gate used to sit only BETWEEN actions, AFTER the "queue is done"
+      // branch below. So a prompt-raising card that was the LAST (or only) play
+      // in the queue — Symbiote Spider-Man cycling every seat, a mind-control
+      // target pick, an Apothicon discard — fell straight through to onComplete
+      // while its own async prompt chain was still resolving. The 2v2 drive then
+      // handed control on to doTricks and finish with the chain half-open, and
+      // its completion came to depend on a whenPromptCleared continuation nobody
+      // had parked: the turn only advanced when the freeze watchdog force-ended
+      // it seconds later. (User, hosting 2v2: "the table keeps always getting
+      // stuck ... after any AI card," "after a prompt card.") Waiting here parks
+      // exactly the continuation resumeCombatIfWaiting fires the instant the
+      // prompt clears, so the drive finishes on its own the moment the card's
+      // chain is done — no watchdog, no dead table.
+      //
+      // It also keeps the original reason it existed: the AI never plays its
+      // NEXT card or trick while the PLAYER still has a modal open (a
+      // Start-of-Tricks move, a Batarang mid-pick).
+      if (typeof Game !== 'undefined' && Game.hasPendingPrompt && Game.hasPendingPrompt()) {
+        document.body && document.body.classList.add('ai-thinking');
+        Game.whenPromptCleared(() => {
+          document.body && document.body.classList.remove('ai-thinking');
+          step();
+        });
+        return;
+      }
       if (i >= actions.length) {
         document.body && document.body.classList.remove('ai-thinking');
         // End-of-turn pause: hold the final board for a beat before
@@ -613,20 +640,6 @@ const AI = {
         } else if (onComplete) {
           onComplete();
         }
-        return;
-      }
-      // Hold the queue while the PLAYER has any pending prompt open
-      // (e.g. a Start-of-Tricks move modal fired by a player-side
-      // card's onBeforeTricks). Without this gate, the AI's next
-      // trick fires before the player can respond, which produced
-      // cases where Batarang killed a card mid-move-prompt and the
-      // player's modal referenced a dead target.
-      if (typeof Game !== 'undefined' && Game.hasPendingPrompt && Game.hasPendingPrompt()) {
-        document.body && document.body.classList.add('ai-thinking');
-        Game.whenPromptCleared(() => {
-          document.body && document.body.classList.remove('ai-thinking');
-          step();
-        });
         return;
       }
       // Phase A: thinking dots → execute. Phase B: post-play hold →
