@@ -11973,6 +11973,14 @@ const Game = {
   // so spending a trick on a shielded enemy produced a screen identical to the
   // one before it — the player could not tell "blocked" from "did nothing".
   _absorbsDamage(card, amount, source) {
+    // THE RIFT EATS THROUGH EVERYTHING. A card being consumed by the Apothicon
+    // Rift (_riftDoomed, set only for the span of the Rift's own kill) is not
+    // taking damage it can dodge — it is being swallowed whole. Evade, Invincible
+    // and Damage Immunity all let Spider-Man walk out of the Rift and even GROW
+    // from the "dodge", which is the opposite of what the card promises. Nothing
+    // absorbs a rift consume. (User: "you cant evade the apothican rift — first
+    // card played in there dies like spiderman did.")
+    if (card && card._riftDoomed) return false;
     // Invincible / Immunity first (free, before any amount reduction).
     const pre = this._classifyAbsorb(card, false);
     if (pre === 'invincible') {
