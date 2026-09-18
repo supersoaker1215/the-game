@@ -1069,7 +1069,20 @@ const Game = {
     // watchdog only ever acts when an AI is the one on the clock.
     const _activeSeat = (this._2v2ActivePlayer && this._2v2ActivePlayer()) || null;
     const activeIsHuman = !!(_activeSeat && tt.players[_activeSeat] && !tt.players[_activeSeat].isAI);
-    if (anyHumanPrompt || activeIsHuman) { this._ai2v2StallSig = null; this._ai2v2StallAt = 0; this._ai2v2GlobalSig = null; this._ai2v2GlobalAt = 0; return; }
+    // …EXCEPT WHILE A RESOLUTION BOUNDARY IS STILL LOCKED. `_resolving` is set
+    // across the before-tricks pass (Dr. Strange's Foresight, Man-Bat, jump
+    // offers), and the seat it names as "active" is the human whose trick turn
+    // comes NEXT — not someone currently acting. If that boundary hangs (a
+    // before-tricks prompt that never resolves, a lost continuation), standing
+    // down for `activeIsHuman` meant the watchdog NEVER recovered it: the whole
+    // table froze with every seat's End-turn button hidden until a player quit,
+    // whose drop finally cleared the lock. (User: "my end tricks button
+    // disappeared ... my teammate left because we thought it was stuck and then
+    // it appeared.") A stuck boundary with no HUMAN owing a prompt is a genuine
+    // freeze, so let the recovery below reach it; a human who actually owes an
+    // answer (anyHumanPrompt) is still never timed out.
+    const _resolvingBoundary = !!(tt._resolving);
+    if (anyHumanPrompt || (activeIsHuman && !_resolvingBoundary)) { this._ai2v2StallSig = null; this._ai2v2StallAt = 0; this._ai2v2GlobalSig = null; this._ai2v2GlobalAt = 0; return; }
     // ═══ TIER 2 — LAST-RESORT GLOBAL FREEZE RECOVERY ═══
     // The fast guards below deliberately step aside for human-owned prompts and
     // for _resolving boundaries — correct in normal play. But a tangled
