@@ -5595,6 +5595,21 @@ const Game = {
       // deaths. Runs once after ALL hooks + their prompts resolved.
       this.getAllCardsOnBoard().forEach(c => this.drainBonusAttacks(c));
       this.cleanupDead();
+      // UNDO CANNOT CROSS THE BEFORE-TRICKS COMMIT. The recurring effects these
+      // hooks fire — Thor's freeze, Man-Bat's move, Galactus, Voldemort's curse
+      // — are automatic, committed events, not the player's own card play, so no
+      // take-back may reach back PAST them. A card played this turn snapshots the
+      // state from before this pass, and undoing it restored that snapshot: it
+      // reverted Thor's freeze AND reset his beforeTricksFired, so he froze a
+      // SECOND time. (User: "he played trigon and hit undo and thor was able to
+      // freeze someone again.") 1v1 player-first already sealed this by clearing
+      // history right after the pass; doing it HERE seals every path (1v1
+      // AI-first, and 2v2, which undoes off its own turn snapshot) at the one
+      // choke point they all share. The trick turn that follows takes its own
+      // fresh snapshot, so undo within the trick phase is unaffected.
+      this.clearHistory();
+      const _tt = this.state && this.state.twoVTwo;
+      if (_tt) { _tt._turnSnap = null; _tt._undoSnapSeat = null; }
       if (onDone) { try { onDone(); } catch (e) { console.error('[runBeforeTricks] onDone threw:', e); } }
     };
     const step = () => {
