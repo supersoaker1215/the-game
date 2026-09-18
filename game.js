@@ -6585,6 +6585,21 @@ const Game = {
     if (owner === 'player' && typeof Tutorial !== 'undefined' && Tutorial.active) {
       Tutorial.notify('card-played', { laneIdx, card });
     }
+    // THE GUEST SEES EACH AI PLAY AS IT HAPPENS. In 2v2 online only the HOST
+    // runs the AI seats; their plays render on the host but were broadcast only
+    // when the AI's whole turn ended (the drive's finish) — so every guest sat a
+    // full turn behind, and the plays only "appeared" when a human's own action
+    // forced a broadcast. (User, as the guest: "i dont see the AI play cards
+    // until either my human teammate does or i do and then they appear ... the
+    // guest player is really behind on everything.") Push after each AI-driven
+    // play so it lands on every client with the same ~2s pacing the host sees.
+    // Gated on _2v2AIDriving so a HUMAN play (which already broadcasts through
+    // its own door) is never double-sent; silent so the host does not re-render
+    // over the frame the AI queue just painted.
+    if (this._2v2AIDriving && this.state && this.state.twoVTwo && this.state.twoVTwo.online
+        && !this.state._silentSim) {
+      try { this._2v2OnlineBroadcast({ silent: true }); } catch (e) {}
+    }
     return true;
   },
 
@@ -7098,6 +7113,12 @@ const Game = {
     // teammates apart — Darth Maul only fuels off the seat that played HIM.
     const _trickSeat = trick._2v2PlayedBy || this._2v2CurrentActingPlayer || (this._2v2ActivePlayer && this._2v2ActivePlayer()) || null;
     this.broadcastHook('onAnyTrickPlayed', null, [owner, trick, _trickSeat]);
+    // Push each AI-driven trick to the guests as it happens — same reason as the
+    // per-play broadcast in playCard.
+    if (this._2v2AIDriving && this.state && this.state.twoVTwo && this.state.twoVTwo.online
+        && !this.state._silentSim) {
+      try { this._2v2OnlineBroadcast({ silent: true }); } catch (e) {}
+    }
     return true;
   },
 
@@ -7471,6 +7492,10 @@ const Game = {
     // Combat batches queued bonus attacks to postCombat; flag so handleDeath
     // doesn't also drain them mid-lane and cause double-fires.
     this.state._inCombat = true;
+    // One postCombat per combat — see the guard in postCombat and the 2v2 twin
+    // in _2v2ResolveCombat. Stops a watchdog recovery and the normal end of
+    // combat from both advancing the round.
+    this.state._combatNeedsPostProcess = true;
     // Re-arm as real combat begins — this resets the watchdog's progress clock
     // so any time spent waiting on a pre-combat prompt above doesn't eat into
     // the mid-combat idle budget. (Already armed at the top of resolveCombat.)
@@ -7675,6 +7700,19 @@ const Game = {
   },
 
   postCombat() {
+    // EXACTLY ONE POST-COMBAT PER COMBAT. postCombat is where the round is
+    // advanced (via _2v2PostCombat -> _2v2DrawPhase -> start2v2Round in 2v2, and
+    // drawPhase -> startRound in 1v1). A stall recovery calls postCombat to
+    // unstick a frozen combat, and if the normal end of combat also fires the
+    // round jumped by two — the reported 9 -> 11 -> 13 skip. The flag is armed
+    // the moment a combat begins (resolveCombat / _2v2ResolveCombat); the first
+    // postCombat consumes it and the duplicate returns here. (User: "the game
+    // keeps skipping rounds like i have told you.")
+    if (this.state && !this.state._combatNeedsPostProcess) {
+      console.warn('[postCombat] already ran for this combat — ignoring duplicate advance.');
+      return;
+    }
+    if (this.state) this.state._combatNeedsPostProcess = false;
     // Phase 1 dual-run instrument — compare forecast to actual.
     // Runs before cleanupDead so dead cards still have currentHealth
     // visible for the diff. console.warn each divergence; production
@@ -22277,6 +22315,13 @@ const Game = {
     s.ai.healthFrozen     = tt.teams.B.healthFrozen || false;
 
     s.phase = '2v2-combat';
+    // ARM THE ONE-POST-COMBAT GUARD. A fresh combat is entitled to exactly one
+    // postCombat, and postCombat is the ONLY thing that advances the round. The
+    // stall recovery can call postCombat at the same moment the normal flow does
+    // — two advances, one skipped round (9 -> 11 -> 13). This flag lets the FIRST
+    // postCombat through and the duplicate no-op. (User: "the game keeps skipping
+    // rounds ... round 9 then round 11 then round 13.")
+    s._combatNeedsPostProcess = true;
     if (typeof UI !== 'undefined' && UI.render) UI.render();
     // TELL THE OTHER CLIENTS COMBAT STARTED. Nothing here pushed, and combat
     // then runs from a bare setTimeout outside every action boundary that
