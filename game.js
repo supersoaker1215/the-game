@@ -6207,6 +6207,12 @@ const Game = {
       if (!this._2v2AbilityOwner() && _active && _by !== _active
           && this._2v2SeatActsFor(_active, owner)) _by = _active;
       if (_by && !this._2v2SeatActsFor(_by, owner)) _by = null;
+      // NEVER LEAVE A PLAYED CARD UNSTAMPED — a null here is what makes the log
+      // and the card's own record say "Cortex & Nyx" (the whole team) instead of
+      // the one person who played it. Resolve to a single seat on the card's own
+      // side as a floor. See _2v2AnySeatOnSide. (User: "how am i supposed to know
+      // which person played the card!")
+      if (!_by) _by = this._2v2AnySeatOnSide(owner);
       if (_by) card._2v2PlayedBy = _by;
     }
     // Multiplayer guest: forward to host instead of executing locally.
@@ -6684,6 +6690,12 @@ const Game = {
       if (!this._2v2AbilityOwner() && _active && _by !== _active
           && this._2v2SeatActsFor(_active, owner)) _by = _active;
       if (_by && !this._2v2SeatActsFor(_by, owner)) _by = null;
+      // NEVER LEAVE A PLAYED CARD UNSTAMPED — a null here is what makes the log
+      // and the card's own record say "Cortex & Nyx" (the whole team) instead of
+      // the one person who played it. Resolve to a single seat on the card's own
+      // side as a floor. See _2v2AnySeatOnSide. (User: "how am i supposed to know
+      // which person played the card!")
+      if (!_by) _by = this._2v2AnySeatOnSide(owner);
       if (_by) card._2v2PlayedBy = _by;
     }
     // Multiplayer guest: forward the free-play action and let the host run it.
@@ -7020,6 +7032,9 @@ const Game = {
       // (Owner: "my ai teammate played batarangs but i got the choice.")
       if (_active && _by !== _active && this._2v2SeatActsFor(_active, owner)) _by = _active;
       if (_by && !this._2v2SeatActsFor(_by, owner)) _by = null;
+      // A trick, like a card, is played by ONE person — never leave it stamped
+      // as the whole team. See _2v2AnySeatOnSide.
+      if (!_by) _by = this._2v2AnySeatOnSide(owner);
       if (_by) trick._2v2PlayedBy = _by;
     }
     this.log(`[TRICK] ${who} play ${trick.name} for ${cost} energy`);
@@ -11114,6 +11129,29 @@ const Game = {
     if (owner !== 'player' && owner !== 'ai') return true;   // unknown side: no opinion
     const side = this._2v2TeamSide && this._2v2TeamSide[p.team];
     return side == null ? true : side === owner;
+  },
+
+  // ONE SEAT, NEVER THE TEAM. A card is played by a PERSON, so its provenance
+  // stamp must resolve to a single seat even when every "who is acting" global
+  // has gone stale — which is exactly what a stall's force-recovery does: it
+  // clears _2v2CurrentActingPlayer and advances the phase, and the recovered
+  // seat's play then finds nothing to stamp with and falls back to naming the
+  // whole team ("Played by Cortex & Nyx"). (User: "how am i supposed to know
+  // which person played the card!") This is the last-resort single-seat answer
+  // for the card's OWN side: the sub-phase seat, then the current actor, then
+  // the driving AI, then the first seat on that team — always exactly one, and
+  // always on the card's own side, so an enemy card can never be blamed on a
+  // teammate. Only ever used when the ordered chain above it produced nothing.
+  _2v2AnySeatOnSide(owner) {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt || !tt.players || (owner !== 'player' && owner !== 'ai')) return null;
+    const team = (this._2v2TeamSide && this._2v2TeamSide.A === owner) ? 'A' : 'B';
+    const onTeam = pk => tt.players[pk] && tt.players[pk].team === team;
+    const active = this._2v2ActivePlayer && this._2v2ActivePlayer();
+    if (active && onTeam(active)) return active;
+    if (this._2v2CurrentActingPlayer && onTeam(this._2v2CurrentActingPlayer)) return this._2v2CurrentActingPlayer;
+    if (this._2v2AIDriving && onTeam(this._2v2AIDriving)) return this._2v2AIDriving;
+    return (this._2v2SLOTS || ['p1', 'p2', 'p3', 'p4']).find(onTeam) || null;
   },
 
   // `ownerHint` — for callers with no card in hand but a side in mind
