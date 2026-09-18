@@ -20018,7 +20018,22 @@ const Game = {
     this._promptQueue = [];   // queued arms closure over pre-undo card objects
     this._stackClear('undo'); // queued deaths closure over pre-undo card objects
     let snap = this.history.pop();
-    if (wasPromptArmed && snap && snap._undoRearm && this.history.length) {
+    // A CARD PLAY IS UNDONE WHOLE — back to the state from BEFORE the card was
+    // placed, never re-run. playCard snapshots once (card still in hand), and
+    // _runOnPlayWithUndoPoint pushes a SECOND "before the ability ran" entry
+    // (_undoRearm) on top for a prompt card. Undo used to restore that inner
+    // entry and then RE-RUN onPlay to re-arm the prompt — so a card whose
+    // ability had already resolved left its effect STANDING and got to fire
+    // again: Thor's target stayed frozen and could be frozen a second time, the
+    // splash victims kept their damage, Vader re-chained. (User: "if you hit
+    // undo the person chosen is still frozen and then he can freeze again ...
+    // everything you did on the last card that was played is undone. Apply this
+    // for all the cards.") So whenever the inner entry is there, pop straight
+    // past it to the outer one: undo reverts the ENTIRE play — every freeze,
+    // splash, buff, death — and returns the card to hand, for every card. The
+    // old prompt-armed-only condition is gone; a resolved ability is undone the
+    // same whole way an open one is.
+    if (snap && snap._undoRearm && this.history.length) {
       snap = this.history.pop();
     }
     this.state = snap;
@@ -20051,41 +20066,14 @@ const Game = {
     delete this.state._combatContinuation;
     this.state._combatContStack = [];
     this.state._deferredRestores = [];
-    // RE-ARM BY RE-RUNNING, NEVER BY RESTORING. The purge above is absolute —
-    // a captured prompt closes over the pre-undo objects and can never be
-    // brought back. What CAN be brought back is the ability itself: this
-    // snapshot was taken before the hook ran, so running it again on the
-    // restored state arms the same question with fresh closures over the
-    // post-undo objects. See _runOnPlayWithUndoPoint.
-    const rearm = snap && snap._undoRearm;
+    // NEVER RE-RUN THE ABILITY. Undo now always restores the state from before
+    // the card was played (see the pop above), which reverts the whole play, so
+    // there is nothing to re-arm — and re-arming was exactly what let a resolved
+    // ability fire twice and leave its first effect standing. The card is back
+    // in hand; the player re-plays it if they want it, and re-picks then. This
+    // also retires the infinite-re-trigger the re-run could cause (spamming undo
+    // on Vader), because there is no re-run to spam.
     this.state._abilityChainCard = null;
-    if (rearm && !wasPromptArmed) {
-      const c = this.findCard ? this.findCard(rearm.cardId) : null;
-      if (c && c.currentHealth > 0) {
-        // Suppressed so the re-run does not push ANOTHER ability undo point:
-        // the one that got us here was just popped, and the next undo must
-        // take the card back to hand rather than re-arming forever.
-        this._suppressAbilityUndoPoint = true;
-        try { this._runHook(c, 'onPlay', this, c, rearm.laneIdx); }
-        catch (e) { this.log('[UNDO] Could not re-arm ' + (c.name || 'ability')); }
-        finally { this._suppressAbilityUndoPoint = false; }
-        // MARK THE RE-ARMED CHAIN LIVE, exactly as _runOnPlayWithUndoPoint does
-        // for the original play. Without this, `_abilityChainCard` stays null
-        // through the whole re-armed chain, so resolveActivePrompt pushed a
-        // FRESH snapshot at every step of it (see its `!_abilityChainCard`
-        // guard). Those snapshots are extra undo points, so each undo re-armed
-        // the ability AND left new points to undo into — history grew without
-        // bound and the ability could be re-fired forever. (User: "if you spam
-        // the undo button ... you can retrigger vaders ability as many times as
-        // you want.") With the chain flagged, its steps push nothing, history
-        // empties when the re-armed chain ends, and the next undo correctly
-        // finds nothing left to take back. A multi-step chain (Vader: move,
-        // fear, then the 7-damage chain) keeps one prompt armed across every
-        // transition, so this flag is only cleared by resolveActivePrompt once
-        // the whole chain is genuinely done.
-        if (this._anyPromptArmed()) this.state._abilityChainCard = c.id;
-      }
-    }
     this.log('[UNDO] Reverted to previous action');
     UI.render();
     return true;
