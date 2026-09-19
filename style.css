@@ -36279,6 +36279,51 @@ body.low-fx .card-taunt i { display: none; }
 body.low-fx .card-fear::after { animation: none !important; }
 
 /* ============================================================
+   MARKED (Death) — a white neon skull sign burned over the art. Same overlay
+   shell and z-layer family as frost / fear. The SVG is stroke-only; all the
+   light comes from a layered drop-shadow bloom so it reads like a neon sign
+   rather than a flat icon. Sits just above fear so the mark stays legible on a
+   card that is also feared. */
+.card-marked {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 5;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(60% 55% at 50% 46%, rgba(0,0,0,0.44), rgba(0,0,0,0) 72%);
+}
+.card-marked svg {
+  width: 46%;
+  height: auto;
+  color: #f2feff;
+  opacity: 0.92;
+  filter:
+    drop-shadow(0 0 2px rgba(255,255,255,0.95))
+    drop-shadow(0 0 6px rgba(214,246,255,0.9))
+    drop-shadow(0 0 14px rgba(120,220,255,0.72))
+    drop-shadow(0 0 26px rgba(90,200,255,0.5));
+  animation: markedFlicker 3.6s ease-in-out infinite;
+}
+/* A hand tile is small — shrink the sign so it does not swallow the portrait. */
+.card.in-hand .card-marked svg,
+.hand-card .card-marked svg { width: 38%; }
+@keyframes markedFlicker {
+  0%, 100% { opacity: 0.92; }
+  47% { opacity: 0.86; }
+  49% { opacity: 0.6; }
+  51% { opacity: 0.9; }
+  70% { opacity: 0.8; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-marked svg { animation: none !important; }
+}
+body.low-fx .card-marked svg { animation: none !important; }
+
+/* ============================================================
    MIND CONTROL FX — the card is being worked from outside
    ============================================================
    .card-mind-ctrl is injected into the portrait of a mind-controlled card

@@ -2105,6 +2105,10 @@ const UI = {
       // automatically from Game.playCard's wrapper (playCardSfx(name, 'play')),
       // so this is his When Played cue. 2.06s sword-slash swoosh.
       'Gorr':             { play: 'audio/cards/gorr-play.mp3' },
+      // Death — the death-whistle. The full whistle plays on hover; his When
+      // Played cue is the same file capped at a 2s clip (playCardSfx(name,'play')
+      // fires from Game.playCard's wrapper). -20 LUFS baseline.
+      'Death':            { hover: { src: 'audio/cards/death-hover.mp3', maxDur: 27 }, play: { src: 'audio/cards/death-hover.mp3', maxDur: 2.0 } },
       'Ant-Man':          { death: { src: 'audio/cards/ant-man-death.m4a', fullDuration: true } },
       // Ghostface hover: 58s of Nick Cave & The Bad Seeds' "Red Right
       // Hand" (start → 0:58 of the source — intro through the first
@@ -27395,6 +27399,12 @@ const UI = {
     // else-if chain — a card that is both frozen AND feared shows both
     // overlays, exactly as frost and burn already stack.
     const fearHtml = card.isFeared ? '<div class="card-fear" aria-hidden="true"></div>' : '';
+    // Marked (Death) — a white neon skull glows over the art. It can no longer be
+    // healed or buffed, and withers a HP each round while a Death stands. Same
+    // persistent-overlay pattern as frost/fear; the SVG is stroke-only so the CSS
+    // neon glow (a layered drop-shadow bloom) reads as a light sign on the card.
+    const markedHtml = card.isMarked
+      ? '<div class="card-marked" aria-hidden="true">' + this._neonSkullSVG() + '</div>' : '';
     // Mind-controlled card — puppet strings dropping from the top edge. Same
     // independent gate as frost/burn/fear rather than the status-* else-if
     // chain, so it stacks with them instead of one winning.
@@ -27439,7 +27449,7 @@ const UI = {
       ? Math.min(1, card._gojoCombats | 0) : null;
     const hollowHtml = (hpCharge === null) ? ''
       : `<div class="card-hollow-purple hp-stage-${hpCharge}" aria-hidden="true"></div>`;
-    const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay"><span class="cn-text">${card.name || ''}</span></div>${frostHtml}${burnHtml}${tauntHtml}${fearHtml}${mindHtml}${invincibleHtml}${dmgImmuneHtml}${evadeHtml}${armorHtml}${criticalHtml}${hollowHtml}</div>`;
+    const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay"><span class="cn-text">${card.name || ''}</span></div>${frostHtml}${burnHtml}${tauntHtml}${fearHtml}${markedHtml}${mindHtml}${invincibleHtml}${dmgImmuneHtml}${evadeHtml}${armorHtml}${criticalHtml}${hollowHtml}</div>`;
     // [ CARD DATA ] divider was removed per user feedback — read as
     // distracting, didn't add information beyond the visual gap that
     // already exists between the portrait and the desc text. The
@@ -28883,6 +28893,20 @@ const UI = {
     const icon = (kdata && kdata.svg) ? `<i class="sb-i" aria-hidden="true">${kdata.svg}</i>` : '';
     return `<span class="status-badge ${cls}${icon ? '' : ' sb-noicon'}"${dataAttr}>`
       + `${icon}<i class="sb-w">${word}</i>${num ? `<i class="sb-n">${num}</i>` : ''}</span>`;
+  },
+  // The neon-skull mark (Death). Stroke-only so the CSS glow does the lighting;
+  // currentColor lets the .card-marked rule set the neon hue. One shared string,
+  // used by the card overlay and by the Marked status badge.
+  _neonSkullSVG() {
+    return '<svg viewBox="0 0 64 80" fill="none" stroke="currentColor" stroke-width="3" '
+      + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+      + '<path d="M12 30 C12 15 20 7 32 7 C44 7 52 15 52 30 C52 39 48 45 44 49 '
+      + 'L44 56 C44 60 41 62 38 62 L26 62 C23 62 20 60 20 56 L20 49 C16 45 12 39 12 30 Z"/>'
+      + '<ellipse cx="24" cy="33" rx="6.5" ry="7"/>'
+      + '<ellipse cx="40" cy="33" rx="6.5" ry="7"/>'
+      + '<path d="M32 41 L28.5 49 L35.5 49 Z"/>'
+      + '<path d="M22 55 L42 55 M26 55 L26 62 M32 55 L32 62 M38 55 L38 62"/>'
+      + '</svg>';
   },
   // inHand — a hand tile has room for ONE row of badges, a board tile for two.
   // Measured at 1220px: two rows on an 86px hand card run into the ATK circle,

@@ -11858,8 +11858,33 @@ const Game = {
     const a = Math.min(1, Math.max(0, card.attack | 0));
     this.buffCard(card, -a, -1);
   },
+  // DEATH'S MARK. Brand a random unmarked, living enemy of `source`. A Marked
+  // card can never be healed or buffed again (see buffCard / grantTempBuff), it
+  // withers 1 HP a round while a Death is on the board (Death.onTurnStart), and
+  // Death re-marks on every kill and at the end of every round he survives — the
+  // hunt never stops. Returns the card marked, or null when every enemy already
+  // bears the mark (or none are left to take it).
+  _deathMarkRandomEnemy(source, logMsg) {
+    if (!source || source.currentHealth <= 0) return null;
+    const pool = this.getEnemiesOf(source.owner).filter(c =>
+      c && !c.isEnvironment && !c.isMarked && c.currentHealth > 0 && !c.isFaceDown);
+    if (!pool.length) return null;
+    const pick = pool[Math.floor(this.rng() * pool.length)];
+    pick.isMarked = true;
+    this.log(`  [MARKED] ${logMsg || 'Death marks a soul'} — ${pick.name} can no longer be healed or buffed.`);
+    try { if (this.emitFX) this.emitFX('marked', { cardId: pick.id, owner: pick.owner }); } catch (e) {}
+    return pick;
+  },
+
   buffCard(card, atk, hp, opts) {
     if (!card) return;
+    // MARKED CARDS CANNOT BE BUFFED OR HEALED. buffCard is the buff/heal door —
+    // a positive atk or hp is exactly the "buffed or healed in any way" Death's
+    // Mark forbids. A purely-negative call (a debuff routed through here) still
+    // lands; only the gain is refused. (Death card.)
+    if (card.isMarked && ((atk | 0) > 0 || (hp | 0) > 0) && (atk | 0) >= 0 && (hp | 0) >= 0) {
+      return;
+    }
     // A hidden card cannot be affected by anything: it is not a legal target,
     // and a buff landing on it would survive the reveal (which restores hooks,
     // not stats) and change a card nobody was allowed to see.
@@ -16875,6 +16900,19 @@ const Game = {
     // Same rule as buffCard — nothing lands on a face-down card.
     if (target.isFaceDown) return;
     if (this._trickBlocked(target)) return;
+    // MARKED CARDS CANNOT BE BUFFED. Strip out every POSITIVE stat gain (and the
+    // set-true flags a buff turns on) before anything is applied, so a temp buff
+    // on a Marked card does nothing — while a debuff granted through here (a
+    // negative delta) still lands. (Death card. See buffCard.)
+    if (target.isMarked) {
+      const kept = {};
+      Object.entries(buffs).forEach(([prop, value]) => {
+        if (typeof value === 'boolean') { if (value === false) kept[prop] = value; }
+        else if (value < 0) kept[prop] = value;
+      });
+      buffs = kept;
+      if (!Object.keys(buffs).length) return;
+    }
     if (!target._grantedBuffs) target._grantedBuffs = [];
     const sourceId = (source && source.id != null) ? source.id : null;
     const sourceName = (source && source.name) || null;
@@ -17414,6 +17452,26 @@ const Game = {
       const laneStr = card.jumpLane !== undefined ? ` in lane ${card.jumpLane + 1}` : '';
       this._logJump(card, owner, `  [JUMP] Jason Voorhees rises to avenge${laneStr}! Free play available.`);
       return true;
+    }
+    // DEATH answers endurance: when ANY card (either side) has stood on the field
+    // two or more full rounds, he rises for free into any open lane. Checked at
+    // the before-tricks boundary — the once-a-round pulse Art the Clown uses —
+    // so a board that has grown stale always offers the jump. _playedRound is
+    // stamped the moment a card first settles (see _stampPlayedRound). The
+    // longest-standing card is the one that "woke" him; his On Play reaps it.
+    if (card.name === 'Death' && trigger === 'beforeTricks' && this.canJumpNow(owner, card)) {
+      const round = (this.state.round || 1);
+      const aged = this.getAllCardsOnBoard().filter(c => c && !c.isEnvironment
+        && c._playedRound != null && (round - c._playedRound) >= 2 && c.currentHealth > 0);
+      if (aged.length) {
+        aged.sort((a, b) => (a._playedRound || 0) - (b._playedRound || 0));
+        card.jumpReady = true;
+        card.jumpLane = undefined;               // any open lane — chosen on play
+        card._deathTriggerId = aged[0].id;
+        this._logJump(card, owner, `  [JUMP] Death rises for the long-lived! Free play available.`);
+        return true;
+      }
+      return false;
     }
     return false;
   },

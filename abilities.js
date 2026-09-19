@@ -4025,6 +4025,45 @@ const CARD_ABILITIES = {
     },
     onDeath(G, self) { self.jumpReady = false; self.jumpLane = undefined; }
   },
+  "Death": {
+    // When Played: reap the card that woke him. _deathTriggerId is stamped by
+    // the jump condition (Game._armJumpForCard) as the longest-standing card on
+    // the board; a Death played the ordinary way (bought, not jumped) has no
+    // trigger and simply arrives.
+    onPlay(G, self, lane) {
+      const tId = self._deathTriggerId;
+      self._deathTriggerId = null;
+      if (tId == null) return;
+      const target = G.getAllCardsOnBoard().find(c => c && c.id === tId && c.currentHealth > 0);
+      if (target && target.id !== self.id) {
+        G.log(`Death reaps ${target.name} for 3!`);
+        try { if (typeof UI !== 'undefined' && UI._fxImpact) UI._fxImpact(target); } catch (e) {}
+        G.dealDamage(target, 3, self);
+      }
+    },
+    // Every kill feeds the hunt — brand another enemy the instant one falls.
+    onKill(G, self) {
+      G._deathMarkRandomEnemy(self, 'Death claims another soul');
+    },
+    // While Active: at the top of every round, each Marked enemy withers 1 HP.
+    // Gated on Death still standing (onTurnStart runs for every board card, but
+    // this drain is HIS aura, not the marks' own).
+    onTurnStart(G, self) {
+      if (self.currentHealth <= 0) return;
+      G.getEnemiesOf(self.owner).forEach(e => {
+        if (e && e.isMarked && e.currentHealth > 0) {
+          G.log(`  [MARK] The mark withers ${e.name} for 1.`);
+          G.dealDamage(e, 1, self);
+        }
+      });
+    },
+    // At the end of every round Death survives, one more enemy is Marked.
+    onEndOfTurn(G, self) {
+      if (self.currentHealth <= 0) return;
+      G._deathMarkRandomEnemy(self, 'Death marks the living');
+    },
+    onDeath(G, self) { self.jumpReady = false; self.jumpLane = undefined; }
+  },
   "Raven": {
     onPlay(G, self, lane) {
       if (typeof UI !== 'undefined' && UI._fxRavenSoul) { try { UI._fxRavenSoul(self); } catch (e) {} }
