@@ -11633,6 +11633,52 @@ test('2v2: a late round advance is refused instead of skipping everyone', functi
   G.start2v2Round = realStart; G._2v2DoDraws = realDoDraws;
 });
 
+// Regression: Thor's thunder is not part of his freeze. Owner: "thor didnt
+// fire his splash on reveal when i leaped silver surfur with SSS."
+//
+// His card prints two effects — "Freeze 1 an enemy. Deal 5 damage to the enemy
+// opposite and both adjacent enemies" — and splashBurst() lived INSIDE the
+// freeze prompt's callback, so the damage only happened if that prompt was
+// answered. A prompt that is never answered is routine: a stall recovery clears
+// pending prompts outright to unpark combat, and a 2v2 prompt raised for the
+// wrong seat is answered by nobody. Either silently ate 15 damage across three
+// lanes while Thor sat on the board looking resolved.
+test("Thor's thunder lands even if the freeze prompt is never answered", function () {
+  var G = freshGame();
+  var oppo = place(G, 'The Grinch', 'ai', 1);
+  var adjL = place(G, 'Venom', 'ai', 0);
+  var adjR = place(G, 'Captain America', 'ai', 2);
+  var far  = place(G, 'Jaws', 'ai', 4);          // out of range — must be untouched
+  var thor = place(G, 'Thor', 'player', 1);
+  var hp = { o: oppo.currentHealth, l: adjL.currentHealth, r: adjR.currentHealth, f: far.currentHealth };
+
+  // A DROPPED PROMPT: armed and never answered, which is what
+  // `s.pendingCardChoice = null` in a stall recovery leaves behind.
+  var real = G.promptCardChoice;
+  var asked = 0;
+  G.promptCardChoice = function () { asked++; };
+  try { CARD_ABILITIES['Thor'].onPlay(G, thor, 1); }
+  finally { G.promptCardChoice = real; }
+
+  assertEq(asked, 1, 'he still asks where the freeze goes');
+  assert(oppo.currentHealth < hp.o, 'the opposite enemy took the thunder');
+  assert(adjL.currentHealth < hp.l, 'and the lane to the left');
+  assert(adjR.currentHealth < hp.r, 'and the lane to the right');
+  assertEq(far.currentHealth, hp.f, 'and nothing outside the three lanes');
+  // Armor is the only thing that reduces it, so the untouched-by-armor lane
+  // takes the full 5 — pinning the amount, not just "something happened".
+  assertEq(hp.l - adjL.currentHealth, 5, 'the full 5, not a partial');
+
+  // AND ONLY ONCE. The burst is 15 damage across three lanes; a second call
+  // from a future refactor would be a silent doubling.
+  var thor2 = place(G, 'Thor', 'player', 4);
+  var before2 = far.currentHealth;
+  G.promptCardChoice = function (owner, cards, title, desc, cb) { if (cb) cb(cards[0]); };
+  try { CARD_ABILITIES['Thor'].onPlay(G, thor2, 4); }
+  finally { G.promptCardChoice = real; }
+  assertEq(before2 - far.currentHealth, 5, 'answering the prompt does not splash a second time');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

@@ -5913,7 +5913,12 @@ const CARD_ABILITIES = {
       // adjacent strike. Default 5 (classic); Text+ raises to 7 for a
       // crushing 3-lane finisher.
       const thunderDmg = self._thorThunderDamage || 5;
+      // ONCE, whoever calls it. The burst is 15 damage across three lanes; a
+      // second call from a future refactor would be a silent doubling.
+      let _thorBurstDone = false;
       const splashBurst = () => {
+        if (_thorBurstDone) return;
+        _thorBurstDone = true;
         let _thorSeq = 0;
         [lane - 1, lane, lane + 1].forEach((li) => {
           if (li >= 0 && li < Game.LANE_COUNT) {
@@ -5926,15 +5931,40 @@ const CARD_ABILITIES = {
           }
         });
       };
-      const unfrozen = G.getEnemiesOf(self.owner).filter(e => !e.isFrozen);
+      // THE THUNDER IS NOT PART OF THE FREEZE, AND IT USED TO BE.
+      //
+      // splashBurst() lived INSIDE the freeze prompt's callback, so Thor's
+      // "Deal 5 damage to the enemy opposite and both adjacent enemies" only
+      // happened if that prompt was answered. His card prints them as two
+      // effects, and they are: the damage does not read the freeze target, or
+      // even whether there was one.
+      //
+      // A prompt that is never answered is not hypothetical here. A stall
+      // recovery clears pending prompts outright to unpark combat
+      // (`s.pendingCardChoice = null` in _forceEndStalledCombat — "drop every
+      // blocker"), and a 2v2 prompt raised for the wrong seat is answered by
+      // nobody. Either one silently ate the whole 5-damage burst while Thor sat
+      // on the board looking like he had resolved. Owner: "thor didnt fire his
+      // splash on reveal when i leaped silver surfur with SSS."
+      //
+      // So the burst fires here, unconditionally, once. The freeze is then just
+      // a prompt that freezes — if it is dropped, one Freeze 1 is lost instead
+      // of 15 damage across three lanes.
+      //
+      // BEFORE the freeze, deliberately. With a synchronous resolve (an AI
+      // seat, the headless sim) the old order was freeze-then-thunder; with an
+      // async one the player would otherwise be asked to freeze a card the
+      // thunder is about to kill. Picking a freeze target after seeing the
+      // thunder land is strictly better information, and Freeze is
+      // Unresistible either way, so nothing about the freeze changes.
+      splashBurst();
+      const unfrozen = G.getEnemiesOf(self.owner).filter(e => !e.isFrozen && e.currentHealth > 0);
       if (unfrozen.length) {
         G.promptCardChoice(self.owner, unfrozen, "Thor — Freeze", "Choose an enemy to Freeze 1", (t) => {
+          if (!t || t.currentHealth <= 0) return;   // the thunder may have taken it
           G.freezeCardUnresistible(t, self);
           G.log(`Thor's lightning freezes ${t.name}!`);
-          splashBurst();
         }, cards => cards.slice().sort((a, b) => AI.threatScore(b) - AI.threatScore(a))[0]);
-      } else {
-        splashBurst();
       }
     },
     onBeforeTricks(G, self, lane) {
