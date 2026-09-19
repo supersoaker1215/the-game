@@ -6315,6 +6315,21 @@ const Game = {
       if (!_by) _by = this._2v2AnySeatOnSide(owner);
       if (_by) card._2v2PlayedBy = _by;
     }
+    // DURABLE SEAT FOR DEFERRED PROMPTS. The acting-seat signals
+    // (_2v2CurrentActingPlayer, _2v2AIDriving, the ability-owner stack) all
+    // unwind the instant this play's synchronous work returns — so a prompt the
+    // card raises LATER, from a setTimeout inside its own onPlay chain, arms with
+    // no live seat and is guessed onto the human teammate, who never answers it.
+    // (That is "one AI trying to act as 2 AI — it can't decide": the AI's own
+    // deferred choice lands on its human partner and the table waits.) Remember
+    // who played, durably, so promptCardChoice / promptLaneChoice can route a
+    // same-side deferred prompt back to that seat — and an AI seat then auto-picks
+    // instead of stalling. Only ever consulted when every live signal is gone, and
+    // only for a prompt on the player's OWN side, so it can't steal a genuine
+    // cross-side or active-seat prompt.
+    if (card && card._2v2PlayedBy && this.state.twoVTwo && this.state.twoVTwo.players) {
+      this._2v2LastPlaySeat = card._2v2PlayedBy;
+    }
     // Multiplayer guest: forward to host instead of executing locally.
     // Host applies the action and broadcasts the new state. We return
     // true so the UI's selectedCard state still advances optimistically;
@@ -6813,6 +6828,10 @@ const Game = {
       if (!_by) _by = this._2v2AnySeatOnSide(owner);
       if (_by) card._2v2PlayedBy = _by;
     }
+    // Durable seat for deferred prompts — see the same block in playCard.
+    if (card && card._2v2PlayedBy && this.state.twoVTwo && this.state.twoVTwo.players) {
+      this._2v2LastPlaySeat = card._2v2PlayedBy;
+    }
     // Multiplayer guest: forward the free-play action and let the host run it.
     // _silentSim guard — see playCard: a preview sim must place locally on
     // the clone, never forward a network play.
@@ -7169,6 +7188,13 @@ const Game = {
       // as the whole team. See _2v2AnySeatOnSide.
       if (!_by) _by = this._2v2AnySeatOnSide(owner);
       if (_by) trick._2v2PlayedBy = _by;
+    }
+    // Durable seat for deferred prompts — see the same block in playCard. A
+    // trick's own effect can defer a choice (Fear Toxin, a chained pick) exactly
+    // like a card's onPlay, and stamping the caster here keeps that choice with
+    // them if every live signal has unwound by the time it arms.
+    if (trick && trick._2v2PlayedBy && this.state.twoVTwo && this.state.twoVTwo.players) {
+      this._2v2LastPlaySeat = trick._2v2PlayedBy;
     }
     this.log(`[TRICK] ${who} play ${trick.name} for ${cost} energy`);
     // Surface EVERY trick as the center-screen reveal — yours labelled
@@ -14783,9 +14809,12 @@ const Game = {
       // Same order of authority, and the same human lock, as promptCardChoice.
       const _laneSeatOpt = (options && options.seat) || null;
       const _abilitySeat = this._2v2AbilityOwner();
-      let _actor = _laneSeatOpt || _abilitySeat || _cap || this._2v2AIDriving || this._2v2SeatForSide(owner);
+      // Durable last-play seat rescues a deferred lane prompt — see promptCardChoice.
+      const _lastPlayLane = this._2v2LastPlaySeat;
+      const _lastPlayOnSideLane = (_lastPlayLane && this._2v2SeatOnSide(_lastPlayLane, owner)) ? _lastPlayLane : null;
+      let _actor = _laneSeatOpt || _abilitySeat || _cap || this._2v2AIDriving || _lastPlayOnSideLane || this._2v2SeatForSide(owner);
       if (_actor && !this._2v2SeatOnSide(_actor, owner)) {
-        _actor = this._2v2SeatForSide(owner);
+        _actor = _lastPlayOnSideLane || this._2v2SeatForSide(owner);
       }
       const _humanAbilityOwnerLane = !_laneSeatOpt && _abilitySeat
         && this._2v2SeatOnSide(_abilitySeat, owner) && !this._2v2SeatIsAI(_abilitySeat);
@@ -15074,9 +15103,16 @@ const Game = {
       // ORDER OF AUTHORITY: what the caller DECLARED, then whose ability is
       // actually running, then the mutable globals, then the team fallback.
       const _abilitySeat = this._2v2AbilityOwner();
-      let _actor = _seatOpt || _abilitySeat || _cap || this._2v2AIDriving || this._2v2SeatForSide(owner);
+      // _2v2LastPlaySeat is the durable "who played the card/trick" set at play
+      // time (see playCard). It rescues a DEFERRED prompt — one armed from a
+      // setTimeout after the live seat signals have unwound — but only on the
+      // player's OWN side, and only after every live signal is already gone, so
+      // it can never steal a genuine cross-side or active-seat prompt.
+      const _lastPlay = this._2v2LastPlaySeat;
+      const _lastPlayOnSide = (_lastPlay && this._2v2SeatOnSide(_lastPlay, owner)) ? _lastPlay : null;
+      let _actor = _seatOpt || _abilitySeat || _cap || this._2v2AIDriving || _lastPlayOnSide || this._2v2SeatForSide(owner);
       if (_actor && !this._2v2SeatOnSide(_actor, owner)) {
-        _actor = this._2v2SeatForSide(owner);
+        _actor = _lastPlayOnSide || this._2v2SeatForSide(owner);
       }
       // A PERSON'S CARD IS ANSWERED BY THAT PERSON. If the ability being
       // resolved belongs to a human seat on this prompt's own side, nothing
