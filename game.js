@@ -7032,6 +7032,9 @@ const Game = {
       let _by = this._2v2CurrentActingPlayer
         || this._2v2AIDriving
         || (this._2v2ActivePlayer && this._2v2ActivePlayer()) || null;
+      // The seat whose sub-phase is active right now. In COMBAT (a block-meter
+      // free trick) there is no sub-phase, so this is null and the global stays.
+      const _active = this._2v2ActivePlayer && this._2v2ActivePlayer();
       // Same authority rule as the card stamps: during a seat's tricks
       // sub-phase the engine's turn tracker wins over the stale global, so a
       // trick an AI teammate plays is not attributed to the human. A trick
