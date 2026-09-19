@@ -959,15 +959,21 @@ const Game = {
   // pending prompt, hand counts, board counts, energy) completely unchanged, and
   // it stands down entirely for a human's turn/prompt and for MC Ballyhoo's
   // hold — a legitimate AI turn changes the board on every play and keeps
-  // resetting this clock, so only a true freeze ever reaches the timeout. 15s
-  // was chosen to sit clear of everything, but it also meant every AI-drive hang
-  // (a lost play-queue continuation after a card like Symbiote Spider-Man prompts
-  // a human mid-turn) froze the table for a full FIFTEEN SECONDS before it
-  // recovered — "the table keeps always getting stuck." 6s still clears the
-  // longest real animations and the drive's own 12s watchdog can still beat it
-  // on a clean hang, but a freeze the drive watchdog misses now unsticks in a
-  // beat instead of a quarter-minute.
-  _AI_GIVEUP_MS: 6000,
+  // resetting this clock, so only a true freeze ever reaches the timeout.
+  //
+  // THIS IS THE NUCLEAR OPTION AND IT MUST FIRE LAST. It clears every pending
+  // prompt, wipes _2v2CurrentActingPlayer and can force-end a sub-phase — so if
+  // it fires while a gentler recovery could still have run, it SKIPS a turn and
+  // strands whoever was about to play. There are two gentler layers below it: the
+  // 3s AI-stall tick (only ever auto-answers an AI's own prompt) and the 12s AI-
+  // DRIVE watchdog in _2v2DriveAISeat, which ends just the stuck AI sub-phase
+  // exactly as that seat's "Done" would. At 6s this timer fired BEFORE the 12s
+  // drive watchdog — the nuclear recovery beat the surgical one to every AI-drive
+  // hang, which is exactly the "the watchdog skips turns and I can't play on my
+  // turn" report. Back above the drive watchdog (15s) so the gentle layer always
+  // gets first crack and tier-2 only catches a freeze nothing else can — a hung
+  // human boundary, which with the combat/crash/streaming fixes is now rare.
+  _AI_GIVEUP_MS: 15000,
 
   _ai2v2WatchTimer: null,
   _ai2v2StallSig: null,
