@@ -6254,6 +6254,35 @@ const Game = {
       this.log(`[ASLEEP] ${card.name} is still dreaming — it cannot be played this turn.`);
       return false;
     }
+    // THE TEAM WHOSE TURN IT IS, IS THE TEAM THAT PLAYS.
+    //
+    // _2v2CanPlayCardNow answers "does this sub-phase allow cards" and is asked
+    // by the message handlers and the UI — but never by playCard itself, so a
+    // caller reaching this function directly was checked by nothing. The AI
+    // drive is exactly such a caller, and its per-hop guard only runs BETWEEN
+    // hops: AI.playCards plays several cards inside one of them.
+    //
+    // So a drive interrupted mid-chain resumed and kept playing after the rail
+    // had moved on. The owner caught it: Cortex's turn was interrupted by a
+    // Batman Who Laughs intercept routed to Ryan, and a card then landed during
+    // "I luv Sy's turn — p1-cards-tricks". Owner: "vega played doc ock when i
+    // played wolverine that shouldnt be possible only the person whose turn it
+    // is can play cards."
+    //
+    // The check is the SIDE, not the seat: two teammates share a board and
+    // either may legitimately be acting within their team's sub-phase. Skipped
+    // when there is no sub-phase at all — combat has none, and every play there
+    // is ability-driven and belongs to no turn. playCardFree is a different door
+    // and is deliberately not gated: a free play is out of turn by definition.
+    if (card && this.state.twoVTwo && this.state.twoVTwo.players) {
+      const _actSeat = this._2v2ActivePlayer && this._2v2ActivePlayer();
+      if (_actSeat && !this._2v2SeatActsFor(_actSeat, owner)) {
+        this.log(`[OUT OF TURN] ${card.name} was not played — it is ${this._2v2SeatName(_actSeat)}'s turn.`);
+        console.warn('[2v2] refused an out-of-turn play of', card.name, 'for side', owner,
+                     '— active seat', _actSeat);
+        return false;
+      }
+    }
     // 2v2: arm the per-card rewind point BEFORE this play changes anything, so
     // undo takes back exactly this card and nothing the player (or a teammate)
     // did before it. No-op outside a live 2v2 turn / off the authority — see
@@ -22176,7 +22205,30 @@ const Game = {
     const stillOurs = () => {
       const _tt = this.state && this.state.twoVTwo;
       const _p = _tt && _tt.players[activeKey];
-      return !!(_p && _p.isAI && (!_p._realHuman || _p._dropped));
+      if (!(_p && _p.isAI && (!_p._realHuman || _p._dropped))) return false;
+      // ...AND IT IS STILL THIS SEAT'S TURN.
+      //
+      // The token was captured for this drive and then checked in exactly one
+      // place — finish() — so nothing between the drive starting and it ending
+      // ever asked whether the turn had moved on. The chain in between is not
+      // instantaneous (AI.playCards -> doTricks -> playTrickPhaseCards ->
+      // playTricks, with a pacing delay and any number of prompts inside it), so
+      // a drive interrupted mid-way could come back and keep PLAYING after the
+      // sub-phase had advanced to somebody else.
+      //
+      // That is what the owner caught: Cortex's p4-cards turn was interrupted by
+      // a Batman Who Laughs intercept routed to Ryan; by the time the AI chain
+      // resumed the rail had moved on, and a card landed during "I luv Sy's
+      // turn — p1-cards-tricks". Owner: "vega played doc ock when i played
+      // wolverine that shouldnt be possible only the person whose turn it is can
+      // play cards."
+      //
+      // stillOurs is already re-asked at every hop for the reconnect case, which
+      // makes it the right place: one line covers every hop instead of each one
+      // learning to check. A drive that fails it stops at the next hop and
+      // finish() declines to advance anything, because it checks the same token.
+      if (this._2v2TurnToken !== turnToken) return false;
+      return true;
     };
     this._2v2AIDriving = activeKey;
     this._2v2AIDrivingAt = Date.now();

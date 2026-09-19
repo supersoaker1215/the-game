@@ -11777,6 +11777,71 @@ test('the trick reveal names the caster, not the side', function () {
   });
 });
 
+// Regression: in 2v2, only the team whose sub-phase is running may play a card.
+//
+// Owner: "vega played doc ock when i played wolverine that shouldnt be possible
+// only the person whose turn it is can play cards." The log had it — an enemy
+// card landing inside "[2v2] I luv Sy's turn — p1-cards-tricks", one line above
+// their own Wolverine.
+//
+// Two holes, one symptom. The AI drive's per-hop guard only runs BETWEEN hops,
+// and AI.playCards plays several cards inside one of them; and playCard itself
+// asked nothing — _2v2CanPlayCardNow is consulted by the message handlers and
+// the UI, never by the door they all funnel into.
+test('2v2: a card cannot be played on the other team\'s turn', function () {
+  var G = freshGame();
+  G.state.mode = { deck: 'classic', players: '2v2' };
+  G.state.twoVTwo = {
+    online: true, you: 'p1', round: 5, subPhaseIdx: 0,
+    teams: { A: { health: 30, maxHealth: 30, blockMeter: 0, deadPile: [] },
+             B: { health: 30, maxHealth: 30, blockMeter: 0, deadPile: [] } },
+    drawPile: [], trickDrawPile: [],
+    players: {
+      p1: { team: 'A', isAI: false, name: 'I luv Sy', hand: [], trickHand: [] },
+      p2: { team: 'A', isAI: false, name: 'Ryan',     hand: [], trickHand: [] },
+      p3: { team: 'B', isAI: true,  name: 'Vega',     hand: [], trickHand: [] },
+      p4: { team: 'B', isAI: true,  name: 'Cortex',   hand: [], trickHand: [] }
+    }
+  };
+  // It is p1's turn — team A, the 'player' side.
+  var prevActive = G._2v2ActivePlayer;
+  G._2v2ActivePlayer = function () { return 'p1'; };
+  G.state.player.currency = 20;
+  G.state.ai.currency = 20;
+
+  // The enemy side tries to play into it. This is the drive's late card.
+  var doc = G.createCardInstance(cardByName('Dr. Octopus'), 'ai');
+  G.state.ai.hand.push(doc);
+  var lines = [];
+  var realLog = G.log;
+  G.log = function (m) { lines.push(String(m)); return realLog.apply(G, arguments); };
+  // freshGame builds the 1v1 board, so stay inside its six lanes — the rule
+  // under test is about turns, not about how wide the board is.
+  var out = G.playCard('ai', doc, 5);
+  G.log = realLog;
+
+  assertEq(out, false, 'the out-of-turn play is refused');
+  assertEq(G.state.lanes[5].ai, null, 'and nothing reached the board');
+  assertEq(lines.some(function (l) { return l.indexOf('OUT OF TURN') > -1; }), true,
+    'and it says so — a refused play that leaves no trace reads as a dead button');
+
+  // The team whose turn it IS still plays normally, including the teammate:
+  // a side in 2v2 is two people and either may be the one acting.
+  var wolv = G.createCardInstance(cardByName('Wolverine'), 'player');
+  G.state.player.hand.push(wolv);
+  assertEq(G.playCard('player', wolv, 3), true, 'the active team plays');
+  assertEq(G.state.lanes[3].player, wolv, 'and it lands');
+
+  // COMBAT HAS NO SUB-PHASE, so nothing is gated there — every play in combat
+  // is ability-driven and belongs to no turn.
+  G._2v2ActivePlayer = function () { return null; };
+  var doc2 = G.createCardInstance(cardByName('Dr. Octopus'), 'ai');
+  G.state.ai.hand.push(doc2);
+  assertEq(G.playCard('ai', doc2, 4), true, 'an ability-driven play in combat is untouched');
+
+  G._2v2ActivePlayer = prevActive;
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 
