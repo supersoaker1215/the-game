@@ -2004,6 +2004,63 @@ const Game = {
     return true;
   },
 
+  // PER-CARD REWIND POINT. The turn-open snapshot (see _2v2StartSubPhase) made
+  // undo a WHOLE-TURN take-back: play Black Widow, then Modok, hit undo, and
+  // both vanished — and if that snapshot was stale it could even drop a card a
+  // teammate had played before your turn. What a player actually wants is "take
+  // back the LAST card I played" — Modok returns to hand, Jason slides back, and
+  // Black Widow's freeze and everyone else's board are left exactly as they are.
+  // (Owner: "all i want is jason to move back where he was and my moder goes
+  // back in hand.")
+  //
+  // So we re-capture the rewind point immediately BEFORE each top-level play by
+  // the seat whose turn it is, holding "the board as it stands right now, before
+  // this card". Undo then restores precisely one card's worth of change. Called
+  // from the top of playCard / playTrick, after the reject-guards and before any
+  // mutation.
+  //
+  // Guarded so ONLY a real, top-level, human play by the active seat refreshes
+  // it:
+  //   • authority only — the host owns the clone; a guest just forwards the play
+  //     and learns from _undoSnapSeat whether its button is live.
+  //   • never a preview sim (_silentSim), never once the seat has spent its undo.
+  //   • never a nested free-play / summon / chained prompt: those run inside an
+  //     ability owner (_2v2RunOwned / _2v2WithSeatBound), so a non-null
+  //     _2v2AbilityOwner means "this play is another card's doing" and must fold
+  //     into the card that caused it, not become its own rewind point.
+  //   • humans only — an AI seat never undoes, so cloning before its plays is
+  //     pure waste.
+  _2v2CaptureCardUndoPoint(owner) {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt || !tt.players) return;
+    if (this.state._silentSim) return;
+    if (this._2v2IsAIAuthority && !this._2v2IsAIAuthority()) return;
+    // A play that is another card's/trick's effect keeps the rewind point on the
+    // card that started it.
+    if (this._2v2AbilityOwner && this._2v2AbilityOwner()) return;
+    const activeKey = this._2v2ActivePlayer && this._2v2ActivePlayer();
+    if (!activeKey || !tt.players[activeKey]) return;
+    if (tt.players[activeKey].isAI) return;
+    // The play has to belong to the active seat's own side.
+    if (this._2v2SeatActsFor && owner && !this._2v2SeatActsFor(activeKey, owner)) return;
+    // One take-back per match — if it is spent, there is nothing to arm.
+    if (tt.players[activeKey]._undoUsedThisMatch) return;
+    try {
+      // DETACH THE OLD SNAPSHOT BEFORE CLONING, same trap as the turn-open
+      // capture: a clone that contains the previous clone doubles the state
+      // every time.
+      const _prev = tt._turnSnap;
+      tt._turnSnap = null;
+      let _clone = null;
+      try { _clone = this.cloneStateDeep(this.state); }
+      finally { tt._turnSnap = _prev; }
+      if (_clone) {
+        tt._turnSnap = { seat: activeKey, clone: _clone };
+        tt._undoSnapSeat = activeKey;
+      }
+    } catch (e) { /* leave whatever point already existed */ }
+  },
+
   // Every reason an undo can be refused, in one place, so the button can grey
   // itself for the SAME reason the engine would say no. null = allowed.
   undo2v2BlockedReason(seatKey) {
@@ -6159,6 +6216,11 @@ const Game = {
       this.log(`[ASLEEP] ${card.name} is still dreaming — it cannot be played this turn.`);
       return false;
     }
+    // 2v2: arm the per-card rewind point BEFORE this play changes anything, so
+    // undo takes back exactly this card and nothing the player (or a teammate)
+    // did before it. No-op outside a live 2v2 turn / off the authority — see
+    // _2v2CaptureCardUndoPoint.
+    this._2v2CaptureCardUndoPoint(owner);
     // 2v2 online: tag the card with the seat playing it so its LATER hooks
     // (before-tricks move/devour, combat onKill/onDeath, Iron Giant) route their
     // prompts back to that exact seat. Human plays already tag this in
@@ -7007,6 +7069,9 @@ const Game = {
     // Snapshot before any player-initiated trick play so the action can be undone.
     if (this.isPlayerTurn() || (this.isMultiplayer() && this.mp && this.mp.role === 'host'))
       this.snapshot(owner);
+    // 2v2: same per-card rewind point a card play arms, so undo takes back this
+    // trick alone and not the whole turn. No-op outside a live 2v2 human turn.
+    this._2v2CaptureCardUndoPoint(owner);
     this.state[owner].currency -= cost;
     if (this.state._stats && this.state._stats[owner]) this.state._stats[owner].energySpent += cost;
     // Spend the 2v2 block-meter freebie the moment it is used, so a trick that
