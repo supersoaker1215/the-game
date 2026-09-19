@@ -1231,6 +1231,38 @@ const Game = {
     const is2v2 = !!(this.is2v2 && this.is2v2());
     const in2v2Combat = is2v2 && (s && (s.phase === '2v2-combat' || s._combatFinishedThisRound || s._inCombat));
     if (!s || (s.phase !== 'combat' && !s._inCombat && !in2v2Combat)) return;
+    // RESUME BEFORE YOU SKIP. The commonest mid-combat stall is not a stuck
+    // prompt at all — it is a combat that is merely PARKED: a lane pushed its
+    // "fight the next lane" continuation onto _combatContStack via
+    // whenPromptCleared, the prompt that parked it cleared, but
+    // resumeCombatIfWaiting was never re-entered (a resolve that took a path
+    // which didn't call it, a continuation popped and dropped). The table then
+    // sits unchanged with a live continuation waiting and NOTHING pending — and
+    // the destructive path below answers that by jumping straight to postCombat,
+    // which SKIPS every lane that had not yet fought. That is exactly the report:
+    // "combat gets stuck on lane 1 and then skips the whole combat turn." So
+    // first, when there is a parked continuation and no prompt to answer, just
+    // fire it — combat picks up lane by lane where it left off. Only if that does
+    // not move the needle do we fall through to the force-resolve. (The callers
+    // already tried _autoResolveStuckCombatPrompt, so any genuinely stuck prompt
+    // is gone by now; if the continuation re-raises one, _promptBusy() is true
+    // next tick and we take the real recovery.)
+    if (s._inCombat && !this._promptBusy()) {
+      const parked = !!((s._combatContStack && s._combatContStack.length) || s._combatContinuation);
+      if (parked) {
+        const _before = this._combatProgressAt || 0;
+        try { this.resumeCombatIfWaiting(); }
+        catch (e) { console.error('[COMBAT WATCHDOG] gentle resume threw:', e); }
+        // resumeCombatIfWaiting bumps _combatProgressAt the instant it fires a
+        // parked continuation; if it did (or combat already handed off), let the
+        // lane loop keep playing instead of force-resolving over the top of it.
+        if ((this._combatProgressAt || 0) !== _before || !s._inCombat) {
+          this.log('[COMBAT WATCHDOG] Combat was only parked — resuming lane play.');
+          if (typeof UI !== 'undefined' && UI.render) UI.render();
+          return;
+        }
+      }
+    }
     // Route the "force the round forward" fallback through the right pipeline.
     const forceNextRound = () => {
       if (is2v2) { this._2v2DrawPhase(); return; }
