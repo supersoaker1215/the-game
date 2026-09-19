@@ -19934,6 +19934,7 @@ const UI = {
       if (this._mpReturnToLobby && Game.state && Game.state.phase === 'deckbuilder-build') this.render();
     });
     Multiplayer.on('roomJoined', (m) => {
+      this._mpUniProbe = null;   // 1v1 join succeeded — no 2v2 fallback
       this._mpState.code = m.code;
       this._mpState.you = m.you;
       this._mpState.status = 'paired';
@@ -20015,6 +20016,16 @@ const UI = {
       warn();
     });
     Multiplayer.on('error', (e) => {
+      // Unified join: the 1v1 probe couldn't find the room. A code namespace is
+      // per-type (1v1 hosts live at peer id 'clb-game-<code>', 2v2 at
+      // 'clb-4p-<code>'), so "not found here" means "try the 2v2 transport" —
+      // hand off instead of surfacing the error. Only the 1v1 stage falls back.
+      if (this._mpUniProbe && this._mpUniProbe.stage === '1v1') {
+        const p = this._mpUniProbe;
+        this._mpUniProbe = null;
+        this._mpFallbackTo2v2(p.code, p.name);
+        return;
+      }
       this._mpState.status = 'error';
       this._mpState.error = (e && e.message) || 'Connection error';
       this._mpRender();
@@ -20223,6 +20234,38 @@ const UI = {
     this._mpState.code = code;
     this._mpRender();
     Multiplayer.joinRoom(code, { name: this._mpName(), deck: this._mpDeckPayload() });
+  },
+  // ONE CODE FIELD, EITHER MODE. The menu's join field takes any 4-letter code
+  // and joins the room it belongs to — 1v1 or 2v2 — without the player first
+  // choosing a mode or opening the 2v2 page. 1v1 and 2v2 rooms live in separate
+  // peer-id namespaces (clb-game-<code> vs clb-4p-<code>), so a code resolves to
+  // at most one of them; we simply try 1v1 first (it stays in this menu and its
+  // "room not found" comes back fast) and, if that room does not exist, hand the
+  // same code to the 2v2 transport. (Owner: "i want to enter any code from 1v1
+  // or 2v2 and it automatically joins that match.")
+  _mpUniversalJoin(codeIn) {
+    if (typeof Multiplayer === 'undefined') { UI.alertModal('Multiplayer module not loaded.'); return; }
+    const input = document.getElementById('mp-join-code');
+    const code = (codeIn || (input && input.value) || '').trim().toUpperCase();
+    if (code.length !== 4) { UI.alertModal('Enter the 4-letter room code your friend shared.'); return; }
+    // Arm the probe so the 1v1 error handler knows a miss means "try 2v2".
+    this._mpUniProbe = { code, name: this._mpName(), stage: '1v1' };
+    this._mpJoinRoom(code);   // 1v1 attempt; _mpJoinRoom shows the joining state
+  },
+  // Second stage of the unified join: the code was not a 1v1 room, so try 2v2.
+  _mpFallbackTo2v2(code, name) {
+    // Drop the dead 1v1 transport so its listeners can't fire into the 2v2 room.
+    try { if (typeof Multiplayer !== 'undefined' && Multiplayer.leave) Multiplayer.leave(); } catch (e) {}
+    if (typeof twov2OnlineJoin !== 'function') {
+      this._mpState.status = 'error';
+      this._mpState.error = "Couldn't find that room — double-check the code.";
+      this._mpRender();
+      return;
+    }
+    // No onFail here: if it is not a 2v2 room either, twov2OnlineJoin's own
+    // error handler shows "couldn't find that room" on the 2v2 lobby it opened,
+    // which has a code field to retry from.
+    twov2OnlineJoin(code, name);
   },
   _mpLeaveRoom() {
     if (this._mpStateRetry) { clearInterval(this._mpStateRetry); this._mpStateRetry = null; }
@@ -20614,7 +20657,7 @@ const UI = {
       const joinInline = (st.tab === 'join') ? `
         <div class="mp-join-inline">
           <input id="mp-join-code" class="mp-code-min" maxlength="4" placeholder="CODE" autocapitalize="characters" autocomplete="off" spellcheck="false" oninput="this.value=this.value.toUpperCase()" />
-          <button type="button" class="mp-glow-go" onclick="UI._mpJoinRoom()">Join &rarr;</button>
+          <button type="button" class="mp-glow-go" onclick="UI._mpUniversalJoin()">Join &rarr;</button>
         </div>` : '';
       // THE LOBBY, REBUILT TO THE OWNER'S LAYOUT.
       //
@@ -20912,7 +20955,7 @@ const UI = {
     this._mpState.pendingCode = code;
     const input = document.getElementById('mp-join-code');
     if (input) input.value = code;
-    this._mpJoinRoom(code);
+    this._mpUniversalJoin(code);
   },
   // DELEGATED, INSTALLED ONCE. Wiring these per render meant the handlers only
   // existed if the panel happened to be built by the path that called the
@@ -39351,23 +39394,42 @@ function twov2OnlineCreate() {
   UI._2v2OnlineRoomCode = code;
 }
 
-function twov2OnlineJoin() {
+// codeArg / nameArg let the UNIFIED menu join call this directly with a typed
+// code (the four-slot ENTER CODE field), instead of only reading the 2v2
+// lobby's own DOM inputs. opts.onFail, when given, is called on the FIRST
+// error before we're in — the unified join uses it to fall back to 1v1 — and
+// suppresses the on-screen error for that probe. Called with no args from the
+// 2v2 lobby's Join button, it behaves exactly as before.
+function twov2OnlineJoin(codeArg, nameArg, opts) {
+  opts = opts || {};
+  // When reached from the unified menu there is no 2v2 lobby yet, so the
+  // handlers below would have no Game.state.twoVTwo to write into. Build it —
+  // this also transitions the screen to the 2v2 online lobby, which is where a
+  // successful join belongs.
+  if (!(Game.state && Game.state.twoVTwo)) {
+    if (Game.goTo2v2OnlineLobby) Game.goTo2v2OnlineLobby();
+  }
   const nameEl = document.getElementById('2v2-online-name');
   const codeEl = document.getElementById('2v2-online-code');
-  const name = nameEl ? (nameEl.value.trim() || 'Player') : 'Player';
+  const name = (nameArg && String(nameArg).trim())
+    || (nameEl ? (nameEl.value.trim() || 'Player') : 'Player');
   // Remember the typed name for next time (see twov2OnlineCreate).
   if (nameEl && nameEl.value.trim()) { try { localStorage.setItem('2v2PlayerName', nameEl.value.trim()); } catch (e) {} }
-  const code = codeEl ? (codeEl.value.trim().toUpperCase()) : '';
+  const code = (codeArg != null ? String(codeArg) : (codeEl ? codeEl.value : '')).trim().toUpperCase();
   if (!code || code.length !== 4) {
     UI._2v2OnlineError = 'Enter a 4-letter room code.';
     UI.render(); return;
   }
 
   UI._2v2OnlineError = null;   // see twov2OnlineCreate
+  // Guards the one-shot probe hand-off: once we join (or the probe already
+  // handed off) a later error is a REAL error, shown on screen as normal.
+  let _settled = false;
   const transport = new WebRTC4Transport();
   Multiplayer4.init(transport);
 
   Multiplayer4.on('roomJoined', ({ code: c, you }) => {
+    _settled = true;
     // We are IN. Clear anything a failed earlier attempt left on screen.
     UI._2v2OnlineError = null;
     const tt = Game.state.twoVTwo;
@@ -39500,6 +39562,15 @@ function twov2OnlineJoin() {
   Multiplayer4.on('allPlayersReady', () => { UI.render(); });
 
   Multiplayer4.on('error', ({ message }) => {
+    // Unified-join probe: an error before we're in means "not a 2v2 room" —
+    // hand back to the caller (which may then try 1v1) instead of showing a
+    // banner. Only the FIRST such error hands off; once settled, errors show.
+    if (!_settled && opts.onFail) {
+      _settled = true;
+      try { if (typeof Multiplayer4 !== 'undefined' && Multiplayer4.leave) Multiplayer4.leave(); } catch (e) {}
+      try { opts.onFail(message); } catch (e) {}
+      return;
+    }
     UI._2v2OnlineError = message;
     UI.render();
   });
