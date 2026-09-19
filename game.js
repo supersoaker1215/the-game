@@ -2975,7 +2975,7 @@ const Game = {
               if (this.state._roundStats) this.state._roundStats.aiTricks.push(bt.name);
               // Host sees the guest's block-earned trick via the same reveal
               // theater (the guest's own screen gets it from the pile diff).
-              if (typeof UI !== 'undefined' && UI.showTrickReveal) UI.showTrickReveal(bt.name, bt.desc || '', bt.cost, owner === 'player');
+              if (typeof UI !== 'undefined' && UI.showTrickReveal) UI.showTrickReveal(bt.name, bt.desc || '', bt.cost, owner === 'player', this.seatLabel(owner, bt && bt._2v2PlayedBy));
               if (bt.play) { try { bt.play(this, owner); } catch(e) { console.error(e); } }
               this.cleanupDead();
             } else {
@@ -7215,7 +7215,10 @@ const Game = {
     // MP guest sees ALL plays via the playedTrickPile diff in the
     // state-accept handler (never runs this engine path locally).
     if (typeof UI !== 'undefined') {
-      if (UI.showTrickReveal) UI.showTrickReveal(trick.name, trick.desc || '', trick.cost, owner === 'player');
+      // `who` is the seat's own name, settled by the stamp block above — the
+      // same value the [TRICK] log line uses, so the panel and the log can never
+      // disagree about who cast it.
+      if (UI.showTrickReveal) UI.showTrickReveal(trick.name, trick.desc || '', trick.cost, owner === 'player', who);
       else if (owner === 'ai' && UI.showAITrickToast) UI.showAITrickToast(trick.name, trick.desc || '');
     }
     // 2v2 online: the 3 guests don't run playTrick, so relay the center-screen
@@ -7325,7 +7328,7 @@ const Game = {
       const tdesc = (tsdef && tsdef.desc) || 'Counter the incoming trick.';
       const tcost = (tsdef && tsdef.cost != null) ? tsdef.cost : 0;
       const mine = !!(tt && tt.you && seat === tt.you);
-      if (typeof UI !== 'undefined' && UI.showTrickReveal) UI.showTrickReveal('Time Stone', tdesc, tcost, mine);
+      if (typeof UI !== 'undefined' && UI.showTrickReveal) UI.showTrickReveal('Time Stone', tdesc, tcost, mine, mine ? 'You' : this._2v2SeatName(seat));
       if (this.emitFX) this.emitFX('trickReveal', { name: 'Time Stone', desc: tdesc, cost: tcost, seat: seat || null });
     } catch (e) {}
     // Draw the countering seat a card (routed to their own hand).
@@ -17677,7 +17680,7 @@ const Game = {
         // path didn't, so a bot-filled seat's free trick played silently.
         // (User: "after blocking and if someone plays a trick i want that to
         // show up for everyone to see what trick was played.")
-        if (typeof UI !== 'undefined' && UI.showTrickReveal) { try { UI.showTrickReveal(trick.name, trick.desc || '', trick.cost, seat === tt.you); } catch (e) {} }
+        if (typeof UI !== 'undefined' && UI.showTrickReveal) { try { UI.showTrickReveal(trick.name, trick.desc || '', trick.cost, seat === tt.you, seat === tt.you ? 'You' : this._2v2SeatName(seat)); } catch (e) {} }
         if (tt.online && this.emitFX) { try { this.emitFX('trickReveal', { name: trick.name, desc: trick.desc || '', cost: trick.cost, seat }); } catch (e) {} }
         this.state._inTrick = true; this.state._trickOwner = side; this.state._activeTrickName = trick.name;
         this._2v2WithJumperBridge(seat, () => { try { trick.play(this, side); } catch (e) { console.error(e); } });
@@ -17720,7 +17723,7 @@ const Game = {
         p.playedTrickPile = p.playedTrickPile || [];
         p.playedTrickPile.push({ name: trick.name, cost: trick.cost });
         this.log(`  [BLOCK TRICK] ${p.name} plays ${trick.name} for free!`);
-        if (typeof UI !== 'undefined' && UI.showTrickReveal) { try { UI.showTrickReveal(trick.name, trick.desc || '', trick.cost, seat === tt.you); } catch (e) {} }
+        if (typeof UI !== 'undefined' && UI.showTrickReveal) { try { UI.showTrickReveal(trick.name, trick.desc || '', trick.cost, seat === tt.you, seat === tt.you ? 'You' : this._2v2SeatName(seat)); } catch (e) {} }
         // Relay the block-trick reveal to the 3 guests too (see playTrick).
         if (tt.online && this.emitFX) { try { this.emitFX('trickReveal', { name: trick.name, desc: trick.desc || '', cost: trick.cost, seat }); } catch (e) {} }
         this._2v2CurrentActingPlayer = seat;

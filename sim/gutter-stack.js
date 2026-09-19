@@ -299,8 +299,16 @@ t('GS-11 the playTrick wrapper no longer raises its own toast', function () {
      /Game\.playTrick = [\s\S]{0,400}?showAITrickToast/.test(src), false);
   // ...and the engine's own door still does, so nothing was simply deleted.
   var engine = read('game.js');
+  // MATCHED ON THE RULE, NOT ON THE ARGUMENT LIST. This pinned the call's exact
+  // closing paren, so adding the caster name — the fifth argument that lets the
+  // panel say "Cortex plays a Trick" instead of "AI plays a trick" — read as
+  // the reveal having been deleted. The rule here is "the engine's own door
+  // still reveals every trick"; the arity is not the rule.
   eq('playTrick still reveals every trick',
-     /UI\.showTrickReveal\(trick\.name, trick\.desc \|\| '', trick\.cost, owner === 'player'\)/.test(engine), true);
+     /UI\.showTrickReveal\(trick\.name, trick\.desc \|\| '', trick\.cost, owner === 'player'/.test(engine), true);
+  // …and it names the caster, which is the half that was missing.
+  eq('and names who cast it',
+     /UI\.showTrickReveal\(trick\.name,[^)]*owner === 'player', who\)/.test(engine), true);
 });
 
 t('GS-12 the reveal holds for seven seconds, and says how long is left', function () {

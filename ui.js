@@ -13064,7 +13064,12 @@ const UI = {
           const mine = !!(tt && ev.seat && ev.seat === tt.you);
           try { if (this.sfx && this.sfx.playTrickSfx) this.sfx.playTrickSfx(ev.name, 'play'); } catch (e) {}
           if (ev.name !== 'Time Stone' && this.showTrickReveal) {
-            try { this.showTrickReveal(ev.name, ev.desc || '', ev.cost, mine); } catch (e) {}
+            // The payload has carried `seat` all along; it was only ever used
+            // for the mine/not-mine flip. Resolve it to the caster's name too.
+            let _who = null;
+            try { _who = (ev.seat && Game._2v2SeatName) ? Game._2v2SeatName(ev.seat) : null; } catch (e) {}
+            if (mine) _who = 'You';
+            try { this.showTrickReveal(ev.name, ev.desc || '', ev.cost, mine, _who); } catch (e) {}
           }
         }
         continue;
@@ -20156,7 +20161,8 @@ const UI = {
                 if (t.name !== 'Time Stone' && this.showTrickReveal) {
                   try {
                     const def = (typeof TRICK_DEFS !== 'undefined') ? TRICK_DEFS.find(d => d.name === t.name) : null;
-                    this.showTrickReveal(t.name, (def && def.desc) || '', t.cost, side === 'player');
+                    this.showTrickReveal(t.name, (def && def.desc) || '', t.cost, side === 'player',
+                      (Game.seatLabel ? Game.seatLabel(side, t && t._2v2PlayedBy) : null));
                   } catch(e) {}
                 }
               }
@@ -27678,7 +27684,19 @@ const UI = {
     poll();
   },
 
-  showTrickReveal(name, desc, cost, mine) {
+  // `who` — the caster's DISPLAY NAME, for the "<name> plays a Trick" line.
+  //
+  // Without it the label had only the `mine` boolean, and `mine` is a SIDE in
+  // 2v2 — one team of two. So an opponent's trick read "AI plays a trick" no
+  // matter which of the two cast it, and a TEAMMATE's read "You play a Trick",
+  // which is worse: it credits you with a card you never played. Owner:
+  // "whoever plays the trcik i want thier name shown."
+  //
+  // Callers pass Game.seatLabel(owner, seat), which already answers 'You' for
+  // the local seat in both modes, so the "You play a Trick" case still works
+  // through the same one value. Omitted, everything falls back to the old
+  // behaviour — no call site is obliged to know about this.
+  showTrickReveal(name, desc, cost, mine, who) {
     if (this._reducedMotion && this._reducedMotion()) {
       // Reduced-motion fallback: opponent plays keep the corner toast
       // (its grammar is opponent-specific); your own plays just skip.
@@ -27689,7 +27707,7 @@ const UI = {
     // showCardReveal's, which is every non-trick reveal in the game (Iron
     // Giant's sacrifice, an event's card) — raising it would slow all of them to
     // fix tricks. Per-item keeps the change where the owner pointed it.
-    this._trickRevealQueue.push({ name, desc: desc || '', cost, mine: !!mine, holdMs: this.TRICK_NOTICE_MS });
+    this._trickRevealQueue.push({ name, desc: desc || '', cost, mine: !!mine, who: who || null, holdMs: this.TRICK_NOTICE_MS });
     if (!this._trickRevealActive) this._nextTrickReveal();
   },
   // Reveal a CARD the same way tricks are revealed — full art + a custom label —
@@ -27853,7 +27871,13 @@ const UI = {
         <i class="tr-sweep" aria-hidden="true"></i>
       </div>
       <div class="tr-timer" aria-hidden="true"><i style="animation-duration:${hold}ms"></i></div>
-      <div class="tr-label">${item.label ? String(item.label).replace(/</g, '&lt;') : (item.mine ? 'You play a Trick' : this.oppName() + ' plays a Trick')}</div>`;
+      <div class="tr-label">${item.label
+        ? String(item.label).replace(/</g, '&lt;')
+        : (item.who
+            ? (item.who === 'You'
+                ? 'You play a Trick'
+                : String(item.who).replace(/</g, '&lt;') + ' plays a Trick')
+            : (item.mine ? 'You play a Trick' : this.oppName() + ' plays a Trick'))}</div>`;
     this._revealHome().appendChild(wrap);
     if (item.onShow) { try { item.onShow(); } catch (e) {} }
     // Hold, then exit + advance the queue. Hold doubled from 1050ms per

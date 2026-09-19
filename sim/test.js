@@ -11731,6 +11731,52 @@ test('2v2: the held-action queue does not spin when the lock is not a prompt', f
   assertEq(threw, null, 'a permanently-held table does not blow the stack');
 });
 
+// Regression: the trick reveal names the player who cast it.
+//
+// Owner, on a panel reading "AI PLAYS A TRICK" while the rail said Cortex:
+// "whoever plays the trcik i want thier name shown."
+//
+// The label had only the `mine` boolean to work from, and `mine` is a SIDE in
+// 2v2 — one team of two. So an opponent's trick read "AI plays a trick"
+// whichever of the two cast it, and a TEAMMATE's read "You play a Trick",
+// which is worse: it credits you with a card you never played.
+test('the trick reveal names the caster, not the side', function () {
+  var ui = read('ui.js');
+
+  // The panel takes a caster name and the queue carries it.
+  assert(/showTrickReveal\(name, desc, cost, mine, who\)/.test(ui),
+    'showTrickReveal accepts the caster name');
+  assert(/_trickRevealQueue\.push\(\{[^}]*who:/.test(ui),
+    'and the queued item carries it to the render');
+
+  // The rendered label prefers it, and still says "You" for the local seat.
+  var label = ui.slice(ui.indexOf('<div class="tr-label">'));
+  label = label.slice(0, label.indexOf('</div>') + 6);
+  assert(/item\.who/.test(label), 'the label reads the caster name');
+  assert(/'You play a Trick'/.test(label), "and still says 'You' for your own");
+  assert(/plays a Trick/.test(label), 'and names anyone else');
+
+  // THE GUEST PATH TOO. Three of the four seats never run playTrick; they see
+  // the reveal through the FX relay, which has carried `seat` all along and
+  // only ever used it for the mine/not-mine flip.
+  var relay = ui.slice(ui.indexOf("ev.type === 'trickReveal'"));
+  relay = relay.slice(0, 1400);
+  assert(/_2v2SeatName\(ev\.seat\)/.test(relay),
+    'the guest resolves the seat to a name instead of dropping it');
+  assert(/showTrickReveal\([^)]*_who\)/.test(relay),
+    'and passes it to the panel');
+
+  // Every engine call site hands one over — a caller that forgets falls back to
+  // the old side-based text, which is the bug.
+  var g = read('game.js');
+  var calls = g.match(/UI\.showTrickReveal\([^;]*\)/g) || [];
+  assert(calls.length >= 5, 'found the reveal call sites (' + calls.length + ')');
+  calls.forEach(function (c, i) {
+    var args = c.split(',').length;
+    assert(args >= 5, 'call site ' + i + ' passes a caster name: ' + c.slice(0, 80));
+  });
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 
