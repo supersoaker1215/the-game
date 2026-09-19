@@ -21742,6 +21742,10 @@ const Game = {
     // (abilities.js has a lock length computed the same way), and a card should
     // not have to know which mode it is in to ask what round it is.
     s.round = tt.round;
+    // Fresh round — clear the once-per-round combat-start stamp so THIS round's
+    // combat can run (and a rematch that resets the round can't collide with a
+    // stamp left from the previous game). See _2v2ResolveCombat.
+    tt._combatStartedForRound = null;
     // Replay frame — 2v2 board entering this round (state.player/ai.health hold
     // the two TEAM totals here, so the viewer's HP bars read correctly).
     this._captureReplayFrame(tt.round);
@@ -22583,6 +22587,24 @@ const Game = {
   _2v2ResolveCombat() {
     const s = this.state;
     const tt = s.twoVTwo;
+
+    // ONE COMBAT PER ROUND. The "all sub-phases done" branch in
+    // _2v2StartSubPhase calls this — and anything that re-enters that branch for
+    // the SAME round (a duplicate end2v2Phase at the boundary, a watchdog
+    // recovery landing next to the real advance, a stale AI-drive finish) would
+    // start a SECOND combat: a second setTimeout(resolveCombat) that swings every
+    // lane again. The one-postCombat guard below stops the round double-advancing,
+    // but not the second swing — so the fix is to refuse the second START. The
+    // round a combat belongs to is stamped here; start2v2Round increments the
+    // round, so next round's number differs and the guard clears itself.
+    // (Companion to _combatNeedsPostProcess / _combatForRound. User: "round 14
+    // just skipped to round 15 in the middle of me playing cards.")
+    const _cr = tt ? (tt.round | 0) : 0;
+    if (tt && tt._combatStartedForRound === _cr) {
+      console.warn('[2v2] combat already started for round ' + _cr + ' — ignoring a duplicate resolve');
+      return;
+    }
+    if (tt) tt._combatStartedForRound = _cr;
 
     // Sync both teams' health into state.player/ai before combat
     s.player.health    = tt.teams.A.health;
