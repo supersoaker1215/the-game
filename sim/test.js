@@ -11573,6 +11573,66 @@ test('2v2: an unbridge adopts a replacement pile but never the displaced one', f
     'it says so in the log');
 });
 
+// Regression: a 2v2 round must never advance twice, which eats a whole round
+// of turns. Owner: "we are skipping rounds tht shouldnt happen ever."
+//
+// Their log is the clean example — the watchdog forced a recovery while the
+// real post-combat pipeline was still in flight:
+//
+//     [COMBAT WATCHDOG] Post-combat stall — forcing next round.
+//     === 2V2 ROUND 4 BEGINS ===
+//     [2v2] Cortex's turn — p4-cards
+//     === 2V2 ROUND 5 BEGINS ===
+//
+// Round 4 got one seat's turn. start2v2Round is a bare `tt.round++` with
+// nothing stopping a second caller, the same shape end2v2Phase had before it
+// got a turn token.
+test('2v2: a late round advance is refused instead of skipping everyone', function () {
+  var G = freshGame();
+  G.state.mode = { deck: 'classic', players: '2v2' };
+  G.state.twoVTwo = {
+    online: false, round: 3, subPhaseIdx: 0,
+    teams: { A: { health: 30, maxHealth: 30, blockMeter: 0, deadPile: [] },
+             B: { health: 30, maxHealth: 30, blockMeter: 0, deadPile: [] } },
+    drawPile: [], trickDrawPile: [],
+    players: {
+      p1: { team: 'A', isAI: false, name: 'One',   hand: [], trickHand: [] },
+      p2: { team: 'A', isAI: true,  name: 'Two',   hand: [], trickHand: [] },
+      p3: { team: 'B', isAI: true,  name: 'Three', hand: [], trickHand: [] },
+      p4: { team: 'B', isAI: true,  name: 'Four',  hand: [], trickHand: [] }
+    }
+  };
+  var advanced = 0;
+  var realStart = G.start2v2Round;
+  G.start2v2Round = function () { advanced++; G.state.twoVTwo.round++; };
+  var realDoDraws = G._2v2DoDraws;
+  G._2v2DoDraws = function () { G.start2v2Round(); };
+
+  // The watchdog's forced advance: leaving round 3, no round named.
+  G._2v2DrawPhase();
+  assertEq(advanced, 1, 'the forced recovery advanced the round once');
+  assertEq(G.state.twoVTwo.round, 4, 'and we are in round 4');
+
+  // The real pipeline lands a moment later, still carrying round 3.
+  var lines = [];
+  var realLog = G.log;
+  G.log = function (m) { lines.push(String(m)); return realLog.apply(G, arguments); };
+  G._2v2DrawPhase(3);
+  G.log = realLog;
+
+  assertEq(advanced, 1, 'the late caller did NOT advance again');
+  assertEq(G.state.twoVTwo.round, 4, 'so round 4 keeps all of its turns');
+  assertEq(lines.some(function (l) { return l.indexOf('already advanced') > -1; }), true,
+    'and it says so — a skipped round that leaves no trace is what made this unreadable');
+
+  // A caller naming the CURRENT round is not stale and still works.
+  G._2v2DrawPhase(4);
+  assertEq(advanced, 2, 'the next genuine advance runs');
+  assertEq(G.state.twoVTwo.round, 5, 'round 5');
+
+  G.start2v2Round = realStart; G._2v2DoDraws = realDoDraws;
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

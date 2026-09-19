@@ -7826,11 +7826,27 @@ const Game = {
     // the moment a combat begins (resolveCombat / _2v2ResolveCombat); the first
     // postCombat consumes it and the duplicate returns here. (User: "the game
     // keeps skipping rounds like i have told you.")
-    if (this.state && !this.state._combatNeedsPostProcess) {
-      console.warn('[postCombat] already ran for this combat — ignoring duplicate advance.');
+    // "NEVER ARMED" IS NOT "ALREADY RAN". The flag above is armed when a combat
+    // BEGINS, so a boolean read of it refuses every postCombat on a state that
+    // never went through resolveCombat — which is every direct call, and that
+    // is how Yoda stopped re-arming, the Iron Giant save stopped recharging,
+    // onBeforeCombat stopped re-arming and Doomsday stopped decaying, all at
+    // once. Six suite failures, none of them about round skipping.
+    //
+    // Key the latch on WHICH combat instead of on a bare true/false. A second
+    // postCombat in the SAME round is the duplicate this exists to refuse; the
+    // next round's is not, and needs no arming to be allowed. state.round is
+    // kept in step with tt.round in 2v2 (see start2v2Round), so one reading
+    // serves both modes.
+    const _pcRound = (this.state && (this.state.round | 0)) || 0;
+    if (this.state && this.state._postCombatRanForRound === _pcRound) {
+      console.warn('[postCombat] already ran for round ' + _pcRound + ' — ignoring duplicate advance.');
       return;
     }
-    if (this.state) this.state._combatNeedsPostProcess = false;
+    if (this.state) {
+      this.state._postCombatRanForRound = _pcRound;
+      this.state._combatNeedsPostProcess = false;
+    }
     // Phase 1 dual-run instrument — compare forecast to actual.
     // Runs before cleanupDead so dead cards still have currentHealth
     // visible for the diff. console.warn each divergence; production
@@ -7951,6 +7967,13 @@ const Game = {
     // Flip the late-round flag so tricks played between now and the
     // next startRound get marked persistent. Cleared in startRound.
     this.state._combatFinishedThisRound = true;
+    // WHICH ROUND THIS COMBAT WAS FOR. The 2v2 round advance is a bare
+    // `tt.round++` with no guard, so two callers reaching it for the same round
+    // eat a whole round of turns — see _2v2DrawPhase.
+    try {
+      const _tt2 = this.state.twoVTwo;
+      if (_tt2) this.state._combatForRound = (_tt2.round | 0);
+    } catch (e) {}
     // Re-arm the pre-combat hooks for the NEXT combat. This is the honest reset
     // point — resolveCombat used to clear it as soon as the hooks had run,
     // which let every mid-combat prompt re-entry fire them all over again.
@@ -19595,6 +19618,24 @@ const Game = {
     if (!this._eventHoldCeiling) this._eventHoldCeiling = nowH + this._EVENT_HOLD_HARD_MAX_MS;
     if (nowH >= this._eventHoldCeiling) {
       this._ballyhooLocalUntil = 0; this._eventHoldCeiling = 0;
+      this._clearEventHold();
+      return false;
+    }
+    // A HOLD FROM A ROUND THAT IS OVER IS NOT A HOLD.
+    // The id encodes the round it was armed in — `(round + 1) * 1000 + seq` —
+    // and that is the only thing standing between a fresh client and a 21.5s
+    // lock it has no business serving. A client seeing an id for the first time
+    // arms the full hold, and "first time" includes every RELOAD and every
+    // reconnect; with the id never cleared from state (see _clearEventHold),
+    // that is any client that refreshes at any point for the rest of the match.
+    // Owner, on their own cards turn with MC Ballyhoo showing 1 LEFT: "my hand
+    // is greyed out i have 4 energy and i cant play martian manhunter."
+    const heldRound = Math.floor(id / 1000) - 1;
+    if (this._ballyhooLocalId !== id && heldRound >= 0 && (s.round | 0) > heldRound) {
+      this._ballyhooLocalId = id;           // seen, and declined
+      this._ballyhooLocalUntil = 0;
+      this._eventHoldCeiling = 0;
+      this._clearEventHold();
       return false;
     }
     if (this._ballyhooLocalId !== id) {
@@ -19631,9 +19672,33 @@ const Game = {
     if (!this._ballyhooLocalUntil || Date.now() >= this._ballyhooLocalUntil) {
       this._ballyhooLocalUntil = 0;
       this._eventHoldCeiling = 0;   // hold lifted — re-arm the ceiling for next time
+      this._clearEventHold();
       return false;
     }
     return true;
+  },
+
+  // THE HOLD HAS TO END IN THE STATE, NOT JUST ON THIS MACHINE.
+  //
+  // _armEventHold wrote _eventHoldId and nothing anywhere ever cleared it, so
+  // every match carried "an event hold happened once" to the end. All the
+  // machinery that ends a hold — _ballyhooLocalUntil, _eventHoldCeiling — lives
+  // on the engine OBJECT, not in state, so it is per-client and starts empty on
+  // a fresh one. A client that reloads or reconnects therefore meets a
+  // months-old id as if it were new and greys the whole table for 21.5 seconds,
+  // on a turn where the event's entrance finished rounds ago.
+  //
+  // Clearing it here is safe on every client. On the authority it stops the id
+  // propagating at all. On a guest it only clears its own copy; if the host
+  // re-broadcasts the id, the _ballyhooLocalId guard above still refuses to
+  // re-arm it, so the worst case is unchanged and the common case is fixed.
+  _clearEventHold() {
+    const s = this.state;
+    if (!s) return;
+    if (s._eventHoldId == null && s._ballyhooLockId == null && s._eventHoldMs == null) return;
+    s._eventHoldId = null;
+    s._ballyhooLockId = null;
+    s._eventHoldMs = null;
   },
 
   // ONE EVENT AT A TIME, EVER. No random event may begin while another is still
@@ -22471,11 +22536,40 @@ const Game = {
     // above so it isn't overwritten, before the broadcast so both sides see it).
     this._tournamentEndOfRound();
     if (tt.online) this._2v2OnlineBroadcast();
-    this._2v2DrawPhase();
+    // Pass the round THIS combat was for. If a watchdog already forced the
+    // advance while this pipeline was mid-flight, the round has moved and this
+    // call is stale — _2v2DrawPhase refuses it rather than skipping a round.
+    const _cfr = this.state._combatForRound;
+    this._2v2DrawPhase(_cfr != null ? _cfr : undefined);
   },
 
-  _2v2DrawPhase() {
+  // `forRound` — the round the caller believes it is leaving. Omitted means
+  // "whatever round it is now", which is right for every normal caller.
+  _2v2DrawPhase(forRound) {
     const tt = this.state.twoVTwo;
+    // ONE ADVANCE PER ROUND, AND THE LATE CALLER LOSES.
+    //
+    // start2v2Round is a bare `tt.round = (tt.round || 0) + 1` with nothing
+    // stopping it running twice — the same shape end2v2Phase had before it got
+    // a turn token. Two callers reach here for the same round whenever the
+    // watchdog forces a recovery while the real post-combat pipeline is still
+    // in flight: the watchdog advances, the pipeline lands a moment later and
+    // advances AGAIN, and the round in between gets exactly as many turns as
+    // fit in that gap. The owner's log is the clean example — "[COMBAT
+    // WATCHDOG] Post-combat stall — forcing next round", then "ROUND 4 BEGINS",
+    // then one seat's turn, then "ROUND 5 BEGINS". Owner: "we are skipping
+    // rounds tht shouldnt happen ever."
+    //
+    // The round a combat belonged to is stamped at postCombat
+    // (_combatForRound), so a pipeline that finishes after a forced advance can
+    // tell that its round is already over. Refused, and SAID — a skipped round
+    // that leaves no trace is what made this read as the game losing its place.
+    const _cur = tt ? (tt.round | 0) : 0;
+    const _for = (forRound != null) ? (forRound | 0) : _cur;
+    if (_for !== _cur) {
+      this.log(`  [2v2] Round ${_for + 1} was already advanced — ignoring a late advance so no one loses a turn.`);
+      return;
+    }
     // Round banner, like 1v1 — announce the upcoming round right after combat,
     // before anyone draws. (Guests catch it via the round-change check in the
     // 2v2 board render when the broadcast lands.)
