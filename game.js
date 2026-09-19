@@ -6917,6 +6917,18 @@ const Game = {
     this._trapOnSettle(card, laneIdx);
     this.cleanupDead();
     this._scaleDoomsdayOnOwnerPlay(owner);
+    // STREAM FREE PLAYS TO GUESTS TOO. playCard and playTrick each push after an
+    // AI-driven play so the guest watches it land live; the FREE path did not —
+    // so an AI seat's JUMP (Jason, Michael Myers, Ghostface), a SUMMON (Gremlin,
+    // Pennywise rising from the Sewers) or any ability free-play stayed invisible
+    // to the guest until the next state push, i.e. until a human acted. Same gate
+    // and same silent push as the paid path. (User, as guest: "i'm still only
+    // seeing the AI cards once the host plays.") Nested free-plays inside a
+    // card's onPlay push too — the guest just sees each summon appear in turn.
+    if (this._2v2AIDriving && this.state && this.state.twoVTwo && this.state.twoVTwo.online
+        && !this.state._silentSim) {
+      try { this._2v2OnlineBroadcast({ silent: true }); } catch (e) {}
+    }
   },
 
   getTrickCost(owner, trick) {
