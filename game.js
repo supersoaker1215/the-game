@@ -7156,7 +7156,10 @@ const Game = {
       const rs = this.state._roundStats;
       (owner === 'player' ? rs.playerTricks : rs.aiTricks).push(trick.name);
     }
-    const who = this.seatLabel(owner);
+    // `let`, not `const`: reassigned below once the trick's seat is stamped, so
+    // the [TRICK] line can name the one player instead of falling back to the
+    // team. The early value is kept only for any reader between here and there.
+    let who = this.seatLabel(owner);
     // 2v2 online: tag the trick with the seat playing it, exactly as playCard
     // tags a card, so everything downstream can ask the trick who played it
     // rather than guess. Idempotent — _2v2OnlinePlayTrick sets it from the
@@ -7196,6 +7199,13 @@ const Game = {
     if (trick && trick._2v2PlayedBy && this.state.twoVTwo && this.state.twoVTwo.players) {
       this._2v2LastPlaySeat = trick._2v2PlayedBy;
     }
+    // The stamp is settled by here, so the line can use it. Computed AFTER the
+    // block on purpose: reading the label first is why this printed both
+    // teammates — it fell back to the live acting chain, and when that chain had
+    // moved on to the other team the only honest answer left was "A & B". The
+    // card path was given this hint already; the trick path was missed.
+    // (Owner: "whoever played pym particles it should just be thier name.")
+    who = this.seatLabel(owner, trick && trick._2v2PlayedBy);
     this.log(`[TRICK] ${who} play ${trick.name} for ${cost} energy`);
     // Surface EVERY trick as the center-screen reveal — yours labelled
     // "You play a Trick", the opponent's with their name (user: "I played
@@ -23575,7 +23585,58 @@ const Game = {
     if (this._2v2LockedQueue.length >= 3) return;
     this._2v2LockedQueue.push({ msg, at: Date.now() });
     this.log(`  [WAIT] ${this._2v2SeatName(msg.playerKey)}'s action is queued — abilities are still resolving.`);
-    if (this.whenPromptCleared) this.whenPromptCleared(() => this._2v2DrainLockedActions());
+    this._2v2WakeLockedQueue();
+  },
+
+  // A LOCK IS NOT ALWAYS A PROMPT, AND THIS QUEUE ONLY LISTENED FOR PROMPTS.
+  //
+  // _2v2ActionsLocked has three terms and exactly one of them is a prompt:
+  // Ballyhoo's timed hold and tt._resolving are the other two, and both end on
+  // the clock rather than on an answer. whenPromptCleared runs its callback
+  // IMMEDIATELY when nothing is pending, so an action queued behind one of
+  // those drained straight back into a still-locked table, re-queued, and
+  // drained again — synchronously and without bound, because the drain empties
+  // the queue before the three-item cap can trip.
+  //
+  // A timed re-check is what those two locks need. The armed flag makes
+  // re-entrancy impossible, and a prompt-clear still wakes it early so the
+  // common case stays as responsive as it was.
+  _2v2WakeLockedQueue() {
+    if (this._2v2LockedWakeArmed) return;
+    // THERE IS NO "LATER" IN SYNC MODE. _schedule runs its callback IMMEDIATELY
+    // when _syncMode is set (the headless sim and every silent forecast), so a
+    // retry loop here is not a retry — it is unbounded recursion, and that is
+    // exactly what it was: 189 of 200 hunter games died on it before this line
+    // existed. A sim has no wall clock for a timed hold to expire against
+    // anyway, and its other drain callers cover the prompt case.
+    if (this._syncMode) return;
+    // AND A BOUNDED ONE EVEN WITH A REAL CLOCK. Every lock this waits on ends —
+    // Ballyhoo at 30s, tt._resolving at 8s, a prompt at the 90s floor — so a
+    // queue still held after two minutes is not waiting, it is stranded. Drop it
+    // rather than spin, and say so.
+    const q = this._2v2LockedQueue || [];
+    if (!q.length) { this._2v2LockedWakeTries = 0; return; }
+    this._2v2LockedWakeTries = (this._2v2LockedWakeTries || 0) + 1;
+    if (this._2v2LockedWakeTries > 240) {
+      this._2v2LockedWakeTries = 0;
+      this._2v2LockedQueue = [];
+      this.log('  [2v2] Held actions timed out — the table never freed up. Play again.');
+      return;
+    }
+    this._2v2LockedWakeArmed = true;
+    const tick = () => {
+      this._2v2LockedWakeArmed = false;
+      if (!(this._2v2LockedQueue || []).length) { this._2v2LockedWakeTries = 0; return; }
+      if (this._2v2ActionsLocked()) { this._2v2WakeLockedQueue(); return; }   // still held — look again
+      this._2v2LockedWakeTries = 0;
+      this._2v2DrainLockedActions();
+    };
+    if (this.hasPendingPrompt && this.hasPendingPrompt() && this.whenPromptCleared) {
+      this.whenPromptCleared(() => { this._2v2LockedWakeArmed = false; this._2v2WakeLockedQueue(); });
+      return;
+    }
+    try { this._schedule(tick, 500); }
+    catch (e) { this._2v2LockedWakeArmed = false; }   // no scheduler: other callers still drain
   },
   _2v2DrainLockedActions() {
     const q = this._2v2LockedQueue || [];
@@ -23583,7 +23644,7 @@ const Game = {
     this._2v2LockedQueue = [];
     q.forEach((e) => {
       if (Date.now() - (e.at || 0) > 12000) return;          // too late to be what they meant
-      if (this._2v2ActionsLocked()) { this._2v2QueueLockedAction(e.msg); return; }
+      if (this._2v2ActionsLocked()) { this._2v2QueueLockedAction(e.msg); return; }   // re-queued; the wake timer looks again
       try { this._apply2v2OnlineAction(e.msg); } catch (err) { console.error('[2v2] queued action failed:', err); }
     });
   },
@@ -23691,7 +23752,20 @@ const Game = {
       }
       case 'end2v2Phase':
         if (pk !== activeKey) break;
-        if (this._2v2ActionsLocked()) { this.log(`  [WAIT] ${this._2v2SeatName(pk)} must wait — abilities are still resolving.`); break; }
+        // HELD, NOT THROWN AWAY. Every other action kind in this switch goes
+        // through _2v2QueueLockedAction and is replayed the moment the table
+        // frees up; end2v2Phase alone logged a line and dropped the message. So
+        // a seat that pressed End Turn while a trick was still resolving had the
+        // click vanish — their client had already cleared its selection, the
+        // turn never ended, and from their chair the game had simply stopped.
+        // Owner, watching their teammate: "in my end the pym particles resolved
+        // but on ryans end it did not and hes stuck."
+        //
+        // Safe for the same reason the others are: the re-entry comes through
+        // THIS door, so every check runs again on arrival — the `pk !==
+        // activeKey` guard above included. An end-turn whose turn has passed
+        // while it waited is rejected then, exactly as it would have been.
+        if (this._2v2ActionsLocked()) { this._2v2QueueLockedAction(msg); break; }
         this.end2v2Phase(null, { actor: pk });   // the guest ending their OWN turn
         break;
       case '2v2TeamSwap':

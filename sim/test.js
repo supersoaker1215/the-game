@@ -11679,6 +11679,58 @@ test("Thor's thunder lands even if the freeze prompt is never answered", functio
   assertEq(before2 - far.currentHealth, 5, 'answering the prompt does not splash a second time');
 });
 
+// Regression: a 2v2 End Turn refused by the action lock is HELD, not dropped.
+//
+// Owner, watching their teammate after a Pym Particles resolved on their own
+// screen: "in my end the pym particles resolved but on ryans end it did not and
+// hes stuck." Every action kind in _apply2v2OnlineAction goes through
+// _2v2QueueLockedAction and is replayed when the table frees up — except
+// end2v2Phase, which logged a line and threw the message away. The seat had
+// already cleared its selection, so from their chair the button did nothing and
+// the turn never ended.
+test('2v2: an End Turn refused by the lock is queued, not thrown away', function () {
+  var G = freshGame();
+  var src = String(G._apply2v2OnlineAction);
+  // The handler is one switch; the end2v2Phase arm must reach the same queue
+  // the others do rather than break on a log line.
+  var arm = src.slice(src.indexOf("case 'end2v2Phase'"));
+  arm = arm.slice(0, arm.indexOf('case ', 10));
+  assertEq(/_2v2QueueLockedAction/.test(arm), true,
+    'a locked End Turn is queued for replay');
+  assertEq(/must wait — abilities are still resolving.*\n?\s*break/.test(arm), false,
+    'and is no longer dropped with only a log line');
+});
+
+// Regression: the held-action queue has to wake for EVERY kind of lock.
+//
+// _2v2ActionsLocked has three terms and only one is a prompt — Ballyhoo's timed
+// hold and tt._resolving are the other two, and both end on the clock.
+// whenPromptCleared runs its callback immediately when nothing is pending, so an
+// action queued behind one of those drained into a still-locked table, re-queued
+// and drained again, without bound — the drain empties the queue before the
+// three-item cap can trip.
+test('2v2: the held-action queue does not spin when the lock is not a prompt', function () {
+  var G = freshGame();
+  var wake = String(G._2v2WakeLockedQueue);
+  // In sync mode _schedule runs its callback inline, so a retry loop there is
+  // recursion, not a retry. 189 of 200 hunter games died on exactly that.
+  assertEq(/_syncMode/.test(wake), true, 'it stands down when there is no real clock');
+  // And it is bounded even with one: every lock it waits on expires.
+  assertEq(/_2v2LockedWakeTries/.test(wake), true, 'the retry is counted');
+  assert(/>\s*\d{2,}/.test(wake), 'and capped');
+
+  // Behavioural: sync mode must not recurse, whatever the lock says.
+  var prevSync = G._syncMode;
+  G._syncMode = true;
+  var prevLocked = G._2v2ActionsLocked;
+  G._2v2ActionsLocked = function () { return true; };      // permanently held
+  G._2v2LockedQueue = [{ msg: { t: 'end2v2Phase', playerKey: 'p1' }, at: Date.now() }];
+  var threw = null;
+  try { G._2v2WakeLockedQueue(); } catch (e) { threw = e; }
+  G._2v2ActionsLocked = prevLocked; G._syncMode = prevSync; G._2v2LockedQueue = [];
+  assertEq(threw, null, 'a permanently-held table does not blow the stack');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 
