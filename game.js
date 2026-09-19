@@ -23961,17 +23961,19 @@ const Game = {
     s[side].deadPile = tt.teams[p.team].deadPile;
     s.drawPile = tt.drawPile; s.trickDrawPile = tt.trickDrawPile;
     const unbridge = () => {
-      // CARRY THE BLOCK-METER DELTA. This bridge runs during COMBAT for a
-      // block-earned free trick (Two-Face Coin, etc.), and there the combat
-      // PROXY s[side].blockMeter is the live, authoritative copy — postCombat
-      // syncs proxy→team. Blindly restoring the proxy to saved.bm discarded any
-      // fill the trick made (it only reached the team), and postCombat then
-      // clobbered the team back from the untouched proxy — so the fill vanished.
-      // Restore saved.bm PLUS whatever the trick added, so the live proxy shows
-      // the fill too. Outside combat saved.bm equals the team value, so this is
-      // identical to the old restore. (User: "he played the two face coin and
-      // the ability to fill the block meter never fired.")
-      const bmDelta = (s[side].blockMeter || 0) - (tt.teams[p.team].blockMeter || 0);
+      // BLOCK METER IS TEAM-LEVEL — MIRROR IT, DON'T RESTORE A SEAT COPY.
+      // This bridge runs during COMBAT for a block-earned free trick (Two-Face
+      // Coin, etc.). Both teammates share ONE block meter (tt.teams[team]), so
+      // the proxy s[side].blockMeter must always equal the team value — it is
+      // never a per-seat quantity to save and put back. The old code saved the
+      // proxy at bridge-setup and restored saved.bm + a delta, which assumed the
+      // trick wrote ONLY the proxy; but setBlockMeter writes team AND proxy in
+      // lockstep (see setBlockMeter), so the delta was always 0 and the proxy got
+      // reset to the pre-trick value. postCombat then synced that 0 proxy back
+      // onto the team and the fill vanished. Sync the team from the trick's
+      // result, then point the proxy AT the team, so both carry the fill.
+      // (User: "i played the two face coin for free and never got any block
+      // meter from it.")
       tt.teams[p.team].health = s[side].health;
       tt.teams[p.team].blockMeter = s[side].blockMeter;
       // Same rule as the seat-hand bridge above: adopt a replacement, never the
@@ -23980,7 +23982,7 @@ const Game = {
       tt.trickDrawPile = this._adoptPile(tt.trickDrawPile, s.trickDrawPile, saved.trickDraw, 'trickDrawPile');
       s[side].hand = saved.hand; s[side].trickHand = saved.trick; s[side].currency = saved.cur;
       s[side].health = saved.hp; s[side].maxHealth = saved.mhp;
-      s[side].blockMeter = Math.max(0, Math.min(this.BLOCK_MAX || 8, (saved.bm || 0) + bmDelta));
+      s[side].blockMeter = tt.teams[p.team].blockMeter;
       s[side].deadPile = saved.dead;
       s.drawPile = saved.draw; s.trickDrawPile = saved.trickDraw;
     };
