@@ -110,6 +110,9 @@ echo ""
 echo "=== css-parse.js (the stylesheet says what it looks like it says) ==="
 run_suite sim/css-parse.js
 
+echo "=== gfx-budget.js (nothing repaints every frame at the Normal tier) ==="
+run_suite sim/gfx-budget.js
+
 echo ""
 echo "=== bat-lock.js (a locked card does not look like an expensive one) ==="
 run_suite sim/bat-lock.js

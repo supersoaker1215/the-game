@@ -39192,21 +39192,28 @@ body.hand-text-always .trick-cards .trick-card.face-flipped .trick-desc {
     animation: none !important;
   }
 }
-/* Same list for the explicit low-power toggle, which mirrors the mobile block. */
-body.low-fx .badge-critical,
-body.low-fx .badge-burning,
-body.low-fx .badge-crazy,
-body.low-fx .badge-insane,
-body.low-fx .game-particle,
-body.low-fx .card-damaged .stat-hp,
-body.low-fx .card.status-crazy,
-body.low-fx .card.status-critical,
-body.low-fx .card.status-stunned,
-body.low-fx .card.status-frozen,
-body.low-fx .card.status-feared,
-body.low-fx .card.status-mind-ctrl,
-body.low-fx .card.status-burning:not(.card-enter):not(.card-exit),
-body.low-fx .card-frost::after {
+/* PROMOTED FROM low-fx TO fx-lean — i.e. from Reduced to Normal-or-lower.
+   This list was already the right list, and the argument above is already the
+   right argument: these run continuously, several of them once PER CARD, and
+   the informative half of each cue is a separate static rule. It was simply
+   gated at the wrong tier — you had to accept Reduced, which also flattens the
+   whole 3D card stack, to stop a 0.6s text flash repeating on every card for
+   the length of the match. Reduced still gets all of it: body.low-fx carries
+   fx-lean too. (See THE GRAPHICS SCALE at the end of this sheet.) */
+body.fx-lean .badge-critical,
+body.fx-lean .badge-burning,
+body.fx-lean .badge-crazy,
+body.fx-lean .badge-insane,
+body.fx-lean .game-particle,
+body.fx-lean .card-damaged .stat-hp,
+body.fx-lean .card.status-crazy,
+body.fx-lean .card.status-critical,
+body.fx-lean .card.status-stunned,
+body.fx-lean .card.status-frozen,
+body.fx-lean .card.status-feared,
+body.fx-lean .card.status-mind-ctrl,
+body.fx-lean .card.status-burning:not(.card-enter):not(.card-exit),
+body.fx-lean .card-frost::after {
   animation: none !important;
 }
 
@@ -52568,3 +52575,167 @@ body.low-fx .card-glow-host { filter: none !important; }
   .block-circle.block-tier-brink,
   .twov2-block-pip-row.block-tier-brink .twov2-block-pip.twov2-pip-filled { animation: none; }
 }
+
+/* ============================================================
+   THE GRAPHICS SCALE — fx-lean (Normal or lower)
+   ------------------------------------------------------------
+   Measured on a representative 10-card board before this block existed:
+
+     FULL     23 infinite animations running, 14 of them repainting their
+              element EVERY FRAME, forever
+     REDUCED   0
+
+   Two positions with a cliff between them. Twelve of those fourteen are the
+   per-card `vibe` effects, so the bill grew with every body that landed —
+   which is what "after round 6 the game lags" actually was. Nothing got
+   slower; there was just more of it.
+
+   So: three nested positions. `fx-lean` is Normal-or-lower and carries
+   everything below; `low-fx` stays Reduced-only and every rule already
+   written against it is untouched.
+
+   THE LINE IS NOT "FEWER EFFECTS". A one-shot fires when something happens
+   and then stops — it costs a moment of GPU and tells the player something.
+   An idle loop costs the battery for the whole match and says nothing. Normal
+   keeps every moment and drops every loop that REPAINTS (filter, box-shadow,
+   background-position, text-shadow). Loops that only touch transform/opacity
+   are handed to the compositor and stay: they are close to free and they are
+   most of the character.
+
+   Where a loop was the only thing producing a look, the look is re-stated
+   here as a static value, so Normal reads as calm rather than as missing.
+   ============================================================ */
+
+/* ---- 1. THE PER-CARD VIBES ----------------------------------------------
+   The expensive half of each is dropped and the cheap half kept, so a Titan
+   still breathes and a Cosmic still drifts — they just stop repainting. */
+
+/* Cosmic: hue-rotate (repaint) out, the rotate drift stays. */
+body.fx-lean .card.vibe-cosmic:not(.card-enter):not(.card-exit) {
+  animation: vibeCosmicDrift 6.3s ease-in-out infinite;
+}
+/* Slasher: the menace WAS a box-shadow loop, so it becomes the static high
+   point of that loop — the red stays, the repaint goes.
+   `!important` on the animation because the rule it overrides carries one, and
+   an important declaration is not beaten by specificity at any weight. Measured
+   without it: the slasher loop was the ONE vibe still running at Normal. */
+body.fx-lean .card.vibe-slasher:not(.card-enter):not(.card-exit) {
+  animation: none !important;
+  box-shadow: 0 0 15px rgba(160,30,30,0.70), 0 0 30px rgba(160,30,30,0.35) !important;
+}
+/* Titan: one keyframe animated BOTH scale and brightness. Split it — the
+   breathe is the point and it is free; the brightness was the repaint. */
+@keyframes vibeTitanBreatheLean {
+  0%,100% { transform: scale(1);     }
+  50%     { transform: scale(1.018); }
+}
+body.fx-lean .card.vibe-titan:not(.card-enter):not(.card-exit) {
+  animation: vibeTitanBreatheLean 3.6s ease-in-out infinite;
+}
+/* Phase: same split. Opacity is compositor-cheap, so the shimmer survives
+   in full; only the brightness filter goes. */
+@keyframes vibePhaseShimmerLean {
+  0%,100% { opacity: 1;    }
+  50%     { opacity: 0.82; }
+}
+body.fx-lean .card.vibe-phase:not(.card-enter):not(.card-exit) {
+  animation: vibePhaseShimmerLean 2.8s ease-in-out infinite;
+}
+/* Magnetic: both of its loops repaint (hue filter + box-shadow halo). The
+   halo becomes static and the hue cycle stops. */
+body.fx-lean .card.vibe-magnetic:not(.card-enter):not(.card-exit) {
+  animation: none;
+  box-shadow: 0 0 16px rgba(138,110,186,0.48), 0 0 29px rgba(138,110,186,0.23) !important;
+}
+/* Crazy: the promoted list above stops BOTH of its loops (the transform wobble
+   and the filter glitch) because it was written for Reduced. At Normal the
+   wobble is worth keeping — it is compositor-only, and it is the whole read of
+   the card — so it is restored here and only the glitch stays off. Reduced,
+   which is stricter, leaves both stopped. */
+body.fx-lean:not(.low-fx) .card.status-crazy {
+  animation: cardCrazyWobble 3.4s ease-in-out infinite !important;
+}
+
+/* ---- 2. AMBIENT BACKDROPS ----------------------------------------------
+   Nothing on the board reacts to these; they scroll a background-position
+   forever, which repaints the whole surface. The art stays, it just holds
+   still. SELECTORS RESOLVED FROM THE SHEET, not guessed — the grid lives on
+   body::before and the scanline roll on body.crt-on::after, so the obvious
+   `.tron-grid` / `.crt-scanlines` spellings would both have been inert. */
+body.fx-lean::before { animation: none !important; }
+body.fx-lean.crt-on::after { animation: none !important; }
+body.fx-lean .board-section .crt-scanlines { animation: none !important; }
+body.fx-lean .tron-shimmer { animation: none !important; }
+
+/* ---- 3. THE HUD'S IDLE PULSES ------------------------------------------
+   A heartbeat on the pill and a brightness cycle on the round number and the
+   deck/trick counts, all running for the whole match, none of them signalling
+   anything. The URGENT ones — low health, lethal, a live prompt — are NOT here:
+   those are signals and they stay at every tier. */
+body.fx-lean .hud-pill-main { animation: none !important; }
+body.fx-lean .hud-count b { animation: none !important; }
+body.fx-lean .hud-round #round-num { animation: none !important; }
+body.fx-lean .lane .lane-sep.lane-active .lane-number { animation: none !important; }
+
+/* ---- 4. THE BLOCK METER'S BRINK HUM -------------------------------------
+   Shipped animating `filter`, which is exactly the class of loop this block
+   exists to remove — and it runs while the meter sits one hit from full,
+   which can be most of a round. The SIGNAL is worth keeping, so at Normal it
+   becomes the same beat on `transform` with the glow held at its bright value;
+   at Reduced it stops entirely. */
+@keyframes blockBrinkHumLean {
+  0%, 100% { transform: scale(1);     }
+  50%      { transform: scale(1.045); }
+}
+body.fx-lean .block-circle.block-tier-brink {
+  filter: drop-shadow(0 0 11px rgba(var(--gold-rgb), 0.75));
+  animation: blockBrinkHumLean 1.15s ease-in-out infinite;
+}
+body.fx-lean .twov2-block-pip-row.block-tier-brink .twov2-block-pip.twov2-pip-filled {
+  animation: blockBrinkHumLean 1.15s ease-in-out infinite;
+}
+body.low-fx .block-circle.block-tier-brink,
+body.low-fx .twov2-block-pip-row.block-tier-brink .twov2-block-pip.twov2-pip-filled {
+  animation: none !important;
+}
+
+/* ---- 5. THE TWO STATUS FLICKERS THE PROMOTED LIST MISSES ---------------
+   .badge-critical / .badge-burning / .badge-crazy / .badge-insane are handled
+   by the list further up this sheet, now promoted to fx-lean. These two carry
+   the same shape and were never on it: a text-shadow loop, per afflicted card,
+   for the life of the match. The badge text still reads BLEED / HUNT. */
+body.fx-lean .badge-bleed,
+body.fx-lean .badge-hunt-meter-full { animation: none !important; }
+
+/* ---- 5b. THE SIX THE BUDGET AUDIT FOUND --------------------------------
+   Found by sim/gfx-budget.js rather than by eye, which is the point of it —
+   every one repaints on a LIVE board and several run once per card, so the bill
+   grows with the board. The static look each produced is re-stated here so
+   Normal reads as calm, not as missing.
+     .badge-fear-aura              a filter glitch, per feared card
+     .card-burn                    a box-shadow flicker, per burning card
+     .card-taunt                   a box-shadow rim, per taunting card
+     .lane.lane-rift .lane-env-bg  a filter breathe, per Rift lane
+     .card.unplayable.table-waiting a filter breathe on EVERY unplayable card in
+                                   hand — i.e. your whole hand, for as long as
+                                   you are waiting on another seat in 2v2
+     .tron-fx-breathe              an outline-color loop
+   `!important` throughout: several of the rules being overridden carry one, and
+   an important declaration is not beaten by specificity at any weight. */
+body.fx-lean .badge-fear-aura,
+body.fx-lean .card-burn,
+body.fx-lean .card-taunt,
+body.fx-lean .lane.lane-rift > .lane-env-bg,
+body.fx-lean .card.unplayable.table-waiting,
+body.fx-lean .tron-fx-breathe { animation: none !important; }
+/* …and what those loops were the only source of, held at their bright value. */
+body.fx-lean .card-burn  { box-shadow: 0 0 15px rgba(255,120,40,0.60), 0 0 28px rgba(255,80,20,0.30); }
+body.fx-lean .card-taunt { box-shadow: 0 0 14px rgba(255,190,60,0.55), 0 0 26px rgba(255,190,60,0.26); }
+
+/* ---- 6. WHAT NORMAL DOES NOT TOUCH -------------------------------------
+   Deliberately absent from this block, and they must stay absent: the block
+   flare and BLOCKED! title, the lane slide and its wake, the void collapse,
+   every signature cast cinematic, card entrances and deaths, damage floats,
+   screen shake, the trick reveal. Every one of them is a one-shot tied to
+   something the player did. They are the reason the game feels good and they
+   cost nothing while nothing is happening. */

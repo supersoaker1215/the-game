@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=1680">
+  <link rel="stylesheet" href="style.css?v=1681">
   <!-- BOARD V2 — the redesign, off by default. Every rule inside is scoped to
        body.board-v2 so it is inert until BoardV2.set(true). -->
   <link rel="stylesheet" href="board-v2.css?v=108">
@@ -759,10 +759,11 @@
           <input type="checkbox" id="setting-tooltips" checked>
         </div>
         <div class="settings-row">
-          <label for="setting-graphics" title="Reduced drops the 3D card tilt, camera parallax and cursor trail. Use it if card art or names show up blank on the board, or flicker when you move the mouse.">Graphics</label>
+          <label for="setting-graphics" title="Normal keeps every animation that marks a moment and stops the ones that idle forever — it is the kind one on a battery. Full adds the ambient loops back. Reduced also drops the 3D card tilt, camera parallax and cursor trail; use it if card art or names show up blank on the board, or flicker when you move the mouse.">Graphics</label>
           <select id="setting-graphics">
             <option value="auto">Auto (detect)</option>
             <option value="high">Full effects</option>
+            <option value="normal">Normal (easier on battery)</option>
             <option value="low">Reduced (fixes blank cards)</option>
           </select>
         </div>
@@ -918,7 +919,7 @@
        shared). Loaded BEFORE leaderboard.js so the client sees it on boot. -->
   <script>window.CLB_STATS_URL = "https://card-lane-battle-stats.ryanvtagle.workers.dev";</script>
   <script src="leaderboard.js?v=4"></script>
-  <script src="ui.js?v=1678"></script>
+  <script src="ui.js?v=1679"></script>
   <script src="board-v2.js?v=32"></script>
   <!-- Party voice chat. Loads after ui.js because it paints its own panel and
        reads Game/Multiplayer state; it asks for nothing until you press Join. -->

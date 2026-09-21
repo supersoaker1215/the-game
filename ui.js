@@ -1056,9 +1056,10 @@ const UI = {
     // Static, GPU-cheap (one optimized JPEG + a CSS blend). Intensity 0..1.
     menuFlow: true,
     menuFlowIntensity: 0.18,
-    // Graphics mode — 'auto' | 'high' | 'low'. Controls body.low-fx, which
-    // flattens the 3D card/camera stack. See _detectLowFx() and the
-    // BLANK-CARD block in style.css for why this exists.
+    // Graphics mode — 'auto' | 'high' | 'normal' | 'low'. Drives the nested
+    // body classes fx-lean (Normal or lower) and low-fx (Reduced). 'auto'
+    // resolves to Normal unless detection finds a machine that needs Reduced.
+    // See _setFxTier() and the GRAPHICS SCALE block in style.css.
     graphics: 'auto',
     // Hand card text — 'flip' (default: art on front, click/hover to reveal the
     // rules) or 'always' (rules shown at rest under the art). User preferred
@@ -34508,35 +34509,88 @@ const UI = {
     requestAnimationFrame(step);
   },
 
-  _setLowFx(on, opts) {
-    this._lowFxActive = !!on;
-    // Remember WHO turned it on. The probe may only ever reverse itself —
-    // a Settings choice of Reduced is the player's and stays until they change
-    // it. Without this the recovery branch could silently override them.
-    if (on) this._lowFxAuto = !(opts && opts.fromSettings);
+  // ---- THE GRAPHICS SCALE ----
+  //
+  // This used to be a switch with two positions, and the gap between them was a
+  // cliff: measured on a representative 10-card board, FULL ran 23 infinite
+  // animations and REDUCED ran none. Fourteen of those 23 repaint their element
+  // every frame for as long as they run — and twelve of the fourteen are the
+  // per-card `vibe` effects, so the bill grows with every body that lands. That
+  // is the shape of "after round 6 the game lags": nothing got slower, there
+  // was just more of it.
+  //
+  // So there are three positions, and they NEST — Reduced is Normal plus more,
+  // rather than a different switch. `fx-lean` is "Normal or lower" and carries
+  // everything Normal drops; `low-fx` is Reduced only and still carries all the
+  // rules written against it, unchanged.
+  //
+  //   full    (no classes)        everything, as before
+  //   normal  fx-lean             every MOMENT, no idle loop that repaints
+  //   low     fx-lean low-fx      as Reduced has always been
+  //
+  // The dividing line at Normal is not "fewer effects" — it is that a one-shot
+  // fires when something happens and then stops, while an idle loop costs the
+  // battery forever and tells the player nothing. Normal keeps every moment and
+  // drops every loop that repaints. (Owner: "if normal is 100, reduced is 70% —
+  // why not reduce the normal to 80% and now reduced will scale down ... lag and
+  // battery consumption is high with this game we need it under control.")
+  _FX_TIERS: ['full', 'normal', 'low'],
+
+  _setFxTier(tier, opts) {
+    if (this._FX_TIERS.indexOf(tier) < 0) tier = 'normal';
+    this._fxTier = tier;
+    this._lowFxActive = (tier === 'low');
+    // Remember WHO chose it. The runtime probe may only ever reverse itself — a
+    // Settings choice is the player's and stays until they change it.
+    if (tier === 'low') this._lowFxAuto = !(opts && opts.fromSettings);
     else if (!(opts && opts.fromSettings)) this._lowFxAuto = false;
-    document.body.classList.toggle('low-fx', !!on);
+    const b = document.body;
+    if (!b) return;
+    b.classList.toggle('fx-lean', tier !== 'full');
+    b.classList.toggle('low-fx', tier === 'low');
+  },
+
+  // The tier the player's own Settings ask for, ignoring anything the runtime
+  // probe has done. The probe returns HERE when frames recover, so earning it
+  // back gives you Normal — not Full, which is a tier nobody selected.
+  _settingsFxTier() {
+    const mode = (this.settings && this.settings.graphics) || 'auto';
+    if (mode === 'low') return 'low';
+    if (mode === 'high') return 'full';
+    if (mode === 'normal') return 'normal';
+    return null;   // 'auto' — detection decides
+  },
+
+  // Kept for the runtime probe and any older caller: on → Reduced, off → back to
+  // whatever the player actually asked for (Normal by default), never to Full.
+  _setLowFx(on, opts) {
+    if (on) { this._setFxTier('low', opts); return; }
+    const want = this._settingsFxTier();
+    this._setFxTier(want || 'normal', opts);
   },
 
   // Resolve settings.graphics → body.low-fx. Called on load and whenever
   // Settings saves.
   applyGraphicsMode() {
-    const mode = this.settings.graphics || 'auto';
     // fromSettings marks these as the PLAYER's decision, so the probe's
-    // recovery branch can never quietly undo an explicit choice of Reduced.
-    if (mode === 'low') {
-      this._lowFxReason = 'forced in Settings';
-      this._setLowFx(true, { fromSettings: true });
+    // recovery branch can never quietly undo an explicit choice.
+    const chosen = this._settingsFxTier();
+    if (chosen) {
+      this._lowFxReason = chosen === 'low' ? 'forced in Settings'
+                        : chosen === 'full' ? 'full effects chosen in Settings'
+                        : 'normal effects chosen in Settings';
+      this._setFxTier(chosen, { fromSettings: true });
       return;
     }
-    if (mode === 'high') {
-      this._lowFxReason = 'disabled in Settings';
-      this._setLowFx(false, { fromSettings: true });
-      return;
-    }
+    // AUTO NOW LANDS ON NORMAL, NOT FULL. Detection only ever answered "is this
+    // machine broken enough for Reduced", so everybody else got every idle loop
+    // in the sheet by default — including phones, which is where the battery
+    // complaint comes from. A machine that fails detection still drops to
+    // Reduced; everyone else gets the tier that keeps the moments and not the
+    // loops.
     const d = this._detectLowFx();
     this._lowFxReason = d.reason;
-    this._setLowFx(d.low);
+    this._setFxTier(d.low ? 'low' : 'normal');
   },
 
   // One-time, dismissible note so a player on a broken machine knows why
