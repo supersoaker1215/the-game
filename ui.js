@@ -34035,7 +34035,33 @@ const UI = {
     // nothing for the joining player. The prompt is local to whoever is
     // placing the card (state is seat-flipped on the guest, so `s.player` is
     // always the local human), and the resulting flag rides the wire.
-    if (Game.canPlayFaceDown('player') && !card.isDiscardEffect) {
+    //
+    // TWO PLACES OFFER THIS, AND ONLY ONE KNOWS ABOUT TEAMS. In 2v2 the
+    // 'player' side is hardcoded to TEAM A (Game._2v2TeamSide.A), NOT the local
+    // viewer — so canPlayFaceDown('player') answers "does team A have an
+    // Invisible Woman", and a team-B player facing a team-A Invisible Woman was
+    // offered the stealth prompt for the ENEMY's card. Worse, in 2v2 ONLINE this
+    // prompt's answer never reached the play: submitCommand routes to
+    // _submitCommand2v2, which reads p.faceDown (undefined here) and re-derives
+    // the choice from _2v2TeamCanFaceDown — so the card went down face UP no
+    // matter what was picked. (User: "the enemy team has Invisible Woman and it
+    // gave ME the face-up/face-down prompt and it doesn't work.") So:
+    //   • 2v2 ONLINE — do NOT prompt here; _submitCommand2v2 owns the correct,
+    //     team-aware prompt (_2v2TeamCanFaceDown(you)) and honours the answer.
+    //   • LOCAL 2v2 — prompt, but ask the ACTIVE seat's TEAM, not team A.
+    //   • 1v1 — unchanged.
+    const _tt = Game.state && Game.state.twoVTwo;
+    const _is2v2 = !!(Game.is2v2 && Game.is2v2() && _tt);
+    let _canFaceDown;
+    if (_is2v2 && _tt.online) {
+      _canFaceDown = false;
+    } else if (_is2v2) {
+      const _seat = Game._2v2ActivePlayer && Game._2v2ActivePlayer();
+      _canFaceDown = !!(Game._2v2TeamCanFaceDown && Game._2v2TeamCanFaceDown(_seat));
+    } else {
+      _canFaceDown = Game.canPlayFaceDown('player');
+    }
+    if (_canFaceDown && !card.isDiscardEffect) {
       const faceUp = { name: 'Play Face Up', desc: 'Play normally — all abilities activate', id: 'faceup_opt' };
       const faceDown = { name: 'Play Face Down', desc: 'Hidden until combat — abilities activate on reveal', id: 'facedown_opt' };
       Game.promptCardChoice('player', [faceUp, faceDown],
