@@ -597,11 +597,50 @@ const AI = {
   // After the queue drains, pause an additional aiEndOfTurnMs ms
   // before invoking onComplete so the final board state has time
   // to read.
-  _runAIQueue(actions, onComplete) {
+  // ---- WHOSE TURN THIS WORK BELONGS TO ----
+  //
+  // EVERY AI LOOP IN THIS FILE IS PACED. The queue below fires one action per
+  // step, the trick loop casts one trick per step, and both wait out any open
+  // prompt in between — so seconds pass between the first action and the last.
+  // In 2v2 a seat's turn can end inside that gap: the 12s drive watchdog
+  // force-ends a hung seat, a teammate presses Done, a round advances. None of
+  // these loops knew turns existed, so the remainder of the queue fired into the
+  // NEXT seat's turn.
+  //
+  // playCard's own out-of-turn guard refuses those plays, and the owner watched
+  // it do exactly that — "[OUT OF TURN] Joker was not played — it is Cortex's
+  // turn" one line under "Cortex's turn — p4-cards-tricks", for cards belonging
+  // to the seat BEFORE him. But a bot repeatedly attempting plays it is not
+  // allowed to make is a bot that has quietly lost its turn; the refusals are
+  // the symptom. (Owner: "cortex is trying to play out of turn for some reason,
+  // just play on his turn ... its good to block cards played out of turn the
+  // guard is doing its job but just play in a dedicated turn easy.")
+  //
+  // The engine already mints exactly one token per sub-phase and bumps it in the
+  // single place every sub-phase passes through (_2v2StartSubPhase). Capture it
+  // when the work starts; stop the moment it moves. 1v1 never bumps it, so this
+  // is inert there, and a caller that passes its own guard (a rescheduled retry)
+  // keeps the ORIGINAL turn's token rather than minting a fresh one.
+  _turnGuard() {
+    const tok = (typeof Game !== 'undefined') ? Game._2v2TurnToken : undefined;
+    return () => (typeof Game === 'undefined') || Game._2v2TurnToken === tok;
+  },
+
+  _runAIQueue(actions, onComplete, stillMyTurn) {
     const preDelay  = this.aiStepMs();
     const postDelay = this.aiPostPlayMs();
     let i = 0;
     const step = () => {
+      // THE TURN ENDED UNDER US — STOP, DON'T PUSH ON. Checked before the
+      // prompt gate below as well as before each action, because a queue parked
+      // on whenPromptCleared is exactly the one most likely to come back late.
+      // onComplete still fires: the 2v2 drive's finish() is what releases the
+      // drive lock, and it already refuses to advance a turn that is not its own.
+      if (stillMyTurn && !stillMyTurn()) {
+        document.body && document.body.classList.remove('ai-thinking');
+        if (onComplete) onComplete();
+        return;
+      }
       // HOLD FOR ANY PENDING PROMPT — FIRST, before the done-check.
       //
       // This gate used to sit only BETWEEN actions, AFTER the "queue is done"
@@ -716,7 +755,12 @@ const AI = {
     ).join('\n');
   },
 
-  playCards(owner = 'ai', onComplete) {
+  playCards(owner = 'ai', onComplete, stillMyTurn) {
+    // Captured at entry — see _turnGuard. A rescheduled retry passes the guard
+    // it already had, so waiting out an event hold cannot silently re-arm the
+    // work against whatever turn happens to be live when the retry lands.
+    const mine = stillMyTurn || this._turnGuard();
+    if (!mine()) { if (onComplete) onComplete(); return; }
     if (Game.isMultiplayer && Game.isMultiplayer()) { if (onComplete) onComplete(); return; }
     // WAIT OUT A RANDOM-EVENT HOLD, DON'T STALL ON IT. While MC Ballyhoo / the
     // Shadow Man / a Cog VP is doing its reveal the board is locked so plays
@@ -726,7 +770,7 @@ const AI = {
     // has a hard 30s ceiling, so this always resumes, and the moment it lifts the
     // AI takes its turn. Covers every current and future random event.
     if (Game.ballyhooLocked && Game.ballyhooLocked()) {
-      Game._schedule(() => this.playCards(owner, onComplete), 400);
+      Game._schedule(() => this.playCards(owner, onComplete, mine), 400);
       return;
     }
     const s = Game.state;
@@ -1051,7 +1095,7 @@ const AI = {
       });
     }
 
-    this._runAIQueue(queue, onComplete);
+    this._runAIQueue(queue, onComplete, mine);
   },
 
   // ===================== LANE SELECTION =====================
@@ -1643,7 +1687,9 @@ const AI = {
     return _tied > 1 ? scores[Game.rngInt(_tied)].lane : scores[0].lane;
   },
 
-  playTrickPhaseCards(owner = 'ai', onComplete) {
+  playTrickPhaseCards(owner = 'ai', onComplete, stillMyTurn) {
+    const mine = stillMyTurn || this._turnGuard();
+    if (!mine()) { if (onComplete) onComplete(); return; }
     if (Game.isMultiplayer && Game.isMultiplayer()) { if (onComplete) onComplete(); return; }
     const s = Game.state;
     const tpCards = [...s[owner].hand].filter(c => c.trickPhasePlayable);
@@ -1655,7 +1701,7 @@ const AI = {
       const lane = this.chooseLane(card, owner);
       if (lane >= 0) Game.playCard(owner, card, lane);
     });
-    this._runAIQueue(queue, onComplete);
+    this._runAIQueue(queue, onComplete, mine);
   },
 
   // ===================== TRICKS =====================
@@ -1934,13 +1980,15 @@ const AI = {
     return score;
   },
 
-  playTricks(owner = 'ai', onComplete) {
+  playTricks(owner = 'ai', onComplete, stillMyTurn) {
+    const mine = stillMyTurn || this._turnGuard();
+    if (!mine()) { if (onComplete) onComplete(); return; }
     if (Game.isMultiplayer && Game.isMultiplayer()) { if (onComplete) onComplete(); return; }
     // Same event-hold wait as playCards — never cast under a random-event lock,
     // and reschedule rather than return so the trick phase can't stall after an
     // event. (Owner: "the next player or the AI stalls out.")
     if (Game.ballyhooLocked && Game.ballyhooLocked()) {
-      Game._schedule(() => this.playTricks(owner, onComplete), 400);
+      Game._schedule(() => this.playTricks(owner, onComplete, mine), 400);
       return;
     }
     // Pause-then-cast loop: thinking dots show first, then the AI
@@ -1959,6 +2007,13 @@ const AI = {
     // one wasted step instead of the whole phase.
     const refused = new Set();
     const step = () => {
+      // Same rule as the card queue — a trick is a play, and a play belongs to
+      // the turn that started it. See _turnGuard.
+      if (!mine()) {
+        document.body && document.body.classList.remove('ai-thinking');
+        if (onComplete) onComplete();
+        return;
+      }
       if (safety++ >= 10) {
         document.body && document.body.classList.remove('ai-thinking');
         if (onComplete) onComplete();

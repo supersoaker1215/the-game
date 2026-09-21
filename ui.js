@@ -9215,6 +9215,50 @@ const UI = {
     setTimeout(() => stage.remove(), 1000);
   },
 
+  // IT LANDED, AND THEN IT DIED — SHOW BOTH.
+  //
+  // A card killed by the lane it walked into (The Bathroom, Luke's aura, a
+  // trap) is seated and swept inside one synchronous engine block, so the board
+  // never renders with it present: the player sees a card leave their hand and
+  // nothing arrive. The engine now says so on the FX stream (Game._settleAndSweep
+  // emits 'enterAndDie'); this paints the moment over a board that has already
+  // moved on, using the canonical card renderer so the face is the same one the
+  // lane would have shown.
+  //
+  // On the body-level lane stage, never parented to the lane: renderBoard
+  // deletes every lane child and rewrites the lane's className, and a render is
+  // exactly what follows the play that raised this. See _fxLaneStage.
+  _fxEnterAndDie(ev) {
+    if (!ev || ev.lane == null) return;
+    if (this._reducedMotion && this._reducedMotion()) return;
+    const stage = this._fxLaneStage(ev.lane, 'enter-die-stage');
+    if (!stage) return;
+    let el = null;
+    try {
+      const def = (typeof CARD_DEFS !== 'undefined')
+        ? CARD_DEFS.find(d => d && d.name === ev.name) : null;
+      if (def) {
+        const face = this._synthFace(def, { cost: ev.cost, attack: ev.atk, health: ev.hp });
+        // Viewer-relative side, like every other side-anchored effect — ev.owner
+        // is the ABSOLUTE side, and in 2v2 half the table sees it mirrored.
+        const side = this._fxDomSide ? this._fxDomSide(ev.owner) : ev.owner;
+        // inHand false — this is the BOARD face, the one the lane would have
+        // shown, not the taller hand tile.
+        el = this.makeCardEl(face, false, side, { static: true, extraClass: 'enter-die-card' });
+      }
+    } catch (e) { el = null; }
+    if (!el) { stage.remove(); return; }
+    // Bottom half for the near side, top half for the far side — the same
+    // geometry the lane itself uses for the two combat slots.
+    const side = this._fxDomSide ? this._fxDomSide(ev.owner) : ev.owner;
+    stage.classList.add(side === 'player' ? 'enter-die-near' : 'enter-die-far');
+    stage.appendChild(el);
+    // Land, hold long enough to be read, then die.
+    setTimeout(() => { try { el.classList.add('enter-die-out'); } catch (e) {} }, 620);
+    setTimeout(() => { try { stage.remove(); } catch (e) {} }, 1320);
+    try { if (this.sfx && this.sfx.playCardSfx) this.sfx.playCardSfx(ev.name, 'death', null); } catch (e) {}
+  },
+
   // A lane-shaped, lane-CLIPPED stage in the body-level FX layer.
   //
   // NOT a child of the lane, and that is the whole point. renderBoard's lane
@@ -13212,6 +13256,10 @@ const UI = {
       }
       if (ev.type === 'envReveal') {
         this.fxEnvReveal(ev.lane, ev.name);
+        continue;
+      }
+      if (ev.type === 'enterAndDie') {
+        this._fxEnterAndDie(ev);
         continue;
       }
       if (ev.type === 'artWeapon') {

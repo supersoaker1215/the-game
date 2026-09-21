@@ -4032,14 +4032,32 @@ const CARD_ABILITIES = {
     // trigger and simply arrives.
     onPlay(G, self, lane) {
       const tId = self._deathTriggerId;
+      const wokeIds = self._deathWokeBy;
       self._deathTriggerId = null;
+      self._deathWokeBy = null;
       if (tId == null) return;
-      const target = G.getAllCardsOnBoard().find(c => c && c.id === tId && c.currentHealth > 0);
-      if (target && target.id !== self.id) {
+      const reap = (target) => {
+        if (!target || target.id === self.id || target.currentHealth <= 0) return;
         G.log(`Death reaps ${target.name} for 3!`);
         try { if (typeof UI !== 'undefined' && UI._fxImpact) UI._fxImpact(target); } catch (e) {}
         G.dealDamage(target, 3, self);
-      }
+      };
+      const live = (id) => G.getAllCardsOnBoard().find(c => c && c.id === id && c.currentHealth > 0);
+      // WHOEVER WOKE HIM IS A CHOICE, NOT A SORT ORDER. _deathWokeBy carries
+      // every card that had stood long enough to raise him — each one a legal
+      // answer — so the pick belongs to the player. One candidate needs no
+      // modal; an AI owner, and an unanswered prompt, both fall back to the
+      // longest-standing card, which is what the engine used to decide on its
+      // own. (Owner: "when death is played the user get to choose who to jump
+      // in front of.")
+      const choices = (Array.isArray(wokeIds) ? wokeIds : [tId])
+        .map(live).filter(c => c && c.id !== self.id);
+      if (choices.length <= 1) { reap(choices[0] || live(tId)); return; }
+      G.promptCardChoice(self.owner, choices, 'Death — Reap',
+        'Choose who Death rose for — he deals 3 to them.',
+        reap,
+        (cards) => cards.find(c => c.id === tId) || cards[0],
+        self._2v2PlayedBy ? { seat: self._2v2PlayedBy } : undefined);
     },
     // Every kill feeds the hunt — brand another enemy the instant one falls.
     onKill(G, self) {

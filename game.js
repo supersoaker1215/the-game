@@ -6230,6 +6230,39 @@ const Game = {
     });
   },
 
+  // A CARD THAT NEVER GETS SEEN WAS NEVER PLAYED, AS FAR AS THE TABLE KNOWS.
+  //
+  // playCard seats the card, runs its whole entrance package and sweeps the
+  // dead — all in one synchronous block, with a single render at the end. So a
+  // card that dies inside its own entry (Paul Atreides walking into The
+  // Bathroom, an Undead Warrior into Luke's aura) is placed and removed between
+  // two frames: the board never draws it, no death plays, and from the player's
+  // side a card simply left their hand and nothing happened. The log said what
+  // occurred; the board said nothing at all.
+  // (Owner: "when a card is played into an effect tht will immediatly kill it ...
+  // there needs to show the play and them dying.")
+  //
+  // The engine is synchronous by design and should stay that way, so this is
+  // answered where it belongs — in the FX stream. One event carries the lane,
+  // the side and the card's face; the UI paints it landing and dying on the
+  // body-level lane stage, at its own pace, over a board that has already moved
+  // on. Rides the broadcast like every other FX event, so all four seats see it.
+  _settleAndSweep(card, laneIdx, owner) {
+    this._trapOnSettle(card, laneIdx);
+    const _diedOnEntry = !!(card && card.currentHealth <= 0);
+    this.cleanupDead();
+    if (_diedOnEntry && this.emitFX && !(this.state && this.state._silentSim)) {
+      try {
+        this.emitFX('enterAndDie', {
+          lane: laneIdx, owner: owner || card.owner, name: card.name,
+          cost: card.baseCost != null ? card.baseCost : card.cost,
+          atk: card.baseAttack != null ? card.baseAttack : card.attack,
+          hp: card.maxHealth != null ? card.maxHealth : card.health,
+        });
+      } catch (e) {}
+    }
+  },
+
   playCard(owner, card, laneIdx) {
     if (this.state.gameOver) return false;
     // Nobody plays through MC Ballyhoo's entrance.
@@ -6719,8 +6752,7 @@ const Game = {
     this._resolveHuntChase(opp, card, laneIdx);
     // ENTRANCE-THEN-TRAP (see checkLaneTrap) — the whole entrance package
     // resolves first, THEN the lane's trap snaps on the finished card.
-    this._trapOnSettle(card, laneIdx);
-    this.cleanupDead();
+    this._settleAndSweep(card, laneIdx, owner);
     // Apply Magneto debuffs to newly placed cards
     this.applyMagnetoDebuffs();
     // Check jump conditions — enemy played a card (pass laneIdx so MM can lock its lane)
@@ -6968,8 +7000,7 @@ const Game = {
     this._resolveMindControlOnPlay(card);
     this._resolveMarkOnPlay(card);
     // ENTRANCE-THEN-TRAP (see checkLaneTrap) — same order as playCard.
-    this._trapOnSettle(card, laneIdx);
-    this.cleanupDead();
+    this._settleAndSweep(card, laneIdx, owner);
     this._scaleDoomsdayOnOwnerPlay(owner);
     // STREAM FREE PLAYS TO GUESTS TOO. playCard and playTrick each push after an
     // AI-driven play so the guest watches it land live; the FREE path did not —
@@ -17541,6 +17572,14 @@ const Game = {
         card.jumpReady = true;
         card.jumpLane = undefined;               // any open lane — chosen on play
         card._deathTriggerId = aged[0].id;
+        // …AND WHO HE REAPS IS THE PLAYER'S CALL, NOT THE SORT'S. Every one of
+        // these cards has stood long enough to wake him, so every one is a legal
+        // answer — picking the oldest by hand was the engine making the most
+        // interesting decision on the card. The whole list travels, and his
+        // On Play asks. (Owner: "when death is played the user get to choose who
+        // to jump in front of.") The first id stays as the AI's pick and as the
+        // fallback for a prompt nobody answers.
+        card._deathWokeBy = aged.map(c => c.id);
         this._logJump(card, owner, `  [JUMP] Death rises for the long-lived! Free play available.`);
         return true;
       }
@@ -22282,6 +22321,22 @@ const Game = {
     }
   },
 
+  // A FORCE-ENDED AI TURN MUST LEAVE A MARK. The drive watchdog only ever
+  // console.warn'd, so from the battle log a seat whose turn was cut short was
+  // indistinguishable from a seat that simply had nothing it could play — and
+  // that is precisely the question the owner was left asking. (Owner, on a bot
+  // that ended its turn holding 7 cards and 5 Energy: "vega passed with 5 energy
+  // maybe he didnt have anything to play but highly unlikley given his 7 cards.")
+  // Now the log says which it was, so the next report names the cause instead of
+  // the symptom.
+  _logDriveWatchdogEnd(seat) {
+    console.warn('[2v2 AI] watchdog forced phase end for', seat);
+    try {
+      const who = (this._2v2SeatName && this._2v2SeatName(seat)) || seat;
+      this.log(`  [2v2] ${who}'s turn was cut short — it stopped responding, so the table moved on.`);
+    } catch (e) {}
+  },
+
   // Host/local drives one AI seat's sub-phase via the shared AI, then ends the
   // sub-phase exactly as a human's "Done" would. A short delay makes the turn
   // legible instead of instant.
@@ -22483,13 +22538,13 @@ const Game = {
           console.warn('[2v2 AI] drive watchdog held — a human still owes an answer to', activeKey + "'s card");
           this._schedule(() => {
             if (!finished && this._2v2AIDriving === activeKey && this._2v2AIWatchGen === watchGen) {
-              console.warn('[2v2 AI] watchdog forced phase end for', activeKey);
+              this._logDriveWatchdogEnd(activeKey);
               finish();
             }
           }, 12000);
           return;
         }
-        console.warn('[2v2 AI] watchdog forced phase end for', activeKey);
+        this._logDriveWatchdogEnd(activeKey);
         finish();
       }
     }, 12000);

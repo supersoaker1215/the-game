@@ -11975,6 +11975,137 @@ test('the AI spends its turn on a card it can afford, not on half a chained pair
   assertEq(G.getPlayCost('ai', cheapHalf), 5, 'but playing it costs the pair');
 });
 
+// ---- 2v2 AI: THE QUEUE BELONGS TO THE TURN THAT STARTED IT -------------
+// Every AI loop is paced, so seconds pass between its first action and its
+// last, and a seat's turn can end inside that gap (the 12s drive watchdog, a
+// teammate's Done, a round advance). The queue knew nothing about turns and
+// fired the remainder into the NEXT seat's turn, where playCard's out-of-turn
+// guard refused it. (Owner: "cortex is tyring to play ot of tuen for sime
+// reaspn, just play on his turn ... its good to block cards played out of turn
+// the guard is doing its job but just play in a dedicated turn easy.")
+test('2v2: the AI stops playing when its turn ends, instead of being refused', function () {
+  Game.start2v2Match({ names: { p1: 'Henry', p2: 'Ryan', p3: 'Vega', p4: 'Cortex' } });
+  var tt = Game.state.twoVTwo;
+  tt.online = true; tt.you = 'p1';
+  tt.players.p3.isAI = true; tt.players.p4.isAI = true;
+  tt.round = 5; Game.state.round = 5;
+
+  var side = Game._2v2TeamSide[tt.players.p3.team];
+  var mk = function (n) { return Game.createCardInstance(cardByName(n), side); };
+  tt.players.p3.hand = [mk('Joker'), mk('Darth Maul'), mk('King Shark')];
+  tt.players.p3.energy = 12; tt.players.p3.usedEnergy = 0;
+  Game.state[side].hand = tt.players.p3.hand;
+  Game.state[side].currency = 12;
+
+  var outOfTurn = 0, savedLog = Game.log;
+  Game.log = function (m) {
+    if (typeof m === 'string' && m.indexOf('[OUT OF TURN]') >= 0) outOfTurn++;
+    return savedLog.call(Game, m);
+  };
+  // The sim collapses every timer, which hides the gap this bug lives in. Park
+  // them so the queue paces the way a browser paces it.
+  var parked = [], savedST = globalThis.setTimeout, savedCT = globalThis.clearTimeout, seq = 0;
+  globalThis.setTimeout = function (fn, ms) {
+    if (typeof fn !== 'function') return 0;
+    parked.push({ id: ++seq, at: ms || 0, fn: fn });
+    return seq;
+  };
+  globalThis.clearTimeout = function (id) {
+    for (var i = 0; i < parked.length; i++) if (parked[i].id === id) { parked.splice(i, 1); return; }
+  };
+  try {
+    AI.playCards(side, function () {});
+    // The first paced action lands…
+    parked.splice(0, parked.length).forEach(function (e) { try { e.fn(); } catch (err) {} });
+    // …then the turn moves on under the AI.
+    Game._2v2TurnToken = (Game._2v2TurnToken || 0) + 1;
+    tt.subPhaseIdx = (tt.subPhaseIdx || 0) + 1;
+    // …and the rest of its queue arrives.
+    var guard = 0;
+    while (parked.length && guard++ < 200) {
+      parked.splice(0, parked.length).forEach(function (e) { try { e.fn(); } catch (err) {} });
+    }
+  } finally {
+    globalThis.setTimeout = savedST;
+    globalThis.clearTimeout = savedCT;
+    Game.log = savedLog;
+  }
+  assertEq(outOfTurn, 0, 'the AI attempted nothing once its turn was over');
+});
+
+// ---- DEATH: WHO HE ROSE FOR IS THE PLAYER'S PICK ----------------------
+// Every card standing 2+ rounds can wake him, so every one is a legal answer.
+// The engine used to sort them and take the oldest, which is the card making
+// its own most interesting decision. (Owner: "when dath is played the user get
+// to choose who to jump in front of.")
+test('Death asks who he rose for instead of reaping the oldest by default', function () {
+  var G = freshGame();
+  G.state.round = 6;
+  var oldest = G.createCardInstance(cardByName('King Shark'), 'ai');
+  var other  = G.createCardInstance(cardByName('Groot'), 'ai');
+  G.state.lanes[0].ai = oldest; oldest.owner = 'ai'; oldest._playedRound = 1;
+  G.state.lanes[1].ai = other;  other.owner  = 'ai'; other._playedRound  = 2;
+  var death = G.createCardInstance(cardByName('Death'), 'player');
+  G.state.player.hand = [death];
+  G.state.player.currency = 10;
+
+  // Arm the jump the way the before-tricks pulse does.
+  assertEq(G._armJumpForCard(death, 'player', 'ai', 'beforeTricks', {}), true, 'the jump armed');
+  assertEq((death._deathWokeBy || []).length, 2, 'both long-standing cards travel as candidates');
+
+  var otherHpBefore = other.currentHealth;
+  // The shim resolves prompts synchronously, so catch the ASK itself rather
+  // than looking for a modal that has already been answered.
+  var asked = null, savedPrompt = G.promptCardChoice;
+  G.promptCardChoice = function (owner, cards, title, desc, cb) {
+    asked = { cards: cards, title: title };
+    cb(cards.find(function (c) { return c.id === other.id; }));   // the player picks the younger one
+  };
+  try {
+    G.playCardFree('player', death, 3);
+  } finally {
+    G.promptCardChoice = savedPrompt;
+  }
+  assertEq(!!asked, true, 'Death asked rather than deciding for you');
+  assertEq(asked.title, 'Death — Reap', 'and it is his own prompt');
+  assertEq((asked.cards || []).length, 2, 'both candidates are on offer');
+  // Groot carries Armor, so assert WHO was struck rather than an exact number —
+  // the target is the claim here, not the damage formula.
+  assertEq(other.currentHealth < otherHpBefore, true, 'Death reaped the card the player picked');
+  assertEq(oldest.currentHealth, oldest.maxHealth, 'and left the one the sort would have taken');
+});
+
+// ---- A CARD THAT DIES ON ARRIVAL IS STILL SHOWN ARRIVING ---------------
+// playCard seats, resolves and sweeps in one synchronous block with a single
+// render at the end, so a card the lane kills on entry is never drawn: from the
+// player's side a card left their hand and nothing happened. The engine says so
+// on the FX stream instead; the UI paints it landing and dying over a board
+// that has already moved on. (Owner: "when a card is played into an effect tht
+// aill immediatly kill its ... there needs to show the play and them dying.")
+test('a card killed by the lane it entered is announced on the FX stream', function () {
+  var G = freshGame();
+  G.state.round = 4;
+  var env = G.createCardInstance(cardByName('The Bathroom'), 'ai');
+  var L = G.state.lanes[2];
+  L._env = L._env || {};
+  L._env.ai = env; env.owner = 'ai'; env._envTurns = 4;
+
+  var victim = G.createCardInstance(cardByName('Paul Atreides'), 'player');
+  G.state.player.hand = [victim];
+  G.state.player.currency = 10;
+  var evs = function () { return (G.state._fx && G.state._fx.events) || []; };
+  var before = evs().length;
+  G.playCard('player', victim, 2);
+
+  assertEq(victim.currentHealth <= 0, true, 'the lane killed it on arrival');
+  assertEq(G.findCardLane(victim), -1, 'and the board never keeps it');
+  var fired = evs().slice(before).filter(function (e) { return e.type === 'enterAndDie'; });
+  assertEq(fired.length, 1, 'the play-and-death was announced exactly once');
+  assertEq(fired[0].lane, 2, 'in the lane it walked into');
+  assertEq(fired[0].name, 'Paul Atreides', 'naming the card so the face can be rebuilt');
+  assertEq(fired[0].owner, 'player', 'on the side that played it');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

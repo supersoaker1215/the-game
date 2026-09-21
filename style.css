@@ -52367,3 +52367,47 @@ body.low-fx .card-glow-host { filter: none !important; }
 .gal-full {
   filter: saturate(0.96) brightness(1.06) brightness(var(--art-grade, 1));
 }
+
+/* ============================================================
+   ENTERED, AND DIED ON ARRIVAL
+   ------------------------------------------------------------
+   A card the lane kills on entry (The Bathroom, Luke's aura, a trap) is
+   seated and swept inside one synchronous engine block, so the board never
+   renders with it there. UI._fxEnterAndDie paints the moment on the
+   body-level lane stage instead — it lands, it is readable for a beat, then
+   it goes. Lives on the stage, NOT in the lane: renderBoard deletes every
+   lane child, and a render is exactly what follows the play that raised it.
+   ============================================================ */
+@keyframes enterDieIn {
+  0%   { opacity: 0; transform: translateY(-16%) scale(0.86); }
+  60%  { opacity: 1; transform: translateY(2%)   scale(1.03); }
+  100% { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+@keyframes enterDieOut {
+  0%   { opacity: 1; transform: translateY(0) scale(1) rotate(0deg);
+         filter: none; }
+  35%  { opacity: 1; transform: translateY(-3%) scale(1.04) rotate(-2deg);
+         filter: brightness(1.7) saturate(0.4); }
+  100% { opacity: 0; transform: translateY(14%) scale(0.82) rotate(5deg);
+         filter: brightness(0.35) saturate(0) blur(3px); }
+}
+.enter-die-stage {
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+/* The two combat slots split the lane; match whichever half the card
+   would have stood in so it appears where the player is already looking. */
+.enter-die-stage.enter-die-near { align-items: flex-end;   padding-bottom: 4%; }
+.enter-die-stage.enter-die-far  { align-items: flex-start; padding-top: 4%;    }
+.enter-die-stage .card.enter-die-card {
+  pointer-events: none;
+  transform-origin: 50% 70%;
+  animation: enterDieIn 0.34s var(--ease-snap, cubic-bezier(0.2, 0.8, 0.3, 1)) both;
+}
+.enter-die-stage .card.enter-die-card.enter-die-out {
+  animation: enterDieOut 0.62s ease-in forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .enter-die-stage { display: none; }
+}
