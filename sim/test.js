@@ -12137,6 +12137,64 @@ test('Death rises for a long-standing ENEMY, never for his own side', function (
   assertEq(death._deathWokeBy[0], fresh.id, 'the enemy, specifically');
 });
 
+// ---- A CARD THAT CHANGES LANE SAYS SO ----------------------------------
+// The board is a diff render, so a moved card was simply absent from one slot
+// and present in another on the next frame, with nothing connecting the two.
+// moveCard is the single choke point every mover funnels through — Magneto,
+// Man-Bat, Symbiote Spider-Man, every Hunt chase, both habitat displacements —
+// so one announcement there covers all of them.
+test('a lane change is announced on the FX stream, with both lanes', function () {
+  var G = freshGame();
+  var c = G.createCardInstance(cardByName('King Shark'), 'player');
+  G.state.lanes[1].player = c; c.owner = 'player';
+  var evs = function () { return (G.state._fx && G.state._fx.events) || []; };
+  var before = evs().length;
+  G.moveCard(c, 1, 4);
+  assertEq(G.findCardLane(c), 4, 'it moved');
+  var fired = evs().slice(before).filter(function (e) { return e.type === 'move'; });
+  assertEq(fired.length, 1, 'and the move was announced exactly once');
+  assertEq(fired[0].from, 1, 'from the lane it left');
+  assertEq(fired[0].to, 4, 'to the lane it entered');
+  assertEq(fired[0].cardId, c.id, 'naming the card that travelled');
+
+  // A REFUSED move must stay silent — otherwise the board animates a journey
+  // that never happened.
+  var before2 = evs().length;
+  G.moveCard(c, 4, 4);
+  assertEq(evs().slice(before2).filter(function (e) { return e.type === 'move'; }).length, 0,
+    'a move that goes nowhere announces nothing');
+  G.state.lanes[5].destroyed = true;
+  var before3 = evs().length;
+  G.moveCard(c, 4, 5);
+  assertEq(G.findCardLane(c), 4, 'the void refused it');
+  assertEq(evs().slice(before3).filter(function (e) { return e.type === 'move'; }).length, 0,
+    'and a refused move announces nothing');
+});
+
+// ---- A LANE GOING OUT SAYS SO ------------------------------------------
+// The biggest single change that can happen to the board, and the only sign
+// used to be the board quietly looking different on the next render.
+test('a collapsing lane is announced, carrying how long it is gone', function () {
+  var G = freshGame();
+  var evs = function () { return (G.state._fx && G.state._fx.events) || []; };
+  var before = evs().length;
+  G.destroyLane(3, 3);
+  assertEq(G.state.lanes[3].destroyed, true, 'the lane went out');
+  var fired = evs().slice(before).filter(function (e) { return e.type === 'laneVoid'; });
+  assertEq(fired.length, 1, 'the collapse was announced exactly once');
+  assertEq(fired[0].lane, 3, 'in the lane that collapsed');
+  assertEq(fired[0].rounds, 3, 'carrying the count, so the FX can state it');
+
+  // A collapse the engine REFUSES must stay silent.
+  var inv = G.createCardInstance(cardByName('King Shark'), 'player');
+  G.state.lanes[5].player = inv; inv.owner = 'player'; inv.invincibleTurns = 2;
+  var before2 = evs().length;
+  G.destroyLane(5, 3);
+  assertEq(!!G.state.lanes[5].destroyed, false, 'Invincible blocked the collapse');
+  assertEq(evs().slice(before2).filter(function (e) { return e.type === 'laneVoid'; }).length, 0,
+    'and a blocked collapse announces nothing');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

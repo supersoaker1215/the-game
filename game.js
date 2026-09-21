@@ -12653,6 +12653,14 @@ const Game = {
     }
     lane.destroyed = true;
     lane.destroyedTurns = duration;
+    // A LANE GOING OUT IS THE BIGGEST THING THAT HAPPENS TO THE BOARD, AND IT
+    // HAPPENED IN SILENCE. Darkseid's Anti-Life takes a whole lane away for
+    // several rounds and the only sign was the board quietly looking different
+    // on the next render. Announced here, at the one door every collapse comes
+    // through, with the duration so the FX can carry the count.
+    if (this.emitFX && !(this.state && this.state._silentSim)) {
+      try { this.emitFX('laneVoid', { lane: laneIdx, rounds: duration }); } catch (e) {}
+    }
     // Any environment in this lane is also destroyed by the collapse —
     // clear its effects via handleDeath, then null the slot.
     if (lane._env) {
@@ -15913,6 +15921,22 @@ const Game = {
     this.state.lanes[from][card.owner] = null;
     this.state.lanes[to][card.owner] = card;
     this.log(`  [MOVE] ${card.name} moves from lane ${from + 1} to lane ${to + 1}`);
+    // IT MOVED — SAY SO, OR IT TELEPORTED. The board is drawn by a diff render,
+    // so a card that changes lane is simply gone from one slot and present in
+    // another on the next frame: nothing connects the two, and the player has to
+    // re-read the board to work out what happened. This is the highest-traffic
+    // silent moment in the game — Magneto, Man-Bat, Symbiote Spider-Man, every
+    // Hunt chase, the Enclosure's and Game Over's displacements all come through
+    // here, because moveCard is the single choke point every mover funnels
+    // through. One event from the choke point covers all of them, and rides the
+    // broadcast so all four seats watch the same card travel.
+    if (this.emitFX && !(this.state && this.state._silentSim)) {
+      try {
+        this.emitFX('move', {
+          cardId: card.id, owner: card.owner, name: card.name, from, to,
+        });
+      } catch (e) {}
+    }
     // AND THE CHAIN CHARGES YOU ON THE WAY OUT — (−1/−1), not the (−2/−2) it
     // used to be. Owner: "chained means you can move you lose (-1/-1) when you
     // do." The emphasis is the first half: unlike Gargantua's hold above, a

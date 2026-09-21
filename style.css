@@ -52411,3 +52411,160 @@ body.low-fx .card-glow-host { filter: none !important; }
 @media (prefers-reduced-motion: reduce) {
   .enter-die-stage { display: none; }
 }
+
+/* ============================================================
+   THREE MOMENTS THAT USED TO HAPPEN IN SILENCE
+   ------------------------------------------------------------
+   Built the way the block moment is built: layers on one beat, not a single
+   effect. All three live on fixed/body-level layers — renderBoard deletes
+   every lane child and rewrites the lane className, and a render is exactly
+   what follows each of these.
+   ============================================================ */
+
+/* ---- 1. A CARD CHANGING LANE ------------------------------------------
+   The board is a diff render, so a moved card was simply absent from one
+   slot and present in another on the next frame. It now travels: a lateral
+   slide (not the thrown arc a play-from-hand uses — the card is crossing
+   the board, not being played onto it) with a wake behind it. */
+@keyframes cardSlideAcross {
+  0%   { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 1; }
+  12%  { transform: translate(0, 0) rotate(var(--slide-tilt, 0deg)) scale(1.05); }
+  88%  { transform: translate(var(--slide-dx, 0), var(--slide-dy, 0))
+                    rotate(var(--slide-tilt, 0deg)) scale(1.05); opacity: 1; }
+  100% { transform: translate(var(--slide-dx, 0), var(--slide-dy, 0))
+                    rotate(0deg) scale(1); opacity: 1; }
+}
+.card-slide-ghost {
+  position: fixed !important;
+  z-index: 9997;
+  pointer-events: none;
+  margin: 0 !important;
+  will-change: transform;
+  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.7));
+}
+/* The wake. Drawn from the source slot's centre along the travel vector, so
+   one element covers any direction; transform-origin pins the rotation to
+   the start point rather than the middle of the streak. */
+.card-slide-trail {
+  position: fixed;
+  z-index: 9996;
+  height: 3px;
+  margin-top: -1.5px;
+  transform-origin: 0 50%;
+  pointer-events: none;
+  border-radius: 2px;
+  opacity: 0;
+  animation: cardSlideTrail 420ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+.card-slide-trail.slide-ally {
+  background: linear-gradient(90deg,
+    rgba(var(--player-rgb, 90, 190, 255), 0) 0%,
+    rgba(var(--player-rgb, 90, 190, 255), 0.75) 60%,
+    rgba(var(--player-rgb, 90, 190, 255), 0) 100%);
+}
+.card-slide-trail.slide-enemy {
+  background: linear-gradient(90deg,
+    rgba(var(--enemy-rgb, 255, 80, 80), 0) 0%,
+    rgba(var(--enemy-rgb, 255, 80, 80), 0.75) 60%,
+    rgba(var(--enemy-rgb, 255, 80, 80), 0) 100%);
+}
+@keyframes cardSlideTrail {
+  0%   { opacity: 0;    transform: rotate(var(--r, 0)) scaleX(0.1); }
+  30%  { opacity: 0.85; }
+  100% { opacity: 0;    transform: rotate(var(--r, 0)) scaleX(1); }
+}
+
+/* ---- 2. A LANE GOING OUT ----------------------------------------------
+   Darkseid's Anti-Life takes a whole lane away for several rounds; the only
+   sign used to be the board quietly looking different. Implode, ring out,
+   go to void, and state how long it is gone. */
+.lane-void-stage { pointer-events: none; }
+@keyframes laneVoidCollapse {
+  0%   { opacity: 0;    transform: scaleX(1)    scaleY(1);    filter: brightness(2.4); }
+  22%  { opacity: 0.95; transform: scaleX(1.04) scaleY(1); }
+  62%  { opacity: 0.95; transform: scaleX(0.10) scaleY(1);    filter: brightness(1.1); }
+  100% { opacity: 0.88; transform: scaleX(1)    scaleY(1);    filter: brightness(0.5); }
+}
+.lane-void-collapse {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 50%;
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(150, 90, 255, 0.55) 0%, rgba(20, 0, 40, 0.92) 55%, #000 100%);
+  animation: laneVoidCollapse 1.15s cubic-bezier(0.55, 0, 0.35, 1) forwards;
+}
+@keyframes laneVoidRing {
+  0%   { opacity: 0;    transform: scale(0.15); }
+  25%  { opacity: 0.9; }
+  100% { opacity: 0;    transform: scale(2.1);  }
+}
+.lane-void-ring {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 120%; aspect-ratio: 1;
+  margin-left: -60%; margin-top: -60%;
+  border-radius: 50%;
+  border: 2px solid rgba(180, 130, 255, 0.9);
+  box-shadow: 0 0 22px rgba(150, 90, 255, 0.8), inset 0 0 22px rgba(150, 90, 255, 0.5);
+  animation: laneVoidRing 0.85s ease-out 0.18s forwards;
+  opacity: 0;
+}
+@keyframes laneVoidLabel {
+  0%   { opacity: 0; transform: translateY(8px) scale(0.85); letter-spacing: 0.02em; }
+  30%  { opacity: 1; transform: translateY(0)   scale(1.06); }
+  72%  { opacity: 1; transform: translateY(0)   scale(1);    }
+  100% { opacity: 0; transform: translateY(-6px) scale(1);   }
+}
+.lane-void-label {
+  position: absolute;
+  left: 0; right: 0; top: 46%;
+  text-align: center;
+  font-family: var(--font-mono, monospace);
+  font-size: clamp(11px, 1.1vw, 15px);
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: #e6d2ff;
+  text-shadow: 0 0 10px rgba(150, 90, 255, 0.95), 0 0 24px rgba(150, 90, 255, 0.6);
+  animation: laneVoidLabel 1.3s ease-out 0.28s both;
+  opacity: 0;
+}
+
+/* ---- 3. THE BLOCK METER FILLING ---------------------------------------
+   Only the moment the meter FIRED was animated, so BLOCKED! arrived without
+   ever having been coming. The ring now escalates as it charges: quiet under
+   half, lit past it, and humming on the brink — one hit from firing. `.full`
+   is authored later in this file and still wins, which is correct: the
+   payoff outranks the build-up. */
+.block-circle.block-tier-mid {
+  filter: drop-shadow(0 0 4px rgba(var(--gold-rgb), 0.35));
+}
+.block-circle.block-tier-brink {
+  filter: drop-shadow(0 0 6px rgba(var(--gold-rgb), 0.6));
+  animation: blockBrinkHum 1.15s ease-in-out infinite;
+}
+@keyframes blockBrinkHum {
+  0%, 100% { filter: drop-shadow(0 0 5px  rgba(var(--gold-rgb), 0.45)); transform: scale(1); }
+  50%      { filter: drop-shadow(0 0 13px rgba(var(--gold-rgb), 0.85)); transform: scale(1.045); }
+}
+.block-circle.block-tier-brink .block-circle-value {
+  color: #ffe6ad;
+  text-shadow: 0 0 7px rgba(var(--gold-rgb), 0.8);
+}
+/* The 2v2 pip row is a different renderer for the same meter — same tiers,
+   read off the same helper, so the two can never disagree. */
+.twov2-block-pip-row.block-tier-brink .twov2-block-pip.twov2-pip-filled {
+  animation: blockBrinkHum 1.15s ease-in-out infinite;
+}
+.twov2-block-pip-row.block-tier-brink .twov2-block-label {
+  color: #ffe6ad;
+  text-shadow: 0 0 6px rgba(var(--gold-rgb), 0.75);
+}
+.twov2-block-pip-row.block-tier-mid .twov2-block-pip.twov2-pip-filled {
+  filter: drop-shadow(0 0 3px rgba(var(--gold-rgb), 0.4));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-slide-ghost, .card-slide-trail, .lane-void-stage { display: none; }
+  .block-circle.block-tier-brink,
+  .twov2-block-pip-row.block-tier-brink .twov2-block-pip.twov2-pip-filled { animation: none; }
+}

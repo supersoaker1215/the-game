@@ -8258,13 +8258,36 @@ const UI = {
     const aCircle = aBlock ? aBlock.closest('.block-circle') : null;
     const pPct = Math.max(0, Math.min(100, (s.player.blockMeter / blockMax) * 100));
     const aPct = Math.max(0, Math.min(100, (s.ai.blockMeter / blockMax) * 100));
+    // THE BUILD-UP, NOT JUST THE PAYOFF. The ring read identically at 1/8 and
+    // 7/8 apart from the arc length, so BLOCKED! arrived without ever having
+    // been coming — the moment everyone likes was landing unearned. The meter
+    // now carries a CHARGE TIER: quiet under half, lit past it, and humming on
+    // the brink (one hit from firing), so the payoff is the end of something the
+    // player has been watching build.
+    //
+    // Derived here, in the one place the meter renders, from the meter and the
+    // cap — not stamped by whatever happens to credit a point. Any future
+    // credit path inherits it for free.
+    const _blockTier = (v) => {
+      if (v >= blockMax) return 'full';
+      if (v >= blockMax - 1) return 'brink';
+      if (v >= blockMax / 2) return 'mid';
+      return v > 0 ? 'low' : 'empty';
+    };
+    const _applyTier = (circle, v) => {
+      if (!circle) return;
+      const tier = _blockTier(v);
+      ['empty', 'low', 'mid', 'brink'].forEach(t =>
+        circle.classList.toggle('block-tier-' + t, tier === t));
+      circle.classList.toggle('full', v >= blockMax);
+    };
     if (pCircle) {
       pCircle.style.setProperty('--fill', pPct + '%');
-      pCircle.classList.toggle('full', s.player.blockMeter >= blockMax);
+      _applyTier(pCircle, s.player.blockMeter);
     }
     if (aCircle) {
       aCircle.style.setProperty('--fill', aPct + '%');
-      aCircle.classList.toggle('full', s.ai.blockMeter >= blockMax);
+      _applyTier(aCircle, s.ai.blockMeter);
     }
 
     // Energy orbs
@@ -8841,6 +8864,119 @@ const UI = {
     };
     ghost.addEventListener('animationend', land, { once: true });
     setTimeout(land, DUR + 90);   // fallback so the card can never stay hidden
+  },
+
+  // ============================================================
+  // A CARD THAT CHANGES LANE, SEEN CHANGING LANE
+  // ============================================================
+  // The board is a diff render, so a moved card is simply absent from one slot
+  // and present in another on the next frame — nothing connects the two, and
+  // you have to re-read the board to work out what happened. It is the highest
+  // traffic silent moment in the game: Magneto, Man-Bat, Symbiote Spider-Man,
+  // every Hunt chase and both habitat displacements all move cards.
+  //
+  // Same machinery as the play-from-hand throw (card-flying on the real element
+  // + a fixed ghost + _spawnPlayerLandFx on arrival) so the two moments share a
+  // vocabulary rather than inventing a second one. Two deliberate differences:
+  // the path is a lateral SLIDE rather than a thrown arc, because the card is
+  // crossing the board rather than being played onto it; and it runs for BOTH
+  // sides, because an enemy repositioning is exactly the move you most need to
+  // follow.
+  _fxCardSlide(ev) {
+    if (!ev || ev.from == null || ev.to == null || ev.from === ev.to) return;
+    if (this._reducedMotion && this._reducedMotion()) return;
+    const realEl = document.querySelector(`[data-card-id="${ev.cardId}"]`);
+    if (!realEl) return;
+    // Viewer-relative: ev.owner is the ABSOLUTE side, and in 2v2 half the table
+    // sees the board mirrored.
+    const dom = this._fxDomSide ? this._fxDomSide(ev.owner) : ev.owner;
+    const fromLane = this.laneElAt(ev.from);
+    if (!fromLane) return;
+    const fromSlot = fromLane.querySelector(dom === 'player' ? '.player-slot' : '.ai-slot');
+    if (!fromSlot) return;
+    const fromRect = fromSlot.getBoundingClientRect();
+    const toRect = realEl.getBoundingClientRect();
+    if (!fromRect.width || !toRect.width) return;
+    const dx = (toRect.left + toRect.width / 2) - (fromRect.left + fromRect.width / 2);
+    const dy = (toRect.top + toRect.height / 2) - (fromRect.top + fromRect.height / 2);
+    if (Math.hypot(dx, dy) < 24) return;   // no real travel — nothing to show
+
+    const ghost = realEl.cloneNode(true);
+    ghost.classList.add('card-slide-ghost');
+    ghost.classList.remove('card-enter', 'card-flying', 'card-landing', 'selected',
+      'card-selected', 'target-highlight', 'targetable', 'playable', 'unplayable');
+    ghost.removeAttribute('data-card-id');
+    ghost.onclick = null;
+    ghost.style.position = 'fixed';
+    ghost.style.margin = '0';
+    ghost.style.left = fromRect.left + 'px';
+    ghost.style.top = fromRect.top + 'px';
+    ghost.style.width = toRect.width + 'px';
+    ghost.style.height = toRect.height + 'px';
+    ghost.style.setProperty('--slide-dx', dx + 'px');
+    ghost.style.setProperty('--slide-dy', dy + 'px');
+    // Lean into the direction of travel — a body moving sideways banks.
+    ghost.style.setProperty('--slide-tilt', (dx >= 0 ? 5 : -5) + 'deg');
+    const DUR = 420;
+    ghost.style.animation = `cardSlideAcross ${DUR}ms cubic-bezier(0.4, 0, 0.2, 1) forwards`;
+    document.body.appendChild(ghost);
+
+    // The wake it leaves behind — a streak along the path, drawn on the same
+    // fixed layer so no render can delete it.
+    const trail = document.createElement('div');
+    trail.className = 'card-slide-trail';
+    trail.style.left = (fromRect.left + fromRect.width / 2) + 'px';
+    trail.style.top = (fromRect.top + fromRect.height / 2) + 'px';
+    trail.style.width = Math.hypot(dx, dy) + 'px';
+    trail.style.transform = `rotate(${Math.atan2(dy, dx)}rad)`;
+    trail.classList.add(dom === 'player' ? 'slide-ally' : 'slide-enemy');
+    document.body.appendChild(trail);
+
+    realEl.classList.add('card-flying');
+    let done = false;
+    const land = () => {
+      if (done) return; done = true;
+      try { ghost.remove(); } catch (e) {}
+      try { trail.remove(); } catch (e) {}
+      realEl.classList.remove('card-flying');
+      const slot = realEl.closest('.player-slot, .ai-slot');
+      const lane = realEl.closest('.lane');
+      try { this._spawnPlayerLandFx(realEl, lane, slot, true); } catch (e) {}
+    };
+    ghost.addEventListener('animationend', land, { once: true });
+    setTimeout(land, DUR + 90);   // the card can never stay hidden
+    try { this.sfx && this.sfx.play && this.sfx.play('cardMove'); } catch (e) {}
+  },
+
+  // ============================================================
+  // A LANE GOING OUT
+  // ============================================================
+  // Darkseid's Anti-Life takes a whole lane away for several rounds and the
+  // only sign was the board quietly looking different on the next render — the
+  // biggest single change that can happen to the board, with no moment at all.
+  // Built the way the block moment is built: layers on one beat. The lane
+  // implodes inward, a shock ring throws outward, the column goes to void, and
+  // the number of rounds it is gone is stated on the collapse rather than left
+  // to be counted off a pip.
+  _fxLaneVoid(ev) {
+    if (!ev || ev.lane == null) return;
+    const stage = this._fxLaneStage(ev.lane, 'lane-void-stage');
+    if (!stage) return;
+    if (this._reducedMotion && this._reducedMotion()) { stage.remove(); return; }
+    const collapse = document.createElement('div');
+    collapse.className = 'lane-void-collapse';
+    const ring = document.createElement('div');
+    ring.className = 'lane-void-ring';
+    const label = document.createElement('div');
+    label.className = 'lane-void-label';
+    const n = ev.rounds | 0;
+    label.textContent = n > 0 ? `VOID · ${n}` : 'VOID';
+    stage.appendChild(collapse);
+    stage.appendChild(ring);
+    stage.appendChild(label);
+    setTimeout(() => { try { stage.remove(); } catch (e) {} }, 1450);
+    try { this._screenShake && this._screenShake('medium'); } catch (e) {}
+    try { this._haptic && this._haptic('block'); } catch (e) {}
   },
 
   _spawnDeathGhost(rect, html) {
@@ -13262,6 +13398,14 @@ const UI = {
         this._fxEnterAndDie(ev);
         continue;
       }
+      if (ev.type === 'move') {
+        this._fxCardSlide(ev);
+        continue;
+      }
+      if (ev.type === 'laneVoid') {
+        this._fxLaneVoid(ev);
+        continue;
+      }
       if (ev.type === 'artWeapon') {
         const wEl = document.querySelector(`[data-card-id="${ev.cardId}"]`);
         if (wEl) this._fxArtWeapon(ev.weapon, wEl);
@@ -16344,7 +16488,7 @@ const UI = {
           <div class="twov2-hb-team" style="border-color:${teamAColor}">
             <span class="twov2-hb-label" style="color:${teamAColor}">Team A</span>
             <span class="twov2-hb-hp" style="color:${teamAColor}">${teamA.health}/${teamA.maxHealth} HP</span>
-            <div class="twov2-block-pip-row">
+            <div class="twov2-block-pip-row ${this._blockTierClass(teamA.blockMeter)}">
               ${Array.from({length:Game.BLOCK_MAX}, (_,i) =>
                 `<div class="twov2-block-pip ${i < teamA.blockMeter ? 'twov2-pip-filled' : ''}"></div>`
               ).join('')}
@@ -16355,7 +16499,7 @@ const UI = {
           <div class="twov2-hb-team" style="border-color:${teamBColor}">
             <span class="twov2-hb-label" style="color:${teamBColor}">Team B</span>
             <span class="twov2-hb-hp" style="color:${teamBColor}">${teamB.health}/${teamB.maxHealth} HP</span>
-            <div class="twov2-block-pip-row">
+            <div class="twov2-block-pip-row ${this._blockTierClass(teamB.blockMeter)}">
               ${Array.from({length:Game.BLOCK_MAX}, (_,i) =>
                 `<div class="twov2-block-pip ${i < teamB.blockMeter ? 'twov2-pip-filled' : ''}"></div>`
               ).join('')}
@@ -37226,6 +37370,18 @@ const UI = {
   // (b) Block-fill spark — on emitDmg 'block' events the block meter
   // ticks up; spawn a small spark that flies from the HP bar to the
   // block circle. Hooks into showDamageFloats event loop.
+  // ONE DEFINITION OF "HOW CHARGED IS IT". The 1v1 shield ring and the 2v2 pip
+  // row are separate renderers, and a tier they each worked out for themselves
+  // would drift the first time BLOCK_MAX moved. Both ask this.
+  _blockTierClass(v) {
+    const max = (typeof Game !== 'undefined' && Game.BLOCK_MAX) || 8;
+    const n = v | 0;
+    if (n >= max) return 'block-tier-full';
+    if (n >= max - 1) return 'block-tier-brink';
+    if (n >= max / 2) return 'block-tier-mid';
+    return n > 0 ? 'block-tier-low' : 'block-tier-empty';
+  },
+
   spawnBlockSpark(side) {
     const hpBar = document.getElementById(side === 'player' ? 'player-hp-fill' : 'ai-hp-fill');
     const blockCircle = document.querySelector((side === 'player' ? '.player-bar' : '.ai-bar') + ' .block-circle');
