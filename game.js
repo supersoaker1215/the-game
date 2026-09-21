@@ -6316,6 +6316,10 @@ const Game = {
         return false;
       }
     }
+    // The AI drive is actively playing — bump its progress clock so the drive
+    // watchdog does not mistake a big, slowly-paced hand for a hang and cut the
+    // turn short. (See _2v2DriveAISeat.)
+    if (this._2v2AIDriving) this._2v2AIDriveLastPlayAt = Date.now();
     // 2v2: arm the per-card rewind point BEFORE this play changes anything, so
     // undo takes back exactly this card and nothing the player (or a teammate)
     // did before it. No-op outside a live 2v2 turn / off the authority — see
@@ -6797,6 +6801,8 @@ const Game = {
       this.log(`[GUARD] ${card.name} never takes the field — he leaves your hand only to save an ally.`);
       return false;
     }
+    // Progress clock for the drive watchdog — a jump / summon counts too (see playCard).
+    if (this._2v2AIDriving) this._2v2AIDriveLastPlayAt = Date.now();
     // Discard-effect cards (Brainiac, Mr. Fantastic, Power Battery…) resolve
     // their effect and go to the DISCARD pile — they must NEVER be seated in a
     // lane. playCard's paid branch handles this, but the free / jump / summon
@@ -7201,6 +7207,8 @@ const Game = {
     // 2v2: same per-card rewind point a card play arms, so undo takes back this
     // trick alone and not the whole turn. No-op outside a live 2v2 human turn.
     this._2v2CaptureCardUndoPoint(owner);
+    // Progress clock for the drive watchdog — see playCard.
+    if (this._2v2AIDriving) this._2v2AIDriveLastPlayAt = Date.now();
     this.state[owner].currency -= cost;
     if (this.state._stats && this.state._stats[owner]) this.state._stats[owner].energySpent += cost;
     // Spend the 2v2 block-meter freebie the moment it is used, so a trick that
@@ -22451,6 +22459,11 @@ const Game = {
     };
     this._2v2AIDriving = activeKey;
     this._2v2AIDrivingAt = Date.now();
+    // Progress clock — bumped by every play this drive makes (see playCard /
+    // playCardFree / playTrick). The drive watchdog reads it so a big hand at a
+    // slow pace is not mistaken for a hang. Seeded to the start so the watchdog
+    // has a value on the very first tick.
+    this._2v2AIDriveLastPlayAt = Date.now();
     // The turn this drive is FOR. Captured now, checked at finish: if anything
     // advanced the round in between — the 3s stall watchdog force-ending this
     // very seat is the case that shipped the bug — this drive's callback is by
@@ -22522,32 +22535,43 @@ const Game = {
     // an ability prompt that somehow stalls), force the phase to end so the
     // round can never freeze on an AI. Only fires if THIS drive is still the
     // active one after the timeout.
-    this._schedule(() => {
-      if (!finished && this._2v2AIDriving === activeKey && this._2v2AIWatchGen === watchGen) {
-        // NOT WHILE A PERSON IS BEING ASKED SOMETHING. A bot's card can put a
-        // prompt on a HUMAN — Symbiote Spider-Man asks every seat to cycle two
-        // cards, The Grinch asks the victim which trick to give up — and that
-        // person is entitled to think for longer than twelve seconds. Ending the
-        // phase underneath them abandons the ability chain half-resolved, which
-        // is a worse outcome than waiting. The prompt has its own 30s clock and
-        // the stall watchdog covers the rest, so this can afford to stand down
-        // and re-arm rather than fire blind.
-        if (this._2v2PromptOnLiveHuman
-            && (this._2v2PromptOnLiveHuman(this.state.pendingCardChoice)
-             || this._2v2PromptOnLiveHuman(this.state.pendingLaneChoice))) {
-          console.warn('[2v2 AI] drive watchdog held — a human still owes an answer to', activeKey + "'s card");
-          this._schedule(() => {
-            if (!finished && this._2v2AIDriving === activeKey && this._2v2AIWatchGen === watchGen) {
-              this._logDriveWatchdogEnd(activeKey);
-              finish();
-            }
-          }, 12000);
-          return;
-        }
-        this._logDriveWatchdogEnd(activeKey);
-        finish();
+    //
+    // PROGRESS-AWARE, NOT A FIXED DEADLINE. This used to fire at a flat 12s from
+    // drive start, so a full hand played at normal / slow pace — several cards
+    // and tricks, each with its own _aiActionDelay — could run PAST 12s while it
+    // was working perfectly well, and the watchdog force-ended the seat MID-TURN.
+    // The advance handed the turn to the next seat, and the cards still queued in
+    // ai.js then landed in THAT seat's turn and were refused out-of-turn: the AI
+    // looked like it skipped its own turn and then played on someone else's.
+    // (User: "Vega keeps skipping their turn — Vega should just play cards on
+    // their turn.") So the clock is the time since the drive last PLAYED
+    // something (_2v2AIDriveLastPlayAt, bumped by every AI-driven play), not since
+    // it started: a drive that is actively laying down cards is never cut off,
+    // and only one that has truly gone quiet for the window is force-ended.
+    const _AI_DRIVE_QUIET_MS = 12000;
+    const _driveWatch = () => {
+      if (finished || this._2v2AIDriving !== activeKey || this._2v2AIWatchGen !== watchGen) return;
+      // NOT WHILE A PERSON IS BEING ASKED SOMETHING. A bot's card can put a
+      // prompt on a HUMAN — Symbiote Spider-Man asks every seat to cycle two
+      // cards, The Grinch asks the victim which trick to give up — and that
+      // person is entitled to think. Stand down and re-arm rather than fire blind.
+      if (this._2v2PromptOnLiveHuman
+          && (this._2v2PromptOnLiveHuman(this.state.pendingCardChoice)
+           || this._2v2PromptOnLiveHuman(this.state.pendingLaneChoice))) {
+        this._schedule(_driveWatch, _AI_DRIVE_QUIET_MS);
+        return;
       }
-    }, 12000);
+      // Still making progress? A play landed within the window — reschedule and
+      // let it keep going.
+      const _quietFor = Date.now() - (this._2v2AIDriveLastPlayAt || this._2v2AIDrivingAt || 0);
+      if (_quietFor < _AI_DRIVE_QUIET_MS) {
+        this._schedule(_driveWatch, _AI_DRIVE_QUIET_MS - _quietFor + 200);
+        return;
+      }
+      this._logDriveWatchdogEnd(activeKey);
+      finish();
+    };
+    this._schedule(_driveWatch, _AI_DRIVE_QUIET_MS);
     // A TURN NOBODY COULD SEE IS NOT A TURN. When a seat has nothing it can
     // afford, AI.playCards and AI.playTricks both return immediately and the
     // chain lands on the 250ms tail below — so the seat's name flashes in the

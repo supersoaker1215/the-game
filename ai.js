@@ -630,6 +630,11 @@ const AI = {
     const preDelay  = this.aiStepMs();
     const postDelay = this.aiPostPlayMs();
     let i = 0;
+    // 2v2: the turn token as of when this queue started. If the sub-phase later
+    // advances (a drive watchdog force-ending the seat, a recovery) while cards
+    // are still queued, the token moves and we stop — otherwise the leftovers
+    // land in the NEXT seat's turn, refused out-of-turn, which reads as "the AI
+    // skipped its own turn and then played on someone else's". Undefined in 1v1.
     const step = () => {
       // THE TURN ENDED UNDER US — STOP, DON'T PUSH ON. Checked before the
       // prompt gate below as well as before each action, because a queue parked
