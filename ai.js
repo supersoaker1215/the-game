@@ -973,8 +973,19 @@ const AI = {
         let card = s[owner].hand.find(c => c.id === cardRef.id);
         if (!card) return;
         if (spendable() <= 0) return;
-        let cost = Game.getCardCost(owner, card);
+        // PRICE THE PLAY, NOT THE CARD. A card Pinhead has chained cannot be
+        // played alone — the pair enters together and is charged together — so
+        // planning on the single cost plans a play the engine then refuses,
+        // every turn, for as long as the chain holds. Game.getPlayCost is the
+        // one door that knows the difference; the rest of this file still reads
+        // the card's own cost, which is right everywhere it is used (ordering,
+        // "what else could I have afforded", the trace).
+        let cost = Game.getPlayCost ? Game.getPlayCost(owner, card) : Game.getCardCost(owner, card);
         if (cost > spendable()) return;
+        // …and the partner needs a lane of its own, which is the OTHER way
+        // _playChainedCard refuses. chooseLane below only finds one.
+        if (Game.chainPartnerOf && Game.chainPartnerOf(owner, card)
+            && Game.getOpenLanes(owner).length < 2) return;
         if (card.isDiscardEffect) { Game.playCard(owner, card, 0); return; }
         let lane = this.chooseLane(card, owner);
         if (lane < 0) return;

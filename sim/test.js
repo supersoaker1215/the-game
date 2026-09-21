@@ -11021,6 +11021,67 @@ test('a card with its hook intact reports nothing', function () {
 
 // ============================================================
 // A DEFINITION THAT LOST ITS HOOKS STILL BUILDS A WORKING CARD
+// ---- 2v2 ROUND SKIP: ONE POST-COMBAT PER COMBAT, NOT PER ROUND --------
+// postCombat is the only thing that advances the 2v2 round, and its duplicate
+// latch was keyed on state.round — a value postCombat itself changes on the way
+// out. So the first call stamped round 10, advanced to 11, and a duplicate timer
+// arriving after it read 11, found the stamp saying 10, and advanced AGAIN. A
+// whole round of turns vanished, and the seat whose turn had just opened was
+// left holding a drive for a turn that no longer existed.
+// (Owner, 2v2 online: "both ai teamates payed the enclousre good but both then
+// skipped and didnt spend thier 6 energy.")
+test('2v2: a duplicate postCombat cannot advance the round a second time', function () {
+  Game.start2v2Match({ names: { p1: 'A1', p2: 'B1', p3: 'A2', p4: 'B2' } });
+  var s = Game.state, tt = s.twoVTwo;
+  tt.online = false;
+  tt.round = 10; s.round = 10;
+  // A real combat, through the real door — this resolves the lanes and runs the
+  // first postCombat, which advances the round exactly once.
+  Game._2v2ResolveCombat();
+  var afterFirst = tt.round;
+  assertEq(afterFirst, 11, 'the combat that just resolved advances the round once');
+  // …and now the duplicate timer lands.
+  Game.postCombat();
+  assertEq(tt.round, afterFirst,
+    'a second postCombat for the SAME combat must not advance the round again');
+});
+
+// ---- 2v2 AI DRIVE: A STALE DRIVE LETS GO OF ITS OWN LOCK --------------
+// _2v2AIDriving is a one-at-a-time lock on the AI seat driver. A drive whose
+// turn ended underneath it returned early on the token check WITHOUT releasing
+// the lock, on the theory that a newer drive already owned it — but no newer
+// drive can own it: _2v2DriveAISeat refuses to start while the lock is held and
+// younger than 15 seconds. So one orphaned drive silently blocked every AI seat
+// after it, and each of those turns was ended by the stall watchdog with nothing
+// played. That is "both then skipped and didnt spend thier 6 energy".
+test('2v2: a drive whose turn ended releases the AI-drive lock it still holds', function () {
+  Game.start2v2Match({ names: { p1: 'A1', p2: 'B1', p3: 'A2', p4: 'B2' } });
+  var tt = Game.state.twoVTwo;
+  tt.online = false;
+  ['p1', 'p2', 'p3', 'p4'].forEach(function (k) { tt.players[k].isAI = true; });
+  Game._2v2AIDriving = null;
+  Game._2v2AIDrivingAt = 0;
+  // The sim fires every timer synchronously, which INVERTS the ordering this
+  // bug lives in: the drive's 12s watchdog would run before its own 500ms step
+  // and finish the turn while the token still matched. Park the drive's steps
+  // instead and release them oldest-first, which is what a browser does.
+  var parked = [], savedSched = Game._schedule;
+  Game._schedule = function (fn, ms) { parked.push({ fn: fn, ms: ms || 0 }); return 0; };
+  try {
+    Game._2v2DriveAISeat('p1', 'p1-cards');
+    assertEq(Game._2v2AIDriving, 'p1', 'the drive took the lock');
+    // …and the turn moves on underneath it — a duplicate round advance, a
+    // watchdog force-end, a teammate's Done.
+    Game._2v2TurnToken = (Game._2v2TurnToken || 0) + 1;
+    parked.sort(function (a, b) { return a.ms - b.ms; });
+    parked.forEach(function (e) { try { e.fn(); } catch (err) {} });
+  } finally {
+    Game._schedule = savedSched;
+  }
+  assertEq(Game._2v2AIDriving, null,
+    'the stale drive let go — nothing else could have taken the lock from it');
+});
+
 // ============================================================
 // Owner: "its in 2v2 with the engine, it gets overlooked when the game runs for
 // too long, too much happening — how to fix, that nothing gets missed."
@@ -11840,6 +11901,78 @@ test('2v2: a card cannot be played on the other team\'s turn', function () {
   assertEq(G.playCard('ai', doc2, 4), true, 'an ability-driven play in combat is untouched');
 
   G._2v2ActivePlayer = prevActive;
+});
+
+// ---- 2v2 AI DRIVE: A BLOCKED SEAT WAITS, IT DOES NOT LOSE ITS TURN ----
+// The drive is one-at-a-time. A seat whose drive arrived while another seat's
+// driver still held the lock used to return flat — no cards, no tricks, and no
+// end to its own sub-phase, so its turn was closed by the stall watchdog with
+// its whole purse unspent. A scheduling detail should never cost a player a turn.
+test('2v2: a drive blocked by the lock comes back for its turn', function () {
+  Game.start2v2Match({ names: { p1: 'A1', p2: 'B1', p3: 'A2', p4: 'B2' } });
+  var tt = Game.state.twoVTwo;
+  tt.online = false;
+  ['p1', 'p2', 'p3', 'p4'].forEach(function (k) { tt.players[k].isAI = true; });
+  var parked = [], savedSched = Game._schedule;
+  Game._schedule = function (fn, ms) { parked.push({ fn: fn, ms: ms || 0 }); return 0; };
+  // Another seat's driver is holding the lock, and it is young.
+  Game._2v2AIDriving = 'p3';
+  Game._2v2AIDrivingAt = Date.now();
+  Game._2v2DriveRetries = null;
+  try {
+    var seat = Game._2v2ActivePlayer();
+    Game._2v2DriveAISeat(seat, Game._2v2SubPhase());
+    assertEq(Game._2v2AIDriving, 'p3', 'it did not barge in on the live drive');
+    assertEq(parked.length > 0, true, "...but it parked a retry rather than dropping the seat's turn");
+    // The other drive lets go, and the retry finds the seat still up.
+    Game._2v2AIDriving = null;
+    Game._2v2AIDrivingAt = 0;
+    parked.shift().fn();
+    assertEq(Game._2v2AIDriving, seat, 'the retry took the turn the seat was owed');
+  } finally {
+    Game._schedule = savedSched;
+    Game._2v2AIDriving = null;
+    Game._2v2AIDrivingAt = 0;
+    Game._2v2DriveRetries = null;
+  }
+});
+
+// ---- AI + PINHEAD'S CHAINS: PRICE THE PLAY, NOT THE CARD --------------
+// A chained pair enters together and is charged together, so the cheap half is
+// not a cheap play. The AI queued it on its own cost, playCard refused the pair
+// for want of energy, and the seat finished the turn having played nothing —
+// the same card, every turn, for as long as the chain held.
+test('the AI spends its turn on a card it can afford, not on half a chained pair', function () {
+  var G = freshGame();
+  G.state.ai.hand = [];
+  G.state.ai.currency = 3;
+  var cheapHalf = G.createCardInstance(cardByName('Hawkeye'), 'ai');       // cost 1
+  var dearHalf  = G.createCardInstance(cardByName('Darth Maul'), 'ai');    // cost 4
+  var plain     = G.createCardInstance(cardByName('King Shark'), 'ai');    // cost 1
+  cheapHalf._chained = true; cheapHalf._chainPartnerId = dearHalf.id;
+  dearHalf._chained  = true; dearHalf._chainPartnerId  = cheapHalf.id;
+  G.state.ai.hand.push(cheapHalf, dearHalf, plain);
+
+  // Count the plays the engine had to REFUSE. That is the measurable shape of
+  // the defect: the AI planning a play it can never make, and doing it again
+  // every turn for as long as the chain holds.
+  var refused = 0, savedPlay = G.playCard;
+  G.playCard = function (o, c, l) {
+    var r = savedPlay.call(G, o, c, l);
+    if (!r) refused++;
+    return r;
+  };
+  try {
+    AI.playCards('ai', function () {});
+  } finally {
+    G.playCard = savedPlay;
+  }
+  assertEq(refused, 0, 'the AI made no play the engine had to refuse');
+  assertEq(G.findCardLane(plain) >= 0, true, 'and it spent the turn on a card it could actually play');
+  assertEq(G.findCardLane(cheapHalf), -1, 'the half-pair stayed in hand');
+
+  assertEq(G.getCardCost('ai', cheapHalf), 1, "the card's own cost is unchanged — that is what the badge prints");
+  assertEq(G.getPlayCost('ai', cheapHalf), 5, 'but playing it costs the pair');
 });
 
 // ---- RUNNER ------------------------------------------------

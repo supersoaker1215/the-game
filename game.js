@@ -7682,6 +7682,7 @@ const Game = {
     // in _2v2ResolveCombat. Stops a watchdog recovery and the normal end of
     // combat from both advancing the round.
     this.state._combatNeedsPostProcess = true;
+    this._mintCombatRun();
     // Re-arm as real combat begins — this resets the watchdog's progress clock
     // so any time spent waiting on a pre-combat prompt above doesn't eat into
     // the mid-combat idle budget. (Already armed at the top of resolveCombat.)
@@ -7885,6 +7886,24 @@ const Game = {
     }
   },
 
+  // WHICH COMBAT THIS IS. A monotonic counter minted wherever a combat is armed
+  // (resolveCombat, and _2v2ResolveCombat one beat ahead of it — both bump, and
+  // a double bump for one 2v2 combat is harmless because postCombat only ever
+  // compares against whatever is current when IT runs).
+  //
+  // It exists because postCombat's duplicate latch had to be keyed on something
+  // postCombat does not itself change, and every other candidate moves: the
+  // round is advanced BY postCombat, and the 2v2 combat-start stamp is cleared
+  // by the round advance that follows it. See the guard in postCombat.
+  //
+  // Starts undefined and is only ever set by a real combat, so a direct
+  // postCombat() on a state that never fought — the sim's own calls, a test
+  // harness — is left exactly as permissive as it was.
+  _mintCombatRun() {
+    if (!this.state) return;
+    this.state._combatRunSeq = (this.state._combatRunSeq | 0) + 1;
+  },
+
   postCombat() {
     // EXACTLY ONE POST-COMBAT PER COMBAT. postCombat is where the round is
     // advanced (via _2v2PostCombat -> _2v2DrawPhase -> start2v2Round in 2v2, and
@@ -7906,6 +7925,30 @@ const Game = {
     // next round's is not, and needs no arming to be allowed. state.round is
     // kept in step with tt.round in 2v2 (see start2v2Round), so one reading
     // serves both modes.
+    //
+    // …AND THE ROUND IS THE ONE KEY THAT CANNOT HOLD THAT LATCH. postCombat is
+    // what advances the round, so by the time a duplicate arrives the round has
+    // already moved past the number the stamp is holding and the two no longer
+    // match — the latch quietly lets the duplicate through and the round jumps
+    // twice. Measured, 25 seeded 2v2 matches: postCombat ran for round 10, the
+    // round became 11, the duplicate timer read 11 against a stamp of 10 and
+    // advanced to 12. The seat whose turn had just opened (p3) was left holding
+    // a drive for a turn that no longer existed, and the next seat (p4) was
+    // refused its own drive by the lock that drive never let go of — so both
+    // bots sat out their turns with their energy unspent. (Owner, 2v2 online:
+    // "both ai teamates payed the enclousre good but both then skipped and
+    // didnt spend thier 6 energy.")
+    //
+    // So the latch is keyed on WHICH COMBAT, via a counter minted when a combat
+    // is armed and untouched by anything postCombat does (see _mintCombatRun).
+    // The round key is kept beside it: it still refuses a second postCombat
+    // inside one round, which is a different duplicate and one this counter
+    // cannot see. Both are floors, neither is the whole answer.
+    const _pcSeq = this.state ? (this.state._combatRunSeq | 0) : 0;
+    if (_pcSeq && this.state && this.state._postCombatRanForCombat === _pcSeq) {
+      console.warn('[postCombat] already ran for this combat (#' + _pcSeq + ') — ignoring duplicate advance.');
+      return;
+    }
     const _pcRound = (this.state && (this.state.round | 0)) || 0;
     if (this.state && this.state._postCombatRanForRound === _pcRound) {
       console.warn('[postCombat] already ran for round ' + _pcRound + ' — ignoring duplicate advance.');
@@ -7913,6 +7956,7 @@ const Game = {
     }
     if (this.state) {
       this.state._postCombatRanForRound = _pcRound;
+      if (_pcSeq) this.state._postCombatRanForCombat = _pcSeq;
       this.state._combatNeedsPostProcess = false;
     }
     // Phase 1 dual-run instrument — compare forecast to actual.
@@ -11793,6 +11837,35 @@ const Game = {
     if (!partner) return;
     partner._chained = false; partner._chainPartnerId = null; partner._chainPartnerName = null;
     this.log(`[PINHEAD] The chain binding ${card.name} to ${partner.name} falls apart — ${partner.name} is free.`);
+  },
+
+  // THE OTHER HALF OF A CHAIN, IF IT IS STILL THERE. Pinhead chains two cards in
+  // one hand; neither can be played alone. The partner can leave (drawn away,
+  // discarded, stolen), and then the chain is simply broken — see
+  // _playChainedCard, which plays the lone card at its own price.
+  chainPartnerOf(owner, card) {
+    if (!card || !card._chained || card._chainPartnerId == null) return null;
+    const holder = (this._2v2HandTarget ? this._2v2HandTarget(owner, card) : this.state[owner])
+                   || this.state[owner];
+    const hand = (holder && holder.hand) || [];
+    return hand.find(c => c && c.id === card._chainPartnerId) || null;
+  },
+
+  // WHAT IT ACTUALLY COSTS TO PUT THIS CARD DOWN — which is not always what the
+  // card costs. getCardCost answers the second question: it is what the badge
+  // prints and what the purse is charged. For a chained card the two numbers
+  // differ, because the pair can only enter together, so the price of playing
+  // one is the price of both.
+  //
+  // Anything that PLANS a play has to ask this one. The AI asked the other, so
+  // it queued the 1-cost half of a 5-cost pair, playCard dragged in the partner
+  // and refused for want of energy, and — with nothing else in hand it could
+  // afford — the seat finished its turn having played nothing and spent nothing.
+  // (Owner, 2v2 online: "both then skipped and didnt spend thier 6 energy.")
+  getPlayCost(owner, card) {
+    const base = this.getCardCost(owner, card);
+    const partner = this.chainPartnerOf(owner, card);
+    return partner ? base + this.getCardCost(owner, partner) : base;
   },
 
   _playChainedCard(owner, card, laneIdx, opts) {
@@ -22251,7 +22324,36 @@ const Game = {
       // it releases rather than blocking. Only a lock that can prove it is
       // young holds.
       const _since = this._2v2AIDrivingAt || 0;
-      if (_since && Date.now() - _since < 15000) return;
+      if (_since && Date.now() - _since < 15000) {
+        // WAIT YOUR TURN — DO NOT LOSE IT. A bare `return` here hands the seat
+        // nothing: no cards, no tricks, and no end to its own sub-phase, so the
+        // turn is closed seconds later by the stall watchdog with the seat's
+        // whole purse unspent. That is a turn silently deleted because another
+        // seat's driver happened to still be holding the lock, which is a
+        // scheduling detail no player should ever pay for.
+        // Bounded, and bounded by ATTEMPTS rather than by the clock, so it
+        // terminates under a synchronous scheduler too (the headless sim runs
+        // _schedule inline): 8 tries at 400ms is 3.2s, well inside both the 12s
+        // drive watchdog and the 15s stale-lock window above. If the lock is
+        // still held after that it is a genuinely stuck drive, and the paths
+        // that handle a stuck table take it from there.
+        const _tok = this._2v2TurnToken;
+        const _tries = (this._2v2DriveRetries && this._2v2DriveRetries.tok === _tok)
+          ? this._2v2DriveRetries.n : 0;
+        if (_tries < 8) {
+          this._2v2DriveRetries = { tok: _tok, n: _tries + 1 };
+          this._schedule(() => {
+            // Only if this is still the same turn AND still this seat's.
+            if (this._2v2TurnToken !== _tok) return;
+            if (this._2v2ActivePlayer && this._2v2ActivePlayer() !== activeKey) return;
+            this._2v2DriveAISeat(activeKey, subPhase);
+          }, 400);
+        } else {
+          console.warn('[2v2 AI] gave up waiting for the drive lock held by',
+                       this._2v2AIDriving, '— seat', activeKey, 'is on the watchdog now');
+        }
+        return;
+      }
       console.warn('[2v2 AI] stale drive lock from', this._2v2AIDriving, '— releasing');
       this._2v2AIDriving = null;
     }
@@ -22315,6 +22417,26 @@ const Game = {
       // token anyway; this is about the three lines above it.
       if (this._2v2TurnToken !== turnToken) {
         console.warn('[2v2 AI] drive for', activeKey, 'came back after its turn ended — ignoring');
+        // …BUT IF THE LOCK IS STILL OURS, NOBODY TOOK IT. The line above used to
+        // return flat, on the reasoning quoted below it: a new drive for the next
+        // seat may already own _2v2AIDriving, so clearing it would break that
+        // drive's lock. That reasoning has one hole, and it is the whole bug: a
+        // new drive CANNOT have taken the lock. _2v2DriveAISeat refuses to start
+        // while the lock is held and younger than 15 seconds, so the next seat's
+        // drive returned at that gate having done nothing, and its turn was only
+        // ended — with nothing played — by the stall watchdog. One orphaned drive
+        // therefore silently sat out every AI seat that followed it, for up to
+        // fifteen seconds. (Owner: "both ai teamates payed the enclousre good but
+        // both then skipped and didnt spend thier 6 energy.")
+        //
+        // Keyed on the drive GENERATION, not just the seat: if this same seat was
+        // driven again after the lock aged out, that newer drive owns the lock and
+        // this stale callback must not touch it.
+        if (this._2v2AIDriving === activeKey && this._2v2AIWatchGen === watchGen) {
+          this._2v2AIDriving = null;
+          this._2v2AIDrivingAt = 0;
+          if (this._2v2CurrentActingPlayer === activeKey) this._2v2CurrentActingPlayer = null;
+        }
         return;
       }
       // THEIR SEAT IS THEIRS AGAIN. Release the drive but do NOT advance: the
@@ -22686,6 +22808,7 @@ const Game = {
     // postCombat through and the duplicate no-op. (User: "the game keeps skipping
     // rounds ... round 9 then round 11 then round 13.")
     s._combatNeedsPostProcess = true;
+    this._mintCombatRun();
     if (typeof UI !== 'undefined' && UI.render) UI.render();
     // TELL THE OTHER CLIENTS COMBAT STARTED. Nothing here pushed, and combat
     // then runs from a bare setTimeout outside every action boundary that
