@@ -630,17 +630,19 @@ const AI = {
     const preDelay  = this.aiStepMs();
     const postDelay = this.aiPostPlayMs();
     let i = 0;
-    // 2v2: the turn token as of when this queue started. If the sub-phase later
-    // advances (a drive watchdog force-ending the seat, a recovery) while cards
-    // are still queued, the token moves and we stop — otherwise the leftovers
-    // land in the NEXT seat's turn, refused out-of-turn, which reads as "the AI
-    // skipped its own turn and then played on someone else's". Undefined in 1v1.
     const step = () => {
-      // THE TURN ENDED UNDER US — STOP, DON'T PUSH ON. Checked before the
-      // prompt gate below as well as before each action, because a queue parked
-      // on whenPromptCleared is exactly the one most likely to come back late.
-      // onComplete still fires: the 2v2 drive's finish() is what releases the
-      // drive lock, and it already refuses to advance a turn that is not its own.
+      // THE TURN ENDED UNDER US — STOP, DON'T PUSH ON. The guard is the caller's
+      // (see _turnGuard); it holds the turn token as of when this work started,
+      // so if the sub-phase advances underneath us — a drive watchdog force-ending
+      // the seat, a recovery — the leftovers never land in the NEXT seat's turn
+      // to be refused out-of-turn, which reads as "the AI skipped its own turn
+      // and then played on someone else's".
+      //
+      // Checked before the prompt gate below as well as before each action,
+      // because a queue parked on whenPromptCleared is exactly the one most
+      // likely to come back late. onComplete still fires: the 2v2 drive's
+      // finish() is what releases the drive lock, and it already refuses to
+      // advance a turn that is not its own.
       if (stillMyTurn && !stillMyTurn()) {
         document.body && document.body.classList.remove('ai-thinking');
         if (onComplete) onComplete();

@@ -12106,6 +12106,37 @@ test('a card killed by the lane it entered is announced on the FX stream', funct
   assertEq(fired[0].owner, 'player', 'on the side that played it');
 });
 
+// ---- DEATH RISES FOR THE ENEMY'S ENDURANCE, NOT HIS OWN SIDE'S --------
+// The scan read the WHOLE board, so a player's own two long-standing cards woke
+// him — on a board whose only enemy had landed that very turn. (Owner: "death
+// only jumps for enemies on the board for 2+ turns not allies, raven was
+// oplayed his turn.")
+test('Death rises for a long-standing ENEMY, never for his own side', function () {
+  var G = freshGame();
+  G.state.round = 3;
+  // Two of the player's own cards, standing since round 1…
+  var ally1 = G.createCardInstance(cardByName('Deathstroke'), 'player');
+  var ally2 = G.createCardInstance(cardByName('Catwoman'), 'player');
+  G.state.lanes[0].player = ally1; ally1.owner = 'player'; ally1._playedRound = 1;
+  G.state.lanes[2].player = ally2; ally2.owner = 'player'; ally2._playedRound = 1;
+  // …and the only enemy on the board landed this turn.
+  var fresh = G.createCardInstance(cardByName('Raven'), 'ai');
+  G.state.lanes[2].ai = fresh; fresh.owner = 'ai'; fresh._playedRound = 3;
+
+  var death = G.createCardInstance(cardByName('Death'), 'player');
+  G.state.player.hand = [death];
+  assertEq(G._armJumpForCard(death, 'player', 'ai', 'beforeTricks', {}), false,
+    'nothing on the ENEMY side has stood long enough — he stays in hand');
+  assertEq(!!death.jumpReady, false, 'so no free play is offered');
+
+  // …and he does rise the moment an enemy has endured.
+  fresh._playedRound = 1;
+  assertEq(G._armJumpForCard(death, 'player', 'ai', 'beforeTricks', {}), true,
+    'an enemy that has stood 2+ rounds wakes him');
+  assertEq((death._deathWokeBy || []).length, 1, 'and only the enemy is a candidate');
+  assertEq(death._deathWokeBy[0], fresh.id, 'the enemy, specifically');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

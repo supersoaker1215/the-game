@@ -17565,15 +17565,24 @@ const Game = {
       this._logJump(card, owner, `  [JUMP] Jason Voorhees rises to avenge${laneStr}! Free play available.`);
       return true;
     }
-    // DEATH answers endurance: when ANY card (either side) has stood on the field
-    // two or more full rounds, he rises for free into any open lane. Checked at
-    // the before-tricks boundary — the once-a-round pulse Art the Clown uses —
-    // so a board that has grown stale always offers the jump. _playedRound is
-    // stamped the moment a card first settles (see _stampPlayedRound). The
-    // longest-standing card is the one that "woke" him; his On Play reaps it.
+    // DEATH answers the ENEMY'S endurance: when a card on the other side has
+    // stood on the field two or more full rounds, he rises for free into any
+    // open lane. Checked at the before-tricks boundary — the once-a-round pulse
+    // Art the Clown uses — so a board that has grown stale always offers the
+    // jump. _playedRound is stamped the moment a card first settles (see
+    // _stampPlayedRound). The longest-standing enemy is the one that "woke" him,
+    // and his On Play reaps whichever candidate the player picks.
+    //
+    // THE OTHER SIDE, NOT THE WHOLE BOARD. This scanned every card in play, so a
+    // player's own two long-standing bodies woke him — on a board whose only
+    // enemy had landed that very turn. He is a punishment for letting the
+    // opponent settle in, and reading your own board made him fire off nothing
+    // the opponent had done. (Owner: "death only jumps for enemies on the board
+    // for 2+ turns not allies, raven was oplayed his turn.") His On Play deals 3
+    // to whoever woke him, which only ever made sense against an enemy anyway.
     if (card.name === 'Death' && trigger === 'beforeTricks' && this.canJumpNow(owner, card)) {
       const round = (this.state.round || 1);
-      const aged = this.getAllCardsOnBoard().filter(c => c && !c.isEnvironment
+      const aged = this.getAllCardsOf(opp).filter(c => c && !c.isEnvironment
         && c._playedRound != null && (round - c._playedRound) >= 2 && c.currentHealth > 0);
       if (aged.length) {
         aged.sort((a, b) => (a._playedRound || 0) - (b._playedRound || 0));

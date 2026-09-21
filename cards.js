@@ -476,7 +476,7 @@ const CARD_DEFS = [
     desc: "Jump: When the enemy plays a card costing less than Michael Myers — into the lane opposite it." },
   { name: "Death", cost: 6, attack: 4, health: 6, type: "horror",
     abilities: [],
-    desc: "Jump: when any card has stood on the field 2+ rounds — into any open lane. When Played: deal 3 to the card that woke him. Passive: each round he survives, Mark a random enemy — Marked cards can't be healed or buffed. While Active: Marked enemies lose 1 HP each round. When Death kills a card: Mark another enemy." },
+    desc: "Jump: when an enemy card has stood on the field 2+ rounds — into any open lane. When Played: deal 3 to the card that woke him. Passive: each round he survives, Mark a random enemy — Marked cards can't be healed or buffed. While Active: Marked enemies lose 1 HP each round. When Death kills a card: Mark another enemy." },
   { name: "Pinhead", cost: 2, attack: 0, health: 0, type: "horror",
     isDiscardEffect: true,
     abilities: [],
