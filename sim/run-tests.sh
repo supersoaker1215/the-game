@@ -113,6 +113,68 @@ run_suite sim/css-parse.js
 echo "=== gfx-budget.js (nothing repaints every frame at the Normal tier) ==="
 run_suite sim/gfx-budget.js
 
+# ---- CACHE STAMP -------------------------------------------------------
+# Did the LAST COMMIT ship with its ?v= and CACHE_VERSION in step?
+#
+# Checked against HEAD, not the working tree, and that is the whole point: a
+# working-tree check would be red from the first keystroke of every edit until
+# you committed, which is how a gate stops meaning anything. This asks the only
+# question that is actionable — "is what I already pushed correct?" — and the
+# pre-commit hook (tools/pre-commit.sample) keeps the answer yes without anyone
+# remembering to.
+#
+# It is here as well as in the hook because the hook is per-clone and opt-in,
+# while this script is what everybody runs.
+echo "=== cache-stamp (the ?v= HEAD shipped match the files HEAD shipped) ==="
+_cs_tmp="$(mktemp -d)"
+if git archive HEAD 2>/dev/null | tar -x -C "$_cs_tmp" 2>/dev/null && [ -f "$_cs_tmp/tools/stamp-cache.js" ]; then
+  _cs_out="$( cd "$_cs_tmp" && "$JSC" tools/stamp-cache.js -- --check 2>&1 )"
+  if [ $? -eq 0 ]; then
+    echo "$_cs_out" | grep -E "versioned assets|✅"
+    echo "  ✅ cache stamp"
+  else
+    echo "$_cs_out" | grep -E "STALE|❌" | head -8
+    echo "     Fix with: jsc tools/stamp-cache.js   (then commit)"
+    echo "  ❌ cache stamp FAILED"
+    FAIL=1
+  fi
+else
+  echo "· skip (no git archive / tool not committed yet)"
+fi
+rm -rf "$_cs_tmp"
+echo ""
+
+# ---- VENDOR PIN --------------------------------------------------------
+# peerjs.min.js is 93KB of third-party code committed straight into the repo,
+# and it is the ENTIRE multiplayer transport — nothing in sim/ exercises it, so
+# a change to it would first show up as a multiplayer bug nobody can place.
+# tools/vendor.json records what it is meant to be; this checks that it still is.
+echo "=== vendor pin (committed third-party files are what they claim) ==="
+if [ -f tools/vendor.json ]; then
+  _vp_file=$(python3 -c "import json;print(json.load(open('tools/vendor.json'))['peerjs']['file'])" 2>/dev/null)
+  _vp_want=$(python3 -c "import json;print(json.load(open('tools/vendor.json'))['peerjs']['sha256'])" 2>/dev/null)
+  _vp_ver=$(python3 -c "import json;print(json.load(open('tools/vendor.json'))['peerjs']['version'])" 2>/dev/null)
+  if [ -n "$_vp_want" ] && [ -f "$_vp_file" ]; then
+    _vp_got=$(shasum -a 256 "$_vp_file" | cut -d' ' -f1)
+    if [ "$_vp_got" = "$_vp_want" ]; then
+      echo "  peerjs $_vp_ver — sha256 matches"
+      echo "  ✅ vendor pin"
+    else
+      echo "  $_vp_file does NOT match the pin in tools/vendor.json"
+      echo "    recorded $_vp_want"
+      echo "    on disk  $_vp_got"
+      echo "  If this was a deliberate upgrade, update tools/vendor.json — and test"
+      echo "  a real two-client game first; no suite here covers the transport."
+      echo "  ❌ vendor pin FAILED"
+      FAIL=1
+    fi
+  else
+    echo "· skip (pin incomplete)"
+  fi
+else
+  echo "· skip (no tools/vendor.json)"
+fi
+
 echo ""
 echo "=== bat-lock.js (a locked card does not look like an expensive one) ==="
 run_suite sim/bat-lock.js

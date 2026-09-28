@@ -56,12 +56,48 @@ cd /tmp/pre && jsc sim/test.js     # your new case must FAIL here
 
 ## Deploying
 
-Cache-bust by incrementing the `?v=N` query params on script tags in
-`index.html` when changing JS or CSS, AND bump `CACHE_VERSION` in `sw.js`.
-Both, every time — the `?v=` alone does not refresh a returning player's
-service worker, so they stay on stale code and re-report bugs you already
-fixed. (Measured over 30 days: 42 of 343 engine-JS commits skipped the `sw.js`
-bump.)
+**This is automatic now — you should not be editing version numbers by hand.**
+
+```bash
+cp tools/pre-commit.sample .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+```
+
+Run that once per clone. From then on every commit stamps itself: any file
+whose contents changed gets its `?v=N` incremented in `index.html`, and
+`CACHE_VERSION` in `sw.js` is bumped once for the deploy. It is idempotent, so
+a commit that touched nothing versioned is silent.
+
+Both numbers matter. The `?v=` alone does not refresh a returning player's
+service worker — it keeps serving the old `CODE_CACHE` until `CACHE_VERSION`
+changes, so they stay on stale code and re-report bugs you already fixed.
+Measured over 30 days before this existed: **42 of 343** commits that touched
+engine JS shipped with no `sw.js` bump. One deploy in eight went out invisible.
+
+`./sim/run-tests.sh` checks this against **HEAD**, not your working tree — so
+it tells you whether what you already pushed is correct, and never nags while
+you are mid-edit. To fix a commit that slipped through (a co-author without the
+hook, a `--no-verify`):
+
+```bash
+jsc tools/stamp-cache.js
+```
+
+`?v=` values stay INTEGERS on purpose. `multiplayer.js` derives its version
+handshake from them with `/(game|ui|multiplayer|cards|abilities)\.js\?v=(\d+)/`
+— a content hash there would silently break the check that warns two players
+they are on different builds.
+
+`CACHE_VERSION` keeps its `clb-v<N>-<name>` shape: the stamper only moves the
+number, so you are free to rename the tail to describe what shipped.
+
+## Vendored code
+
+`peerjs.min.js` is committed directly — 93KB of third-party code that is the
+entire multiplayer transport, and **nothing in `sim/` exercises it**.
+`tools/vendor.json` pins its version and sha256, and the test gate verifies the
+hash every run, so a silent change shows up there instead of as a multiplayer
+bug nobody can place. Upgrading it means testing a real two-client game before
+pushing.
 
 ## Running simulations
 

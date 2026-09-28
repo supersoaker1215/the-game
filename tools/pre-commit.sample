@@ -1,0 +1,38 @@
+#!/bin/sh
+# Stamp the cache before every commit, so a deploy can never go out invisible.
+#
+# Shipping this game means bumping TWO things: the `?v=N` on each changed file
+# in index.html, and CACHE_VERSION in sw.js. The `?v=` alone is not enough — a
+# returning player's service worker keeps serving the old CODE_CACHE until
+# CACHE_VERSION changes, so they stay on stale code and re-report bugs that were
+# fixed days ago.
+#
+# Measured over 30 days before this hook existed: 42 of 343 commits that touched
+# engine JS shipped with no sw.js bump. One deploy in eight.
+#
+# Runs tools/stamp-cache.js, which is idempotent — a commit that changed nothing
+# versioned is untouched, so this is silent the vast majority of the time.
+#
+# Lives in .git/hooks/, which git does NOT track. A fresh clone installs it with:
+#   cp tools/pre-commit.sample .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+# (core.hooksPath is deliberately NOT used — it would redirect every hook and
+# disable the post-commit auto-push that already lives here.)
+
+JSC=/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Helpers/jsc
+[ -x "$JSC" ] || exit 0                       # no jsc (not macOS) — don't block the commit
+[ -f tools/stamp-cache.js ] || exit 0
+
+OUT=$("$JSC" tools/stamp-cache.js 2>&1)
+STATUS=$?
+if [ $STATUS -ne 0 ]; then
+  echo "[cache-stamp] FAILED — commit blocked so a stale deploy can't ship:"
+  echo "$OUT"
+  exit 1
+fi
+
+# Only say something when it actually did something.
+if echo "$OUT" | grep -q "bumped\|adopted"; then
+  echo "$OUT" | sed 's/^/[cache-stamp] /'
+  git add index.html sw.js tools/cache-stamp.json 2>/dev/null
+fi
+exit 0

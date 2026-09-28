@@ -1,0 +1,90 @@
+{
+  "style.css": {
+    "v": 1681,
+    "hash": "448e019a"
+  },
+  "board-v2.css": {
+    "v": 108,
+    "hash": "f4ff37ff"
+  },
+  "cards.js": {
+    "v": 284,
+    "hash": "d02efa90"
+  },
+  "tricks.js": {
+    "v": 124,
+    "hash": "60a8beb5"
+  },
+  "abilities.js": {
+    "v": 511,
+    "hash": "006445a7"
+  },
+  "engine/combat.js": {
+    "v": 4,
+    "hash": "70873070"
+  },
+  "decks.js": {
+    "v": 6,
+    "hash": "cd48f8d0"
+  },
+  "game.js": {
+    "v": 817,
+    "hash": "59c7498b"
+  },
+  "ai.js": {
+    "v": 70,
+    "hash": "05b0d194"
+  },
+  "roguelite.js": {
+    "v": 131,
+    "hash": "62a01312"
+  },
+  "multiplayer.js": {
+    "v": 54,
+    "hash": "19440620"
+  },
+  "card-art-manifest.js": {
+    "v": 84,
+    "hash": "cb1c4b2c"
+  },
+  "card-art-accent.js": {
+    "v": 1,
+    "hash": "de187388"
+  },
+  "leaderboard.js": {
+    "v": 4,
+    "hash": "063d487d"
+  },
+  "ui.js": {
+    "v": 1679,
+    "hash": "33b9f16b"
+  },
+  "board-v2.js": {
+    "v": 32,
+    "hash": "9ad5e175"
+  },
+  "voice.js": {
+    "v": 6,
+    "hash": "cc8af63f"
+  },
+  "tutorial.js": {
+    "v": 15,
+    "hash": "cac78c4a"
+  },
+  "tournament.js": {
+    "v": 9,
+    "hash": "86ebf609"
+  },
+  "logger.js": {
+    "v": 5,
+    "hash": "bebcffc9"
+  },
+  "error-reporter.js": {
+    "v": 2,
+    "hash": "0b71e2da"
+  },
+  "perf-overlay.js": {
+    "v": 1,
+    "hash": "6d15b8be"
+  }
+}

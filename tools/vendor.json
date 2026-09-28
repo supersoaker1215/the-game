@@ -1,0 +1,31 @@
+{
+  "_comment": [
+    "Third-party code committed into this repo. There is no package manager here",
+    "and that is deliberate — but an unpinned vendored file is a dependency you",
+    "cannot reason about: no version, no source, no way to tell a deliberate",
+    "upgrade from a corrupted or swapped file. This is the pin.",
+    "",
+    "sim/run-tests.sh verifies each sha256 on every run, so a silent change is",
+    "visible instead of arriving as a multiplayer bug nobody can place.",
+    "",
+    "To upgrade: download the new dist, replace the file, update version + sha256",
+    "here, and TEST A REAL TWO-CLIENT GAME before pushing — this file is the",
+    "entire multiplayer transport and nothing in sim/ exercises it."
+  ],
+  "peerjs": {
+    "file": "peerjs.min.js",
+    "version": "1.5.4",
+    "sha256": "ad5d8870d1e389914f9cba8d35be313c4327c69ee0a221e482e9bf7621136fe5",
+    "source": "https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js",
+    "homepage": "https://github.com/peers/peerjs",
+    "vendored": "2026-06-30",
+    "checked": "2026-09-28",
+    "latest_upstream": "1.5.5",
+    "upgrade_note": [
+      "1.5.5 (2025-06-07) is a single fix — 'inline package version' (#1322), a",
+      "packaging change with no functional or security effect on this use. Staying",
+      "on 1.5.4 deliberately: swapping the whole transport buys nothing here and",
+      "cannot be verified by any suite in sim/. Revisit on a release that matters."
+    ]
+  }
+}
