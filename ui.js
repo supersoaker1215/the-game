@@ -40096,9 +40096,25 @@ function twov2OnlineDraftPick(index) {
   }
 }
 
-// Auto-start
-UI.init();
-Game.init();
+// Auto-start.
+//
+// SKIPPED UNDER THE HEADLESS HARNESS. This file is 40k lines — 27% of the
+// codebase — and until now no test could EXECUTE any of it: 28 suites in sim/
+// `read('ui.js')` as TEXT and match regexes against the source, because loading
+// it ran this line and UI.init() went straight at a browser that is not there.
+// Verifying UI behaviour by grepping the source is verifying that the code LOOKS
+// right, which is a different claim, and it is why several visual fixes in this
+// repo's history shipped inert.
+//
+// game.js already carries the same seam in three places (__HEADLESS_SIM, set by
+// sim/shim.js). With the boot suppressed, a harness can load ui.js, call a
+// renderer for real, and assert on the DOM it produces — see sim/shim-dom.js.
+// The browser is unaffected: __HEADLESS_SIM is undefined there, so both calls
+// run exactly as before.
+if (typeof __HEADLESS_SIM === 'undefined') {
+  UI.init();
+  Game.init();
+}
 
 // Start listening to the global leaderboard (no-op until CLB_STATS_URL is set
 // in index.html — see leaderboard.js). Wrapped so a missing client or blocked

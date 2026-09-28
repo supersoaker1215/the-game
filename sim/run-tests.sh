@@ -113,6 +113,9 @@ run_suite sim/css-parse.js
 echo "=== gfx-budget.js (nothing repaints every frame at the Normal tier) ==="
 run_suite sim/gfx-budget.js
 
+echo "=== ui-render.js (the real ui.js, executed against a real DOM) ==="
+run_suite sim/ui-render.js
+
 # ---- CACHE STAMP -------------------------------------------------------
 # Did the LAST COMMIT ship with its ?v= and CACHE_VERSION in step?
 #

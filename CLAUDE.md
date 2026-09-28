@@ -46,6 +46,34 @@ of behavioural suites and static audits that parse the source: `css-parse.js`
 glow actually wins the cascade), `gfx-budget.js` (nothing may repaint every
 frame at the Normal graphics tier), `mpwire.js` (multiplayer payload budget).
 
+### Testing the UI
+
+There are three levels, and picking the wrong one is how a visual fix ships
+inert:
+
+| Level | Harness | Answers |
+|---|---|---|
+| **Engine** | `sim/shim.js` | state, rules, combat — the UI is a stub |
+| **Structure** | `sim/shim-dom.js` | what the renderer BUILDS: elements, classes, attributes, text |
+| **Appearance** | headless Chrome fixture | the cascade: specificity, `!important`, animation fill-mode, computed values |
+
+`sim/shim-dom.js` loads the **real `ui.js`** against a DOM real enough to build
+into, plus the app shell parsed out of `index.html`. `sim/ui-render.js` is the
+seed suite. Use it for anything of the form "does this element get created,
+with this class, carrying this text".
+
+It is **not** a browser — no layout, no cascade, no paint. `getComputedStyle`
+sees inline style only. A question about what a rule actually paints belongs in
+a headless-Chrome fixture, not here.
+
+Twenty-eight older suites `read('ui.js')` as TEXT and match regexes against the
+source. That checks the code LOOKS right, which is a weaker claim than working.
+Move the structural half of one into a real test **as you next touch its area**
+— this is a tax on UI work, not a migration project.
+
+ui.js's auto-start (`UI.init(); Game.init();`) is skipped under
+`__HEADLESS_SIM`. The browser is unaffected.
+
 When you fix a bug, write the regression test FIRST and prove it fails against
 the current HEAD before you fix it:
 
