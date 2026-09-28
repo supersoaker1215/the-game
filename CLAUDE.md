@@ -4,7 +4,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Card Lane Battle — a browser-based 2-player (human vs AI) strategy card game. ~95 hero/villain cards, ~27 tricks, 6-lane board, draft system, turn-based combat. Pure vanilla JS/HTML/CSS with no build tools, no package manager, no framework.
+Card Lane Battle — a browser-based lane card battler. Pure vanilla JS/HTML/CSS:
+no build tools, no package manager, no framework. Deployed to GitHub Pages at
+https://supersoaker1215.github.io/the-game/
+
+- **142 cards, 47 tricks** (counted from `cards.js` / `tricks.js`)
+- **1v1 on 6 lanes** (`Game.LANE_COUNT`), **2v2 on 8** (`Game.LANE_COUNT_2V2`)
+- Human vs AI, **and online multiplayer** — 1v1 over PeerJS (`multiplayer.js`)
+  and 4-seat 2v2 (`Game.state.twoVTwo`), with AI filling any empty seat
+- Draft, roguelite mode, tournament modifiers, random events
+
+**2v2 is not a skin on 1v1.** A "side" (`state.player` / `state.ai`) is a proxy
+for a TEAM of two; the real hands, energy and tricks live on
+`twoVTwo.players[p1..p4]`, and anything written to the side proxy is silently
+discarded on the next bridge. Most 2v2 bugs in this repo's history are one of
+two shapes: a write that went to the proxy instead of the seat, or per-round
+work that `startRound` does in 1v1 and `start2v2Round` was never taught.
 
 ## Running the Game
 
@@ -13,7 +28,40 @@ python3 -m http.server 8080
 ```
 Then open `http://localhost:8080`. A launch.json config exists at `.claude/launch.json` for the preview server.
 
-There are no tests, no linter, and no build step. Cache-bust by incrementing the `?v=N` query params on script tags in `index.html` when changing JS files.
+There is no linter and no build step. There ARE tests — a lot of them — and they gate every push.
+
+## Tests and audits — run these before you push
+
+```bash
+./sim/run-tests.sh     # 64 suites: unit tests, golden matches, and static audits
+./sim/run-fuzz.sh      # 500 1v1 + 60 2v2 fuzzed games, invariant checks
+```
+
+**Gate on the EXIT CODE, never on the printed text** — several suites print
+per-case lines that contain the word "failed" while still passing overall.
+
+`sim/test.js` is the main unit suite (500+ cases). The rest of `sim/` is a mix
+of behavioural suites and static audits that parse the source: `css-parse.js`
+(a comment that closes early eats the rule below it), `card-tube.js` (which
+glow actually wins the cascade), `gfx-budget.js` (nothing may repaint every
+frame at the Normal graphics tier), `mpwire.js` (multiplayer payload budget).
+
+When you fix a bug, write the regression test FIRST and prove it fails against
+the current HEAD before you fix it:
+
+```bash
+git archive HEAD | tar -x -C /tmp/pre && cp sim/test.js /tmp/pre/sim/test.js
+cd /tmp/pre && jsc sim/test.js     # your new case must FAIL here
+```
+
+## Deploying
+
+Cache-bust by incrementing the `?v=N` query params on script tags in
+`index.html` when changing JS or CSS, AND bump `CACHE_VERSION` in `sw.js`.
+Both, every time — the `?v=` alone does not refresh a returning player's
+service worker, so they stay on stale code and re-report bugs you already
+fixed. (Measured over 30 days: 42 of 343 engine-JS commits skipped the `sw.js`
+bump.)
 
 ## Running simulations
 

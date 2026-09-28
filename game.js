@@ -17726,7 +17726,17 @@ const Game = {
       // time to play the card for free instead of the combat timeline
       // rolling past the window.
       let playerJumpNowReady = null;
-      this.state[owner].hand.forEach(card => {
+      // A SIDE WITH NO HAND HAS NO JUMPS — it is not a crash. This scan runs on
+      // both side proxies from a dozen call sites (every play, every death,
+      // every trick, mid-combat), and in 2v2 those proxies are bridged: between
+      // a seat handing over and the next bridge, or on a state that is
+      // mid-restore, `hand` can be absent. It threw a TypeError out of onPlay,
+      // which _runOnPlayWithUndoPoint swallowed — so the REST of that card's
+      // entrance package was skipped silently. The guard three lines up already
+      // triple-checks 2v2 for the same reason; this is the same caution one
+      // level down.
+      const _hand = (this.state[owner] && this.state[owner].hand) || [];
+      _hand.forEach(card => {
         if (this._armJumpForCard(card, owner, opp, trigger, data) && this.isHuman(owner)) {
           playerJumpNowReady = card;
         }
@@ -17784,7 +17794,10 @@ const Game = {
       // AI-controlled seats auto-play jump-ready cards immediately (humans
       // click the glowing card themselves).
       if (!this.isHuman(owner)) {
-        const jumpCards = this.state[owner].hand.filter(c => c.jumpReady);
+        // Same read, same guard as the scan above — a side with no hand has no
+        // jump-ready cards to auto-play.
+        const jumpCards = ((this.state[owner] && this.state[owner].hand) || [])
+          .filter(c => c.jumpReady);
         jumpCards.forEach(card => {
           let target;
           if (card.jumpLane !== undefined) {
@@ -22434,10 +22447,23 @@ const Game = {
         // still held after that it is a genuinely stuck drive, and the paths
         // that handle a stuck table take it from there.
         const _tok = this._2v2TurnToken;
-        const _tries = (this._2v2DriveRetries && this._2v2DriveRetries.tok === _tok)
+        // A SYNCHRONOUS SCHEDULER HAS NO "LATER" TO RETRY INTO. Under _syncMode
+        // (the headless sim, fuzz, replay) _schedule runs its callback inline,
+        // so this retry re-enters _2v2DriveAISeat on the same stack — and the
+        // re-entry runs the drive watchdog inline too, which can end the phase,
+        // start the next sub-phase and MINT A NEW TURN TOKEN. The bound below
+        // was keyed on that token, so every level of recursion looked like a
+        // fresh turn with zero tries used and the bound never bound: it ran to
+        // a RangeError, which _schedule then swallowed.
+        //
+        // Same mistake as the postCombat latch keyed on the round postCombat
+        // itself advances — a counter must not be keyed on something the thing
+        // it is counting can change. The bound is now keyed on the SEAT, which
+        // nothing in the retry path can alter, so eight really is eight.
+        const _tries = (this._2v2DriveRetries && this._2v2DriveRetries.seat === activeKey)
           ? this._2v2DriveRetries.n : 0;
         if (_tries < 8) {
-          this._2v2DriveRetries = { tok: _tok, n: _tries + 1 };
+          this._2v2DriveRetries = { seat: activeKey, n: _tries + 1 };
           this._schedule(() => {
             // Only if this is still the same turn AND still this seat's.
             if (this._2v2TurnToken !== _tok) return;
@@ -22492,6 +22518,9 @@ const Game = {
     };
     this._2v2AIDriving = activeKey;
     this._2v2AIDrivingAt = Date.now();
+    // This seat got its drive, so its wait is over — clear the retry budget so a
+    // later, unrelated wait starts from a full one rather than inheriting it.
+    if (this._2v2DriveRetries && this._2v2DriveRetries.seat === activeKey) this._2v2DriveRetries = null;
     // Progress clock — bumped by every play this drive makes (see playCard /
     // playCardFree / playTrick). The drive watchdog reads it so a big hand at a
     // slow pace is not mistaken for a hang. Seeded to the start so the watchdog
@@ -22604,7 +22633,19 @@ const Game = {
       this._logDriveWatchdogEnd(activeKey);
       finish();
     };
-    this._schedule(_driveWatch, _AI_DRIVE_QUIET_MS);
+    // ARMED ONLY WHERE THERE IS A CLOCK. This watchdog re-arms itself whenever
+    // the drive is still making progress — right in a browser, fatal in the
+    // headless sim: _schedule runs its callback INLINE under _syncMode and
+    // Date.now() does not advance between those calls, so `_quietFor` is always
+    // inside the window and it re-arms on the same stack until the stack runs
+    // out. It threw a RangeError on every suite run, swallowed by _schedule's
+    // own catch and printed as `{}` — invisible behind a suite that was already
+    // red for a different reason.
+    //
+    // The sim resolves a whole drive inline, so there is no hang here to guard
+    // against. Same guard and same reason as _armCombatWatchdog and
+    // _arm2v2AIWatchdog; only the ARMING is skipped, never the drive itself.
+    if (!this._syncMode) this._schedule(_driveWatch, _AI_DRIVE_QUIET_MS);
     // A TURN NOBODY COULD SEE IS NOT A TURN. When a seat has nothing it can
     // afford, AI.playCards and AI.playTricks both return immediately and the
     // chain lands on the 250ms tail below — so the seat's name flashes in the

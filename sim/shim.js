@@ -2,6 +2,21 @@
 // Run under: /System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Helpers/jsc
 
 // ---- polyfill a console that delegates to print() ----
+// AN ERROR MUST NOT PRINT AS `{}`. JSON.stringify of an Error yields an empty
+// object — its message and stack are non-enumerable — so every swallowed throw
+// in the engine reached this harness as the string "{}" and said nothing at
+// all. One had been printing that way inside a passing suite for long enough
+// that nobody could see what it was.
+function __fmt(a) {
+  if (a instanceof Error || (a && typeof a === 'object' && typeof a.message === 'string' && 'stack' in a)) {
+    var first = String(a.stack || '').split('\n')[1];
+    return (a.name || 'Error') + ': ' + a.message + (first ? '  @' + first.trim() : '');
+  }
+  if (typeof a === 'object' && a !== null) {
+    try { return JSON.stringify(a); } catch (e) { return String(a); }
+  }
+  return String(a);
+}
 if (typeof console === 'undefined') {
   this.console = {
     log: function () {
@@ -10,11 +25,11 @@ if (typeof console === 'undefined') {
     },
     error: function () {
       var args = Array.prototype.slice.call(arguments);
-      print('[ERR] ' + args.map(function (a) { return (typeof a === 'object' ? JSON.stringify(a) : String(a)); }).join(' '));
+      print('[ERR] ' + args.map(__fmt).join(' '));
     },
     warn: function () {
       var args = Array.prototype.slice.call(arguments);
-      print('[WARN] ' + args.map(function (a) { return (typeof a === 'object' ? JSON.stringify(a) : String(a)); }).join(' '));
+      print('[WARN] ' + args.map(__fmt).join(' '));
     },
     info: function () { this.log.apply(this, arguments); },
   };

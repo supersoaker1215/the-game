@@ -1354,15 +1354,12 @@ const CARD_ABILITIES = {
       const freezeTarget = () => {
         if (freezeAll && adj.length) {
           adj.forEach(e => G.freezeCard(e, self));
-          chooseFirst();
         } else if (adj.length > 1) {
           G.promptCardChoice(self.owner, adj, "The Flash — Freeze", "Choose adjacent enemy to freeze", (t) => {
             G.freezeCard(t, self);
-            chooseFirst();
           });
         } else {
           if (adj.length === 1) G.freezeCard(adj[0], self);
-          chooseFirst();
         }
       };
       const setFirst = (who) => {
@@ -1432,7 +1429,29 @@ const CARD_ABILITIES = {
           setFirst(behind ? self.owner : opp);
         }
       };
+      // WHO GOES FIRST IS NOT PART OF THE FREEZE, AND IT USED TO BE.
+      //
+      // chooseFirst() was called from inside each branch of freezeTarget —
+      // including from inside the freeze prompt's callback — so "Choose who
+      // plays first next turn" only happened if that prompt was answered. His
+      // card prints them as two effects, and they are: the first-player choice
+      // does not read the freeze target, or even whether there was one.
+      //
+      // Same shape as Thor's thunder, and a prompt that is never answered is
+      // not hypothetical: a stall recovery clears pending prompts outright to
+      // unpark combat (`s.pendingCardChoice = null` in _forceEndStalledCombat),
+      // and a 2v2 prompt raised for the wrong seat is answered by nobody.
+      // Either one silently ate the whole first-player choice while the Flash
+      // sat on the board looking like he had resolved.
+      //
+      // AFTER the freeze, not before — unlike Thor. His thunder can kill the
+      // card you are about to be asked to freeze, so it had to land first;
+      // nothing here changes the other half's options, so the two prompts are
+      // simply asked in the order the card prints them. freezeTarget() returns
+      // as soon as it has ARMED its prompt, so this runs either way, and the
+      // prompt queue keeps them in order.
       freezeTarget();
+      chooseFirst();
     }
   },
 

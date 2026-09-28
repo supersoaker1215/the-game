@@ -71,6 +71,14 @@ function freshGame() {
   Game.state.round = 1;
   Game.state.firstPlayer = 'player';
   Game.state.activePlayer = 'player';
+  // …AND AN EMPTY UNDO STACK. Game.init() rebuilds state but leaves
+  // Game.history alone, and every test in this file shares one Game singleton —
+  // so the stack arrives carrying snapshots from whatever ran before. Measured:
+  // a test that had just played one card found FIVE entries waiting, and its
+  // second undo restored another test's board entirely (a Black Panther in lane
+  // 1, a Deadpool in hand). Any test that presses undo more than once is reading
+  // another test's leftovers without that being visible anywhere.
+  Game.history = [];
   return Game;
 }
 
@@ -7073,72 +7081,78 @@ test('Only NAMED TOKENS inherit abilities; copies of real cards stay dumb bodies
     'but he is not a token, which is what the gate reads');
 });
 
-test('undo steps back TO the decision, re-arming the prompt instead of stranding you', function () {
-  // Play Ant-Man, pick a lane for the Ant, undo. The Ant used to vanish with NO
-  // prompt to place it again — the decision was gone and unrepeatable. Owner:
-  // "i should have a prompt to spawn the ant since that was the last decision i
-  // had to make, if i undo again i despawn ant man."
-  //
-  // Asserts the MECHANISM, not just the outcome: the sim shim resolves prompts
-  // synchronously, so an outcome-only check would pass either way. What matters
-  // is that a prompt slot is ARMED again after the undo, and that the callback
-  // behind it is a fresh one (re-run), never the restored closure — the rule in
-  // undo()'s purge that this must not break.
+// ---- UNDO TAKES BACK THE WHOLE CARD, AND CANNOT RE-FIRE IT ------------
+// THIS TEST REPLACES ONE THAT WAS RED FOR TEN DAYS. Its predecessor asserted
+// that undo stepped back TO the decision — Ant-Man staying on the board with
+// his lane prompt re-armed. That contract was deliberately retired in 55b2343,
+// on the owner's direction: "the person frozen and the people hit by his damage
+// for splash are completely undone for your turn ... everything you did on the
+// last card that was played is undone. Apply this for all the cards."
+//
+// The re-arm was the bug. playCard snapshots once (card in hand) and the inner
+// undo point snapshotted again before the ability ran; undo restored the INNER
+// one and RE-RAN onPlay, so a resolved ability kept its first effect AND fired
+// a second time — and spamming undo fired it again and again. Nobody rewrote
+// the test when the behaviour changed, so a stale spec sat in the suite looking
+// exactly like a regression, and the gate's exit code stopped meaning anything.
+//
+// So this pins what the engine is now actually contracted to do, and the part
+// that would hurt most if it regressed is the LAST assertion: undo must never
+// be a way to run a card's ability twice.
+test('undo takes back the whole card, and cannot re-fire its ability', function () {
   var G = freshGame();
   G.state.phase = 'player-cards-tricks';
   var antman = G.createCardInstance(cardByName('Ant-Man'), 'player');
   G.state.player.hand.push(antman);
   G.state.player.currency = 20;
 
-  // Hold the summon prompt open instead of letting the shim answer it, so the
-  // state under test is "question asked, not yet answered".
+  // Hold the summon prompt open rather than letting the shim answer it, so the
+  // state under test is "question asked, not yet answered" — and count every
+  // time the ability asks, which is how a re-run is detected.
   var armed = [];
   var realLane = G.promptLaneChoice;
-  G.promptLaneChoice = function (owner, lanes, title, desc, cb, opts) {
+  G.promptLaneChoice = function (owner, lanes, title, desc, cb) {
     G.state.pendingLaneChoice = { owner: owner, lanes: lanes, title: title, callback: cb };
     armed.push(title);
     return true;
   };
-  var beforeHistory, afterPlay, afterUndo1, afterUndo2;
-  try {
-    beforeHistory = G.history.length;
-    G.playCard('player', antman, 0);
-    afterPlay = {
-      onBoard: G.state.lanes[0].player === antman,
-      prompted: armed.length,
-      history: G.history.length
-    };
-    // Answer it — this is the decision we will then take back.
-    var slot = G.state.pendingLaneChoice;
-    G.state.pendingLaneChoice = null;
-    var lane = slot.lanes[1] != null ? slot.lanes[1] : slot.lanes[0];
-    slot.callback(lane);
-    var antAfter = null;
+  var afterPlay, afterAnswer, afterUndo1, afterUndo2;
+  var antOnBoard = function () {
     for (var i = 0; i < G.state.lanes.length; i++) {
       var c = G.state.lanes[i].player;
-      if (c && c !== antman && c.name === 'Ant') antAfter = c;
+      if (c && c !== antman && c.name === 'Ant') return c;
     }
+    return null;
+  };
+  var inHand = function () {
+    return G.state.player.hand.some(function (h) { return h.name === 'Ant-Man'; });
+  };
+  try {
+    G.playCard('player', antman, 0);
+    afterPlay = { onBoard: G.state.lanes[0].player === antman, prompted: armed.length };
+
+    var slot = G.state.pendingLaneChoice;
+    G.state.pendingLaneChoice = null;
+    slot.callback(slot.lanes[1] != null ? slot.lanes[1] : slot.lanes[0]);
+    afterAnswer = { antSummoned: !!antOnBoard() };
+
     armed.length = 0;
     G.undo('player');
-    var antStill = null;
-    for (var j = 0; j < G.state.lanes.length; j++) {
-      var d = G.state.lanes[j].player;
-      if (d && d !== antman && d.name === 'Ant') antStill = d;
-    }
     afterUndo1 = {
-      antGone: !antStill,
-      antmanStillOnBoard: !!(G.state.lanes[0].player && G.state.lanes[0].player.name === 'Ant-Man'),
-      promptArmedAgain: !!G.state.pendingLaneChoice,
-      reArmed: armed.length,
-      antWasSummoned: !!antAfter
+      laneEmpty: !G.state.lanes[0].player,
+      backInHand: inHand(),
+      antGone: !antOnBoard(),
+      abilityReRan: armed.length,
+      promptLeftOpen: !!G.state.pendingLaneChoice
     };
-    // A second undo takes the card itself back — the prompt on screen means
-    // "cancel the play", so it must not just re-ask.
+
+    // Spamming undo is the shape the original bug took — each press re-ran the
+    // ability and stacked another copy of its effect.
     G.undo('player');
     afterUndo2 = {
-      laneEmpty: !G.state.lanes[0].player,
-      backInHand: G.state.player.hand.indexOf(antman) >= 0 ||
-                  G.state.player.hand.some(function (h) { return h.name === 'Ant-Man'; })
+      abilityReRan: armed.length,
+      antGone: !antOnBoard(),
+      antmanBackOnBoard: !!G.state.lanes[0].player
     };
   } finally {
     G.promptLaneChoice = realLane;
@@ -7146,13 +7160,21 @@ test('undo steps back TO the decision, re-arming the prompt instead of stranding
 
   assertEq(afterPlay.onBoard, true, 'Ant-Man is on the board after the play');
   assertEq(afterPlay.prompted, 1, 'and his On Play asked where the Ant goes');
-  assertEq(afterUndo1.antWasSummoned, true, 'the Ant really was summoned before the undo');
-  assertEq(afterUndo1.antGone, true, 'undo removes the Ant');
-  assertEq(afterUndo1.antmanStillOnBoard, true, 'but Ant-Man himself stays — one step, not two');
-  assertEq(afterUndo1.reArmed, 1, 'the ability RE-RAN, which is what arms a fresh prompt');
-  assertEq(afterUndo1.promptArmedAgain, true, 'so the decision is on offer again');
-  assertEq(afterUndo2.laneEmpty, true, 'a second undo clears the lane');
-  assertEq(afterUndo2.backInHand, true, 'and puts Ant-Man back in hand');
+  assertEq(afterAnswer.antSummoned, true, 'answering it really did summon the Ant');
+
+  assertEq(afterUndo1.backInHand, true, 'one undo puts Ant-Man back in HAND — the whole card, not half of it');
+  assertEq(afterUndo1.laneEmpty, true, 'his lane is empty again');
+  assertEq(afterUndo1.antGone, true, 'and everything his ability did is gone with him');
+  assertEq(afterUndo1.promptLeftOpen, false, 'no prompt is left armed over a card that is no longer in play');
+  assertEq(afterUndo1.abilityReRan, 0, 'the ability did NOT re-run — re-playing the card is how you get another go');
+
+  // Whether a SECOND undo can still pop something depends on what the harness
+  // left in the history stack before the play, which is incidental — so this
+  // asserts what is contractual either way: another press can never put back
+  // anything the first one took away, and can never re-fire the ability.
+  assertEq(afterUndo2.abilityReRan, 0, 'and spamming undo still never re-fires it');
+  assertEq(afterUndo2.antGone, true, 'nor conjures the Ant back');
+  assertEq(afterUndo2.antmanBackOnBoard, false, 'nor puts Ant-Man back on the board');
 });
 
 test("Freddy Fazbear's jump does not also bill for the waste that summoned him", function () {
@@ -12193,6 +12215,72 @@ test('a collapsing lane is announced, carrying how long it is gone', function ()
   assertEq(!!G.state.lanes[5].destroyed, false, 'Invincible blocked the collapse');
   assertEq(evs().slice(before2).filter(function (e) { return e.type === 'laneVoid'; }).length, 0,
     'and a blocked collapse announces nothing');
+});
+
+// ---- THE FLASH: TWO EFFECTS, NOT ONE GATED BEHIND THE OTHER ------------
+// His card prints two things — "Freeze 1 an adjacent enemy. Choose who plays
+// first next turn." — and the second lived INSIDE the freeze prompt's callback,
+// so it only happened if that prompt was answered. Exactly the shape Thor had,
+// and a prompt that is never answered is not hypothetical: a stall recovery
+// clears pending prompts outright to unpark combat, and a 2v2 prompt raised for
+// the wrong seat is answered by nobody. Either one silently ate the whole
+// first-player choice while the Flash sat on the board looking resolved.
+test("The Flash picks who goes first even if the freeze prompt is never answered", function () {
+  var G = freshGame();
+  // Two adjacent enemies, so the freeze is a real question rather than an
+  // auto-target — that is the branch the second effect was trapped in.
+  place(G, 'Venom', 'ai', 0);
+  place(G, 'Captain America', 'ai', 2);
+  var flash = place(G, 'The Flash', 'player', 1);
+  G.state._nextFirstPlayer = null;
+
+  // AI-owned so the first-player choice resolves synchronously to a value we
+  // can read, instead of raising a second prompt.
+  var realHuman = G.isHuman;
+  G.isHuman = function (o) { return o === 'ai'; };
+  // A DROPPED PROMPT: armed and never answered.
+  var realPrompt = G.promptCardChoice;
+  var asked = 0;
+  G.promptCardChoice = function () { asked++; };
+  try {
+    CARD_ABILITIES['The Flash'].onPlay(G, flash, 1);
+  } finally {
+    G.promptCardChoice = realPrompt;
+    G.isHuman = realHuman;
+  }
+
+  assertEq(asked, 1, 'he still asks which adjacent enemy to freeze');
+  assert(!!G.state._nextFirstPlayer,
+    'and the first-player choice happened anyway — it is his OTHER effect, not a rider on the freeze');
+});
+
+// …and it must not fire twice when the prompt IS answered.
+test('The Flash sets the first player exactly once', function () {
+  var G = freshGame();
+  place(G, 'Venom', 'ai', 0);
+  place(G, 'Captain America', 'ai', 2);
+  var flash = place(G, 'The Flash', 'player', 1);
+  G.state._nextFirstPlayer = null;
+
+  var realHuman = G.isHuman;
+  G.isHuman = function (o) { return o === 'ai'; };
+  var realPrompt = G.promptCardChoice;
+  var sets = 0;
+  var realLog = G.log;
+  G.log = function (m) {
+    if (typeof m === 'string' && m.indexOf('[FLASH]') >= 0 && m.indexOf('first') >= 0) sets++;
+    return realLog.call(G, m);
+  };
+  // Answer the freeze prompt this time.
+  G.promptCardChoice = function (owner, cards, title, desc, cb) { if (cb) cb(cards[0]); };
+  try {
+    CARD_ABILITIES['The Flash'].onPlay(G, flash, 1);
+  } finally {
+    G.promptCardChoice = realPrompt;
+    G.isHuman = realHuman;
+    G.log = realLog;
+  }
+  assertEq(sets, 1, 'one card, one first-player decision');
 });
 
 // ---- RUNNER ------------------------------------------------
