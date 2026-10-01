@@ -12283,6 +12283,52 @@ test('The Flash sets the first player exactly once', function () {
   assertEq(sets, 1, 'one card, one first-player decision');
 });
 
+// ---- THE RETRY BUDGET IS PER WAIT, NOT PER MATCH -----------------------
+// A seat that waits out its 8 retries and gives up must get a full budget back
+// on its NEXT turn. Keyed on the seat alone it did not: _2v2DriveRetries is an
+// engine field (not state, so it survives undo, a round rollover and the next
+// match) and the only line that clears it sits BELOW the gate that returns — so
+// it is reached when a drive starts, never when one gives up. The seat was then
+// refused a retry for the rest of the match, which is the exact turn-skipping
+// this retry was added to stop.
+test('2v2: a seat that exhausts its retries gets a fresh budget next turn', function () {
+  Game.start2v2Match({ names: { p1: 'A1', p2: 'B1', p3: 'A2', p4: 'B2' } });
+  var tt = Game.state.twoVTwo;
+  tt.online = false;
+  ['p1', 'p2', 'p3', 'p4'].forEach(function (k) { tt.players[k].isAI = true; });
+
+  var parked = [], savedSched = Game._schedule;
+  Game._schedule = function (fn, ms) { parked.push({ fn: fn, ms: ms || 0 }); return 0; };
+  Game._2v2DriveRetries = null;
+  try {
+    var seat = Game._2v2ActivePlayer();
+    // Somebody else's drive holds the lock, and it is young.
+    Game._2v2AIDriving = 'p3';
+    Game._2v2AIDrivingAt = Date.now();
+
+    // Burn the whole budget on THIS turn.
+    for (var i = 0; i < 9; i++) {
+      parked.length = 0;
+      Game._2v2DriveAISeat(seat, Game._2v2SubPhase());
+    }
+    assertEq(parked.length, 0, 'the budget really is spent — the 9th wait parks nothing');
+
+    // …the turn moves on, and this seat comes round again.
+    Game._2v2TurnToken = (Game._2v2TurnToken || 0) + 1;
+    Game._2v2AIDriving = 'p3';
+    Game._2v2AIDrivingAt = Date.now();
+    parked.length = 0;
+    Game._2v2DriveAISeat(seat, Game._2v2SubPhase());
+    assertEq(parked.length > 0, true,
+      'a NEW turn gets a new budget — the old one must not follow the seat around');
+  } finally {
+    Game._schedule = savedSched;
+    Game._2v2AIDriving = null;
+    Game._2v2AIDrivingAt = 0;
+    Game._2v2DriveRetries = null;
+  }
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

@@ -22,6 +22,43 @@ JSC=/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Helpers
 [ -x "$JSC" ] || exit 0                       # no jsc (not macOS) — don't block the commit
 [ -f tools/stamp-cache.js ] || exit 0
 
+# ---- THE STAMPER HASHES THE WORKING TREE, AND A COMMIT SHIPS THE INDEX ------
+# Those are the same file in the normal flow and different ones the moment you
+# stage part of your work. Partially staged, the stamper reads a file that is
+# NOT in this commit, bumps its ?v= and records its hash — so the commit that
+# later actually carries that content sees a matching hash, gets no bump, and
+# ships invisible. That is the exact failure this hook exists to prevent,
+# arriving through the hook itself.
+#
+# Reproduced before this guard: with ai.js staged and tricks.js edited but NOT
+# staged, the hook bumped tricks.js v124 → v125 and wrote its new hash into the
+# manifest, in a commit containing no tricks.js at all.
+#
+# Rather than guess which content will ship, refuse when they disagree. When
+# every versioned asset is fully staged — the normal case — working tree and
+# index are identical and hashing the working tree is exactly right.
+VERSIONED=$(grep -oE '(src|href)="[^"]+\?v=[0-9]+"' index.html 2>/dev/null \
+            | sed 's/.*="//; s/?v=[0-9]*"$//' | sort -u)
+DIRTY=""
+for f in $VERSIONED; do
+  if ! git diff --quiet -- "$f" 2>/dev/null; then
+    DIRTY="$DIRTY $f"
+  fi
+done
+if [ -n "$DIRTY" ]; then
+  echo "[cache-stamp] BLOCKED — these versioned files differ between your"
+  echo "[cache-stamp] working tree and what you are committing:"
+  for f in $DIRTY; do echo "[cache-stamp]     $f"; done
+  echo "[cache-stamp]"
+  echo "[cache-stamp] The stamp has to describe the content that SHIPS. Stamping"
+  echo "[cache-stamp] a half-staged tree records a hash for content this commit"
+  echo "[cache-stamp] does not contain, and the commit that later carries it"
+  echo "[cache-stamp] would then be skipped — a deploy nobody sees."
+  echo "[cache-stamp]"
+  echo "[cache-stamp] Stage them (git add) or stash them, then commit again."
+  exit 1
+fi
+
 OUT=$("$JSC" tools/stamp-cache.js 2>&1)
 STATUS=$?
 if [ $STATUS -ne 0 ]; then

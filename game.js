@@ -22458,12 +22458,25 @@ const Game = {
         //
         // Same mistake as the postCombat latch keyed on the round postCombat
         // itself advances — a counter must not be keyed on something the thing
-        // it is counting can change. The bound is now keyed on the SEAT, which
-        // nothing in the retry path can alter, so eight really is eight.
-        const _tries = (this._2v2DriveRetries && this._2v2DriveRetries.seat === activeKey)
-          ? this._2v2DriveRetries.n : 0;
+        // it is counting can change.
+        //
+        // RE-KEYING TO THE SEAT ALONE OVERSHOT, and broke it the other way. The
+        // only line that clears _2v2DriveRetries sits BELOW this gate, so it is
+        // reached when a drive STARTS and never when one gives up — and this is
+        // an engine field, not state, so it survives undo, a round rollover and
+        // the next match. A seat that ever burned its eight waits was refused a
+        // retry for the rest of the match: exactly the turn-skipping the retry
+        // exists to stop, arriving by a longer road.
+        //
+        // The budget belongs to a WAIT, so it is keyed on the seat AND the turn.
+        // The turn token resets it the moment the turn moves, which is the
+        // reset we actually wanted; and the recursion that originally defeated a
+        // token key had a different cause — the drive watchdog re-arming itself
+        // inline under _syncMode — which is fixed at its own source below.
+        const _rt = this._2v2DriveRetries;
+        const _tries = (_rt && _rt.seat === activeKey && _rt.tok === _tok) ? _rt.n : 0;
         if (_tries < 8) {
-          this._2v2DriveRetries = { seat: activeKey, n: _tries + 1 };
+          this._2v2DriveRetries = { seat: activeKey, tok: _tok, n: _tries + 1 };
           this._schedule(() => {
             // Only if this is still the same turn AND still this seat's.
             if (this._2v2TurnToken !== _tok) return;
@@ -22518,8 +22531,11 @@ const Game = {
     };
     this._2v2AIDriving = activeKey;
     this._2v2AIDrivingAt = Date.now();
-    // This seat got its drive, so its wait is over — clear the retry budget so a
-    // later, unrelated wait starts from a full one rather than inheriting it.
+    // This seat got its drive, so its wait is over — clear the budget. Keyed on
+    // the seat only here on purpose: whatever turn the stale entry was for, it
+    // is spent. (The gate above also expires it by turn, so this is belt and
+    // braces rather than the only release — see the note there for why having
+    // just one of the two was the bug.)
     if (this._2v2DriveRetries && this._2v2DriveRetries.seat === activeKey) this._2v2DriveRetries = null;
     // Progress clock — bumped by every play this drive makes (see playCard /
     // playCardFree / playTrick). The drive watchdog reads it so a big hand at a
