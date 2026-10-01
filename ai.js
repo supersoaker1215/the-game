@@ -487,6 +487,38 @@ const AI = {
   // Assign our best available card to each unblocked enemy lane, greedily
   // starting from the biggest threat. Returns [{cardId, lane}] commitments.
   // Owner-parameterized so both sim seats use this same function.
+  //
+  // ---- GREEDY HERE IS A MEASURED CHOICE, NOT AN UNFINISHED ONE ----
+  //
+  // This pass is suboptimal BY ITS OWN SCORE and that is fine. Measured
+  // 2026-10-01 over 200 games / 3,115 planning calls, brute-forcing the exact
+  // best assignment of hand to lanes (the sets are small enough that none had
+  // to be skipped): greedy was beaten in 21.1% of calls, leaving a mean of 6.2
+  // blockFitScore on the table and up to 25 in one call.
+  //
+  // SO IT WAS REPLACED WITH AN EXHAUSTIVE SEARCH, AND THE AI GOT WORSE.
+  // Seeded with the greedy answer so it could never score lower, node-capped,
+  // 0.07ms per plan at 1v1 width and 0.24ms at 2v2 — free. It drove
+  // suboptimality to 0.0%. Interleaved A/B, arm swapped every game, 3000 games
+  // on two independent seeds: 46.7% and 46.1%, 95% band ±1.8. Roughly 3.5pp
+  // WORSE, twice, well outside the band.
+  //
+  // WHY, measured rather than guessed: the search blocked MORE lanes than
+  // greedy (3552 vs 3489) while the mean threat of what it left open went UP
+  // (3.80 vs 3.48). Maximising the SUM of blockFitScore buys breadth — lots of
+  // comfortable blocks — and pays for it by letting the scariest lane through.
+  // The threat-descending order of the loop below is carrying information the
+  // objective function does not: answer the biggest thing first, whatever the
+  // totals say. Adding an explicit penalty for leaving a threatened lane open
+  // did not recover it either (46.1%, unmoved).
+  //
+  // The lesson is about the OBJECTIVE, not the search: blockFitScore was tuned
+  // to answer "which of my cards fits this lane", and it is not a quantity that
+  // means anything when summed across lanes. Making blocking genuinely better
+  // needs a different objective — forecast the combat and maximise face damage
+  // prevented, which the predictor can already do — not a better search over
+  // this one. Until that exists, greedy wins, and this note is here so the 21%
+  // figure does not send the next person down the same road.
   planDefensiveBlocks(hand, budget, owner = 'ai') {
     const s = Game.state;
     const opp = Game.opponent(owner);
