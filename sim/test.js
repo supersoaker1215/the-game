@@ -12379,6 +12379,34 @@ test('2v2: a trick cannot be cast on the other team\'s turn', function () {
   }
 });
 
+// ---- A LOG LINE IS READ BY FOUR PEOPLE, NOT ONE ------------------------
+// "Lazarus Pit revives Michael Myers to your hand!" was hardcoded second
+// person, so it said "your" to the whole table — wrong for three of the four
+// readers in a 2v2. It sat one line under "[HAND FULL] Ryan's hand is full",
+// which routes through seatPossessive and names the seat correctly, so one
+// effect reported two different owners in consecutive lines. (Owner, reading
+// that log: "it says ryan plays a trick lazarus pit, when its my turn.")
+//
+// Nine lines across tricks.js and abilities.js had the same shape. This pins
+// the class rather than one card: nothing may address the reader as "you"
+// unless a seat helper decided to.
+test('no ability or trick log line hardcodes "you" at the whole table', function () {
+  var offenders = [];
+  ['tricks.js', 'abilities.js'].forEach(function (f) {
+    var src = read(f);
+    // Comments routinely quote the owner saying "you" — strip them first, the
+    // same way the CSS audits do, so a quoted report is not a finding.
+    src = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    src.split('\n').forEach(function (line, i) {
+      var m = line.match(/G\.log\(`([^`]*)`/);
+      if (!m) return;
+      if (/\b(you|your)\b/i.test(m[1])) offenders.push(f + ':' + (i + 1) + '  ' + m[1].slice(0, 70));
+    });
+  });
+  assertEq(offenders.join('\n'), '',
+    'these address the reader directly instead of naming the seat — use G.seatLabel / seatPossessive / seatVerb');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

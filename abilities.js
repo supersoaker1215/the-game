@@ -1482,7 +1482,7 @@ const CARD_ABILITIES = {
       }
       if (amount > 0) {
         G.healPlayer(self.owner, amount, self);
-        G.log(`Carnage heals you for ${amount}!`);
+        G.log(`${G.seatVerb(self.owner, 'heal', 'heals')} for ${amount} — Carnage!`);
         self.carnageHealed = true;
         if (typeof UI !== 'undefined' && UI._fxCarnageFrenzy) { try { UI._fxCarnageFrenzy(self); } catch (e) {} }
       }
@@ -1556,7 +1556,7 @@ const CARD_ABILITIES = {
       if (stripeDef) {
         const stripe = G.createCardInstance(stripeDef, self.owner);
         if (G.addToHand(self.owner, stripe, self, null, 'Spawned by Gizmo') !== false) {
-          G.log(`  [GIZMO] Stripe joins your hand.`);
+          G.log(`  [GIZMO] Stripe joins ${G.seatPossessive(self.owner)} hand.`);
         }
       }
     },
@@ -3030,7 +3030,7 @@ const CARD_ABILITIES = {
       // Roguelite Text+ override — _antivenomHeal scales heal amount.
       const heal = self._antivenomHeal || 4;
       G.healPlayer(self.owner, heal, self);
-      G.log(`Anti-Venom heals you for ${heal}!`);
+      G.log(`${G.seatVerb(self.owner, 'heal', 'heals')} for ${heal} — Anti-Venom!`);
 
       // THE CURE CUTS BOTH WAYS (owner, 2026-08-24: "move a card, if it's an
       // ally gain (+1/+1), if it's an enemy lose (-1/-1)"). The relocation used
@@ -3309,7 +3309,7 @@ const CARD_ABILITIES = {
       const summonChoice = (card) => {
         const targetLane = pickTargetLane();
         if (targetLane < 0) return;
-        G.log(`Ghost Rider's last act: playing ${card.name} from your hand!`);
+        G.log(`Ghost Rider's last act: playing ${card.name} from ${G.seatPossessive(self.owner)} hand!`);
         // PLAYED, NOT SUMMONED. Owner: "that's literally his ability — just make
         // that he plays a card from hand in his place so it goes normally."
         //
@@ -4279,7 +4279,7 @@ const CARD_ABILITIES = {
       }
       if (amount > 0) {
         G.healPlayer(self.owner, amount, self);
-        G.log(`Venom heals you for ${amount}!`);
+        G.log(`${G.seatVerb(self.owner, 'heal', 'heals')} for ${amount} — Venom!`);
         self.venomHealed = true;
       }
     }
@@ -4637,7 +4637,7 @@ const CARD_ABILITIES = {
         const casterSeat = (self && self._2v2PlayedBy)
           || (G._2v2SeatOwning ? G._2v2SeatOwning(self) : null);
         if (casterSeat) t._2v2PlayedBy = casterSeat;
-        G.log(`Professor X converts ${t.name} to your team!`);
+        G.log(`Professor X converts ${t.name} to ${G.seatPossessive(self.owner)} team!`);
         if (typeof UI !== 'undefined' && UI._fxProfessorX) { try { UI._fxProfessorX(t); } catch (e) {} }
         const open = G.getOpenLanes(owner);
         if (!open.length) return;
@@ -4646,7 +4646,7 @@ const CARD_ABILITIES = {
           // Re-stamp the rest of the provenance now it has landed, so "played
           // by" reads as the converter and not as a card with no history.
           if (G._stampProvenance) G._stampProvenance(t, owner);
-          G.log(`${t.name} joins your side in lane ${l + 1}!`);
+          G.log(`${t.name} joins ${G.seatPossessive(owner)} side in lane ${l + 1}!`);
           // Entering a lane by ANY mechanism must spring a waiting Bear Trap —
           // this direct assignment bypassed checkLaneTrap, so a converted card
           // placed onto an enemy Jigsaw trap sailed in unharmed. User report:
@@ -8248,7 +8248,7 @@ const CARD_ABILITIES = {
       // The room is used up — clear the sub-slot so the board shows it is done,
       // the way Sewers hands its lane over to Pennywise.
       if (lane._env && lane._env[owner] === self) lane._env[owner] = null;
-      G.log(`[GAME OVER] ${dead.name} gets up in lane ${laneIdx + 1} — a (2/2) on your side, played anew. The room is spent.`);
+      G.log(`[GAME OVER] ${dead.name} gets up in lane ${laneIdx + 1} — a (2/2) on ${G.seatPossessive(owner)} side, played anew. The room is spent.`);
       if (typeof UI !== 'undefined' && UI.emitFX) { try { G.emitFX('envReveal', { lane: laneIdx, owner, name: 'Game Over' }); } catch (e) {} }
     },
     onPlay(G, self) { CARD_ABILITIES['Game Over']._hookOccupants(G, self); },

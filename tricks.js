@@ -346,7 +346,7 @@ const TRICK_DEFS = [
         if (typeof G.applyAbilities === 'function') G.applyAbilities(fresh);
         if (typeof G.addToHand === 'function') G.addToHand(owner, fresh, null, null, 'Returned by Lazarus Pit');
         else G.state[owner].hand.push(fresh);
-        G.log(`Lazarus Pit revives ${fresh.name} to your hand!`);
+        G.log(`Lazarus Pit revives ${fresh.name} to ${G.seatPossessive(owner)} hand!`);
       }
     }
   },
