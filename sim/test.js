@@ -12510,6 +12510,43 @@ test('a combat hit logs the attack, the health before, and the health after', fu
   assert(l2.indexOf('ATK') >= 0, 'a reduced hit names the attack it started from: ' + l2);
 });
 
+// ---- THE AI TAKES THE FREE KILL INSTEAD OF THE BIG NUMBER --------------
+// From a board the owner photographed: Hela 6/7 in hand, an enemy Hulk 4/6 in
+// one lane and an enemy Grinch 18/27 in another. Hela into Hulk kills it and
+// survives; Hela into the Grinch kills nothing and dies. She went into the
+// Grinch — because `threat * 1.5` on 18 ATK is +27 and swamped the +6 for
+// killing and +3 for surviving, and the only price on dying was a flat −2 that
+// a 1-cost token and a 10-cost finisher paid alike.
+// (Owner: "hela should go in front of hulk to kill hulk, one warrior should be
+// in front of grinch and the other xenomorph — its simple calculation.")
+test('the AI takes a kill it survives over blocking the biggest number', function () {
+  var G = freshGame();
+  G.state.round = 6;
+  var hulk   = place(G, 'Hulk', 'player', 0);        hulk.attack = 4; hulk.currentHealth = 6; hulk.maxHealth = 6;
+  var goblin = place(G, 'Green Goblin', 'player', 1); goblin.attack = 3; goblin.currentHealth = 3; goblin.maxHealth = 3;
+  var grinch = place(G, 'The Grinch', 'player', 3);  grinch.attack = 18; grinch.currentHealth = 27; grinch.maxHealth = 27;
+
+  var hela = G.createCardInstance(cardByName('Hela'), 'ai');
+  hela.attack = 6; hela.currentHealth = 7; hela.maxHealth = 7;
+  G.state.ai.hand = [hela];
+  G.state.ai.currency = 20;
+
+  var pick = AI.chooseLane(hela, 'ai');
+  assertEq(pick, 0, 'Hela goes where she kills and lives, not where she only blocks');
+  assertEq(AI.wouldKill(hela, G.state.lanes[pick].player), true, 'confirmed: it is a kill');
+  assertEq(AI.wouldSurvive(hela, G.state.lanes[pick].player, 0), true, 'and she survives it');
+
+  // …and the chump-block job goes to a body that can afford to lose it. Same
+  // board, with Hela now committed to the Hulk lane.
+  G.state.lanes[0].ai = hela; hela.owner = 'ai';
+  var warrior = G.createCardInstance(cardByName('Undead Warrior'), 'ai');
+  warrior.attack = 3; warrior.currentHealth = 1; warrior.maxHealth = 1;
+  var wPick = AI.chooseLane(warrior, 'ai');
+  assertEq(wPick, 3, 'the cheap token is the one that eats the Grinch');
+  assertEq(AI.wouldSurvive(warrior, G.state.lanes[wPick].player, 0), false,
+    'it dies doing it — which is the point of sending THIS body and not Hela');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

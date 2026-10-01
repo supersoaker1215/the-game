@@ -16,6 +16,10 @@ const AI = {
     draftLowBias: 1.550,
     draftHighOverPenalty: 2.218,
     draftStatMult: 1.549,
+    // Contested-lane trade quality. Both added 2026-10-01 against a board the
+    // owner photographed; see the notes at their use sites in chooseLane.
+    laneCleanKill: 6,
+    laneBodyLossMult: 1.2,
     // Threat scoring — CEM-tuned
     threatSplashMult: -0.441,
     threatOverdriveBonus: 1.991,
@@ -1466,6 +1470,29 @@ const AI = {
         score += threat * 1.5;           // prioritize blocking scarier enemies
         if (iKill) score += 6;
         if (iSurvive) score += 3;
+        // A CLEAN KILL IS THE BEST THING ON THE BOARD, AND IT WAS WORTH +9.
+        //
+        // `threat * 1.5` is unbounded, so a single huge-ATK body pulled every
+        // card toward it no matter what happened there. Measured on the owner's
+        // own board — Hela 6/7 in hand, an enemy Hulk 4/6 and an enemy Grinch
+        // 18/27 — lane-into-Hulk scored ~15 (threat 6, kill +6, survive +3) and
+        // lane-into-Grinch scored ~25 (threat 27, minus 2 for dying) and WON.
+        // So Hela walked into the Grinch, killed nothing and died, while a free
+        // kill she would have survived sat open. (Owner: "hela should go in
+        // front of hulk to kill hulk … its simple calculation.")
+        //
+        // Removing their body and keeping yours is strictly the best outcome a
+        // contested lane offers, and nothing in the score said so — it was just
+        // the two separate bonuses added together.
+        if (iKill && iSurvive) score += this.WEIGHTS.laneCleanKill;
+        // …AND LOSING THE BODY HAD TO COST SOMETHING. The only price on dying
+        // was a flat −2, identical for a 1-cost token and a 10-cost finisher,
+        // so the scorer could not tell a chump block from throwing away your
+        // best card. Priced by the card's own cost, which is what makes the
+        // owner's second sentence fall out on its own: the cheap Undead Warrior
+        // still happily eats the Grinch, and Hela no longer will. ("one warrior
+        // should be in front of grinch and the other xenomorph.")
+        if (!iSurvive) score -= (card.cost || 0) * this.WEIGHTS.laneBodyLossMult;
         // Trading a 1-cost card for a 6+ cost enemy is great; inverse is bad
         score += Math.max(0, (enemy.cost || 0) - (card.cost || 0)) * 0.8;
         // Avoid committing a big expensive card against a trivial enemy
