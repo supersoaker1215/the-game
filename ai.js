@@ -1882,6 +1882,45 @@ const AI = {
       return -1;
     },
 
+    // TWO TRICKS THE EVALUATOR COULD NOT SEE AT ALL. Audited against every
+    // desc test in evalTrick: these two match none of them, have no override
+    // and are not always-cast, so they scored only the generic "you have
+    // allies" floor of 1 — which never wins the pick, because playTricks takes
+    // the BEST trick and almost anything else scores higher. Two-Face Coin was
+    // the most-held-while-wanted trick in a 300-game audit.
+
+    // "Add a random 1-8 to your Block Meter." Worth the most when there is room
+    // to put it AND something coming to absorb — a full meter wastes the roll,
+    // and an empty board has nothing to block.
+    'Two-Face Coin': function (ai, owner = 'ai') {
+      const max = Game.BLOCK_MAX || 8;
+      const now = (Game.getBlockMeter ? Game.getBlockMeter(owner) : (Game.state[owner].blockMeter | 0)) | 0;
+      const room = Math.max(0, max - now);
+      if (room <= 1) return -1;                       // nowhere to put the roll
+      const incoming = ai.unblockedIncoming(owner);   // what is actually aimed at us
+      // The average roll is 4.5; value is the part of it that lands, scaled by
+      // whether a filled meter would matter this round.
+      const lands = Math.min(room, 4.5);
+      let score = lands * 0.8;
+      if (incoming >= 5) score += 2;
+      if (room >= max - 1) score -= 1;                // an untouched meter is a slow investment
+      return score;
+    },
+
+    // "Copy a random card from the opponent's hand into your hand." Pure card
+    // advantage, and worthless with nowhere to put it.
+    'Assimilate': function (ai, owner = 'ai') {
+      const s = Game.state;
+      const opp = Game.opponent(owner);
+      const theirs = ((s[opp] && s[opp].hand) || []).length;
+      if (!theirs) return -1;                         // nothing to copy
+      const mine = ((s[owner] && s[owner].hand) || []).length;
+      const cap = (s[owner] && s[owner].maxHandSize) || 7;
+      if (mine >= cap) return -1;                     // it would be discarded on arrival
+      // A bigger enemy hand is both a better draw and a better read on them.
+      return 2 + Math.min(3, theirs * 0.5);
+    },
+
     'Space Stone': function (ai, owner = 'ai') {
       // Space Stone is a SETUP tool — it lets the AI play a card from
       // hand during the upcoming Trick Phase (at the card's normal
@@ -1922,12 +1961,29 @@ const AI = {
       // it THIS turn (no point Space-Stoning a card you could just
       // play) AND (b) it'll be affordable when the trick phase
       // fires. Trick-phase energy = current + next-turn carryover.
-      const nextTurnEnergy = cur + (s[owner].nextTurnCurrency || 0);
+      // THE WINDOW WAS EMPTY, SO THIS NEVER FIRED AT ALL. Measured: 0 casts
+      // across 300 games, 68 copies still in hand at the end.
+      //
+      // `nextTurnEnergy` was `cur + nextTurnCurrency` — a BANKED bonus (Power
+      // Battery, Green Lantern) that is 0 in almost every game. So the test
+      // read "costs more than I have AND costs no more than I have", which is
+      // satisfiable only by the handful of boards carrying a bonus. The
+      // tightening it came from was right — the AI used to fire this every
+      // round for nothing ("that is a dumb play") — it just overshot into
+      // never.
+      //
+      // The honest projection is NEXT ROUND. trickPhasePlayable is never
+      // cleared at round end (game.js), so the unlock persists, and that is the
+      // whole point of the card: mark something expensive now, drop it in a
+      // later trick phase once the opponent has committed. Energy per round is
+      // the round number, so next round's trick phase has that plus whatever
+      // carried over.
+      const nextRoundEnergy = ((s.round || 1) + 1) + (s[owner].nextTurnCurrency || 0);
       const setupTargets = hand.filter(c => {
         const cost = Game.getCardCost ? Game.getCardCost(owner, c) : (c.cost || 0);
-        // Can't afford this turn but COULD afford with carryover.
-        // High-cost cards (≥6) are the worthwhile setups.
-        return cost > cur && cost <= nextTurnEnergy && cost >= 4;
+        // Out of reach now — otherwise just play it — but in reach when the
+        // unlock can actually be used. High-cost cards are the worthwhile ones.
+        return cost > cur && cost <= nextRoundEnergy && cost >= 4;
       });
       if (!setupTargets.length) return -1;
       // Score by the top setup target's cost — 4-5 = modest, 6-7 = good, 8+ = great.

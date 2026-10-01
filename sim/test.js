@@ -12547,6 +12547,71 @@ test('the AI takes a kill it survives over blocking the biggest number', functio
     'it dies doing it — which is the point of sending THIS body and not Hela');
 });
 
+// ---- EVERY TRICK MUST BE VISIBLE TO THE AI -----------------------------
+// evalTrick scores an unlisted trick by matching REGEXES AGAINST ITS PROSE. A
+// trick whose wording matches none of them, with no dedicated evaluator and no
+// always-cast entry, falls to a generic floor of 1 — and playTricks picks the
+// BEST trick, so a 1 never wins and the card is effectively never cast.
+//
+// That is a silent failure with two triggers: adding a trick, and REWORDING
+// one. The card-wording conventions in this repo change regularly, and a desc
+// edit that drops the word "deal" or "destroy" would blind the AI to that card
+// with nothing to show for it. Measured when this was written: 2 of 31 tricks
+// were in exactly that state.
+test('the AI can see every trick in the game', function () {
+  // Read the vocabulary out of evalTrick rather than restating it here — a copy
+  // would drift the first time a branch was added, which is the bug class.
+  var src = read('ai.js');
+  var body = src.slice(src.indexOf('  evalTrick(trick, owner'));
+  body = body.slice(0, body.indexOf('\n  },'));
+  var res = [];
+  body.replace(/\/([^/\n]+)\/\.test\(desc\)/g, function (m, pat) {
+    try { res.push(new RegExp(pat)); } catch (e) {}
+    return m;
+  });
+  assert(res.length >= 5, 'found the desc tests to check against (' + res.length + ')');
+
+  var blind = [];
+  TRICK_DEFS.forEach(function (t) {
+    if (t.reactive) return;                                  // never cast from the trick phase
+    if (AI.TRICK_EVALUATORS && AI.TRICK_EVALUATORS[t.name]) return;
+    if (AI.TRICK_ALWAYS_CAST && AI.TRICK_ALWAYS_CAST.has(t.name)) return;
+    var d = (t.desc || '').toLowerCase();
+    if (res.some(function (r) { return r.test(d); })) return;
+    blind.push(t.name + '  "' + (t.desc || '').slice(0, 60) + '"');
+  });
+  assertEq(blind.join('\n'), '',
+    'these score only the generic floor, so the AI will never pick them — give each an entry in '
+    + 'AI.TRICK_EVALUATORS, or a desc the evaluator recognises');
+});
+
+// ---- SPACE STONE'S WINDOW WAS EMPTY ------------------------------------
+// Its evaluator asked for a card that costs MORE than you have now and NO MORE
+// than you have now plus `nextTurnCurrency` — a banked bonus that is zero in
+// almost every game. Unsatisfiable, so the trick was cast 0 times in 300 games
+// while 68 copies sat in hand. The unlock persists across rounds
+// (trickPhasePlayable is never cleared), so the projection is next round.
+test('Space Stone sees a card it can unlock for a later trick phase', function () {
+  var G = freshGame();
+  G.state.round = 6;                 // next round's trick phase will have ~7
+  G.state.ai.currency = 2;           // cannot afford a 6-cost now
+  G.state.ai.nextTurnCurrency = 0;   // and no banked bonus, as in almost every game
+  var big = G.createCardInstance(cardByName('Hela'), 'ai');
+  G.state.ai.hand = [big];
+  var ss = TRICK_DEFS.find(function (t) { return t.name === 'Space Stone'; });
+  var score = AI.evalTrick(Object.assign({}, ss), 'ai');
+  assert(score > 0, 'it is worth casting on a card it can actually unlock (got ' + score + ')');
+
+  // …and it still declines when there is nothing worth setting up — the
+  // tightening this came from was right, it just overshot into never.
+  var G2 = freshGame();
+  G2.state.round = 6;
+  G2.state.ai.currency = 20;         // everything in hand is affordable right now
+  G2.state.ai.hand = [G2.createCardInstance(cardByName('Hela'), 'ai')];
+  assert(AI.evalTrick(Object.assign({}, ss), 'ai') <= 0,
+    'no setup value when you could just play the card');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 
