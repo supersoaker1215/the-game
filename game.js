@@ -9235,6 +9235,18 @@ const Game = {
     if (afterArmor === null) return false;
     dmg = afterArmor;
 
+    // THE WHOLE SUM, NOT THE ANSWER. This line already showed what the card was
+    // LEFT on, which tells you nothing about whether that number is right —
+    // you cannot check 6/10 without knowing it was 10/10 and took a 4. The
+    // owner wants to audit combat from the log: "in the log i need to see the
+    // stats from before the attack, and after the attack ... i want to see
+    // their health to make sure its correct."
+    //
+    // So the line carries the attacker's ATK, the defender's HP before, and the
+    // HP after. When ATK and the damage dealt differ, that gap IS the armour /
+    // debuff / buff maths made visible instead of inferred.
+    const _hpBefore = target.currentHealth;
+    const _atkUsed = (attacker && attacker.attack != null) ? attacker.attack : null;
     target.currentHealth -= dmg;
     // Tank-XP tracker — credit the target with HP it just ate. Drives
     // the roguelite "damage taken = XP" path. Snapshotted into the dead
@@ -9245,7 +9257,9 @@ const Game = {
     // freeze + max-scale flash/burst/float). currentHealth was already
     // reduced above, so this read is the post-hit state.
     this.emitDmg(target.id, dmg, 'hit', undefined, attacker && attacker.id, target.currentHealth <= 0);
-    this.log(`  [HIT] ${attacker.name} deals ${dmg} to ${target.name} → ${Math.max(0, target.currentHealth)}/${target.maxHealth} HP`);
+    const _atkStr = (_atkUsed != null && _atkUsed !== dmg) ? ` (${_atkUsed} ATK)` : '';
+    this.log(`  [HIT] ${attacker.name}${_atkStr} deals ${dmg} to ${target.name} — `
+      + `${Math.max(0, _hpBefore)}/${target.maxHealth} → ${Math.max(0, target.currentHealth)}/${target.maxHealth} HP`);
     if (attacker.passive === 'currencyOnDamage' && dmg > 0) {
       attacker._damageDealtThisTurn = (attacker._damageDealtThisTurn || 0) + dmg;
     }
@@ -18748,11 +18762,26 @@ const Game = {
     // very different prices — and which player got the good half was a coin
     // toss nobody could see being flipped.
     //
-    // WHICH SIDE COUNTS AS "ON A CARD" IS NOT THE OWNER'S SIDE. An environment
-    // acts on its owner's OPPONENT ("the first ENEMY card to enter this lane"),
-    // so the PLAYER's room lands on a body when the AI holds that lane, and the
-    // AI's room lands on a body when the player does. The two tests are mirror
-    // images, which is exactly why an unconstrained pair came out uneven.
+    // "ON A CARD" MEANS THE HALF THE ROOM LANDS ON, AND THIS MEASURED THE OTHER
+    // ONE. The first pass reasoned that since an environment acts on its
+    // owner's OPPONENT, the player's room is "on a body" when the AI holds that
+    // lane — and matched the pair on that. It is a defensible reading of the
+    // EFFECT and the wrong reading of the REQUEST, which is about what you see:
+    // a room sitting on top of one of your cards versus a room sitting on bare
+    // ground.
+    //
+    // Reproduced with the owner's own board — their Spider-Man in lane 1, an
+    // enemy Green Goblin in lane 2 — the old test placed the AI's Game Over in
+    // lane 2 ON its own Green Goblin and the player's in an empty lane 5, and
+    // called that a matched pair because neither lane held an OPPOSING body.
+    // (Owner: "the enviroments shouldnt land in contested lanes for one player
+    // and open for another, they should both be in contested or open … it
+    // landed in lane 3 for the enemy open, and lane 1 where my spiderman was
+    // contested." And originally: "if one spawns on a card, the other needs to
+    // spawn on a card or they both spawn in empty lanes.")
+    //
+    // So each room is measured against the side it actually occupies: the
+    // player's room against the player's half, the AI's against the AI's.
     //
     // The FIRST lane stays random — this constrains only the second, which is
     // what "the other one needs to as well" asks for. One shuffle, as before:
@@ -18761,10 +18790,10 @@ const Game = {
     const _first = pick[0];
     let _second = null;
     if (need > 1) {
-      const _wantOccupied = !!(this.state.lanes[_first] && this.state.lanes[_first].ai);
+      const _wantOccupied = !!(this.state.lanes[_first] && this.state.lanes[_first].player);
       for (let k = 1; k < pick.length; k++) {
         const i = pick[k];
-        if (!!(this.state.lanes[i] && this.state.lanes[i].player) === _wantOccupied) { _second = i; break; }
+        if (!!(this.state.lanes[i] && this.state.lanes[i].ai) === _wantOccupied) { _second = i; break; }
       }
       if (_second == null) {
         // No lane of the matching kind is free. Fall back to the old behaviour
