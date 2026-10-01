@@ -137,8 +137,16 @@ run_suite sim/ui-render.js
 # It is here as well as in the hook because the hook is per-clone and opt-in,
 # while this script is what everybody runs.
 echo "=== cache-stamp (the ?v= HEAD shipped match the files HEAD shipped) ==="
+# A PIPELINE'S EXIT STATUS IS ITS LAST COMMAND'S. `git archive | tar` therefore
+# reported TAR's success and hid a failing git archive completely, and the else
+# branch then called that a skip — so "could not check" and "checked, fine" were
+# the same outcome. Each half is run and tested separately.
 _cs_tmp="$(mktemp -d)"
-if git archive HEAD 2>/dev/null | tar -x -C "$_cs_tmp" 2>/dev/null && [ -f "$_cs_tmp/tools/stamp-cache.js" ]; then
+_cs_tar="$_cs_tmp/HEAD.tar"
+_cs_ok=1
+git archive HEAD > "$_cs_tar" 2>/dev/null || _cs_ok=0
+if [ "$_cs_ok" = "1" ]; then tar -x -f "$_cs_tar" -C "$_cs_tmp" 2>/dev/null || _cs_ok=0; fi
+if [ "$_cs_ok" = "1" ] && [ -f "$_cs_tmp/tools/stamp-cache.js" ]; then
   _cs_out="$( cd "$_cs_tmp" && "$JSC" tools/stamp-cache.js -- --check 2>&1 )"
   if [ $? -eq 0 ]; then
     echo "$_cs_out" | grep -E "versioned assets|✅"
@@ -149,8 +157,15 @@ if git archive HEAD 2>/dev/null | tar -x -C "$_cs_tmp" 2>/dev/null && [ -f "$_cs
     echo "  ❌ cache stamp FAILED"
     FAIL=1
   fi
+elif [ "$_cs_ok" = "1" ] && ! git cat-file -e HEAD:tools/stamp-cache.js 2>/dev/null; then
+  # Genuinely not committed yet — the only honest skip.
+  echo "· skip (tools/stamp-cache.js is not in HEAD yet)"
 else
-  echo "· skip (no git archive / tool not committed yet)"
+  # It IS in HEAD and we still could not check it. That is a broken gate, and a
+  # broken gate must not report success.
+  echo "  could not extract HEAD to verify the cache stamp (git archive / tar failed)"
+  echo "  ❌ cache stamp COULD NOT RUN"
+  FAIL=1
 fi
 rm -rf "$_cs_tmp"
 echo ""
@@ -161,10 +176,17 @@ echo ""
 # a change to it would first show up as a multiplayer bug nobody can place.
 # tools/vendor.json records what it is meant to be; this checks that it still is.
 echo "=== vendor pin (committed third-party files are what they claim) ==="
+# READ IT WITH THE INTERPRETER THIS SCRIPT ALREADY REQUIRES. This parsed the
+# pin with three python3 calls, in a script that otherwise needs only sh + jsc —
+# so on a machine without python3 every variable came back empty, control fell
+# to "skip (pin incomplete)", and the check whose whole job is noticing a
+# swapped multiplayer transport reported nothing while the run still ended
+# green. jsc is already mandatory here and parses JSON natively.
 if [ -f tools/vendor.json ]; then
-  _vp_file=$(python3 -c "import json;print(json.load(open('tools/vendor.json'))['peerjs']['file'])" 2>/dev/null)
-  _vp_want=$(python3 -c "import json;print(json.load(open('tools/vendor.json'))['peerjs']['sha256'])" 2>/dev/null)
-  _vp_ver=$(python3 -c "import json;print(json.load(open('tools/vendor.json'))['peerjs']['version'])" 2>/dev/null)
+  _vp_json=$("$JSC" -e 'var v=JSON.parse(read("tools/vendor.json")).peerjs; print(v.file+"\n"+v.sha256+"\n"+v.version);' 2>/dev/null)
+  _vp_file=$(echo "$_vp_json" | sed -n 1p)
+  _vp_want=$(echo "$_vp_json" | sed -n 2p)
+  _vp_ver=$(echo  "$_vp_json" | sed -n 3p)
   if [ -n "$_vp_want" ] && [ -f "$_vp_file" ]; then
     _vp_got=$(shasum -a 256 "$_vp_file" | cut -d' ' -f1)
     if [ "$_vp_got" = "$_vp_want" ]; then
@@ -180,10 +202,19 @@ if [ -f tools/vendor.json ]; then
       FAIL=1
     fi
   else
-    echo "· skip (pin incomplete)"
+    # A pin that cannot be read is not a pin that passed.
+    echo "  tools/vendor.json could not be read, or $_vp_file is missing"
+    echo "  ❌ vendor pin COULD NOT RUN"
+    FAIL=1
   fi
+elif [ -f peerjs.min.js ]; then
+  # Vendored code present with no pin to check it against is the ungoverned
+  # state the pin exists to end, not a clean skip.
+  echo "  peerjs.min.js is here but tools/vendor.json is not — nothing pins it"
+  echo "  ❌ vendor pin MISSING"
+  FAIL=1
 else
-  echo "· skip (no tools/vendor.json)"
+  echo "· skip (nothing vendored)"
 fi
 
 echo ""

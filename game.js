@@ -7087,6 +7087,31 @@ const Game = {
   playTrick(owner, trick) {
     if (this.state.gameOver) return false;
     if (this.ballyhooLocked && this.ballyhooLocked()) return false;
+    // A TRICK IS A PLAY, AND A PLAY BELONGS TO THE TURN THAT MAKES IT.
+    //
+    // playCard has carried this guard since a drive was caught playing a card
+    // into the next seat's turn; playTrick never got it, so the identical
+    // orphaned chain could still cast. The owner's log is exactly that: Cortex's
+    // turn is cut short, the table moves to Vega, Cortex's chain wakes up and
+    // its CARD is refused ("[OUT OF TURN] Human Torch was not played") — and one
+    // line later a TRICK goes through unchallenged, logged against the wrong
+    // player entirely. (Owner: "i never had the lasso of truth and it played
+    // during my turn, i didnt have a trick phase.")
+    //
+    // Same rule as playCard: the SIDE, not the seat, because two teammates share
+    // a sub-phase and either may legitimately act in it; skipped when there is no
+    // sub-phase at all, because combat has none and every cast there is
+    // ability-driven. Reactive tricks (a Time Stone intercept, a block-meter
+    // freebie) answer somebody else's action by definition and are exempt.
+    if (trick && !trick.reactive && this.state.twoVTwo && this.state.twoVTwo.players) {
+      const _actSeat = this._2v2ActivePlayer && this._2v2ActivePlayer();
+      if (_actSeat && !this._2v2SeatActsFor(_actSeat, owner)) {
+        this.log(`[OUT OF TURN] ${trick.name} was not cast — it is ${this._2v2SeatName(_actSeat)}'s turn.`);
+        console.warn('[2v2] refused an out-of-turn trick', trick.name, 'for side', owner,
+                     '— active seat', _actSeat);
+        return false;
+      }
+    }
     // Multiplayer guest: forward and bail. _silentSim guard — see playCard:
     // a preview/prediction sim must run locally on the clone, never forward.
     if (this.isMultiplayer() && this.mp.role === 'guest' && owner === this.mp.you && !(this.state && this.state._silentSim)) {
@@ -9221,6 +9246,18 @@ const Game = {
     if (afterArmor === null) return false;
     dmg = afterArmor;
 
+    // THE WHOLE SUM, NOT THE ANSWER. This line already showed what the card was
+    // LEFT on, which tells you nothing about whether that number is right —
+    // you cannot check 6/10 without knowing it was 10/10 and took a 4. The
+    // owner wants to audit combat from the log: "in the log i need to see the
+    // stats from before the attack, and after the attack ... i want to see
+    // their health to make sure its correct."
+    //
+    // So the line carries the attacker's ATK, the defender's HP before, and the
+    // HP after. When ATK and the damage dealt differ, that gap IS the armour /
+    // debuff / buff maths made visible instead of inferred.
+    const _hpBefore = target.currentHealth;
+    const _atkUsed = (attacker && attacker.attack != null) ? attacker.attack : null;
     target.currentHealth -= dmg;
     // Tank-XP tracker — credit the target with HP it just ate. Drives
     // the roguelite "damage taken = XP" path. Snapshotted into the dead
@@ -9231,7 +9268,9 @@ const Game = {
     // freeze + max-scale flash/burst/float). currentHealth was already
     // reduced above, so this read is the post-hit state.
     this.emitDmg(target.id, dmg, 'hit', undefined, attacker && attacker.id, target.currentHealth <= 0);
-    this.log(`  [HIT] ${attacker.name} deals ${dmg} to ${target.name} → ${Math.max(0, target.currentHealth)}/${target.maxHealth} HP`);
+    const _atkStr = (_atkUsed != null && _atkUsed !== dmg) ? ` (${_atkUsed} ATK)` : '';
+    this.log(`  [HIT] ${attacker.name}${_atkStr} deals ${dmg} to ${target.name} — `
+      + `${Math.max(0, _hpBefore)}/${target.maxHealth} → ${Math.max(0, target.currentHealth)}/${target.maxHealth} HP`);
     if (attacker.passive === 'currencyOnDamage' && dmg > 0) {
       attacker._damageDealtThisTurn = (attacker._damageDealtThisTurn || 0) + dmg;
     }
@@ -11245,6 +11284,38 @@ const Game = {
       const bm = p.blockMeter | 0;
       if (bm < 0 || bm > (this.BLOCK_MAX || 8)) report('block:' + side, `${side} block meter out of range: ${p.blockMeter}`);
     });
+    // ---- NO TWO SEATS MAY SHARE ONE HAND ----
+    // Hands are per-seat arrays and the side proxy is REPOINTED at whichever
+    // seat is active, so a deferred read-back can stamp one seat's array onto
+    // another. Both then hold the same cards by reference: each can play from
+    // the other's hand, and a per-seat scan — the jump sweep, Doomsday's
+    // discount, the Lex Luthor draw gate — finds another player's card and
+    // attributes it to this one. _2v2ReadBackActivePlayer guards the write it
+    // knows about (see _foreign there); nothing checked the RESULT, so a leak
+    // through any other path was invisible until someone noticed a card in the
+    // wrong person's hands.
+    //
+    // (Owner: "it says art the clown picked by vega, ryan had art the clown hes
+    // my opponent." The log proves the jump sweep found that card in Vega's
+    // hand; it cannot say how it got there. This makes the next one say so.)
+    const _tt = s.twoVTwo;
+    if (_tt && _tt.players && this._2v2SLOTS) {
+      const _seen = new Map();
+      this._2v2SLOTS.forEach(pk => {
+        const pl = _tt.players[pk];
+        if (!pl) return;
+        [['hand', pl.hand], ['trickHand', pl.trickHand]].forEach(([which, arr]) => {
+          if (!Array.isArray(arr)) return;
+          const prior = _seen.get(arr);
+          if (prior) {
+            report('sharedHand:' + prior + '+' + pk,
+              `${prior} and ${pk} share one ${which} array — each can play the other's cards`);
+          } else {
+            _seen.set(arr, pk);
+          }
+        });
+      });
+    }
     return violations;
   },
 
@@ -18721,11 +18792,26 @@ const Game = {
     // very different prices — and which player got the good half was a coin
     // toss nobody could see being flipped.
     //
-    // WHICH SIDE COUNTS AS "ON A CARD" IS NOT THE OWNER'S SIDE. An environment
-    // acts on its owner's OPPONENT ("the first ENEMY card to enter this lane"),
-    // so the PLAYER's room lands on a body when the AI holds that lane, and the
-    // AI's room lands on a body when the player does. The two tests are mirror
-    // images, which is exactly why an unconstrained pair came out uneven.
+    // "ON A CARD" MEANS THE HALF THE ROOM LANDS ON, AND THIS MEASURED THE OTHER
+    // ONE. The first pass reasoned that since an environment acts on its
+    // owner's OPPONENT, the player's room is "on a body" when the AI holds that
+    // lane — and matched the pair on that. It is a defensible reading of the
+    // EFFECT and the wrong reading of the REQUEST, which is about what you see:
+    // a room sitting on top of one of your cards versus a room sitting on bare
+    // ground.
+    //
+    // Reproduced with the owner's own board — their Spider-Man in lane 1, an
+    // enemy Green Goblin in lane 2 — the old test placed the AI's Game Over in
+    // lane 2 ON its own Green Goblin and the player's in an empty lane 5, and
+    // called that a matched pair because neither lane held an OPPOSING body.
+    // (Owner: "the enviroments shouldnt land in contested lanes for one player
+    // and open for another, they should both be in contested or open … it
+    // landed in lane 3 for the enemy open, and lane 1 where my spiderman was
+    // contested." And originally: "if one spawns on a card, the other needs to
+    // spawn on a card or they both spawn in empty lanes.")
+    //
+    // So each room is measured against the side it actually occupies: the
+    // player's room against the player's half, the AI's against the AI's.
     //
     // The FIRST lane stays random — this constrains only the second, which is
     // what "the other one needs to as well" asks for. One shuffle, as before:
@@ -18734,10 +18820,10 @@ const Game = {
     const _first = pick[0];
     let _second = null;
     if (need > 1) {
-      const _wantOccupied = !!(this.state.lanes[_first] && this.state.lanes[_first].ai);
+      const _wantOccupied = !!(this.state.lanes[_first] && this.state.lanes[_first].player);
       for (let k = 1; k < pick.length; k++) {
         const i = pick[k];
-        if (!!(this.state.lanes[i] && this.state.lanes[i].player) === _wantOccupied) { _second = i; break; }
+        if (!!(this.state.lanes[i] && this.state.lanes[i].ai) === _wantOccupied) { _second = i; break; }
       }
       if (_second == null) {
         // No lane of the matching kind is free. Fall back to the old behaviour
@@ -22511,12 +22597,25 @@ const Game = {
         //
         // Same mistake as the postCombat latch keyed on the round postCombat
         // itself advances — a counter must not be keyed on something the thing
-        // it is counting can change. The bound is now keyed on the SEAT, which
-        // nothing in the retry path can alter, so eight really is eight.
-        const _tries = (this._2v2DriveRetries && this._2v2DriveRetries.seat === activeKey)
-          ? this._2v2DriveRetries.n : 0;
+        // it is counting can change.
+        //
+        // RE-KEYING TO THE SEAT ALONE OVERSHOT, and broke it the other way. The
+        // only line that clears _2v2DriveRetries sits BELOW this gate, so it is
+        // reached when a drive STARTS and never when one gives up — and this is
+        // an engine field, not state, so it survives undo, a round rollover and
+        // the next match. A seat that ever burned its eight waits was refused a
+        // retry for the rest of the match: exactly the turn-skipping the retry
+        // exists to stop, arriving by a longer road.
+        //
+        // The budget belongs to a WAIT, so it is keyed on the seat AND the turn.
+        // The turn token resets it the moment the turn moves, which is the
+        // reset we actually wanted; and the recursion that originally defeated a
+        // token key had a different cause — the drive watchdog re-arming itself
+        // inline under _syncMode — which is fixed at its own source below.
+        const _rt = this._2v2DriveRetries;
+        const _tries = (_rt && _rt.seat === activeKey && _rt.tok === _tok) ? _rt.n : 0;
         if (_tries < 8) {
-          this._2v2DriveRetries = { seat: activeKey, n: _tries + 1 };
+          this._2v2DriveRetries = { seat: activeKey, tok: _tok, n: _tries + 1 };
           this._schedule(() => {
             // Only if this is still the same turn AND still this seat's.
             if (this._2v2TurnToken !== _tok) return;
@@ -22571,8 +22670,11 @@ const Game = {
     };
     this._2v2AIDriving = activeKey;
     this._2v2AIDrivingAt = Date.now();
-    // This seat got its drive, so its wait is over — clear the retry budget so a
-    // later, unrelated wait starts from a full one rather than inheriting it.
+    // This seat got its drive, so its wait is over — clear the budget. Keyed on
+    // the seat only here on purpose: whatever turn the stale entry was for, it
+    // is spent. (The gate above also expires it by turn, so this is belt and
+    // braces rather than the only release — see the note there for why having
+    // just one of the two was the bug.)
     if (this._2v2DriveRetries && this._2v2DriveRetries.seat === activeKey) this._2v2DriveRetries = null;
     // Progress clock — bumped by every play this drive makes (see playCard /
     // playCardFree / playTrick). The drive watchdog reads it so a big hand at a
@@ -22664,19 +22766,59 @@ const Game = {
     // it started: a drive that is actively laying down cards is never cut off,
     // and only one that has truly gone quiet for the window is force-ended.
     const _AI_DRIVE_QUIET_MS = 12000;
+    // A DRIVE WAITING ON AN OPEN QUESTION IS NOT A HUNG DRIVE, AND THIS KEPT
+    // SHOOTING ONE.
+    //
+    // ai.js parks its whole queue on whenPromptCleared the moment ANY prompt is
+    // pending — that gate is deliberate, so a bot never plays over a question
+    // somebody is still answering. But a prompt's own auto-resolve clock is 30s
+    // (_2v2_PROMPT_MS) and this watchdog's quiet window is 12s, and it only
+    // stood down for a prompt owned by a LIVE HUMAN. So every other prompt — one
+    // on an AI seat, one queued behind another, one whose seat could not be
+    // resolved — ran the drive's clock out at 12s while the chain sat waiting
+    // exactly as designed. The seat was cut short, the table moved on, and at
+    // 30s the prompt resolved and the orphaned chain woke up inside somebody
+    // else's turn. That is the whole shape of the owner's log: "Cortex's turn
+    // was cut short — it stopped responding", then one line later an out-of-turn
+    // play from Cortex's chain during Vega's turn.
+    //
+    // (Owner: "how does cortex stop responding, that shouldnt happen — if theres
+    // nothing to play the ai ends its turn, if there is a card to play it plays
+    // the cards, super simple." Right: it was never out of things to do. It was
+    // waiting, and the waiting was being counted as hanging.)
+    //
+    // So: stand down for ANY pending prompt, not just a human's. The table still
+    // cannot freeze, because the prompt carries its own clock — and if that
+    // clock somehow fails, the cap below fires anyway.
+    const _driveArmedAt = Date.now();
+    const _AI_DRIVE_HARD_CAP_MS = 60000;
     const _driveWatch = () => {
       if (finished || this._2v2AIDriving !== activeKey || this._2v2AIWatchGen !== watchGen) return;
-      // NOT WHILE THE BOT IS WAITING ON SOMEBODY ELSE. A bot parked behind a
-      // person's prompt, an event hold, or a resolution boundary is not hung —
-      // and the old check here knew only two of the six prompt slots, so a
-      // human's jump or block-trick offer (which the AI queue DOES wait for)
-      // read as 12s of silence and the turn was cut. See _2v2DriveWaitingOnOthers.
-      // The quiet clock restarts when the wait ends, so the bot gets its full
-      // window to actually play. (Owner: "its not hard for the AI to play a card
-      // and not have their turns cut short.")
-      if (this._2v2DriveWaitingOnOthers()) {
+      // THE CAP. A prompt that never resolves at all would otherwise hold the
+      // drive open forever. 60s is twice the prompt clock, so a prompt that is
+      // working always beats it and only a genuinely dead one reaches it.
+      //
+      // Inside the cap, stand down for ANY pending prompt (the AI queue parks on
+      // every one of them) and for every other wait that is not the bot's own —
+      // an event hold, a resolution boundary, a hidden host tab, a human's jump /
+      // block / Kang / Time Stone offer. See _2v2DriveWaitingOnOthers. The quiet
+      // clock restarts when the wait ends, so the bot gets its full window to
+      // actually play. (Owner: "its not hard for the AI to play a card and not
+      // have their turns cut short.")
+      const _heldFor = Date.now() - _driveArmedAt;
+      if (_heldFor < _AI_DRIVE_HARD_CAP_MS
+          && ((this.hasPendingPrompt && this.hasPendingPrompt()) || this._2v2DriveWaitingOnOthers())) {
         this._2v2AIDriveLastPlayAt = Date.now();
         this._schedule(_driveWatch, 1000);
+        return;
+      }
+      // NOT WHILE A PERSON IS BEING ASKED SOMETHING — not even past the cap. A
+      // bot's card can put a prompt on a HUMAN (Symbiote Spider-Man, The Grinch)
+      // and that person is entitled to think.
+      if (this._2v2PromptOnLiveHuman
+          && (this._2v2PromptOnLiveHuman(this.state.pendingCardChoice)
+           || this._2v2PromptOnLiveHuman(this.state.pendingLaneChoice))) {
+        this._schedule(_driveWatch, _AI_DRIVE_QUIET_MS);
         return;
       }
       // Still making progress? A play landed within the window — reschedule and

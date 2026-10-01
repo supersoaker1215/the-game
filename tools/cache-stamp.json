@@ -12,12 +12,12 @@
     "hash": "d02efa90"
   },
   "tricks.js": {
-    "v": 124,
-    "hash": "60a8beb5"
+    "v": 125,
+    "hash": "ced7700a"
   },
   "abilities.js": {
-    "v": 511,
-    "hash": "006445a7"
+    "v": 512,
+    "hash": "a1c27a34"
   },
   "engine/combat.js": {
     "v": 4,
@@ -28,8 +28,8 @@
     "hash": "cd48f8d0"
   },
   "game.js": {
-    "v": 818,
-    "hash": "00378bb0"
+    "v": 821,
+    "hash": "3b8dc925"
   },
   "ai.js": {
     "v": 71,

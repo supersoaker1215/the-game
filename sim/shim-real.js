@@ -7,9 +7,18 @@
 // in the engine reached this harness as the string "{}" and said nothing at
 // all. One had been printing that way inside a passing suite for long enough
 // that nobody could see what it was.
+// FRAME [0], NOT [1]. V8 puts `Error: message` on the first line of a stack and
+// JSC does not — measured: for inner() throwing from outer(), e.stack begins
+// `inner@…` with no message line at all. Reading [1] therefore named the
+// CALLER of the failing line and sent every reader one frame too high, in the
+// one diagnostic that exists so a swallowed throw stops printing as `{}`.
+//
+// Duplicated verbatim in shim.js and shim-real.js on purpose: the console
+// polyfill has to exist before anything can report an error, which is before
+// the loader that would pull a shared file in. Keep the two in step by hand.
 function __fmt(a) {
   if (a instanceof Error || (a && typeof a === 'object' && typeof a.message === 'string' && 'stack' in a)) {
-    var first = String(a.stack || '').split('\n')[1];
+    var first = String(a.stack || '').split('\n')[0];
     return (a.name || 'Error') + ': ' + a.message + (first ? '  @' + first.trim() : '');
   }
   if (typeof a === 'object' && a !== null) {

@@ -61,12 +61,32 @@ var stale = [], next = {}, missing = [];
 list.forEach(function (a) {
   var body;
   try { body = read(a.path); }
-  catch (e) { missing.push(a.path); return; }
+  catch (e) {
+    // KEEP ITS RECORD. Returning here dropped the entry from the manifest that
+    // is written moments later, so the next run found no record, took the
+    // "adopt at the current ?v=" branch, and never bumped it — a real change
+    // shipping with a stale ?v= and no CACHE_VERSION move. Reachable any time
+    // index.html names an asset that is momentarily absent (a new file not yet
+    // created, a branch without it). The old hash is carried forward untouched.
+    missing.push(a.path);
+    if (prev[a.path]) next[a.path] = prev[a.path];
+    return;
+  }
   var h = hash(body);
   var was = prev[a.path];
   // A file with no record yet is adopted at its current ?v= rather than bumped
   // — the first run stamps the status quo instead of inventing 22 deploys.
-  if (was && was.hash !== h) {
+  //
+  // …AND NEITHER IS A FILE SOMEBODY ALREADY BUMPED BY HAND. The hash alone
+  // answers "has this changed since it was last stamped", which is NOT the
+  // question the gate asks — that question is "did this change WITHOUT a ?v=
+  // bump". Reading only the hash, a correct hand-fix (the path CLAUDE.md
+  // documents for a co-author without the hook, or a --no-verify) was reported
+  // as `STALE … changed without a ?v= bump` when it had just been bumped, and
+  // the prescribed fix then burned a second number for no deploy. So the ?v= is
+  // consulted too: if it has already moved past what the manifest recorded, the
+  // human did the work — adopt the new hash where it stands and bump nothing.
+  if (was && was.hash !== h && a.v <= was.v) {
     stale.push({ path: a.path, from: a.v, to: a.v + 1 });
     next[a.path] = { v: a.v + 1, hash: h };
   } else {
@@ -89,10 +109,20 @@ if (CHECK_ONLY) {
       print('  STALE  ' + s.path + '  — changed since ?v=' + s.from + ' was set');
     });
     print('');
-    print('❌ ' + stale.length + ' file(s) changed without a ?v= bump.');
-    print('   Players holding a cached service worker would not get them.');
-    print('   Fix: jsc tools/stamp-cache.js');
-    throw new Error('cache stamp stale: ' + stale.length);
+    // SAY WHICH PROBLEM IT IS. With only missing files this printed "❌ 0
+    // file(s) changed without a ?v= bump" and threw "cache stamp stale: 0" —
+    // and run-tests.sh greps for exactly that line, so "0 file(s)" was the
+    // whole explanation a reader got for a failing gate.
+    if (stale.length) {
+      print('❌ ' + stale.length + ' file(s) changed without a ?v= bump.');
+      print('   Players holding a cached service worker would not get them.');
+      print('   Fix: jsc tools/stamp-cache.js');
+    }
+    if (missing.length) {
+      print('❌ ' + missing.length + ' file(s) named by index.html are not on disk.');
+      print('   Nothing can be stamped for a file that is not there.');
+    }
+    throw new Error('cache stamp: ' + stale.length + ' stale, ' + missing.length + ' missing');
   }
 } else {
   if (!stale.length) {

@@ -60,18 +60,50 @@ load('./sim/shim.js');
   });
 
   function Style() {}
+  // ui.js assigns style.cssText at 49 sites. Without this the string was stored
+  // as a plain property and the declarations in it were never parsed — so the
+  // styles were invisible to getComputedStyle and to outerHTML, and a suite
+  // reading style.width after a cssText write got undefined.
+  Object.defineProperty(Style.prototype, 'cssText', {
+    get: function () {
+      return Object.keys(this).map(function (k) { return k + ': ' + this[k]; }, this).join('; ');
+    },
+    set: function (v) {
+      Object.keys(this).forEach(function (k) { delete this[k]; }, this);
+      String(v == null ? '' : v).split(';').forEach(function (decl) {
+        var i = decl.indexOf(':');
+        if (i < 0) return;
+        var k = decl.slice(0, i).trim(), val = decl.slice(i + 1).trim();
+        if (k) this[k] = val;
+      }, this);
+    }
+  });
   Style.prototype.setProperty = function (k, v) { this[k] = v; };
   Style.prototype.getPropertyValue = function (k) { return this[k] != null ? this[k] : ''; };
   Style.prototype.removeProperty = function (k) { delete this[k]; };
 
   function El(tag) {
     this.tagName = String(tag || 'div').toUpperCase();
-    this.children = [];
-    this.childNodes = this.children;
+    // childNodes is the REAL list; children is element-only, as in a browser.
+    // Aliasing the two put text nodes into `children`, and ui.js iterates
+    // `.children` at ten sites — including renderBoard's
+    // `Array.from(this.board.children)` and the hand differ's index maths
+    // (`listEl.children[i] !== el` → `insertBefore(el, listEl.children[i])`).
+    // With whitespace in the parent those indices differ from the browser's, so
+    // a reorder assertion could pass here and be wrong on the page.
+    this.childNodes = [];
     this.parentNode = null;
     this.className = '';
     this.style = new Style();
-    this.dataset = {};
+    // A LIVE VIEW ON data-* ATTRIBUTES, BOTH WAYS. setAttribute populated this
+    // object, but a write to it created nothing — so of the ~104 `.dataset.*`
+    // writes in ui.js, not one became an attribute, `getAttribute('data-…')`
+    // returned null and `[data-…]` selectors matched nothing. Worse than a
+    // missing match: sim/ui-render.js's face-down case asserts
+    // `getAttribute('data-card-id') === null`, which would have passed on a
+    // card that leaked its id through dataset — a security-ish test quietly
+    // unable to fail.
+    this.dataset = __dataset(this);
     this.attributes = {};
     this._text = '';
     this._listeners = {};
@@ -86,9 +118,18 @@ load('./sim/shim.js');
   }
   El.prototype.appendChild = function (c) {
     if (!c) return c;
+    // A DocumentFragment is a CARRIER: appending it moves its children in and
+    // leaves the fragment empty. Treating it as an ordinary node inserted the
+    // fragment itself, so host.children[0] was `#FRAGMENT`, outerHTML emitted a
+    // literal <#fragment>, and every renderer that batches through one built a
+    // tree the browser never builds.
+    if (c.tagName === '#FRAGMENT') {
+      c.childNodes.slice().forEach(function (k) { this.appendChild(k); }, this);
+      return c;
+    }
     if (c.parentNode) c.parentNode.removeChild(c);
     c.parentNode = this;
-    this.children.push(c);
+    this.childNodes.push(c);
     return c;
   };
   El.prototype.append = function () {
@@ -98,25 +139,23 @@ load('./sim/shim.js');
     }
   };
   El.prototype.removeChild = function (c) {
-    var i = this.children.indexOf(c);
-    if (i >= 0) { this.children.splice(i, 1); c.parentNode = null; }
+    var i = this.childNodes.indexOf(c);
+    if (i >= 0) { this.childNodes.splice(i, 1); c.parentNode = null; }
     return c;
   };
   El.prototype.remove = function () { if (this.parentNode) this.parentNode.removeChild(this); };
   El.prototype.insertBefore = function (c, ref) {
-    var i = ref ? this.children.indexOf(ref) : -1;
+    var i = ref ? this.childNodes.indexOf(ref) : -1;
     if (i < 0) return this.appendChild(c);
     if (c.parentNode) c.parentNode.removeChild(c);
-    c.parentNode = this; this.children.splice(i, 0, c);
+    c.parentNode = this; this.childNodes.splice(i, 0, c);
     return c;
   };
   El.prototype.setAttribute = function (k, v) {
     this.attributes[k] = String(v);
     if (k === 'class') this.className = String(v);
     if (k === 'id') this.id = String(v);
-    if (k.indexOf('data-') === 0) {
-      this.dataset[k.slice(5).replace(/-([a-z])/g, function (m, c) { return c.toUpperCase(); })] = String(v);
-    }
+    // (no dataset mirroring needed — attributes ARE the dataset's backing store)
   };
   El.prototype.getAttribute = function (k) {
     if (k === 'class') return this.className || null;
@@ -147,15 +186,17 @@ load('./sim/shim.js');
     while (n) { if (n === this) return true; n = n.parentNode; }
     return false;
   };
+  // SHALLOW BY DEFAULT, like the DOM. `deep !== false` made a bare
+  // cloneNode() copy the whole subtree, so any of ui.js's seven call sites
+  // relying on the default built a tree here that the browser never builds.
   El.prototype.cloneNode = function (deep) {
     var c = new El(this.tagName);
     c.className = this.className;
     c.id = this.id;
     Object.keys(this.attributes).forEach(function (k) { c.attributes[k] = this.attributes[k]; }, this);
-    Object.keys(this.dataset).forEach(function (k) { c.dataset[k] = this.dataset[k]; }, this);
     Object.keys(this.style).forEach(function (k) { c.style[k] = this.style[k]; }, this);
     c._text = this._text;
-    if (deep !== false) this.children.forEach(function (ch) { c.appendChild(ch.cloneNode(true)); });
+    if (deep) this.childNodes.forEach(function (ch) { c.appendChild(ch.cloneNode(true)); });
     return c;
   };
   El.prototype.querySelector = function (sel) { return __find(this, sel, true)[0] || null; };
@@ -164,10 +205,10 @@ load('./sim/shim.js');
   // textContent: reading walks the tree; writing replaces all children.
   Object.defineProperty(El.prototype, 'textContent', {
     get: function () {
-      if (!this.children.length) return this._text;
-      return this.children.map(function (c) { return c.textContent; }).join('');
+      if (!this.childNodes.length) return this._text;
+      return this.childNodes.map(function (c) { return c.textContent; }).join('');
     },
-    set: function (v) { this.children.length = 0; this._text = String(v == null ? '' : v); }
+    set: function (v) { this.childNodes.length = 0; this._text = String(v == null ? '' : v); }
   });
   // innerHTML: a deliberately NAIVE parser. It handles the shapes this codebase
   // actually writes — nested tags with class/id/data- attributes and text — and
@@ -176,10 +217,10 @@ load('./sim/shim.js');
   // string instead, and say so.
   Object.defineProperty(El.prototype, 'innerHTML', {
     get: function () {
-      return this.children.map(function (c) { return c.outerHTML; }).join('') || this._text;
+      return this.childNodes.map(function (c) { return c.outerHTML; }).join('') || this._text;
     },
     set: function (html) {
-      this.children.length = 0; this._text = '';
+      this.childNodes.length = 0; this._text = '';
       __parseInto(this, String(html == null ? '' : html));
     }
   });
@@ -197,18 +238,96 @@ load('./sim/shim.js');
       return '<' + t + a + '>' + this.innerHTML + '</' + t + '>';
     }
   });
+  // element-only view of childNodes
+  Object.defineProperty(El.prototype, 'children', {
+    get: function () { return this.childNodes.filter(function (c) { return c.tagName !== '#TEXT'; }); }
+  });
+  Object.defineProperty(El.prototype, 'childElementCount', {
+    get: function () { return this.children.length; }
+  });
+  Object.defineProperty(El.prototype, 'parentElement', {
+    get: function () {
+      var p = this.parentNode;
+      return (p && p.tagName && p.tagName !== '#DOCUMENT' && p.tagName !== '#FRAGMENT') ? p : null;
+    }
+  });
+  function __sib(el, dir) {
+    var p = el.parentNode;
+    if (!p) return null;
+    var kids = p.children, i = kids.indexOf(el);
+    if (i < 0) return null;
+    return kids[i + dir] || null;
+  }
+  Object.defineProperty(El.prototype, 'nextElementSibling',     { get: function () { return __sib(this, 1); } });
+  Object.defineProperty(El.prototype, 'previousElementSibling', { get: function () { return __sib(this, -1); } });
+  // ui.js calls all of these unguarded — replaceChildren at three sites
+  // including makeCardElCached's transplant, which every board and hand
+  // re-render goes through; animate at 53; insertAdjacentHTML once. Missing,
+  // they threw a TypeError, and where ui.js wraps FX in a bare try/catch they
+  // produced silence instead: a renderer that half-ran and a green test.
+  El.prototype.replaceChildren = function () {
+    this.childNodes.slice().forEach(function (c) { c.parentNode = null; });
+    this.childNodes.length = 0;
+    this._text = '';
+    for (var i = 0; i < arguments.length; i++) {
+      var a = arguments[i];
+      this.appendChild(typeof a === 'string' ? __textNode(a) : a);
+    }
+  };
+  // There is no clock and no compositor here, so an animation is accepted and
+  // reported finished. A suite asking whether something ANIMATED is asking a
+  // browser question (see sim/gfx-budget.js).
+  El.prototype.animate = function () {
+    return { finished: { then: function (f) { try { f(); } catch (e) {} return this; } },
+             cancel: function () {}, finish: function () {}, pause: function () {}, play: function () {} };
+  };
+  El.prototype.insertAdjacentHTML = function (pos, html) {
+    var tmp = new El('div');
+    __parseInto(tmp, String(html == null ? '' : html));
+    var kids = tmp.childNodes.slice();
+    if (pos === 'beforeend') kids.forEach(function (k) { this.appendChild(k); }, this);
+    else if (pos === 'afterbegin') kids.reverse().forEach(function (k) { this.insertBefore(k, this.childNodes[0]); }, this);
+    else if (pos === 'beforebegin' && this.parentNode) kids.forEach(function (k) { this.parentNode.insertBefore(k, this); }, this);
+    else if (pos === 'afterend' && this.parentNode) kids.reverse().forEach(function (k) { this.parentNode.insertBefore(k, __sib(this, 1)); }, this);
+  };
+  El.prototype.insertAdjacentElement = function (pos, el) {
+    if (pos === 'beforeend') return this.appendChild(el);
+    if (pos === 'afterbegin') return this.insertBefore(el, this.childNodes[0]);
+    if (pos === 'beforebegin' && this.parentNode) return this.parentNode.insertBefore(el, this);
+    if (pos === 'afterend' && this.parentNode) return this.parentNode.insertBefore(el, __sib(this, 1));
+    return el;
+  };
+
   Object.defineProperty(El.prototype, 'firstElementChild', {
     get: function () {
-      for (var i = 0; i < this.children.length; i++) if (this.children[i].tagName !== '#TEXT') return this.children[i];
+      for (var i = 0; i < this.childNodes.length; i++) if (this.childNodes[i].tagName !== '#TEXT') return this.childNodes[i];
       return null;
     }
   });
   Object.defineProperty(El.prototype, 'lastElementChild', {
     get: function () {
-      for (var i = this.children.length - 1; i >= 0; i--) if (this.children[i].tagName !== '#TEXT') return this.children[i];
+      for (var i = this.childNodes.length - 1; i >= 0; i--) if (this.childNodes[i].tagName !== '#TEXT') return this.childNodes[i];
       return null;
     }
   });
+
+  function __dashed(k) { return 'data-' + String(k).replace(/[A-Z]/g, function (c) { return '-' + c.toLowerCase(); }); }
+  function __dataset(el) {
+    return new Proxy({}, {
+      get: function (t, k) { return typeof k === 'string' ? el.attributes[__dashed(k)] : t[k]; },
+      set: function (t, k, v) { el.attributes[__dashed(k)] = String(v); return true; },
+      has: function (t, k) { return __dashed(k) in el.attributes; },
+      deleteProperty: function (t, k) { delete el.attributes[__dashed(k)]; return true; },
+      ownKeys: function () {
+        return Object.keys(el.attributes).filter(function (a) { return a.indexOf('data-') === 0; })
+          .map(function (a) { return a.slice(5).replace(/-([a-z])/g, function (m, c) { return c.toUpperCase(); }); });
+      },
+      getOwnPropertyDescriptor: function (t, k) {
+        var a = __dashed(k);
+        return (a in el.attributes) ? { value: el.attributes[a], enumerable: true, configurable: true } : undefined;
+      },
+    });
+  }
 
   function __textNode(t) { var n = new El('#text'); n._text = String(t); return n; }
 
@@ -248,11 +367,31 @@ load('./sim/shim.js');
       if (p[0] === '#') ok = (el.id === p.slice(1));
       else if (p[0] === '.') ok = el.classList.contains(p.slice(1));
       else if (p[0] === '[') {
-        var inner = p.slice(1, -1), eq = inner.indexOf('=');
-        if (eq < 0) ok = el.getAttribute(inner) != null;
+        // `indexOf('=')` landed on the `=` of `*=`, folding the operator into
+        // the attribute NAME — so `[onclick*="foo"]` looked up an attribute
+        // literally called `onclick*`, found null, and matched nothing. ui.js
+        // uses exactly that form at two sites to find and rewire the 2v2 online
+        // draft buttons, so a suite covering that area would have concluded the
+        // buttons are never built. Same silent-non-match class as `:scope`.
+        var inner = p.slice(1, -1);
+        var am = inner.match(/^([^~^$*|=]+)(?:([~^$*|]?)=(.*))?$/);
+        if (!am) { ok = false; }
         else {
-          var k = inner.slice(0, eq), v = inner.slice(eq + 1).replace(/^["']|["']$/g, '');
-          ok = String(el.getAttribute(k)) === v;
+          var k = am[1].trim(), op = am[2] || '', raw = am[3];
+          var cur = el.getAttribute(k);
+          if (raw === undefined) ok = cur != null;
+          else if (cur == null) ok = false;
+          else {
+            var v = String(raw).replace(/^["']|["']$/g, '');
+            cur = String(cur);
+            ok = op === ''  ? cur === v
+               : op === '*' ? cur.indexOf(v) >= 0
+               : op === '^' ? cur.lastIndexOf(v, 0) === 0
+               : op === '$' ? (v === '' ? false : cur.slice(-v.length) === v)
+               : op === '~' ? cur.split(/\s+/).indexOf(v) >= 0
+               : op === '|' ? (cur === v || cur.lastIndexOf(v + '-', 0) === 0)
+               : false;
+          }
         }
       } else ok = (el.tagName === p.toUpperCase());
     });
@@ -315,8 +454,8 @@ load('./sim/shim.js');
   function __find(root, sel, firstOnly) {
     var out = [];
     (function walk(n) {
-      for (var i = 0; i < n.children.length; i++) {
-        var c = n.children[i];
+      for (var i = 0; i < n.childNodes.length; i++) {
+        var c = n.childNodes[i];
         if (c.tagName === '#TEXT') continue;
         if (__matches(c, sel, root)) { out.push(c); if (firstOnly) return true; }
         if (walk(c)) return true;
@@ -402,13 +541,21 @@ if (typeof localStorage === 'undefined') {
 // sim/art-accent.js) or use a browser.
 if (typeof Image === 'undefined') {
   this.Image = function () {
-    var self = this;
     this.onload = null; this.onerror = null;
     Object.defineProperty(this, 'src', {
-      set: function (v) {
-        this._src = v;
-        setTimeout(function () { if (self.onerror) self.onerror(); }, 0);
-      },
+      // IT RECORDS THE REQUEST AND RESOLVES NOTHING. Firing onerror through
+      // setTimeout looked harmless and was not: sim/shim.js runs setTimeout
+      // callbacks INLINE, so `src = …` re-entered UI._probeArt's handler, which
+      // schedules its own retry and then a UI.render() — also inline. Measured
+      // before this: ONE UI.makeCardEl() call produced three nested UI.render()
+      // calls at depth 3, with art fallbacks stamped on, so every structural
+      // assertion was made against a tree that had been through three
+      // re-renders. A browser does none of that: no image load or error can
+      // fire during the synchronous body of makeCardEl.
+      //
+      // So the faithful behaviour is to stay pending. A suite that needs a
+      // probe outcome should set UI._artProbe directly and say so.
+      set: function (v) { this._src = v; },
       get: function () { return this._src; }
     });
   };

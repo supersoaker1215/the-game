@@ -9064,10 +9064,13 @@ test("A habitat's two rooms match: both on a card, or both on empty ground", fun
   // was lopsided — your room opened under a body and theirs opened on bare
   // ground. Which side got the good half was a coin toss nobody saw flipped.
   //
-  // WHICH SIDE COUNTS AS "ON A CARD" IS THE OPPONENT'S. An environment acts on
-  // its owner's enemy, so the player's room lands on a body when the AI holds
-  // that lane, and the AI's when the player does — mirror images, which is why
-  // an unconstrained pair came out uneven.
+  // "ON A CARD" IS THE HALF THE ROOM LANDS ON. This first measured the
+  // OPPONENT's body, reasoning that a room acts on its owner's enemy — a
+  // reading of the effect, not of the board. With a Spider-Man in one lane and
+  // a Green Goblin in another it put the AI's room ON its own Goblin and the
+  // player's on bare ground and called that matched, because neither lane held
+  // an OPPOSING card. (Owner: "it landed in lane 3 for the enemy open, and lane
+  // 1 where my spiderman was contested.")
   function run(seed, setup) {
     var G = freshGame();
     G.seedMatch(seed);
@@ -9076,8 +9079,8 @@ test("A habitat's two rooms match: both on a card, or both on empty ground", fun
     var h = { name: 'Saw', place: 'The Bathroom', shows: true, fired: false, appearAt: 3 };
     G._runHabitatEvent(h, 3);
     return (h.seated || []).map(function (x) {
-      var foe = x.owner === 'player' ? 'ai' : 'player';
-      return !!G.state.lanes[x.lane][foe];
+      // The side the room OCCUPIES, which is what the player sees it sitting on.
+      return !!G.state.lanes[x.lane][x.owner];
     });
   }
   // A body on each side: every seed must produce a MATCHED pair.
@@ -9098,17 +9101,20 @@ test("A habitat's two rooms match: both on a card, or both on empty ground", fun
 });
 
 test("…and when it cannot match, it still lands and says so", function () {
-  // Only ONE side has a body, so there is no lane that makes the pair even. A
-  // habitat that refuses to land is a round with nothing in it, so it falls
-  // back to the old behaviour — and logs, because uneven is now the exception.
+  // Only the PLAYER has a body anywhere, and the player's room is steered onto
+  // it — so no lane exists where the AI also has one, and the pair cannot be
+  // made even. A habitat that refuses to land is a round with nothing in it, so
+  // it falls back and LOGS, because uneven is the exception now.
   var G = freshGame();
-  G.seedMatch(11);
-  G.state.lanes.forEach(function (l) { l.player = null; l.ai = null; l._env = null; });
-  G.state.lanes[0].ai = G.createCardInstance(cardByName('Hulk'), 'ai');
-  var h = { name: 'Saw', place: 'The Bathroom', shows: true, fired: false, appearAt: 3 };
-  G._runHabitatEvent(h, 3);
-  assertEq((h.seated || []).length, 2, 'it still seated both rooms');
-  var said = (G.state.log || []).some(function (l) { return /could not match its two lanes/.test(l); });
+  G.state.round = 6;
+  place(G, 'Spider-Man', 'player', 0);          // the only body on the board
+  var pair = _habitatPair(G, [0, 1, 2, 3, 4, 5]);  // steer ours onto it
+  assertEq(pair.player, 0, 'our room opened on our own card');
+  assertEq(pair.ai >= 0, true, 'it still seated both rooms rather than skipping the round');
+  assertEq(!!G.state.lanes[pair.ai].ai, false, 'and theirs could only open on empty ground');
+  var said = (G.state.log || []).some(function (l) {
+    return /could not match its two lanes/.test(G.logLineText ? G.logLineText(l) : l);
+  });
   assertEq(said, true, 'and the log says the pair is uneven');
 });
 
@@ -12281,6 +12287,227 @@ test('The Flash sets the first player exactly once', function () {
     G.log = realLog;
   }
   assertEq(sets, 1, 'one card, one first-player decision');
+});
+
+// ---- THE RETRY BUDGET IS PER WAIT, NOT PER MATCH -----------------------
+// A seat that waits out its 8 retries and gives up must get a full budget back
+// on its NEXT turn. Keyed on the seat alone it did not: _2v2DriveRetries is an
+// engine field (not state, so it survives undo, a round rollover and the next
+// match) and the only line that clears it sits BELOW the gate that returns — so
+// it is reached when a drive starts, never when one gives up. The seat was then
+// refused a retry for the rest of the match, which is the exact turn-skipping
+// this retry was added to stop.
+test('2v2: a seat that exhausts its retries gets a fresh budget next turn', function () {
+  Game.start2v2Match({ names: { p1: 'A1', p2: 'B1', p3: 'A2', p4: 'B2' } });
+  var tt = Game.state.twoVTwo;
+  tt.online = false;
+  ['p1', 'p2', 'p3', 'p4'].forEach(function (k) { tt.players[k].isAI = true; });
+
+  var parked = [], savedSched = Game._schedule;
+  Game._schedule = function (fn, ms) { parked.push({ fn: fn, ms: ms || 0 }); return 0; };
+  Game._2v2DriveRetries = null;
+  try {
+    var seat = Game._2v2ActivePlayer();
+    // Somebody else's drive holds the lock, and it is young.
+    Game._2v2AIDriving = 'p3';
+    Game._2v2AIDrivingAt = Date.now();
+
+    // Burn the whole budget on THIS turn.
+    for (var i = 0; i < 9; i++) {
+      parked.length = 0;
+      Game._2v2DriveAISeat(seat, Game._2v2SubPhase());
+    }
+    assertEq(parked.length, 0, 'the budget really is spent — the 9th wait parks nothing');
+
+    // …the turn moves on, and this seat comes round again.
+    Game._2v2TurnToken = (Game._2v2TurnToken || 0) + 1;
+    Game._2v2AIDriving = 'p3';
+    Game._2v2AIDrivingAt = Date.now();
+    parked.length = 0;
+    Game._2v2DriveAISeat(seat, Game._2v2SubPhase());
+    assertEq(parked.length > 0, true,
+      'a NEW turn gets a new budget — the old one must not follow the seat around');
+  } finally {
+    Game._schedule = savedSched;
+    Game._2v2AIDriving = null;
+    Game._2v2AIDrivingAt = 0;
+    Game._2v2DriveRetries = null;
+  }
+});
+
+// ---- A TRICK BELONGS TO THE TURN THAT CASTS IT -------------------------
+// playCard has refused an out-of-turn play since a drive was caught playing
+// into the next seat's turn. playTrick never got the same guard, so the very
+// same orphaned chain could still cast — and the owner watched it: Cortex's
+// turn was cut short, the table moved to Vega, Cortex's chain woke up, its CARD
+// was refused by name in the log, and one line later a trick went through.
+// (Owner: "i never had the lasso of truth and it played during my turn, i didnt
+// have a trick phase.")
+test('2v2: a trick cannot be cast on the other team\'s turn', function () {
+  Game.start2v2Match({ names: { p1: 'Henry', p2: 'Ryan', p3: 'Cortex', p4: 'Vega' } });
+  var G = Game, tt = G.state.twoVTwo;
+  tt.online = true; tt.you = 'p1';
+  tt.round = 5; G.state.round = 5;
+
+  var prevActive = G._2v2ActivePlayer;
+  // It is p1's turn…
+  G._2v2ActivePlayer = function () { return 'p1'; };
+  try {
+    var foeSide = G._2v2TeamSide[tt.players.p2.team];
+    var mySide  = G._2v2TeamSide[tt.players.p1.team];
+    var mk = function (side) {
+      var t = Object.assign({}, TRICK_DEFS.find(function (x) { return x.name === 'Lasso of Truth'; }));
+      t.id = 'tr-' + side;
+      return t;
+    };
+    // …and the OTHER team tries to cast.
+    var theirs = mk(foeSide);
+    G.state[foeSide].trickHand = [theirs];
+    G.state[foeSide].currency = 20;
+    assertEq(G.playTrick(foeSide, theirs), false, 'the other team cannot cast on your turn');
+    assertEq(G.state[foeSide].trickHand.indexOf(theirs) >= 0, true, 'and the trick stays in their hand');
+
+    // The team whose turn it is may, of course.
+    var mine = mk(mySide);
+    G.state[mySide].trickHand = [mine];
+    G.state[mySide].currency = 20;
+    assertEq(G.playTrick(mySide, mine) !== false, true, 'your own team still casts normally');
+
+    // COMBAT HAS NO SUB-PHASE — an ability-driven cast there is untouched.
+    G._2v2ActivePlayer = function () { return null; };
+    var inCombat = mk(foeSide);
+    G.state[foeSide].trickHand = [inCombat];
+    G.state[foeSide].currency = 20;
+    assertEq(G.playTrick(foeSide, inCombat) !== false, true,
+      'a cast with no sub-phase at all is ability-driven and is not gated');
+  } finally {
+    G._2v2ActivePlayer = prevActive;
+  }
+});
+
+// ---- A LOG LINE IS READ BY FOUR PEOPLE, NOT ONE ------------------------
+// "Lazarus Pit revives Michael Myers to your hand!" was hardcoded second
+// person, so it said "your" to the whole table — wrong for three of the four
+// readers in a 2v2. It sat one line under "[HAND FULL] Ryan's hand is full",
+// which routes through seatPossessive and names the seat correctly, so one
+// effect reported two different owners in consecutive lines. (Owner, reading
+// that log: "it says ryan plays a trick lazarus pit, when its my turn.")
+//
+// Nine lines across tricks.js and abilities.js had the same shape. This pins
+// the class rather than one card: nothing may address the reader as "you"
+// unless a seat helper decided to.
+test('no ability or trick log line hardcodes "you" at the whole table', function () {
+  var offenders = [];
+  ['tricks.js', 'abilities.js'].forEach(function (f) {
+    var src = read(f);
+    // Comments routinely quote the owner saying "you" — strip them first, the
+    // same way the CSS audits do, so a quoted report is not a finding.
+    src = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    src.split('\n').forEach(function (line, i) {
+      var m = line.match(/G\.log\(`([^`]*)`/);
+      if (!m) return;
+      if (/\b(you|your)\b/i.test(m[1])) offenders.push(f + ':' + (i + 1) + '  ' + m[1].slice(0, 70));
+    });
+  });
+  assertEq(offenders.join('\n'), '',
+    'these address the reader directly instead of naming the seat — use G.seatLabel / seatPossessive / seatVerb');
+});
+
+// ---- A TWO-LANE EVENT OPENS EVENLY, OR NOT AT ALL ----------------------
+// "if one spawns on a card, the other needs to spawn on a card or they both
+// spawn in empty lanes, same for all enviroments" — and then, with a concrete
+// counter-example: "it landed in lane 3 for the enemy open, and lane 1 where my
+// spiderman was contested."
+//
+// The first implementation matched the pair on the OPPOSING body, reasoning
+// that a room acts on its owner's opponent. That is a reading of the effect and
+// not of the board: with a Spider-Man in one lane and a Green Goblin in another
+// it put the AI's room ON its own Goblin and the player's on bare ground, and
+// called that matched because neither lane held an opposing card. Each room is
+// measured against the half it actually occupies now.
+function _habitatPair(G, seedLanes) {
+  // Pin the shuffle so the FIRST lane is ours to choose; the constraint under
+  // test is which SECOND lane gets picked.
+  var realShuffle = G.shuffle;
+  G.shuffle = function (arr) {
+    arr.sort(function (a, b) { return seedLanes.indexOf(a) - seedLanes.indexOf(b); });
+    return arr;
+  };
+  var realSlot = G._eventSlotOpen, realWin = G._eventWindowOpen;
+  G._eventSlotOpen = function () { return true; };
+  G._eventWindowOpen = function () { return true; };
+  try {
+    var h = { name: 'Game Over', place: 'Game Over', shows: true, appearAt: 3, fired: false };
+    G.state._habitats = [h];
+    G._runHabitatEvent(h, 6);
+  } finally {
+    G.shuffle = realShuffle;
+    G._eventSlotOpen = realSlot;
+    G._eventWindowOpen = realWin;
+  }
+  var out = { player: -1, ai: -1 };
+  for (var i = 0; i < G.LANE_COUNT; i++) {
+    var L = G.state.lanes[i];
+    if (L._env && L._env.player) out.player = i;
+    if (L._env && L._env.ai) out.ai = i;
+  }
+  return out;
+}
+
+test('a two-lane event opens on a body for both sides, or neither', function () {
+  // BOTH EMPTY. Our room is steered to an empty lane; theirs must be empty too,
+  // even though an enemy body is sitting in an otherwise eligible lane.
+  var G = freshGame();
+  G.state.round = 6;
+  place(G, 'Spider-Man', 'player', 0);
+  place(G, 'Green Goblin', 'ai', 1);
+  var pair = _habitatPair(G, [4, 1, 2, 3, 5, 0]);   // lane 4 (empty) first
+  assertEq(pair.player, 4, 'our room opened where we steered it');
+  assertEq(!!G.state.lanes[pair.player].player, false, 'on our empty half');
+  assertEq(!!G.state.lanes[pair.ai].ai, false,
+    'so theirs opened on THEIR empty half too — not on top of their Goblin');
+
+  // BOTH ON A BODY. Steer ours onto our own Spider-Man; theirs must then find a
+  // lane where THEY have a body.
+  var G2 = freshGame();
+  G2.state.round = 6;
+  place(G2, 'Spider-Man', 'player', 0);
+  place(G2, 'Green Goblin', 'ai', 1);
+  var pair2 = _habitatPair(G2, [0, 1, 2, 3, 4, 5]);  // lane 0 (our body) first
+  assertEq(pair2.player, 0, 'our room opened on our own card');
+  assertEq(!!G2.state.lanes[pair2.player].player, true, 'confirmed occupied');
+  assertEq(!!G2.state.lanes[pair2.ai].ai, true,
+    'so theirs opened on a card of theirs — both contested, not one of each');
+});
+
+// ---- THE COMBAT LOG SHOWS THE SUM, NOT JUST THE ANSWER -----------------
+// The hit line reported what a card was LEFT on, which cannot be checked: 6/10
+// tells you nothing without knowing it was 10/10 and took a 4. (Owner: "in the
+// log i need to see the stats from before the attack, and after the attack ...
+// i want to see their health to make sure its correct.")
+test('a combat hit logs the attack, the health before, and the health after', function () {
+  var G = freshGame();
+  var thor = place(G, 'Thor', 'player', 0);
+  var hulk = place(G, 'Hulk', 'ai', 0);
+  var hpBefore = hulk.currentHealth, maxHp = hulk.maxHealth;
+  G.applyCombatDamage(thor, hulk);
+  var line = (G.state.log || []).map(function (l) { return G.logLineText ? G.logLineText(l) : l; })
+    .filter(function (l) { return typeof l === 'string' && l.indexOf('[HIT]') >= 0; }).pop();
+  assert(!!line, 'the hit was logged');
+  assert(line.indexOf(hpBefore + '/' + maxHp) >= 0, 'it states the health BEFORE: ' + line);
+  assert(line.indexOf('→') >= 0, 'and shows the transition: ' + line);
+  assert(line.indexOf(Math.max(0, hulk.currentHealth) + '/' + maxHp) >= 0,
+    'and the health after: ' + line);
+
+  // When armour or a debuff makes the damage differ from the attacker's ATK,
+  // the ATK is stated too — that gap is the maths, and it was invisible.
+  var G2 = freshGame();
+  var spidey = place(G2, 'Spider-Man', 'player', 1);
+  var groot = place(G2, 'Groot', 'ai', 1);          // Armor 1
+  G2.applyCombatDamage(spidey, groot);
+  var l2 = (G2.state.log || []).map(function (l) { return G2.logLineText ? G2.logLineText(l) : l; })
+    .filter(function (l) { return typeof l === 'string' && l.indexOf('[HIT]') >= 0; }).pop();
+  assert(l2.indexOf('ATK') >= 0, 'a reduced hit names the attack it started from: ' + l2);
 });
 
 // ---- RUNNER ------------------------------------------------
