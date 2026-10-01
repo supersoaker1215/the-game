@@ -217,6 +217,17 @@ const Game = {
     // the host until the 45s watchdog nulled it.
     this._pushOnlineState();
   },
+  // Take a parked continuation back off the stack — for a waiter that resumed
+  // itself (see the AI queue's poll). Left there, it would be popped later as a
+  // no-op, and resumeCombatIfWaiting fires exactly ONE continuation per call, so
+  // that pop would cost the continuation beneath it its turn.
+  _unparkContinuation(fn) {
+    const st = this.state && this.state._combatContStack;
+    if (!st) return;
+    const i = st.lastIndexOf(fn);
+    if (i >= 0) st.splice(i, 1);
+    this.state._combatContinuation = st.length ? st[st.length - 1] : null;
+  },
   // Defer a PASSIVE cleanup (a hand-bridge un-bridge) until the current prompt
   // chain clears. Runs `fn` now if nothing is pending. Unlike whenPromptCleared
   // these are NOT beat-drivers — they never advance combat and never raise a
@@ -18042,6 +18053,22 @@ const Game = {
       setTimeout(() => this.resumeCombatIfWaiting(), 0);
     }
 
+    // A JUMP BELONGS TO THE SEAT HOLDING THE CARD — the one fact here nobody
+    // has to guess. Jumps land during OTHER seats' turns (Art arms at the
+    // before-tricks boundary, usually a teammate's), so every ambient signal
+    // points elsewhere: with a bot teammate driving, the lane prompt's AI-stall
+    // net re-routed the pick to the bot (auto: lanes[0]), and playCardFree
+    // stamped _2v2PlayedBy from the bot's sub-phase, so Art's weapon picker was
+    // declared FOR the bot and auto-picked a Sledgehammer. (Owner: "he just
+    // jumped into lane 1 and i didnt get to choose his ability.") Read the seat
+    // off the hand before the card leaves it, declare it on the prompt, and
+    // bind it around the play. Null outside 2v2 — every helper below no-ops.
+    const _tt = this.state.twoVTwo;
+    const jSeat = (_tt && _tt.players)
+      ? (this._2v2SLOTS.find(pk => _tt.players[pk] && (_tt.players[pk].hand || []).includes(card)) || null)
+      : null;
+    const play = (lane) => this._2v2WithSeatBound(jSeat, () => this.playCardFree(owner, card, lane));
+
     // If the card has a locked jumpLane (Michael Myers), use it directly — no choice prompt.
     if (card.jumpLane !== undefined) {
       const lockedLane = card.jumpLane;
@@ -18050,7 +18077,7 @@ const Game = {
           && !this.state.lanes[lockedLane].destroyed) {
         card.jumpReady = false;
         card.jumpLane = undefined;
-        this.playCardFree(owner, card, lockedLane);
+        play(lockedLane);
         UI.render();
         return;
       }
@@ -18069,14 +18096,17 @@ const Game = {
     card.jumpReady = false;
     const open = this.getOpenLanes(owner);
     if (!open.length) return;
-    const shouldPrompt = this.isHuman(owner) && open.length > 1 && !this._2v2ActingIsAI();
+    // The jumper's own seat answers "is this a bot?" when it is known; the
+    // acting-seat global is only the fallback.
+    const jumperIsAI = jSeat ? !!_tt.players[jSeat].isAI : this._2v2ActingIsAI();
+    const shouldPrompt = this.isHuman(owner) && open.length > 1 && !jumperIsAI;
     if (shouldPrompt) {
       this.promptLaneChoice(owner, open, `Jump: ${card.name}`, `Choose lane for ${card.name} (FREE)`, (lane) => {
-        this.playCardFree(owner, card, lane);
+        play(lane);
         UI.render();
-      });
+      }, undefined, undefined, undefined, jSeat ? { seat: jSeat } : undefined);
     } else if (open.length) {
-      this.playCardFree(owner, card, open[0]);
+      play(open[0]);
     }
     UI.render();
   },
@@ -22383,6 +22413,29 @@ const Game = {
   // maybe he didnt have anything to play but highly unlikley given his 7 cards.")
   // Now the log says which it was, so the next report names the cause instead of
   // the symptom.
+  // IS THE DRIVING BOT WAITING ON SOMETHING THAT ISN'T ITSELF? Every case here
+  // is a wait the AI queue honours on purpose (hasPendingPrompt / the event-hold
+  // retry), and each has its own clock — the 30s human prompt timeout, the 30s
+  // event-hold ceiling, the 15s tier-2 freeze recovery — so standing the drive
+  // watchdog down for them can never freeze a table. What it must never do is
+  // count that wait against the bot's turn.
+  _2v2DriveWaitingOnOthers() {
+    const s = this.state, tt = s && s.twoVTwo;
+    if (!tt) return false;
+    // A hidden host tab throttles every timer the bot paces itself with; the
+    // other two watchdogs already refuse to judge one.
+    if (typeof document !== 'undefined' && document.hidden) return true;
+    if (this.ballyhooLocked && this.ballyhooLocked()) return true;
+    if (tt._resolving) return true;
+    const live = (p) => {
+      const seat = this._2v2PromptSeat(p);
+      const sp = seat && tt.players[seat];
+      return !!(sp && !sp.isAI && !sp._dropped);
+    };
+    return ['pendingCardChoice', 'pendingLaneChoice', 'pendingBlockTrick', 'pendingJumpOffer',
+            'pendingKangChoice', 'pendingTimeStoneIntercept'].some(k => live(s[k]));
+  },
+
   _logDriveWatchdogEnd(seat) {
     console.warn('[2v2 AI] watchdog forced phase end for', seat);
     try {
@@ -22613,14 +22666,17 @@ const Game = {
     const _AI_DRIVE_QUIET_MS = 12000;
     const _driveWatch = () => {
       if (finished || this._2v2AIDriving !== activeKey || this._2v2AIWatchGen !== watchGen) return;
-      // NOT WHILE A PERSON IS BEING ASKED SOMETHING. A bot's card can put a
-      // prompt on a HUMAN — Symbiote Spider-Man asks every seat to cycle two
-      // cards, The Grinch asks the victim which trick to give up — and that
-      // person is entitled to think. Stand down and re-arm rather than fire blind.
-      if (this._2v2PromptOnLiveHuman
-          && (this._2v2PromptOnLiveHuman(this.state.pendingCardChoice)
-           || this._2v2PromptOnLiveHuman(this.state.pendingLaneChoice))) {
-        this._schedule(_driveWatch, _AI_DRIVE_QUIET_MS);
+      // NOT WHILE THE BOT IS WAITING ON SOMEBODY ELSE. A bot parked behind a
+      // person's prompt, an event hold, or a resolution boundary is not hung —
+      // and the old check here knew only two of the six prompt slots, so a
+      // human's jump or block-trick offer (which the AI queue DOES wait for)
+      // read as 12s of silence and the turn was cut. See _2v2DriveWaitingOnOthers.
+      // The quiet clock restarts when the wait ends, so the bot gets its full
+      // window to actually play. (Owner: "its not hard for the AI to play a card
+      // and not have their turns cut short.")
+      if (this._2v2DriveWaitingOnOthers()) {
+        this._2v2AIDriveLastPlayAt = Date.now();
+        this._schedule(_driveWatch, 1000);
         return;
       }
       // Still making progress? A play landed within the window — reschedule and

@@ -626,6 +626,35 @@ const AI = {
     return () => (typeof Game === 'undefined') || Game._2v2TurnToken === tok;
   },
 
+  // WAIT FOR A PENDING PROMPT — AND DON'T RELY ON BEING WOKEN. The parked
+  // continuation only runs when somebody calls resumeCombatIfWaiting, and not
+  // every path that clears a prompt does — so a bot could sit behind a prompt
+  // that was already gone until the 2v2 drive watchdog cut its turn short, then
+  // wake on someone else's turn and be refused out-of-turn. (Owner: "its not
+  // hard for the AI to play a card and not have their turns cut short.") Poll as
+  // a floor: whichever fires first wins, and the poll takes its continuation back
+  // off the stack so a later pop is not wasted on a no-op. Not under _syncMode,
+  // where setTimeout runs inline and a poll would recurse.
+  _parkUntilPromptsClear(step) {
+    document.body && document.body.classList.add('ai-thinking');
+    let resumed = false;
+    const go = () => {
+      if (resumed) return;
+      resumed = true;
+      document.body && document.body.classList.remove('ai-thinking');
+      step();
+    };
+    Game.whenPromptCleared(go);
+    if (resumed || Game._syncMode) return;
+    const poll = () => {
+      if (resumed) return;
+      if (Game.hasPendingPrompt()) { setTimeout(poll, 500); return; }
+      if (Game._unparkContinuation) Game._unparkContinuation(go);
+      go();
+    };
+    setTimeout(poll, 500);
+  },
+
   _runAIQueue(actions, onComplete, stillMyTurn) {
     const preDelay  = this.aiStepMs();
     const postDelay = this.aiPostPlayMs();
@@ -668,11 +697,7 @@ const AI = {
       // NEXT card or trick while the PLAYER still has a modal open (a
       // Start-of-Tricks move, a Batarang mid-pick).
       if (typeof Game !== 'undefined' && Game.hasPendingPrompt && Game.hasPendingPrompt()) {
-        document.body && document.body.classList.add('ai-thinking');
-        Game.whenPromptCleared(() => {
-          document.body && document.body.classList.remove('ai-thinking');
-          step();
-        });
+        this._parkUntilPromptsClear(step);
         return;
       }
       if (i >= actions.length) {
@@ -2031,11 +2056,7 @@ const AI = {
       // where an AI trick fires while the player still has a modal
       // (e.g. a Start-of-Tricks move) to respond to.
       if (typeof Game !== 'undefined' && Game.hasPendingPrompt && Game.hasPendingPrompt()) {
-        document.body && document.body.classList.add('ai-thinking');
-        Game.whenPromptCleared(() => {
-          document.body && document.body.classList.remove('ai-thinking');
-          step();
-        });
+        this._parkUntilPromptsClear(step);
         return;
       }
       const _tt = this._2v2Ctx(owner);

@@ -72,6 +72,14 @@ echo "=== prompt-clock.js (every 2v2 prompt slot has a timeout) ==="
 run_suite sim/prompt-clock.js
 
 echo ""
+echo "=== jump-seat2v2.js (a human's jump stays theirs while a bot teammate drives) ==="
+run_suite sim/jump-seat2v2.js
+
+echo ""
+echo "=== ai-drive-wait2v2.js (a bot waiting on someone else is not cut short) ==="
+run_suite sim/ai-drive-wait2v2.js
+
+echo ""
 echo "=== hand-empower.js (an empower needs a body to land on) ==="
 run_suite sim/hand-empower.js
 
