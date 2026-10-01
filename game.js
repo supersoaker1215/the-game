@@ -7076,6 +7076,31 @@ const Game = {
   playTrick(owner, trick) {
     if (this.state.gameOver) return false;
     if (this.ballyhooLocked && this.ballyhooLocked()) return false;
+    // A TRICK IS A PLAY, AND A PLAY BELONGS TO THE TURN THAT MAKES IT.
+    //
+    // playCard has carried this guard since a drive was caught playing a card
+    // into the next seat's turn; playTrick never got it, so the identical
+    // orphaned chain could still cast. The owner's log is exactly that: Cortex's
+    // turn is cut short, the table moves to Vega, Cortex's chain wakes up and
+    // its CARD is refused ("[OUT OF TURN] Human Torch was not played") — and one
+    // line later a TRICK goes through unchallenged, logged against the wrong
+    // player entirely. (Owner: "i never had the lasso of truth and it played
+    // during my turn, i didnt have a trick phase.")
+    //
+    // Same rule as playCard: the SIDE, not the seat, because two teammates share
+    // a sub-phase and either may legitimately act in it; skipped when there is no
+    // sub-phase at all, because combat has none and every cast there is
+    // ability-driven. Reactive tricks (a Time Stone intercept, a block-meter
+    // freebie) answer somebody else's action by definition and are exempt.
+    if (trick && !trick.reactive && this.state.twoVTwo && this.state.twoVTwo.players) {
+      const _actSeat = this._2v2ActivePlayer && this._2v2ActivePlayer();
+      if (_actSeat && !this._2v2SeatActsFor(_actSeat, owner)) {
+        this.log(`[OUT OF TURN] ${trick.name} was not cast — it is ${this._2v2SeatName(_actSeat)}'s turn.`);
+        console.warn('[2v2] refused an out-of-turn trick', trick.name, 'for side', owner,
+                     '— active seat', _actSeat);
+        return false;
+      }
+    }
     // Multiplayer guest: forward and bail. _silentSim guard — see playCard:
     // a preview/prediction sim must run locally on the clone, never forward.
     if (this.isMultiplayer() && this.mp.role === 'guest' && owner === this.mp.you && !(this.state && this.state._silentSim)) {
@@ -11234,6 +11259,38 @@ const Game = {
       const bm = p.blockMeter | 0;
       if (bm < 0 || bm > (this.BLOCK_MAX || 8)) report('block:' + side, `${side} block meter out of range: ${p.blockMeter}`);
     });
+    // ---- NO TWO SEATS MAY SHARE ONE HAND ----
+    // Hands are per-seat arrays and the side proxy is REPOINTED at whichever
+    // seat is active, so a deferred read-back can stamp one seat's array onto
+    // another. Both then hold the same cards by reference: each can play from
+    // the other's hand, and a per-seat scan — the jump sweep, Doomsday's
+    // discount, the Lex Luthor draw gate — finds another player's card and
+    // attributes it to this one. _2v2ReadBackActivePlayer guards the write it
+    // knows about (see _foreign there); nothing checked the RESULT, so a leak
+    // through any other path was invisible until someone noticed a card in the
+    // wrong person's hands.
+    //
+    // (Owner: "it says art the clown picked by vega, ryan had art the clown hes
+    // my opponent." The log proves the jump sweep found that card in Vega's
+    // hand; it cannot say how it got there. This makes the next one say so.)
+    const _tt = s.twoVTwo;
+    if (_tt && _tt.players && this._2v2SLOTS) {
+      const _seen = new Map();
+      this._2v2SLOTS.forEach(pk => {
+        const pl = _tt.players[pk];
+        if (!pl) return;
+        [['hand', pl.hand], ['trickHand', pl.trickHand]].forEach(([which, arr]) => {
+          if (!Array.isArray(arr)) return;
+          const prior = _seen.get(arr);
+          if (prior) {
+            report('sharedHand:' + prior + '+' + pk,
+              `${prior} and ${pk} share one ${which} array — each can play the other's cards`);
+          } else {
+            _seen.set(arr, pk);
+          }
+        });
+      });
+    }
     return violations;
   },
 
@@ -22627,12 +22684,47 @@ const Game = {
     // it started: a drive that is actively laying down cards is never cut off,
     // and only one that has truly gone quiet for the window is force-ended.
     const _AI_DRIVE_QUIET_MS = 12000;
+    // A DRIVE WAITING ON AN OPEN QUESTION IS NOT A HUNG DRIVE, AND THIS KEPT
+    // SHOOTING ONE.
+    //
+    // ai.js parks its whole queue on whenPromptCleared the moment ANY prompt is
+    // pending — that gate is deliberate, so a bot never plays over a question
+    // somebody is still answering. But a prompt's own auto-resolve clock is 30s
+    // (_2v2_PROMPT_MS) and this watchdog's quiet window is 12s, and it only
+    // stood down for a prompt owned by a LIVE HUMAN. So every other prompt — one
+    // on an AI seat, one queued behind another, one whose seat could not be
+    // resolved — ran the drive's clock out at 12s while the chain sat waiting
+    // exactly as designed. The seat was cut short, the table moved on, and at
+    // 30s the prompt resolved and the orphaned chain woke up inside somebody
+    // else's turn. That is the whole shape of the owner's log: "Cortex's turn
+    // was cut short — it stopped responding", then one line later an out-of-turn
+    // play from Cortex's chain during Vega's turn.
+    //
+    // (Owner: "how does cortex stop responding, that shouldnt happen — if theres
+    // nothing to play the ai ends its turn, if there is a card to play it plays
+    // the cards, super simple." Right: it was never out of things to do. It was
+    // waiting, and the waiting was being counted as hanging.)
+    //
+    // So: stand down for ANY pending prompt, not just a human's. The table still
+    // cannot freeze, because the prompt carries its own clock — and if that
+    // clock somehow fails, the cap below fires anyway.
+    const _driveArmedAt = Date.now();
+    const _AI_DRIVE_HARD_CAP_MS = 60000;
     const _driveWatch = () => {
       if (finished || this._2v2AIDriving !== activeKey || this._2v2AIWatchGen !== watchGen) return;
-      // NOT WHILE A PERSON IS BEING ASKED SOMETHING. A bot's card can put a
-      // prompt on a HUMAN — Symbiote Spider-Man asks every seat to cycle two
-      // cards, The Grinch asks the victim which trick to give up — and that
-      // person is entitled to think. Stand down and re-arm rather than fire blind.
+      // THE CAP. A prompt that never resolves at all would otherwise hold the
+      // drive open forever. 60s is twice the prompt clock, so a prompt that is
+      // working always beats it and only a genuinely dead one reaches it.
+      const _heldFor = Date.now() - _driveArmedAt;
+      if (this.hasPendingPrompt && this.hasPendingPrompt() && _heldFor < _AI_DRIVE_HARD_CAP_MS) {
+        // NOT WHILE A PERSON IS BEING ASKED SOMETHING. A bot's card can put a
+        // prompt on a HUMAN — Symbiote Spider-Man asks every seat to cycle two
+        // cards, The Grinch asks the victim which trick to give up — and that
+        // person is entitled to think. Nobody's prompt is interrupted now, but
+        // a human's is the case that must never regress.
+        this._schedule(_driveWatch, 2000);
+        return;
+      }
       if (this._2v2PromptOnLiveHuman
           && (this._2v2PromptOnLiveHuman(this.state.pendingCardChoice)
            || this._2v2PromptOnLiveHuman(this.state.pendingLaneChoice))) {

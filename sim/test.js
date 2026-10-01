@@ -12329,6 +12329,56 @@ test('2v2: a seat that exhausts its retries gets a fresh budget next turn', func
   }
 });
 
+// ---- A TRICK BELONGS TO THE TURN THAT CASTS IT -------------------------
+// playCard has refused an out-of-turn play since a drive was caught playing
+// into the next seat's turn. playTrick never got the same guard, so the very
+// same orphaned chain could still cast — and the owner watched it: Cortex's
+// turn was cut short, the table moved to Vega, Cortex's chain woke up, its CARD
+// was refused by name in the log, and one line later a trick went through.
+// (Owner: "i never had the lasso of truth and it played during my turn, i didnt
+// have a trick phase.")
+test('2v2: a trick cannot be cast on the other team\'s turn', function () {
+  Game.start2v2Match({ names: { p1: 'Henry', p2: 'Ryan', p3: 'Cortex', p4: 'Vega' } });
+  var G = Game, tt = G.state.twoVTwo;
+  tt.online = true; tt.you = 'p1';
+  tt.round = 5; G.state.round = 5;
+
+  var prevActive = G._2v2ActivePlayer;
+  // It is p1's turn…
+  G._2v2ActivePlayer = function () { return 'p1'; };
+  try {
+    var foeSide = G._2v2TeamSide[tt.players.p2.team];
+    var mySide  = G._2v2TeamSide[tt.players.p1.team];
+    var mk = function (side) {
+      var t = Object.assign({}, TRICK_DEFS.find(function (x) { return x.name === 'Lasso of Truth'; }));
+      t.id = 'tr-' + side;
+      return t;
+    };
+    // …and the OTHER team tries to cast.
+    var theirs = mk(foeSide);
+    G.state[foeSide].trickHand = [theirs];
+    G.state[foeSide].currency = 20;
+    assertEq(G.playTrick(foeSide, theirs), false, 'the other team cannot cast on your turn');
+    assertEq(G.state[foeSide].trickHand.indexOf(theirs) >= 0, true, 'and the trick stays in their hand');
+
+    // The team whose turn it is may, of course.
+    var mine = mk(mySide);
+    G.state[mySide].trickHand = [mine];
+    G.state[mySide].currency = 20;
+    assertEq(G.playTrick(mySide, mine) !== false, true, 'your own team still casts normally');
+
+    // COMBAT HAS NO SUB-PHASE — an ability-driven cast there is untouched.
+    G._2v2ActivePlayer = function () { return null; };
+    var inCombat = mk(foeSide);
+    G.state[foeSide].trickHand = [inCombat];
+    G.state[foeSide].currency = 20;
+    assertEq(G.playTrick(foeSide, inCombat) !== false, true,
+      'a cast with no sub-phase at all is ability-driven and is not gated');
+  } finally {
+    G._2v2ActivePlayer = prevActive;
+  }
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 
