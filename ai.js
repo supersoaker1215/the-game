@@ -16,6 +16,10 @@ const AI = {
     draftLowBias: 1.550,
     draftHighOverPenalty: 2.218,
     draftStatMult: 1.549,
+    // Contested-lane trade quality. Both added 2026-10-01 against a board the
+    // owner photographed; see the notes at their use sites in chooseLane.
+    laneCleanKill: 6,
+    laneBodyLossMult: 1.2,
     // Threat scoring — CEM-tuned
     threatSplashMult: -0.441,
     threatOverdriveBonus: 1.991,
@@ -483,6 +487,38 @@ const AI = {
   // Assign our best available card to each unblocked enemy lane, greedily
   // starting from the biggest threat. Returns [{cardId, lane}] commitments.
   // Owner-parameterized so both sim seats use this same function.
+  //
+  // ---- GREEDY HERE IS A MEASURED CHOICE, NOT AN UNFINISHED ONE ----
+  //
+  // This pass is suboptimal BY ITS OWN SCORE and that is fine. Measured
+  // 2026-10-01 over 200 games / 3,115 planning calls, brute-forcing the exact
+  // best assignment of hand to lanes (the sets are small enough that none had
+  // to be skipped): greedy was beaten in 21.1% of calls, leaving a mean of 6.2
+  // blockFitScore on the table and up to 25 in one call.
+  //
+  // SO IT WAS REPLACED WITH AN EXHAUSTIVE SEARCH, AND THE AI GOT WORSE.
+  // Seeded with the greedy answer so it could never score lower, node-capped,
+  // 0.07ms per plan at 1v1 width and 0.24ms at 2v2 — free. It drove
+  // suboptimality to 0.0%. Interleaved A/B, arm swapped every game, 3000 games
+  // on two independent seeds: 46.7% and 46.1%, 95% band ±1.8. Roughly 3.5pp
+  // WORSE, twice, well outside the band.
+  //
+  // WHY, measured rather than guessed: the search blocked MORE lanes than
+  // greedy (3552 vs 3489) while the mean threat of what it left open went UP
+  // (3.80 vs 3.48). Maximising the SUM of blockFitScore buys breadth — lots of
+  // comfortable blocks — and pays for it by letting the scariest lane through.
+  // The threat-descending order of the loop below is carrying information the
+  // objective function does not: answer the biggest thing first, whatever the
+  // totals say. Adding an explicit penalty for leaving a threatened lane open
+  // did not recover it either (46.1%, unmoved).
+  //
+  // The lesson is about the OBJECTIVE, not the search: blockFitScore was tuned
+  // to answer "which of my cards fits this lane", and it is not a quantity that
+  // means anything when summed across lanes. Making blocking genuinely better
+  // needs a different objective — forecast the combat and maximise face damage
+  // prevented, which the predictor can already do — not a better search over
+  // this one. Until that exists, greedy wins, and this note is here so the 21%
+  // figure does not send the next person down the same road.
   planDefensiveBlocks(hand, budget, owner = 'ai') {
     const s = Game.state;
     const opp = Game.opponent(owner);
@@ -1491,6 +1527,29 @@ const AI = {
         score += threat * 1.5;           // prioritize blocking scarier enemies
         if (iKill) score += 6;
         if (iSurvive) score += 3;
+        // A CLEAN KILL IS THE BEST THING ON THE BOARD, AND IT WAS WORTH +9.
+        //
+        // `threat * 1.5` is unbounded, so a single huge-ATK body pulled every
+        // card toward it no matter what happened there. Measured on the owner's
+        // own board — Hela 6/7 in hand, an enemy Hulk 4/6 and an enemy Grinch
+        // 18/27 — lane-into-Hulk scored ~15 (threat 6, kill +6, survive +3) and
+        // lane-into-Grinch scored ~25 (threat 27, minus 2 for dying) and WON.
+        // So Hela walked into the Grinch, killed nothing and died, while a free
+        // kill she would have survived sat open. (Owner: "hela should go in
+        // front of hulk to kill hulk … its simple calculation.")
+        //
+        // Removing their body and keeping yours is strictly the best outcome a
+        // contested lane offers, and nothing in the score said so — it was just
+        // the two separate bonuses added together.
+        if (iKill && iSurvive) score += this.WEIGHTS.laneCleanKill;
+        // …AND LOSING THE BODY HAD TO COST SOMETHING. The only price on dying
+        // was a flat −2, identical for a 1-cost token and a 10-cost finisher,
+        // so the scorer could not tell a chump block from throwing away your
+        // best card. Priced by the card's own cost, which is what makes the
+        // owner's second sentence fall out on its own: the cheap Undead Warrior
+        // still happily eats the Grinch, and Hela no longer will. ("one warrior
+        // should be in front of grinch and the other xenomorph.")
+        if (!iSurvive) score -= (card.cost || 0) * this.WEIGHTS.laneBodyLossMult;
         // Trading a 1-cost card for a 6+ cost enemy is great; inverse is bad
         score += Math.max(0, (enemy.cost || 0) - (card.cost || 0)) * 0.8;
         // Avoid committing a big expensive card against a trivial enemy
@@ -1880,6 +1939,45 @@ const AI = {
       return -1;
     },
 
+    // TWO TRICKS THE EVALUATOR COULD NOT SEE AT ALL. Audited against every
+    // desc test in evalTrick: these two match none of them, have no override
+    // and are not always-cast, so they scored only the generic "you have
+    // allies" floor of 1 — which never wins the pick, because playTricks takes
+    // the BEST trick and almost anything else scores higher. Two-Face Coin was
+    // the most-held-while-wanted trick in a 300-game audit.
+
+    // "Add a random 1-8 to your Block Meter." Worth the most when there is room
+    // to put it AND something coming to absorb — a full meter wastes the roll,
+    // and an empty board has nothing to block.
+    'Two-Face Coin': function (ai, owner = 'ai') {
+      const max = Game.BLOCK_MAX || 8;
+      const now = (Game.getBlockMeter ? Game.getBlockMeter(owner) : (Game.state[owner].blockMeter | 0)) | 0;
+      const room = Math.max(0, max - now);
+      if (room <= 1) return -1;                       // nowhere to put the roll
+      const incoming = ai.unblockedIncoming(owner);   // what is actually aimed at us
+      // The average roll is 4.5; value is the part of it that lands, scaled by
+      // whether a filled meter would matter this round.
+      const lands = Math.min(room, 4.5);
+      let score = lands * 0.8;
+      if (incoming >= 5) score += 2;
+      if (room >= max - 1) score -= 1;                // an untouched meter is a slow investment
+      return score;
+    },
+
+    // "Copy a random card from the opponent's hand into your hand." Pure card
+    // advantage, and worthless with nowhere to put it.
+    'Assimilate': function (ai, owner = 'ai') {
+      const s = Game.state;
+      const opp = Game.opponent(owner);
+      const theirs = ((s[opp] && s[opp].hand) || []).length;
+      if (!theirs) return -1;                         // nothing to copy
+      const mine = ((s[owner] && s[owner].hand) || []).length;
+      const cap = (s[owner] && s[owner].maxHandSize) || 7;
+      if (mine >= cap) return -1;                     // it would be discarded on arrival
+      // A bigger enemy hand is both a better draw and a better read on them.
+      return 2 + Math.min(3, theirs * 0.5);
+    },
+
     'Space Stone': function (ai, owner = 'ai') {
       // Space Stone is a SETUP tool — it lets the AI play a card from
       // hand during the upcoming Trick Phase (at the card's normal
@@ -1920,12 +2018,29 @@ const AI = {
       // it THIS turn (no point Space-Stoning a card you could just
       // play) AND (b) it'll be affordable when the trick phase
       // fires. Trick-phase energy = current + next-turn carryover.
-      const nextTurnEnergy = cur + (s[owner].nextTurnCurrency || 0);
+      // THE WINDOW WAS EMPTY, SO THIS NEVER FIRED AT ALL. Measured: 0 casts
+      // across 300 games, 68 copies still in hand at the end.
+      //
+      // `nextTurnEnergy` was `cur + nextTurnCurrency` — a BANKED bonus (Power
+      // Battery, Green Lantern) that is 0 in almost every game. So the test
+      // read "costs more than I have AND costs no more than I have", which is
+      // satisfiable only by the handful of boards carrying a bonus. The
+      // tightening it came from was right — the AI used to fire this every
+      // round for nothing ("that is a dumb play") — it just overshot into
+      // never.
+      //
+      // The honest projection is NEXT ROUND. trickPhasePlayable is never
+      // cleared at round end (game.js), so the unlock persists, and that is the
+      // whole point of the card: mark something expensive now, drop it in a
+      // later trick phase once the opponent has committed. Energy per round is
+      // the round number, so next round's trick phase has that plus whatever
+      // carried over.
+      const nextRoundEnergy = ((s.round || 1) + 1) + (s[owner].nextTurnCurrency || 0);
       const setupTargets = hand.filter(c => {
         const cost = Game.getCardCost ? Game.getCardCost(owner, c) : (c.cost || 0);
-        // Can't afford this turn but COULD afford with carryover.
-        // High-cost cards (≥6) are the worthwhile setups.
-        return cost > cur && cost <= nextTurnEnergy && cost >= 4;
+        // Out of reach now — otherwise just play it — but in reach when the
+        // unlock can actually be used. High-cost cards are the worthwhile ones.
+        return cost > cur && cost <= nextRoundEnergy && cost >= 4;
       });
       if (!setupTargets.length) return -1;
       // Score by the top setup target's cost — 4-5 = modest, 6-7 = good, 8+ = great.
