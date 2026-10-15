@@ -4211,9 +4211,27 @@ const Game = {
   // is the whole point: writing it into tt swaps a live deck for an empty array
   // with nothing in the log to say so. A non-array is refused for the same
   // reason — an undefined tt.drawPile makes every later draw throw.
-  _adoptPile(shared, current, displaced, label) {
+  //
+  //   installed — the array the bridge put into state (tt's pile at open). If
+  //               tt no longer holds it, someone ELSE replaced the shared pile
+  //               while this bridge was parked, and `current` is the stale one.
+  //
+  // THE PARKED UN-BRIDGE. A bridge whose play left a prompt open defers this
+  // call, and a stuck table can keep it deferred across whole rounds. Foresight
+  // replaced tt.drawPile in that window and every later draw came off the new
+  // array; the late un-bridge saw "they differ", adopted the OLD array, and every
+  // card drawn since was back on top to be dealt again. (Owner: "i drew 2 of the
+  // same card and so did everyone else, it mightve been because the table got
+  // stuck.") A replacement only counts if it was made INSIDE this bridge.
+  _adoptPile(shared, current, displaced, label, installed) {
     if (!Array.isArray(current)) return shared;
     if (current === shared) return shared;
+    if (installed !== undefined && shared !== installed) {
+      try {
+        this.log(`  [2v2] Kept the shared ${label} — a late un-bridge tried to reinstate an older copy (${current.length} cards vs ${(shared || []).length}).`);
+      } catch (e) {}
+      return shared;
+    }
     if (current === displaced) {
       // Reached only if something restored state's pile before this unbridge
       // ran. Say so — silence here is what made the live case unreadable.
@@ -23324,7 +23342,12 @@ const Game = {
 
     const assigned = [];   // [{ pk, def }]
     const finalize = () => {
-      tt.drawPile = tt.drawPile.filter(c => peeked.indexOf(c) < 0);   // remove handed cards
+      // IN PLACE. Reassigning tt.drawPile to a filtered copy orphaned the array
+      // every parked bridge still held, and a late un-bridge then put that old
+      // array — handed cards and all — back as the deck. See _adoptPile.
+      for (let i = tt.drawPile.length - 1; i >= 0; i--) {
+        if (peeked.indexOf(tt.drawPile[i]) >= 0) tt.drawPile.splice(i, 1);
+      }
       assigned.forEach(({ pk, def }) => {
         const p = tt.players[pk];
         const cap = p.maxHandSize || 7;
@@ -24576,6 +24599,7 @@ const Game = {
     // same, so a deferred restore can never write home to the wrong seat.
     const bridgedSeat = this._2v2ActivePlayer();
     const savedDraw = s.drawPile, savedTrickDraw = s.trickDrawPile;
+    const installedDraw = tt.drawPile, installedTrickDraw = tt.trickDrawPile;
     s.drawPile = tt.drawPile;
     s.trickDrawPile = tt.trickDrawPile;
     const unbridge = () => {
@@ -24591,8 +24615,8 @@ const Game = {
       // back just as abruptly — which is the only thing that explains a TRICK
       // count going 0 -> 29 between two screenshots of the same match.
       // (Owner: "we are not drawing cards, nobody, this is a bug.")
-      tt.drawPile = this._adoptPile(tt.drawPile, s.drawPile, savedDraw, 'drawPile');
-      tt.trickDrawPile = this._adoptPile(tt.trickDrawPile, s.trickDrawPile, savedTrickDraw, 'trickDrawPile');
+      tt.drawPile = this._adoptPile(tt.drawPile, s.drawPile, savedDraw, 'drawPile', installedDraw);
+      tt.trickDrawPile = this._adoptPile(tt.trickDrawPile, s.trickDrawPile, savedTrickDraw, 'trickDrawPile', installedTrickDraw);
       s.drawPile = savedDraw;
       s.trickDrawPile = savedTrickDraw;
       this._2v2ReadBackActivePlayer(bridgedSeat);
@@ -24643,6 +24667,7 @@ const Game = {
     s[side].blockMeter = tt.teams[p.team].blockMeter;
     s[side].deadPile = tt.teams[p.team].deadPile;
     s.drawPile = tt.drawPile; s.trickDrawPile = tt.trickDrawPile;
+    const installedDraw = tt.drawPile, installedTrickDraw = tt.trickDrawPile;
     const unbridge = () => {
       // BLOCK METER IS TEAM-LEVEL — MIRROR IT, DON'T RESTORE A SEAT COPY.
       // This bridge runs during COMBAT for a block-earned free trick (Two-Face
@@ -24661,8 +24686,8 @@ const Game = {
       tt.teams[p.team].blockMeter = s[side].blockMeter;
       // Same rule as the seat-hand bridge above: adopt a replacement, never the
       // displaced 1v1 pile. See _adoptPile.
-      tt.drawPile = this._adoptPile(tt.drawPile, s.drawPile, saved.draw, 'drawPile');
-      tt.trickDrawPile = this._adoptPile(tt.trickDrawPile, s.trickDrawPile, saved.trickDraw, 'trickDrawPile');
+      tt.drawPile = this._adoptPile(tt.drawPile, s.drawPile, saved.draw, 'drawPile', installedDraw);
+      tt.trickDrawPile = this._adoptPile(tt.trickDrawPile, s.trickDrawPile, saved.trickDraw, 'trickDrawPile', installedTrickDraw);
       s[side].hand = saved.hand; s[side].trickHand = saved.trick; s[side].currency = saved.cur;
       s[side].health = saved.hp; s[side].maxHealth = saved.mhp;
       s[side].blockMeter = tt.teams[p.team].blockMeter;

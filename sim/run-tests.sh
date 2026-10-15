@@ -80,6 +80,10 @@ echo "=== ai-drive-wait2v2.js (a bot waiting on someone else is not cut short) =
 run_suite sim/ai-drive-wait2v2.js
 
 echo ""
+echo "=== pile-resurrect2v2.js (a drawn card never goes back in the 2v2 deck) ==="
+run_suite sim/pile-resurrect2v2.js
+
+echo ""
 echo "=== hand-empower.js (an empower needs a body to land on) ==="
 run_suite sim/hand-empower.js
 
