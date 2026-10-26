@@ -41542,8 +41542,10 @@ body.on-main-menu #clb-build-badge { display: block; }
    --board-card-w is measured by UI._fitBoardToViewport from the height left
    over after every other row. The card, its slot and the lane all derive from
    it, because three independently authored widths (140 / 154 / 160) is what
-   let the card drift out of its lane the first time I tried this. The offsets
-   below ARE that authored triple: slot = card + 14, lane = card + 20.
+   let the card drift out of its lane the first time I tried this. The lane is
+   card + --lane-chrome; the slot no longer carries an offset of its own but
+   fills the lane (see the .card-slot rule below for why the old `+ 14` drifted
+   the card right on every screen under 700px).
    Fallback is the authored 140px, so nothing moves if the script has not run. */
 body.in-match .card-slot > .card {
   width: var(--board-card-w, 140px) !important;
@@ -41565,7 +41567,25 @@ body.in-match .card-slot > .card {
   --card-w: var(--board-card-w, 140px);
 }
 body.in-match .card-slot {
-  width: calc(var(--board-card-w, 140px) + 14px);
+  /* THE SLOT IS NOT A THIRD CONSTANT. It was `card + 14px`, authored beside a
+     lane of `card + var(--lane-chrome)` — two numbers for one gap. They agree
+     only while --lane-chrome is 20, and it is shaved to 8 under
+     `@media (max-width: 700px)` so eight lanes fit a phone. Below that the slot
+     is WIDER than the lane holding it, the lane lays its slots out at
+     flex-start, so the whole overflow goes to one side and every card on the
+     board drifts RIGHT of its own lane number. Owner: "the cards are on the
+     right side for some reason instead of the middle."
+       1280px  lane 124  slot 118  card centre +1px right  (the 14 never
+                                   accounted for the lane's 1px borders either)
+        375px  lane  61  slot  65  card centre +4px right, slot 6px past the lane
+     100% fills the lane's CONTENT box at every breakpoint by construction, so
+     there is no constant left to disagree. Measured after: centre offset 0 at
+     both widths; desktop slot 118 -> 116 with the card itself unmoved, since it
+     is sized by --board-card-w and not by its slot.
+     The phone block already said `width: 100%` and was silently overridden —
+     `body.in-match .card-slot` is a 0,2,1 against its 0,1,0. sim/lane-slot-fit.js
+     now fails if any rule reintroduces a fixed offset. */
+  width: 100%;
   /* Height follows the card's 92/182 aspect plus the slot's own 6+4 padding —
      the same derivation the authored rule used, just no longer pinned to 140. */
   min-height: calc(var(--board-card-h, 277px) + 10px);

@@ -122,6 +122,10 @@ echo ""
 echo "=== css-parse.js (the stylesheet says what it looks like it says) ==="
 run_suite sim/css-parse.js
 
+echo ""
+echo "=== lane-slot-fit.js (a board card sits centred in its own lane) ==="
+run_suite sim/lane-slot-fit.js
+
 echo "=== gfx-budget.js (nothing repaints every frame at the Normal tier) ==="
 run_suite sim/gfx-budget.js
 
