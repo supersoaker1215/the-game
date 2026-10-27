@@ -128,10 +128,12 @@ while ((km = kre.exec(BARE))) {
 // the first travels +/-110%). They are listed so the suite guards against NEW
 // duplicates while the debt stays visible and counted. Shrink this list; never
 // add to it.
-var KNOWN_DUPE_KEYFRAMES = [
-  'blockFullPulse', 'draftMulliganPulse', 'cardCrazyGlitch', 'vibeCosmicHue',
-  'energyBoost', 'rlPhaseWipeSweep', 'table-waiting-breathe'
-];
+// EMPTY, AND IT STAYS EMPTY. All eight duplicates are gone: hpShake was renamed
+// (the two consumers genuinely wanted different motion), five were dead earlier
+// copies superseded by a var(--card-tube) or themed rewrite that already won,
+// blockFullPulse was orphaned outright, and rlPhaseWipeSweep went 3 -> 1.
+// Anything added here again is a silently-retired animation.
+var KNOWN_DUPE_KEYFRAMES = [];
 var dupes = Object.keys(kf).filter(function (n) { return kf[n].length > 1; });
 var fresh = dupes.filter(function (n) { return KNOWN_DUPE_KEYFRAMES.indexOf(n) < 0; });
 var stale = KNOWN_DUPE_KEYFRAMES.filter(function (n) { return dupes.indexOf(n) < 0; });

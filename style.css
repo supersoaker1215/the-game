@@ -1314,10 +1314,7 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
   animation: none;
 }
 .block-circle.full .block-circle-value { color: #ffd77a; text-shadow: 0 0 8px rgba(var(--gold-rgb),0.85); }
-@keyframes blockFullPulse {
-  0%, 100% { opacity: 1; }
-  50%      { opacity: 0.75; }
-}
+
 
 /* Per-side block-circle theming — Tron ring, per-side color. Player blue, AI
    red. Matches each side's banner hue so the block meter reads as part of the
@@ -5360,20 +5357,9 @@ body.hit-pause .ai-hand * {
 .draft-undo-btn[disabled]:hover .mulligan-icon {
   transform: none;
 }
-@keyframes draftMulliganPulse {
-  0%, 100% {
-    box-shadow:
-      0 0 10px rgba(255,255,255,0.45),
-      0 0 22px rgba(255,255,255,0.20),
-      inset 0 0 8px rgba(255,255,255,0.08);
-  }
-  50% {
-    box-shadow:
-      0 0 14px rgba(255,255,255,0.65),
-      0 0 30px rgba(255,255,255,0.30),
-      inset 0 0 10px rgba(255,255,255,0.12);
-  }
-}
+/* @keyframes draftMulliganPulse was defined TWICE. Removed here: superseded by the themed version below, which already won.
+   Keyframe names resolve globally and last-definition-wins — specificity does
+   not apply — so this copy could never play. Guarded by sim/visual-system.js. */
 .draft-panel.draft-tricks .draft-hud-sub {
   text-shadow:
     0 0 6px rgba(255,255,255,0.85),
@@ -7358,12 +7344,9 @@ body.hit-pause .ai-hand * {
   50%      { transform: rotate(-0.6deg); }
   75%      { transform: rotate(1.4deg); }
 }
-@keyframes cardCrazyGlitch {
-  0%   { filter: hue-rotate(0deg)    saturate(1);    }
-  33%  { filter: hue-rotate(-18deg)  saturate(1.22); }
-  66%  { filter: hue-rotate(14deg)   saturate(1.14); }
-  100% { filter: hue-rotate(0deg)    saturate(1);    }
-}
+/* @keyframes cardCrazyGlitch was defined TWICE. Removed here: superseded by the var(--card-tube) version below, which already won.
+   Keyframe names resolve globally and last-definition-wins — specificity does
+   not apply — so this copy could never play. Guarded by sim/visual-system.js. */
 /* Hand cards never get the wobble — the hand is a "settled" space;
    the randomness only fires on the board where attack is read for
    combat. This is a belt-and-suspenders rule in case the class
@@ -7383,10 +7366,9 @@ body.hit-pause .ai-hand * {
 
 /* COSMIC — hue-shift cycle + gentle rotation. For reality-benders
    (Gojo, Dr. Strange, Dr. Manhattan, Galactus, Silver Surfer, etc.). */
-@keyframes vibeCosmicHue {
-  0%,100% { filter: hue-rotate(0deg)  saturate(1);    }
-  50%     { filter: hue-rotate(24deg) saturate(1.14); }
-}
+/* @keyframes vibeCosmicHue was defined TWICE. Removed here: superseded by the var(--card-tube) version below, which already won.
+   Keyframe names resolve globally and last-definition-wins — specificity does
+   not apply — so this copy could never play. Guarded by sim/visual-system.js. */
 @keyframes vibeCosmicDrift {
   0%,100% { transform: rotate(-0.4deg); }
   50%     { transform: rotate(0.6deg);  }
@@ -8664,11 +8646,9 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
    the energy diamond. The keyframe stays defined for any legacy
    class consumer, but no rule applies it. */
 .energy-text.energy-boost { animation: none; }
-@keyframes energyBoost {
-  0% { transform: scale(1); box-shadow: 0 0 12px rgba(243,156,18,0.55), inset 0 0 0 1px rgba(var(--gold-rgb),0.35); }
-  45% { transform: scale(1.18); box-shadow: 0 0 26px rgba(243,156,18,1), inset 0 0 0 1px rgba(var(--gold-rgb),0.7); }
-  100% { transform: scale(1); box-shadow: 0 0 12px rgba(243,156,18,0.55), inset 0 0 0 1px rgba(var(--gold-rgb),0.35); }
-}
+/* @keyframes energyBoost removed entirely: it was defined twice AND the name has
+   no animation: or animation-name: consumer in style.css, ui.js, board-v2.css or
+   index.html — both copies were dead. Same as blockFullPulse. */
 
 /* Player hand card — refined hover lift */
 .player-hand-section .hand-cards .card {
@@ -16987,10 +16967,12 @@ body.round-transition .board-section::before {
    Audit follow-up: previous version hardcoded blue + had a visible
    black gap mid-wipe; this version uses var(--theme-rgb) and a
    single continuous gradient. */
-@keyframes rlPhaseWipeSweep {
-  0%   { transform: translate3d(-110%, 0, 0); }
-  100% { transform: translate3d(110%, 0, 0); }
-}
+/* @keyframes rlPhaseWipeSweep was defined THREE times (here at +/-110%, and twice
+   more below at +/-50%). Last-definition-wins, so the +/-50% travel is what has been
+   shipping and the +/-110% sweep this file was originally written around — paired with
+   the `width: 200%` ten lines below — has not played since the second definition
+   landed. Removed rather than restored: restoring it would be a VISUAL change to every
+   roguelite phase wipe, which is a call for the owner, not a de-duplication. Flagged. */
 .rl-phase-wipe {
   position: fixed; inset: 0;
   pointer-events: none;
@@ -18118,11 +18100,7 @@ body.theme-purple .board-section {
 /* (a) Energy gain pulse — DEFINITION KEPT for legacy reference, but
    no longer applied. See note at the .energy-text.energy-boost
    override above (line ~6388). */
-@keyframes energyBoost {
-  0%   { transform: scale(1);    box-shadow: 0 0 7px var(--theme-glow-outer), 0 0 14px var(--theme-glow-inner); }
-  45%  { transform: scale(1.18); box-shadow: 0 0 14px rgba(var(--gold-rgb),0.90), 0 0 30px rgba(var(--gold-rgb),0.55); }
-  100% { transform: scale(1);    box-shadow: 0 0 7px rgba(var(--gold-rgb),0.50), 0 0 14px rgba(var(--gold-rgb),0.20); }
-}
+
 
 /* (b) Block-fill spark — spawned when the block meter ticks up.
    Tiny square flies from the HP bar up to the block circle. */
@@ -29186,10 +29164,7 @@ input[type="number"]::-webkit-outer-spin-button {
    When the meter caps and a free trick is ready, pulse to draw
    the eye. Identified by the .block-full class added by the
    engine when block hits BLOCK_MAX. */
-@keyframes blockFullPulse {
-  0%, 100% { box-shadow: 0 0 8px var(--theme-glow-inner, rgba(var(--gold-rgb),0.4)), 0 0 16px var(--theme-glow-outer, rgba(var(--gold-rgb),0.2)); }
-  50%      { box-shadow: 0 0 14px rgba(var(--gold-rgb),0.85), 0 0 28px rgba(var(--gold-rgb),0.45), 0 0 48px rgba(var(--gold-rgb),0.18); }
-}
+
 /* Block-full pulse — DISABLED 2026-05-18. The static gold-fill +
    glow on .block-circle.full above is enough state signal. User
    feedback: no idle running animations on the HUD. */
@@ -29458,10 +29433,7 @@ input[type="number"]::-webkit-outer-spin-button {
    covers viewport = fully transparent = revealed).
 
    Slowed 540ms → 1100ms per user request. */
-@keyframes rlPhaseWipeSweep {
-  0%   { transform: translate3d(-50%, 0, 0); }
-  100% { transform: translate3d(50%, 0, 0); }
-}
+
 .rl-phase-wipe::before {
   background:
     linear-gradient(90deg,
@@ -48229,10 +48201,9 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   filter: brightness(0.78) saturate(0.9) !important;
   animation: table-waiting-breathe 2.2s ease-in-out infinite;
 }
-@keyframes table-waiting-breathe {
-  0%, 100% { filter: brightness(0.78) saturate(0.90); }
-  50%      { filter: brightness(0.90) saturate(1.00); }
-}
+/* @keyframes table-waiting-breathe was defined TWICE. Removed here: superseded by the var(--card-tube) version below, which already won.
+   Keyframe names resolve globally and last-definition-wins — specificity does
+   not apply — so this copy could never play. Guarded by sim/visual-system.js. */
 @media (prefers-reduced-motion: reduce) {
   .card.unplayable.table-waiting { animation: none; }
 }
