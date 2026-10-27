@@ -44786,7 +44786,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    Every one of those is derived here, not hardcoded, so a surface only ever
    sets --chamfer / --band-outer / --cf-stroke. */
 .card {
-  --cf-inset:  calc(var(--card-w) * 0.0343);
+  /* --cf-inset was declared here at 0.0343 and lost to the plain `.card { --cf-inset: 8px }` below it — same (0,1,0), later wins. Removed; see the CF-INSET note at that rule. */
   /* FLOORED, because the ratio was authored against a card two to three times
      the size the game actually renders. The ladder's reading width is 250-350px,
      where these ratios give a 1.5-1.9px stroke; the board tile is 126px wide and
@@ -44895,7 +44895,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card { clip-path: none; }
 /* board tile takes the 250-wide column of the ladder */
 .board .card, .card.ally-card, .card.enemy-card {
-  --cf-inset:  calc(var(--card-w) * 0.032);
+  --cf-inset:  round(calc(var(--card-w) * 0.032), 1px);   /* see CF-INSET note */
   /* Same floor as .card — see the note there. */
   --cf-stroke: max(var(--cf-stroke-min, 1.6px), calc(var(--card-w) * 0.006));
   --chamfer:   calc(var(--card-w) * 0.072);
@@ -45031,12 +45031,12 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    changes. */
 .card {
   --card-w: var(--sb-card, 140px);
-  --cf-inset: calc(var(--card-w) * 0.018);
+  /* --cf-inset was declared here at 0.018 and lost to `.card { --cf-inset: 8px }` for the same reason. Removed. */
 }
 .card.draft-card, .card.enc-card,
 .card-inspect-modal .card, .fp-trick-preview .card {
   --card-w: var(--read-card-w);
-  --cf-inset: calc(var(--card-w) * 0.009);
+  /* --cf-inset was declared here at 0.009 and lost to `.card.card.draft-card` etc at (0,3,0), which sets 0.0291. Removed. */
 }
 /* lift both readouts clear of the cut corners */
 .card .stat-circle {
@@ -45045,17 +45045,48 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card .stat-atk { left:  calc(var(--cf-inset) + var(--card-w) * 0.030); }
 .card .stat-hp  { right: calc(var(--cf-inset) + var(--card-w) * 0.030); }
 
-/* The inset is the ART's inset, measured, not a ratio guessed off a width
-   token that does not track. --sb-card reports 140px on a hand tile that
-   renders at 108, so any fraction of it lands in the wrong place; the art's
-   own offset is a fact.
-     hand / board : padding 6px + border 2px  -> art at 8px
-     draft / codex: art is near full-bleed    -> art at 2px */
+/* ============================================================
+   CF-INSET — the one note, after a consolidation (2026-10-27)
+   ------------------------------------------------------------
+   This token was declared TWENTY-ONE times across ELEVEN values. Ten of those
+   declarations could never paint. Now there are five, one per surface, and
+   this is the only place that explains them.
+
+   The original argument for a measured inset, written here, was right at the
+   time: "--sb-card reports 140px on a hand tile that renders at 108, so any
+   fraction of it lands in the wrong place." Later rules at higher specificity
+   went back to ratios and won, which looked like that decision being undone.
+   It is not, and the reason is worth keeping: --card-w is only a LIE on some
+   surfaces.
+     board : --card-w is --board-card-w, measured by the fit pass. Verified
+             truthful (104px token on a 104px card). A ratio is valid.
+     draft : --card-w is --read-card-w = clamp(210px, 25vw, 320px). Also the
+             real width. A ratio is valid.
+     hand  : --card-w still reports 110px on a card that renders at 92px (and
+             at 56px when the hand is full). A ratio would land in the wrong
+             place, exactly as the original note says — so the hand keeps a
+             measured 8px, and that is deliberate, not leftover.
+
+   THE FIVE SURVIVORS, and the surface each one actually wins on:
+     .card                                    8px        plain / hand / dead pile
+     .board .card, .ally-card, .enemy-card    0.032 w    board           (0,2,0)
+     .card.card.draft-card + enc/inspect/fp   0.0291 w   read surfaces   (0,3,0)
+     .trick-card                              4px        trick row
+     .trick-card.draft-card / .trick-draft    2px        trick draft     (0,2,0)
+
+   The two ratios are round()ed to whole pixels. --cf-inset positions the
+   frame, the edge, the band and the cost together, and it also feeds the body
+   clip-path, so a fractional value put a 1px neon line on a half pixel —
+   "the rasteriser splits it into two 50%-opacity lines, so it draws twice as
+   wide and half as bright" (ui.js:24694). Frame and clip read the SAME token,
+   so rounding cannot open a seam between them.
+
+   The `2px` that used to sit here for draft/enc/inspect/fp is GONE rather than
+   kept: it was already dead, outranked by the (0,3,0) rule below, so the
+   "draft / codex: art is near full-bleed -> art at 2px" line described
+   something that had not been true for a while.
+   ============================================================ */
 .card                       { --cf-inset: 8px; }
-.card.draft-card,
-.card.enc-card,
-.card-inspect-modal .card,
-.fp-trick-preview .card     { --cf-inset: 2px; }
 
 /* ============================================================
    ONE FRAME, NOT TWO (2026-08-25)
@@ -45300,7 +45331,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card.card.draft-card, .card.card.enc-card,
 .card-inspect-modal .card.card, .fp-trick-preview .card.card {
   --card-w:    var(--read-card-w);
-  --cf-inset:  calc(var(--card-w) * 0.0291);
+  --cf-inset:  round(calc(var(--card-w) * 0.0291), 1px);   /* see CF-INSET note */
   /* Above the floor at the reading width (350 x 0.00545 = 1.9px), so this max()
      changes nothing today — it is here so a smaller read size cannot fall
      through the same hole the board tiles did. */

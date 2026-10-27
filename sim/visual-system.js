@@ -288,6 +288,30 @@ check('the draft header is allowed to wrap at phone width',
       wraps.indexOf('wrap') >= 0,
       wraps.length ? ('only ever set to: ' + wraps.join(', ')) : 'no flex-wrap is set on .draft-hud anywhere');
 
+// ---- 9. --cf-inset stays consolidated ------------------------------------
+// It positions the card frame, the edge, the band and the cost together AND
+// feeds the body clip-path, and it had drifted to 21 declarations across 11
+// values, ten of which could never paint. Consolidated to five, one per
+// surface. Two are ratios and must stay rounded: a fractional inset puts a 1px
+// neon line on a half pixel, which the rasteriser splits into two half-opacity
+// lines (ui.js:24694). Frame and clip read the same token, so rounding cannot
+// open a seam between them.
+var insetVals = {}, ire = /(?:^|\n)([^{}@][^{}]*?)\{([^{}]*)\}/g, im;
+while ((im = ire.exec(BARE))) {
+  var idm = /(?:^|[;{\s])--cf-inset\s*:([^;]*)/.exec(im[2]);
+  if (!idm) continue;
+  var v = idm[1].replace(/\s+/g, ' ').trim();
+  (insetVals[v] = insetVals[v] || []).push(BARE.slice(0, im.index).split('\n').length + 1);
+}
+var vals = Object.keys(insetVals);
+check('--cf-inset has not drifted back past five distinct values',
+      vals.length <= 5,
+      vals.length + ' values: ' + vals.join(' | '));
+var unroundedRatio = vals.filter(function (v) { return /calc\(/.test(v) && !/round\(/.test(v); });
+check('every ratio-derived --cf-inset is rounded to whole pixels',
+      unroundedRatio.length === 0,
+      unroundedRatio.join(' | '));
+
 print('');
 print('visual-system: ' + pass + ' passed, ' + fails.length + ' failed');
 fails.forEach(function (f) { print('  FAIL  ' + f); });
