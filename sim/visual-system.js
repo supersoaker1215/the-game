@@ -234,6 +234,38 @@ check('the art fallback can leave the tier it just failed in',
       fbm ? ('assigns `' + fbm[1].replace(/\s+/g, ' ').trim().slice(0, 80) + '`')
           : 'no _artFallback assignment found');
 
+// ---- 7. the phase wipe actually sweeps, rather than starting covered -------
+// A translate-based wipe only reads as a SWEEP if the element is fully clear of
+// its clipped container at both ends. For an element of width k*W translated by
+// t% of its OWN width, the right edge sits at k*W*(1 - t/100), so it clears the
+// left edge only when t >= 100 — independent of k, which is why the authored
+// `width: 200%` does not rescue a smaller travel.
+// This shipped at +/-50% for a long time (the element already covered the whole
+// container at frame 0, so it could only wipe OFF) because two later duplicate
+// @keyframes definitions silently retired the +/-110% one it was designed with.
+var sweep = null;
+var sre = /@keyframes\s+rlPhaseWipeSweep\s*\{/.exec(BARE);
+if (sre) {
+  var k2 = sre.index + sre[0].length, depth2 = 1;
+  while (k2 < BARE.length && depth2) {
+    if (BARE[k2] === '{') depth2++;
+    else if (BARE[k2] === '}') depth2--;
+    k2++;
+  }
+  var body2 = BARE.slice(sre.index, k2);
+  // Read the CAPTURE GROUP, not a fresh number-match over the matched text:
+  // `translate3d` contains a digit, so re-scanning `translate3d(-110%` for the
+  // first number yields 3. Both the 110% and 50% cases then reported "3%",
+  // which looked like a working test that could not tell them apart.
+  var offsets = [], ore = /translate3d\(\s*(-?\d+(?:\.\d+)?)%/g, om;
+  while ((om = ore.exec(body2))) offsets.push(Math.abs(parseFloat(om[1])));
+  sweep = offsets.length ? Math.min.apply(null, offsets) : null;
+}
+check('the roguelite phase wipe clears its container at both ends',
+      sweep !== null && sweep >= 100,
+      sweep === null ? 'could not read a translate3d % from @keyframes rlPhaseWipeSweep'
+                     : 'travels only ' + sweep + '% of its own width, so it starts already covering the container');
+
 print('');
 print('visual-system: ' + pass + ' passed, ' + fails.length + ' failed');
 fails.forEach(function (f) { print('  FAIL  ' + f); });

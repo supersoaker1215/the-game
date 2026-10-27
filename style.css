@@ -16967,12 +16967,13 @@ body.round-transition .board-section::before {
    Audit follow-up: previous version hardcoded blue + had a visible
    black gap mid-wipe; this version uses var(--theme-rgb) and a
    single continuous gradient. */
-/* @keyframes rlPhaseWipeSweep was defined THREE times (here at +/-110%, and twice
-   more below at +/-50%). Last-definition-wins, so the +/-50% travel is what has been
-   shipping and the +/-110% sweep this file was originally written around — paired with
-   the `width: 200%` ten lines below — has not played since the second definition
-   landed. Removed rather than restored: restoring it would be a VISUAL change to every
-   roguelite phase wipe, which is a call for the owner, not a de-duplication. Flagged. */
+/* @keyframes rlPhaseWipeSweep was defined THREE times — here at +/-110%, and
+   twice below at +/-50%. Last-definition-wins, so the +/-50% travel had been
+   shipping and this one, the travel the `width: 200%` ten lines down was
+   authored around, had not played since the second copy landed.
+   De-duplicated to one definition, and that definition now carries the +/-110%
+   travel again (see the note on it below). This copy is removed as a duplicate,
+   not as a rejected behaviour. */
 .rl-phase-wipe {
   position: fixed; inset: 0;
   pointer-events: none;
@@ -30026,9 +30027,24 @@ input[type="number"]::-webkit-outer-spin-button {
    the previous symmetric 0.65/0/0.35/1 curve — gentle ease-out at
    both ends, constant velocity through the middle, no perceived
    stop/start anywhere along the path. */
+/* +/-110%, RESTORED (2026-10-27). Owner's call, after this was flagged.
+   This keyframe was authored at +/-110% beside the `width: 200%` that still
+   governs .rl-phase-wipe::before, then silently retired twice by later
+   duplicate definitions at +/-50% — @keyframes names resolve globally and
+   last-definition-wins, so the travel the sweep was designed around had not
+   played since the second copy landed.
+   The geometry, against a container of width W with overflow:hidden and an
+   element of width 2W at left:0:
+     +/-110%  spans [-2.2W, -0.2W] -> [2.2W, 4.2W]   fully clear at BOTH ends,
+              so the bar enters from off-screen, crosses, and exits — a sweep.
+     +/-50%   spans [-W, W] -> [W, 3W]               already covering the whole
+              container at frame 0, so it could only wipe OFF — a reveal.
+   The four variant rules (.boot/.engage/.commit/.return) out-specify the base
+   and were written against this travel, which is why they were the ones most
+   likely to look wrong. */
 @keyframes rlPhaseWipeSweep {
-  0%   { transform: translate3d(-50%, 0, 0); }
-  100% { transform: translate3d(50%, 0, 0); }
+  0%   { transform: translate3d(-110%, 0, 0); }
+  100% { transform: translate3d(110%, 0, 0); }
 }
 .rl-phase-wipe::before {
   animation: rlPhaseWipeSweep 1100ms cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
