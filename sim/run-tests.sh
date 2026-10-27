@@ -126,6 +126,10 @@ echo ""
 echo "=== lane-slot-fit.js (a board card sits centred in its own lane) ==="
 run_suite sim/lane-slot-fit.js
 
+echo ""
+echo "=== visual-system.js (controls keep the type system; elevation is a ramp) ==="
+run_suite sim/visual-system.js
+
 echo "=== gfx-budget.js (nothing repaints every frame at the Normal tier) ==="
 run_suite sim/gfx-budget.js
 

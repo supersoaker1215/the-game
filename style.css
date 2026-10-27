@@ -475,6 +475,23 @@ summary:focus-visible,
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+/* FORM CONTROLS DO NOT INHERIT THEIR FONT (2026-10-27).
+   A <button> or <input> takes the UA's own font unless something says
+   otherwise, and nothing here did: the sheet styles fonts per CLASS
+   (button.btn, .mp-code-input, .settings-row select ...), so every control
+   that was not covered by one fell through to Arial on a page whose entire
+   type system is Inter / Rajdhani / JetBrains Mono. Measured on a live
+   match: 20 of 133 controls — the ♪ music toggle and its glyph, the redraw
+   counter, the emote and taunt buttons, the log close and drawer handles,
+   the cheat-sheet close, three bare inputs.
+   Deliberately (0,0,1) and placed up here with the reset, so every one of
+   the 15 existing per-class font rules still wins — this only catches what
+   nothing else claimed, including controls added later.
+   `inherit` rather than a named stack: a control should read as whatever
+   its surrounding panel reads as, which is the rule the rest of the sheet
+   already follows by hand. */
+button, input, select, textarea { font-family: inherit; }
+
 body {
   background: #000000;
   color: var(--text-dim, #d8dee4);
@@ -49740,21 +49757,42 @@ body.in-match:not(.board-v2) .board {
   --tube-r2: 12px;
   --tube-a1: 0.90;
   --tube-a2: 0.45;
+  /* ELEVATION IS A RAMP, NOT A CONSTANT (2026-10-27).
+     The dark shadow below was hardcoded `0 2px 6px`, so a resting board card,
+     a resting hand card and a HOVERED card all sat at exactly the same height:
+     hover moved --tube-r1/r2/a1/a2 and never touched this, so nothing in the
+     match ever lifted. Only .card-drag-ghost differed, at 0 8px 18px — proof
+     the vocabulary was wanted and just had nowhere to live.
+     Now it rides vars the same way the glow already does, so every state that
+     already tunes the tube can tune its height in the same place. The resting
+     values are byte-identical to the old constant, so a card at rest does not
+     move. */
+  --tube-ey: 2px;      /* elevation: y offset */
+  --tube-eb: 6px;      /* elevation: blur */
+  --tube-ea: 0.65;     /* elevation: alpha */
   --card-tube:
     drop-shadow(0 0 var(--tube-r1) rgba(var(--cf-rgb), var(--tube-a1)))
     drop-shadow(0 0 var(--tube-r2) rgba(var(--cf-rgb), var(--tube-a2)))
-    drop-shadow(0 2px 6px rgba(0,0,0,0.65));
+    drop-shadow(0 var(--tube-ey) var(--tube-eb) rgba(0,0,0,var(--tube-ea)));
 }
 
 /* ---- the base state, and the hover that lifts the same tube rather than
    describing a second one. Hover only moves the four numbers. */
 .card.card, .card.card:hover { filter: var(--card-tube); }
-.card.card:hover { --tube-r1: 5px; --tube-r2: 18px; --tube-a1: 1; --tube-a2: 0.58; }
+.card.card:hover { --tube-r1: 5px; --tube-r2: 18px; --tube-a1: 1; --tube-a2: 0.58;
+                   /* ...and it LIFTS. The glow said "this one is singled out"
+                      while the height said "nothing happened". */
+                   --tube-ey: 6px; --tube-eb: 14px; --tube-ea: 0.7; }
 /* HAND RUNS AT HALF. Six cards fanned at the bottom of the screen each throwing
    a board-strength bloom is a wall of light, and it competes with the board for
    the same attention the board is supposed to win. Hover restores full strength
    because then you have singled one out. */
-.card.card.hand-card:not(:hover) { --tube-r1: 3px; --tube-r2: 7px; }
+.card.card.hand-card:not(:hover) { --tube-r1: 3px; --tube-r2: 7px;
+                                   /* Same reasoning as the half glow on the
+                                      line above: seven fanned cards each
+                                      throwing a board-strength shadow is a
+                                      smudge, and the board must win. */
+                                   --tube-ey: 1px; --tube-eb: 4px; }
 .trick-card { filter: var(--card-tube); }
 .trick-card:hover { --tube-r1: 4px; --tube-r2: 16px; --tube-a1: 1; --tube-a2: 0.58;
                     filter: var(--card-tube); }
