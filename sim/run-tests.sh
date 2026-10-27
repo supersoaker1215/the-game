@@ -130,6 +130,60 @@ echo ""
 echo "=== visual-system.js (controls keep the type system; elevation is a ramp) ==="
 run_suite sim/visual-system.js
 
+# ---- ART TIERS: every card exists in every tier, and no tier is a copy ------
+# Two shipped bugs this would have caught. (1) Enclosure and T-Rex had no
+# art-md/art-sm entry at all, so on any phone a cost-2 environment and the
+# dinosaur it spawns both drew as an empty black box -- permanently, because the
+# failure fallback retried the same missing directory and memoised the result.
+# Desktop was fine, so local testing never showed it. (2) Pinhead was
+# byte-identical in all three tiers: a phone board tile decoded 2.84MB for a
+# 141x185 slot, more image memory than the other eleven tiles combined.
+# Deliberately sh + md5 rather than python3: the vendor-pin note further down
+# records python3 being absent making a check SILENTLY pass, and the whole point
+# of this one is noticing an absence.
+echo ""
+echo "=== art tiers (every card in every tier; no tier is a byte-copy) ==="
+_art_fail=0
+_ART=audio/cards/art
+if [ ! -d "$_ART" ]; then
+  echo "  ❌ art tiers: $_ART not found"; _art_fail=1
+else
+  # art-sm legitimately has no card-back: ui.js serves that from art-md on
+  # mobile and art/ on desktop, never from art-sm.
+  for _tier in art-md art-sm; do
+    _missing=$(comm -23 \
+      "$(ls "$_ART" | sed 's/\.[^.]*$//' | sort > /tmp/_art_a; echo /tmp/_art_a)" \
+      "$(ls "audio/cards/$_tier" | sed 's/\.[^.]*$//' | sort > /tmp/_art_b; echo /tmp/_art_b)" \
+      | { [ "$_tier" = art-sm ] && grep -v '^card-back$' || cat; })
+    if [ -n "$_missing" ]; then
+      echo "  ❌ $_tier is missing: $(echo "$_missing" | tr '\n' ' ')"
+      echo "     a phone renders these as a blank portrait, permanently"
+      _art_fail=1
+    else
+      echo "  ok  $_tier covers every card in $_ART"
+    fi
+  done
+  # A stem whose bytes are identical across tiers was copied, not resized.
+  _copies=""
+  for _f in audio/cards/art-sm/*; do
+    _stem=$(basename "$_f"); _big="$_ART/$_stem"
+    [ -f "$_big" ] || continue
+    if [ "$(md5 -q "$_f" 2>/dev/null || md5sum "$_f" | cut -d' ' -f1)" = \
+         "$(md5 -q "$_big" 2>/dev/null || md5sum "$_big" | cut -d' ' -f1)" ]; then
+      _copies="$_copies $_stem"
+    fi
+  done
+  if [ -n "$_copies" ]; then
+    echo "  ❌ art-sm is a byte-identical copy of art/ for:$_copies"
+    echo "     the resize script skipped these; a phone decodes the full master"
+    _art_fail=1
+  else
+    echo "  ok  no art-sm file is a byte-copy of its master"
+  fi
+fi
+[ "$_art_fail" = 0 ] || FAIL=1
+rm -f /tmp/_art_a /tmp/_art_b
+
 echo "=== gfx-budget.js (nothing repaints every frame at the Normal tier) ==="
 run_suite sim/gfx-budget.js
 

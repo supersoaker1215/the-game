@@ -8417,9 +8417,15 @@ body.hit-pause .ai-hand * {
   100% { opacity: 0; background-position: -100% 0, 0 0, 0 0; }
 }
 
-/* HP number localized shake on damage — transform-only, 300ms one-shot */
-.health-text span.hp-shake { animation: hpShake 0.3s linear; display: inline-block; }
-@keyframes hpShake {
+/* HP number localized shake on damage — transform-only, 300ms one-shot.
+   RENAMED to hpShakeNum. @keyframes names resolve GLOBALLY and last-definition-
+   wins — specificity does not enter into it — so this 2-axis jitter lost to the
+   pure-translateX `hpShake` authored 200 lines below and has never once played
+   in the shipped game. Both consumers silently ran the flat left-right wobble,
+   so the HP number and the HP bar container shook identically when they were
+   written to differ. (8 names in this sheet are duplicated this way.) */
+.health-text span.hp-shake { animation: hpShakeNum 0.3s linear; display: inline-block; }
+@keyframes hpShakeNum {
   0%, 100% { transform: translate(0, 0); }
   15%      { transform: translate(-3px, 1px); }
   30%      { transform: translate(3px, -1px); }
@@ -23887,7 +23893,21 @@ html {
      bloom, hinting "this is interactive." */
   outline: 1px solid rgba(127, 208, 255, 0.40);
   outline-offset: -2px;
-  transition: outline-color 120ms var(--ease-out-soft);
+  /* THE LIST HAS TO CARRY EVERYTHING THE HOVER MOVES, not just the outline.
+     `transition` is a single list, so this one-property shorthand REPLACED the
+     card's own `transform 240ms var(--ease-out-soft)` (L18335, 0,2,0) — this
+     selector is (0,3,0) and unconditional, so while hovered the resolved
+     durations were transform 0ms / box-shadow 0ms / filter 0ms.
+     A board card therefore SNAPPED to scale(1.4) with its 60px bloom on mouse
+     enter, then glided back down over 240ms on leave: instant in, eased out,
+     which is backwards and is exactly the "arrive, don't jump" the motion
+     header at the top of this file says the curve system exists for.
+     Same durations in both directions now; only the outline keeps its own
+     faster fade, since that is the cue this rule was written for. */
+  transition: outline-color 120ms var(--ease-out-soft),
+              transform 240ms var(--ease-out-soft),
+              box-shadow 240ms var(--ease-out-soft),
+              filter 240ms var(--ease-out-soft);
 }
 .lane .card.ai-card:hover {
   outline-color: rgba(255, 138, 122, 0.40);

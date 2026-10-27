@@ -111,6 +111,127 @@ var hoverLifts = movers.some(function (x) { return /:hover/.test(x.sel); });
 check('hover is one of them (the card lifts when singled out)', hoverLifts,
       'no :hover rule sets --tube-ey');
 
+// ---- 3. no @keyframes name is defined twice -------------------------------
+// Keyframe names resolve GLOBALLY and last-definition-wins; specificity does
+// not apply. A duplicate silently retires the earlier animation, which is how
+// the 2-axis `hpShake` written for the HP number never played once in the
+// shipped game — both consumers got the flat translateX one 200 lines below.
+var kf = {}, kre = /@keyframes\s+([\w-]+)\s*\{/g, km;
+while ((km = kre.exec(BARE))) {
+  var nm = km[1];
+  (kf[nm] = kf[nm] || []).push(BARE.slice(0, km.index).split('\n').length + 1);
+}
+// KNOWN, UNREVIEWED DUPLICATES — baselined deliberately, not waved through.
+// Each of these silently retires an earlier animation, exactly as hpShake did,
+// and picking which definition is the intended one is a per-animation design
+// call (rlPhaseWipeSweep has THREE, and the surviving pair travels +/-50% where
+// the first travels +/-110%). They are listed so the suite guards against NEW
+// duplicates while the debt stays visible and counted. Shrink this list; never
+// add to it.
+var KNOWN_DUPE_KEYFRAMES = [
+  'blockFullPulse', 'draftMulliganPulse', 'cardCrazyGlitch', 'vibeCosmicHue',
+  'energyBoost', 'rlPhaseWipeSweep', 'table-waiting-breathe'
+];
+var dupes = Object.keys(kf).filter(function (n) { return kf[n].length > 1; });
+var fresh = dupes.filter(function (n) { return KNOWN_DUPE_KEYFRAMES.indexOf(n) < 0; });
+var stale = KNOWN_DUPE_KEYFRAMES.filter(function (n) { return dupes.indexOf(n) < 0; });
+check('no NEW @keyframes name is defined more than once',
+      fresh.length === 0,
+      fresh.map(function (n) { return n + ' at L' + kf[n].join(', L'); }).join(' | '));
+check('the known-duplicate baseline has no stale entries',
+      stale.length === 0,
+      'these are no longer duplicated and should be removed from the list: ' + stale.join(', '));
+if (VERBOSE) print('  (baselined duplicate keyframes still outstanding: ' + dupes.length + ')');
+
+// ---- 4. a hover that MOVES a card must transition what it moves -----------
+// `transition` is one list, so a more specific hover rule that re-authors it
+// for a single property silently drops the duration off everything else. That
+// made board cards snap to scale(1.4) on enter and glide back over 240ms on
+// leave — instant in, eased out, which is backwards.
+var laneHover = null;
+var lre = /(?:^|\n)([^{}@][^{}]*?)\{([^{}]*)\}/g, lm;
+while ((lm = lre.exec(BARE))) {
+  var sels = lm[1].split(',').map(function (x) { return x.replace(/\s+/g, ' ').trim(); });
+  if (sels.indexOf('.lane .card:hover') < 0) continue;
+  var tdecl = /(?:^|[;{\s])transition\s*:([^;]*)/.exec(lm[2]);
+  if (tdecl) laneHover = { value: tdecl[1].replace(/\s+/g, ' ').trim(),
+                           line: BARE.slice(0, lm.index).split('\n').length + 1 };
+}
+check('.lane .card:hover re-authors transition, so it must list transform',
+      !laneHover || /\btransform\b/.test(laneHover.value),
+      laneHover ? ('L' + laneHover.line + ' lists only: ' + laneHover.value) : '');
+
+// ---- 5. the three fit-loop outputs publish integers ------------------------
+// --hand-card-w and --board-card-w are Math.floor; --trick-card-w published
+// one decimal, so the whole centred trick row landed on sub-pixels and its 1px
+// neon borders rasterised soft while the hand row above it was crisp. The
+// repo's own note at ui.js:24690 diagnosed this for the board already.
+var UI = read('ui.js');
+// STRIPPING JS COMMENTS NEEDS A SCANNER, NOT A REGEX — and getting this wrong
+// silently deletes a tenth of the file. ui.js:10 contains the text `/*.png)`
+// INSIDE a `//` line comment. A naive `/\*[\s\S]*?\*/` strip treats that as a
+// block-comment opener and blanks 401 lines (10-411) — which is exactly where
+// the art tier pipeline lives, so every ui.js assertion about it silently
+// answered "not found". Browsers parse it correctly; only the analyser was
+// wrong. (The CSS mirror of this — `*/` inside a comment — is already pinned by
+// sim/css-parse.js.)
+// Walk once, tracking string / template / line-comment / block-comment state,
+// and blank comment bodies while preserving newlines so line numbers hold.
+function stripJsComments(src) {
+  var out = '', i = 0, n = src.length, q = null, inLine = false, inBlock = false;
+  while (i < n) {
+    var c = src[i], d = src[i + 1];
+    if (inLine) { if (c === '\n') { inLine = false; out += c; } else out += ' '; i++; continue; }
+    if (inBlock) { if (c === '*' && d === '/') { inBlock = false; out += '  '; i += 2; } else { out += (c === '\n' ? c : ' '); i++; } continue; }
+    if (q) {
+      out += c;
+      if (c === '\\') { out += (d === undefined ? '' : d); i += 2; continue; }
+      if (c === q) q = null;
+      i++; continue;
+    }
+    if (c === '"' || c === "'" || c === '`') { q = c; out += c; i++; continue; }
+    if (c === '/' && d === '/') { inLine = true; out += '  '; i += 2; continue; }
+    if (c === '/' && d === '*') { inBlock = true; out += '  '; i += 2; continue; }
+    out += c; i++;
+  }
+  return out;
+}
+var BARE_UI = stripJsComments(UI);
+// Self-check: if the scanner ever regresses, say so instead of reporting every
+// ui.js finding as "not found".
+check('the ui.js comment scanner did not eat the source',
+      BARE_UI.length > UI.length * 0.5 && /_artFallback/.test(BARE_UI),
+      'stripped ' + (100 - Math.round(BARE_UI.length / UI.length * 100)) + '% of the file');
+['--hand-card-w', '--board-card-w', '--trick-card-w'].forEach(function (tok) {
+  var m2 = new RegExp("setProperty\\(\\s*'" + tok + "'\\s*,([^;]*?)\\)\\s*;").exec(BARE_UI);
+  if (!m2) { check('publishes ' + tok, false, 'no setProperty found'); return; }
+  var body = m2[1].replace(/\s+/g, ' ').trim();
+  if (/toFixed\(/.test(body)) { check(tok + ' is published as an integer', false, 'publishes `' + body.slice(0, 70) + '`'); return; }
+  var intish = /Math\.(floor|round)\(/.test(body);
+  // `bw + 'px'` is still an integer when bw was floored a line earlier, so
+  // follow a bare identifier back to its declaration before judging it.
+  if (!intish) {
+    var id = /^([A-Za-z_$][\w$]*)\s*\+/.exec(body);
+    if (id) {
+      var decl = new RegExp('(?:const|let|var)\\s+' + id[1] + '\\s*=([^;]*);').exec(BARE_UI);
+      if (decl && /Math\.(floor|round)\(/.test(decl[1])) intish = true;
+    }
+  }
+  check(tok + ' is published as an integer', intish, 'publishes `' + body.slice(0, 70) + '`');
+});
+
+// ---- 6. a failed art fetch must fall back ACROSS tiers --------------------
+// Retrying the SAME directory minus the ?v= heals a dropped fetch and is a
+// guaranteed second 404 for a file that is simply absent from that tier —
+// and the result is memoized, so the portrait stays blank all session.
+// `=` not followed by `=`, or this matches the guard READ (`if (this._artFallback
+// && this._artFallback[fbKey]) return ...`) that sits earlier in the file.
+var fbm = /_artFallback\[fbKey\]\s*=(?!=)([^;]{0,400});/.exec(BARE_UI);
+check('the art fallback can leave the tier it just failed in',
+      !!fbm && /audio\/cards\/art['"`]/.test(fbm[0]),
+      fbm ? ('assigns `' + fbm[1].replace(/\s+/g, ' ').trim().slice(0, 80) + '`')
+          : 'no _artFallback assignment found');
+
 print('');
 print('visual-system: ' + pass + ' passed, ' + fails.length + ' failed');
 fails.forEach(function (f) { print('  FAIL  ' + f); });

@@ -159,6 +159,40 @@ test('the block meter tier escalates with the meter and caps at full', function 
   eq(UI._blockTierClass(max + 5), 'block-tier-full', 'and it cannot go past full');
 });
 
+// ---- THE CARD BACK OBEYS THE TIER SYSTEM -------------------------------
+// It was a plain string constant, so every platform got the 825x1425 / 0.98MB
+// master (4.70MB decoded) to paint a board tile that is 141x185 device px on a
+// phone — a 1/8.6 linear oversample, and the single largest image the game
+// ships to a phone. art-md/card-back.jpg has existed at 296x512 / 54KB the
+// whole time with nothing referencing it.
+// Executed rather than grepped because it is now a GETTER whose branch is
+// re-evaluated per read: a constant that merely LOOKS tiered would pass a
+// regex and still serve the master.
+test('the card back is served per tier, re-evaluated on every read', function () {
+  var realMM = window.matchMedia;
+  var narrow = false;
+  window.matchMedia = function (q) {
+    return { matches: narrow && /max-width:\s*640px/.test(q),
+             addEventListener: function () {}, removeEventListener: function () {},
+             addListener: function () {}, removeListener: function () {} };
+  };
+  try {
+    narrow = false;
+    var desktop = UI.CARD_BACK_SRC;
+    narrow = true;
+    var phone = UI.CARD_BACK_SRC;
+    ok(/audio\/cards\/art\/card-back/.test(desktop), 'desktop takes the master, got ' + desktop);
+    ok(/art-md\/card-back/.test(phone), 'a phone takes the md tier, got ' + phone);
+    ok(desktop !== phone, 'the two branches differ');
+    // The breakpoint can be crossed mid-session (rotate, resize), so a value
+    // captured once at load would be wrong for the rest of the match.
+    narrow = false;
+    eq(UI.CARD_BACK_SRC, desktop, 're-reads after the viewport changes back');
+  } finally {
+    window.matchMedia = realMM;
+  }
+});
+
 print('');
 print('ui-render: ' + __pass + ' passed, ' + __fail + ' failed');
 if (__fail) {

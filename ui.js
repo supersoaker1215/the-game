@@ -316,16 +316,17 @@ const UI = {
     // Stems are unique across art/ (verified), so a flat .jpg mirror is lossless
     // and alt-art variants come along automatically.
     let file = this.getCardArtVariant(name);
+    const origFile = file;
     if (dir === 'audio/cards/art-md') file = file.replace(/\.[^.]+$/, '.jpg');
     const url = `${dir}/${encodeURIComponent(file)}?v=${this._CARD_ART_VERSION || 1}`;
-    this._probeArt(url, fbKey, file, dir);
+    this._probeArt(url, fbKey, file, dir, origFile);
     return url;
   },
   // Probe an art URL once (browser dedupes with the CSS background fetch).
   // On failure: one retry after a beat (transient network blip), then fall
   // back to the un-versioned file (served from the SW/HTTP cache under its
   // stable key) and repaint so every blank portrait heals in place.
-  _probeArt(url, fbKey, file, dir) {
+  _probeArt(url, fbKey, file, dir, origFile) {
     this._artProbe = this._artProbe || {};
     if (this._artProbe[url]) return;   // ok / pending / failed — probe once per URL
     this._artProbe[url] = 'pending';
@@ -336,7 +337,24 @@ const UI = {
         if (retriesLeft > 0) { setTimeout(() => attempt(retriesLeft - 1), 900); return; }
         this._artProbe[url] = 'failed';
         this._artFallback = this._artFallback || {};
-        this._artFallback[fbKey] = `${dir}/${encodeURIComponent(file)}`;
+        // FALL BACK ACROSS TIERS, NOT INSIDE ONE. This used to retry
+        // `${dir}/${file}` — the SAME directory, minus the ?v=. That heals the
+        // case it was written for (a dropped fetch on a fresh version key) and
+        // is a guaranteed second 404 for the case it was not: a file that is
+        // simply ABSENT from this tier. Since the result is memoized in
+        // _artFallback and _artProbe[url]='failed', the portrait then stays
+        // blank for the whole session.
+        // Measured: art/ has 261 files, art-md 259, art-sm 258 — Enclosure and
+        // T-Rex had no mobile tier at all, so on any phone a cost-2 environment
+        // and the dinosaur it spawns both drew as an empty black box, forever,
+        // while looking perfect on desktop. (Those two files now exist; this is
+        // the half that stops the NEXT missing file becoming permanent.)
+        // audio/cards/art is the superset by construction, so it is the correct
+        // floor to land on. `origFile` is the pre-tier name because art-md
+        // rewrites every extension to .jpg and the full-size dir keeps .png.
+        const _full = `audio/cards/art/${encodeURIComponent(origFile || file)}`;
+        const _same = `${dir}/${encodeURIComponent(file)}`;
+        this._artFallback[fbKey] = (dir === 'audio/cards/art') ? _same : _full;
         clearTimeout(this._artRepaintT);
         this._artRepaintT = setTimeout(() => { try { this.render(); } catch (e) {} }, 80);
       };
@@ -25020,8 +25038,23 @@ const UI = {
     area.style.setProperty('--hand-card-w', Math.floor(w) + 'px');
     // Tricks ride the same 0..1 position on that range so the two groups stay
     // in proportion instead of one outgrowing the other.
-    const t = (w - HAND_MIN) / (200 - HAND_MIN);
-    area.style.setProperty('--trick-card-w', (88 + t * (190 - 88)).toFixed(1) + 'px');
+    // FLOORED, LIKE ITS TWO SIBLINGS. --hand-card-w (just above) and
+    // --board-card-w (ui.js:24692) are both Math.floor; this one published one
+    // decimal, so 84 of the 91 integer hand widths produced a fractional trick
+    // width and in practice w is a float, so it was fractional always. Its two
+    // consumers are `.trick-card { width: var(--trick-card-w) }` and
+    // `--sb-card: var(--trick-card-w)`, which feeds --sb-i/--sb-pad/--sb-gap —
+    // so the whole centred trick row landed on sub-pixels and its text and 1px
+    // neon borders rendered soft while the hand row directly above was crisp.
+    // The comment at ui.js:24690 already diagnosed this exact failure for the
+    // board: "at one decimal the value flickered 155.9 / 156.2 between renders
+    // on identical input, which is rounding noise, not a resize."
+    // t is taken from the FLOORED hand width so the stated "same 0..1 position
+    // on their ranges" is actually true — off the raw float it was up to 1.0px
+    // out of proportion with the hand card it is meant to track.
+    const wFloor = Math.floor(w);
+    const t = (wFloor - HAND_MIN) / (200 - HAND_MIN);
+    area.style.setProperty('--trick-card-w', Math.floor(88 + t * (190 - 88)) + 'px');
     // The refinement pass has to run AFTER a paint, not synchronously. Setting
     // the custom property does not apply to layout in time for a same-tick
     // re-measure, so a synchronous second call read the old row height and
@@ -28950,7 +28983,23 @@ const UI = {
     return `<div class="card-dossier"><div class="dossier-title">Record</div><ul class="dossier-list">${rows}</ul></div>`;
   },
 
-  CARD_BACK_SRC: 'audio/cards/art/card-back.png?v=1',
+  // THE CARD BACK NEVER WENT THROUGH THE TIER SYSTEM. It is a plain <img> src,
+  // so every platform got the 825x1425 / 0.98MB master — 4.70MB decoded — to
+  // paint a board tile that is 141x185 device px on a phone (47px CSS at DPR 3),
+  // a 1/8.6 linear oversample. art-md/card-back.jpg has existed at 296x512 /
+  // 54KB the whole time and nothing referenced it. It is the single largest
+  // image the game sends to a phone and the one image left out of tiering.
+  // A getter rather than a constant: the test is the same max-width:640px one
+  // getCardArtPath uses, and it has to be re-evaluated per read because the
+  // viewport can cross the breakpoint mid-session. art-sm has no card-back, so
+  // mobile lands on art-md — which is already 1.6x the device pixels needed.
+  get CARD_BACK_SRC() {
+    const mobile = typeof window !== 'undefined' && window.matchMedia
+      && window.matchMedia('(max-width: 640px)').matches;
+    return mobile
+      ? 'audio/cards/art-md/card-back.jpg?v=1'
+      : 'audio/cards/art/card-back.png?v=1';
+  },
 
   makeFaceDownEl() {
     const el = document.createElement('div');
