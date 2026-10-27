@@ -400,7 +400,14 @@ check('and the old fixed green is gone from it',
   // "i would rather them be smaller and a little more space from the edge."
   // 0.190 -> 0.160 -> 0.175 -> 0.219, the last step being "the hexagons can be
   // 25% bigger" (0.175 * 1.25).
-  check('and it is 0.219 of the card width', /--stat-h:\s*calc\(var\(--card-w\) \* 0\.219\)/.test(BARE),
+  // The round() wrapper is tolerated, the multiplier is not negotiable: this
+  // check exists to keep 0.219 single-sourced so every surface moves together,
+  // and `round(calc(var(--card-w) * 0.219), 1px)` still satisfies that. The
+  // wrapper landed because the readouts were measuring 22.7734px on a 104px
+  // board card, and a 1px ring on a half-pixel rasterises as two half-opacity
+  // lines (see ui.js:24694).
+  check('and it is 0.219 of the card width',
+        /--stat-h:\s*(?:round\(\s*)?calc\(var\(--card-w\) \* 0\.219\)/.test(BARE),
         'one multiplier, so every surface moves together');
   // The hexes grow INWARD too, and the gap between them is where the fifth
   // status badge sits. --stat-side is deliberately unchanged, so the margin is

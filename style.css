@@ -50809,6 +50809,48 @@ body.in-match:not(.board-v2) .board {
 .dh-actions button:hover { color: #ffffff; }
 .dh-actions .mulligan-icon { display: none; }
 
+/* ---- 1b · THE SAME HEADER ON A PHONE (2026-10-27) -------------------------
+   The bar above is `flex-wrap: nowrap` with two children at the default
+   `min-width: auto`, so below about 620px it cannot fit and does not try:
+   `overflow` is visible, the excess paints outside <body>, and <body> clips on
+   x. Measured on the deployed build at 375px, mid-draft:
+
+       .draft-hud          box 349px, content 603px
+       Mulligan            342 -> 491   116px cut off
+       Sound               511 -> 554   FULLY off-screen
+       Menu (quit)         574 -> 603   FULLY off-screen
+       document.scrollWidth === 375, i.e. NO horizontal scroll
+
+   So on a phone you could not quit a draft, could not mute, and Mulligan was
+   half a button — with no gesture that could reach any of them. `.dh-left` had
+   also already collapsed to 0px under its own `min-width: 0`, which is why the
+   "DRAFT / Round 1" title is missing there too.
+
+   Wrap instead of overflow, and give the actions their own full-width row so
+   the three controls get real spacing rather than being crushed. The tick
+   segments shrink because five 34px bars plus gaps is 194px of a 347px line on
+   their own. Desktop is untouched — this is inside the phone container block
+   every other mobile rule uses. */
+@container (max-width: 520px) {
+  .draft-panel .draft-hud {
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    padding: 10px 14px;
+  }
+  .draft-panel .draft-hud > .dh-left { flex: 1 1 auto; gap: 10px; }
+  .dh-title { font-size: 15px; letter-spacing: 0.12em; }
+  .dh-progress { margin-left: auto; min-width: 0; gap: 8px; }
+  .dh-seg { width: 14px; }
+  /* Its own row, spread across it: these are the only three controls on the
+     screen and two of them were unreachable, so they get the width. */
+  .dh-actions {
+    flex: 1 1 100%;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
+  }
+}
+
 /* ---- 5 · picks rail: horizontal chips ------------------------------------ */
 .draft-rail-left .dpr-list { display: flex; flex-direction: column; gap: 6px; }
 .draft-rail-left .dpr-slot {
@@ -51840,7 +51882,19 @@ body.low-fx .card-glow-host { filter: none !important; }
      right, because the box is padding around a smaller icon. Holding the gap
      instead would have meant pulling the hexes back toward the card edge and
      undoing the "more space from the edge" ask two steps earlier. */
-  --stat-h: calc(var(--card-w) * 0.219);
+  /* ROUNDED (2026-10-27). The ATK/HP readouts are the most-read thing on a board
+     card and they were landing on arbitrary fractions: at the solver's 104px they
+     measured 22.7734px wide. The repo's own note at ui.js:24694 states the
+     consequence — "a 1px neon border on a half-pixel is not a 1px border: the
+     rasteriser splits it into two 50%-opacity lines, so it draws twice as wide and
+     half as bright."
+     Measured on a 104px board card: 22.7734 -> 23, which takes that card's
+     fractional widths from 8 to 6.
+     NOT extended to --cf-inset, which is the bigger offender (3.328px, and it
+     drives the frame, edge, band and cost x together): that token is declared
+     TWENTY-ONE times across ELEVEN values, so rounding it is a consolidation pass
+     rather than a one-line change. Deliberately left. */
+  --stat-h: round(calc(var(--card-w) * 0.219), 1px);
   /* EACH LOOP CLOSES ITSELF. `polygon()` is ONE path — listing the outer six
      points and then the inner six does not make two rings, it makes a single
      twelve-sided figure with a seam running from the last outer point to the

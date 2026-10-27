@@ -266,6 +266,28 @@ check('the roguelite phase wipe clears its container at both ends',
       sweep === null ? 'could not read a translate3d % from @keyframes rlPhaseWipeSweep'
                      : 'travels only ' + sweep + '% of its own width, so it starts already covering the container');
 
+// ---- 8. the draft header must be allowed to wrap on a phone ---------------
+// .draft-hud is a flex row whose children default to min-width:auto, so with
+// `nowrap` it cannot fit below ~620px and does not try: overflow is visible,
+// the excess paints outside <body>, and <body> clips on x. Measured on the
+// deployed build at 375px mid-draft: box 349px against 603px of content, with
+// Sound (511->554) and Menu (574->603) entirely off-screen, Mulligan 116px cut,
+// and document.scrollWidth === 375 — so there was no gesture that could reach
+// any of them. You could not quit a draft on a phone.
+// The guard is that SOME phone-width rule lets it wrap; the exact layout is
+// free to change.
+var wraps = [];
+var hre = /(?:^|\n)([^{}@][^{}]*?)\{([^{}]*)\}/g, hm2;
+while ((hm2 = hre.exec(BARE))) {
+  var sl = hm2[1].split(',').map(function (x) { return x.replace(/\s+/g, ' ').trim(); });
+  if (!sl.some(function (x) { return /\.draft-hud$/.test(x); })) continue;
+  var w2 = /(?:^|[;{\s])flex-wrap\s*:\s*([\w-]+)/.exec(hm2[2]);
+  if (w2) wraps.push(w2[1]);
+}
+check('the draft header is allowed to wrap at phone width',
+      wraps.indexOf('wrap') >= 0,
+      wraps.length ? ('only ever set to: ' + wraps.join(', ')) : 'no flex-wrap is set on .draft-hud anywhere');
+
 print('');
 print('visual-system: ' + pass + ' passed, ' + fails.length + ' failed');
 fails.forEach(function (f) { print('  FAIL  ' + f); });
