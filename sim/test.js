@@ -10189,6 +10189,64 @@ test("2v2: provenance names the SEAT that played it, not the team", function () 
   assertEq(t._playedByName, 'Ryan', "the card's own seat wins over whoever is acting");
 });
 
+// SPACE STONE GRANTS THE PHASE, IT DOES NOT PICK A CARD (2026-10-29).
+// Owner: "i want space stone to not select a card to play just for the trick
+// hase to llow cards to be played." It used to prompt for one card in hand and
+// stamp trickPhasePlayable on that instance — which in 2v2 read the SIDE proxy
+// rather than the seat's own hand, and raised a prompt mid-trick-resolution
+// that could collide with one already armed (a jump offer, in the report that
+// prompted this). Both go away by granting the permission instead.
+function spaceStoneDef() {
+  for (var i = 0; i < TRICK_DEFS.length; i++) if (TRICK_DEFS[i].name === 'Space Stone') return TRICK_DEFS[i];
+  throw new Error('no Space Stone');
+}
+test('Space Stone raises no prompt and stamps no card', function () {
+  var G = freshGame();
+  G.state.phase = 'player-tricks'; G.state.round = 4; G.state.player.currency = 10;
+  var hulk = G.createCardInstance(cardByName('Hulk'), 'player');
+  G.state.player.hand = [hulk];
+  assertEq(G.canPlayCardDuringTricks('player', hulk), false, 'locked before the stone');
+  spaceStoneDef().play(G, 'player');
+  assertEq(!!G.state.pendingCardChoice, false, 'no card-choice prompt is raised');
+  assertEq(!!hulk.trickPhasePlayable, false, 'and no per-card flag is stamped');
+  assertEq(G.canPlayCardDuringTricks('player', hulk), true, 'the phase is open instead');
+});
+test('Space Stone opens the phase for the caster only, and expires with the round', function () {
+  var G = freshGame();
+  G.state.phase = 'player-tricks'; G.state.round = 4; G.state.player.currency = 10;
+  var hulk = G.createCardInstance(cardByName('Hulk'), 'player');
+  G.state.player.hand = [hulk];
+  spaceStoneDef().play(G, 'player');
+  assertEq(G.canPlayCardDuringTricks('ai', hulk), false, 'the other side gets nothing');
+  G.state.round += 1;
+  assertEq(G.canPlayCardDuringTricks('player', hulk), false,
+    'round-scoped by construction — nothing has to remember to clear it');
+});
+test('a card really can be played during the trick phase after a Space Stone', function () {
+  var G = freshGame();
+  G.state.phase = 'player-tricks'; G.state.round = 4; G.state.player.currency = 10;
+  var hulk = G.createCardInstance(cardByName('Hulk'), 'player');
+  G.state.player.hand = [hulk];
+  spaceStoneDef().play(G, 'player');
+  assertEq(G.playCard('player', hulk, 0), true, 'playCard accepts it');
+  assertEq(G.state.lanes[0].player, hulk, 'and it is on the board');
+});
+test('Iron Man and Red Skull still earn the trick phase their own ways', function () {
+  var G = freshGame();
+  G.state.phase = 'player-tricks'; G.state.round = 4;
+  // the card's own flag
+  var im = G.createCardInstance(cardByName('Iron Man'), 'player');
+  assertEq(!!im.trickPhasePlayable, true, 'Iron Man carries the flag himself');
+  assertEq(G.canPlayCardDuringTricks('player', im), true, 'so he is allowed with no grant');
+  // a plain card is still refused
+  var hulk = G.createCardInstance(cardByName('Hulk'), 'player');
+  assertEq(G.canPlayCardDuringTricks('player', hulk), false, 'an ordinary card is not');
+  // Red Skull's aura unlocks the whole hand
+  var rs = place(G, 'Red Skull', 'player', 2);
+  assertEq(rs.passive, 'allowCardsInTricksPhase', 'Red Skull carries the aura');
+  assertEq(G.canPlayCardDuringTricks('player', hulk), true, 'which unlocks the ordinary card too');
+});
+
 // WHAT THE BATMAN WHO LAUGHS MAY AND MAY NOT STEAL — on BOTH doors.
 // His own rule is "the next enemy CARD, not the terrain", and _resolveBwlIntercept
 // honoured it: an environment is skipped AND leaves the steal armed, so it still
@@ -12647,31 +12705,41 @@ test('the AI can see every trick in the game', function () {
     + 'AI.TRICK_EVALUATORS, or a desc the evaluator recognises');
 });
 
-// ---- SPACE STONE'S WINDOW WAS EMPTY ------------------------------------
-// Its evaluator asked for a card that costs MORE than you have now and NO MORE
-// than you have now plus `nextTurnCurrency` — a banked bonus that is zero in
-// almost every game. Unsatisfiable, so the trick was cast 0 times in 300 games
-// while 68 copies sat in hand. The unlock persists across rounds
-// (trickPhasePlayable is never cleared), so the projection is next round.
-test('Space Stone sees a card it can unlock for a later trick phase', function () {
+// ---- SPACE STONE'S EVALUATOR, REWRITTEN WITH THE CARD -------------------
+// The old test encoded the old card: "find something too expensive to play now
+// but affordable NEXT round", because the per-card unlock was never cleared at
+// round end. The card no longer works that way — it opens THIS trick phase to
+// the whole hand — so the question the AI asks is now immediate: do I hold
+// something I can actually put down right now, and somewhere to put it?
+// Its second half used to assert the OPPOSITE of the rule that now holds
+// ("no value when you could just play the card"); affording the card is
+// exactly when the stone pays. Rewritten rather than loosened.
+test('Space Stone is worth casting when it unlocks a card you can afford', function () {
   var G = freshGame();
-  G.state.round = 6;                 // next round's trick phase will have ~7
-  G.state.ai.currency = 2;           // cannot afford a 6-cost now
-  G.state.ai.nextTurnCurrency = 0;   // and no banked bonus, as in almost every game
-  var big = G.createCardInstance(cardByName('Hela'), 'ai');
-  G.state.ai.hand = [big];
+  G.state.round = 6;
+  G.state.ai.currency = 8;
+  G.state.ai.hand = [G.createCardInstance(cardByName('Hela'), 'ai')];
   var ss = TRICK_DEFS.find(function (t) { return t.name === 'Space Stone'; });
   var score = AI.evalTrick(Object.assign({}, ss), 'ai');
-  assert(score > 0, 'it is worth casting on a card it can actually unlock (got ' + score + ')');
-
-  // …and it still declines when there is nothing worth setting up — the
-  // tightening this came from was right, it just overshot into never.
+  assert(score > 0, 'a payable body in hand makes it a free tempo gain (got ' + score + ')');
+});
+test('Space Stone declines when it would unlock nothing', function () {
+  var ss = TRICK_DEFS.find(function (t) { return t.name === 'Space Stone'; });
+  // Nothing affordable — the stone is free but the card still cannot be paid for.
+  var G = freshGame();
+  G.state.round = 6; G.state.ai.currency = 1;
+  G.state.ai.hand = [G.createCardInstance(cardByName('Hela'), 'ai')];
+  assert(AI.evalTrick(Object.assign({}, ss), 'ai') <= 0, 'nothing it can pay for');
+  // Empty hand — nothing to unlock at all.
   var G2 = freshGame();
-  G2.state.round = 6;
-  G2.state.ai.currency = 20;         // everything in hand is affordable right now
-  G2.state.ai.hand = [G2.createCardInstance(cardByName('Hela'), 'ai')];
-  assert(AI.evalTrick(Object.assign({}, ss), 'ai') <= 0,
-    'no setup value when you could just play the card');
+  G2.state.round = 6; G2.state.ai.currency = 20; G2.state.ai.hand = [];
+  assert(AI.evalTrick(Object.assign({}, ss), 'ai') <= 0, 'nothing in hand');
+  // Already open — Red Skull's aura makes a second grant worthless.
+  var G3 = freshGame();
+  G3.state.round = 6; G3.state.ai.currency = 20;
+  G3.state.ai.hand = [G3.createCardInstance(cardByName('Hela'), 'ai')];
+  place(G3, 'Red Skull', 'ai', 1);
+  assert(AI.evalTrick(Object.assign({}, ss), 'ai') <= 0, 'the phase is already unlocked');
 });
 
 // ---- RUNNER ------------------------------------------------

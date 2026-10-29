@@ -532,9 +532,9 @@ const UI = {
     }
     if (!(s.player.hand || []).some(c => c && c.id === card.id)) return false;  // must be a hand card
     if (!this.canPlayerPlayCards || !this.canPlayerPlayCards(s)) return false;
-    // Trick phase: only trick-phase-playable cards (or Red Skull's passive).
-    if (s.phase === 'player-tricks' && !card.trickPhasePlayable &&
-        !(Game.getAllCardsOf && Game.getAllCardsOf('player').some(c => c.passive === 'allowCardsInTricksPhase'))) {
+    // Trick phase: the engine owns this rule — the card's own flag, Red
+    // Skull's aura, or a Space Stone granted this round.
+    if (s.phase === 'player-tricks' && !Game.canPlayCardDuringTricks('player', card)) {
       return false;
     }
     return true;
@@ -32951,14 +32951,12 @@ const UI = {
       return hand.some(c => this.canPlayThisCardNow(s, c));
     }
     if (s.phase === 'player-cards' || s.phase === 'player-cards-tricks') return true;
-    if (s.phase === 'player-tricks' &&
-        Game.getAllCardsOf('player').some(c => c.passive === 'allowCardsInTricksPhase')) {
-      return true;
-    }
-    // Thanos-style: individual cards with trickPhasePlayable
-    if (s.phase === 'player-tricks' &&
-        s.player.hand.some(c => c.trickPhasePlayable)) {
-      return true;
+    // Red Skull's aura or a Space Stone unlocks the whole hand; otherwise any
+    // single trickPhasePlayable card (Iron Man, Thanos) is enough for "can the
+    // player do anything at all". One engine rule, asked per card.
+    if (s.phase === 'player-tricks') {
+      if (Game.canPlayCardDuringTricks('player', null)) return true;
+      if (s.player.hand.some(c => Game.canPlayCardDuringTricks('player', c))) return true;
     }
     return false;
   },
@@ -32983,13 +32981,9 @@ const UI = {
         && Game._2v2CanPlayCardNow(sp, card, this._2v2LocalSide && this._2v2LocalSide()));
     }
     if (s.phase === 'player-cards' || s.phase === 'player-cards-tricks') return true;
-    if (s.phase === 'player-tricks') {
-      // Red Skull passive on board unlocks the entire hand for the
-      // trick phase — same gate as canPlayerPlayCards above.
-      if (Game.getAllCardsOf('player').some(c => c.passive === 'allowCardsInTricksPhase')) return true;
-      // Otherwise the card itself must be flagged trickPhasePlayable.
-      if (card && card.trickPhasePlayable) return true;
-    }
+    // Red Skull's aura, a Space Stone granted this round, or the card's own
+    // flag — all three live in Game.canPlayCardDuringTricks.
+    if (s.phase === 'player-tricks') return Game.canPlayCardDuringTricks('player', card);
     return false;
   },
 
@@ -33756,9 +33750,9 @@ const UI = {
     // only gates the actual PLAY action (discard-effect below + onLaneClick),
     // never picking a card up to read it. A too-broad guard here made the
     // whole hand go dead to taps for seconds after any card with a play cue.
-    // In trick phase, only allow trickPhasePlayable cards unless Red Skull passive is active
-    if (s.phase === 'player-tricks' && !card.trickPhasePlayable &&
-        !Game.getAllCardsOf('player').some(c => c.passive === 'allowCardsInTricksPhase')) {
+    // In the trick phase the engine decides: the card's own flag, Red Skull's
+    // aura, or a Space Stone granted this round.
+    if (s.phase === 'player-tricks' && !Game.canPlayCardDuringTricks('player', card)) {
       return;
     }
     // DISCARD-EFFECT CARDS ARE PLAYED BY DRAGGING, LIKE EVERY OTHER CARD.

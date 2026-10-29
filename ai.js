@@ -1789,7 +1789,11 @@ const AI = {
     if (!mine()) { if (onComplete) onComplete(); return; }
     if (Game.isMultiplayer && Game.isMultiplayer()) { if (onComplete) onComplete(); return; }
     const s = Game.state;
-    const tpCards = [...s[owner].hand].filter(c => c.trickPhasePlayable);
+    // The card's own flag (Iron Man, Thanos), Red Skull's aura, or a Space
+    // Stone this side cast this round — one engine rule, asked per card, so
+    // the AI can actually use the permission it just bought itself.
+    const tpCards = [...s[owner].hand].filter(c =>
+      Game.canPlayCardDuringTricks ? Game.canPlayCardDuringTricks(owner, c) : c.trickPhasePlayable);
     const queue = tpCards.map(cardRef => () => {
       const card = s[owner].hand.find(c => c.id === cardRef.id);
       if (!card) return;
@@ -1985,76 +1989,43 @@ const AI = {
     },
 
     'Space Stone': function (ai, owner = 'ai') {
-      // Space Stone is a SETUP tool — it lets the AI play a card from
-      // hand during the upcoming Trick Phase (at the card's normal
-      // cost). User report 2026-05-19: "The AI just played Space
-      // Stone in preview after they played Harley Quinn… that is a
-      // dumb play." The generic scoring path was giving Space Stone
-      // a +1 baseline whenever the AI had any allies on board, so it
-      // fired every round it was in hand regardless of whether
-      // trick-phase tempo would actually matter.
+      // REWRITTEN for the card's new text (2026-10-29). It no longer marks one
+      // card for a LATER trick phase — it opens THIS trick phase to the whole
+      // hand. The old evaluator was built entirely on the other premise: it
+      // looked for a card too expensive to play now but affordable NEXT round,
+      // because the old per-card flag was never cleared at round end. None of
+      // that applies any more, and left alone it would have scored the card on
+      // a window that no longer exists.
       //
-      // Strategic value test: Space Stone is only worth casting when
-      // BOTH of these are true:
-      //   (a) The AI has a card in hand it COULDN'T play this turn
-      //       (cost > current currency) — otherwise the AI could
-      //       just play it normally and the trick wastes a slot.
-      //   (b) The card it would unlock will be affordable in the
-      //       trick phase. Tricks fire at the end of the round, and
-      //       the AI's currency rolls over to the next round, so we
-      //       can use the post-cards-phase currency as the
-      //       projection — same as currentCurrency since nothing
-      //       between this trick and the trick phase spends more
-      //       energy. (Refunds aren't part of standard Space-Stone
-      //       use; if the AI was holding a finisher, they want to
-      //       drop it as a reactive answer, not a setup.)
-      //
-      // Reactive-finisher heuristic — value scales with the cost of
-      // the unlockable card (proxy for "this is a real threat
-      // worth saving for trick-phase reveal"). Cards ≤2 cost get a
-      // negative score so Ant-Man / Poison Ivy don't trigger a
-      // Space Stone. Cards ≥6 cost get a strong positive so titans
-      // (Hulk, Dr. Doom, Magneto) reliably unlock.
+      // The new question is immediate and much simpler: a trick is being cast
+      // DURING the trick phase, so — do I hold a card I could actually put
+      // down right now, and somewhere to put it? If yes this is a free tempo
+      // gain (the stone costs 0); if no it is a wasted cast, which is the
+      // original complaint that produced the old gate ("that is a dumb play").
       const s = Game.state;
       const cur = s[owner].currency || 0;
-      const hand = s[owner].hand.filter(c => !c.isDiscardEffect && !c.trickPhasePlayable);
-      if (!hand.length) return -1;
-      // The card unlocks for play during the trick phase at its
-      // normal cost. So it only matters if (a) the AI can't afford
-      // it THIS turn (no point Space-Stoning a card you could just
-      // play) AND (b) it'll be affordable when the trick phase
-      // fires. Trick-phase energy = current + next-turn carryover.
-      // THE WINDOW WAS EMPTY, SO THIS NEVER FIRED AT ALL. Measured: 0 casts
-      // across 300 games, 68 copies still in hand at the end.
-      //
-      // `nextTurnEnergy` was `cur + nextTurnCurrency` — a BANKED bonus (Power
-      // Battery, Green Lantern) that is 0 in almost every game. So the test
-      // read "costs more than I have AND costs no more than I have", which is
-      // satisfiable only by the handful of boards carrying a bonus. The
-      // tightening it came from was right — the AI used to fire this every
-      // round for nothing ("that is a dumb play") — it just overshot into
-      // never.
-      //
-      // The honest projection is NEXT ROUND. trickPhasePlayable is never
-      // cleared at round end (game.js), so the unlock persists, and that is the
-      // whole point of the card: mark something expensive now, drop it in a
-      // later trick phase once the opponent has committed. Energy per round is
-      // the round number, so next round's trick phase has that plus whatever
-      // carried over.
-      const nextRoundEnergy = ((s.round || 1) + 1) + (s[owner].nextTurnCurrency || 0);
-      const setupTargets = hand.filter(c => {
+      // Already unlocked by Red Skull, or by a Space Stone cast this round —
+      // a second one buys nothing.
+      if (Game.canPlayCardDuringTricks && Game.canPlayCardDuringTricks(owner, null)) return -1;
+      const openLanes = (Game.getOpenLanes ? Game.getOpenLanes(owner) : []).length;
+      const playable = (s[owner].hand || []).filter(c => {
+        if (c._neverPlayable) return false;
         const cost = Game.getCardCost ? Game.getCardCost(owner, c) : (c.cost || 0);
-        // Out of reach now — otherwise just play it — but in reach when the
-        // unlock can actually be used. High-cost cards are the worthwhile ones.
-        return cost > cur && cost <= nextRoundEnergy && cost >= 4;
+        if (cost > cur) return false;                 // cannot pay for it this phase
+        if (c.isDiscardEffect) return true;           // needs no lane
+        return openLanes > 0;                         // a body needs somewhere to stand
       });
-      if (!setupTargets.length) return -1;
-      // Score by the top setup target's cost — 4-5 = modest, 6-7 = good, 8+ = great.
-      const top = setupTargets.reduce((a, b) => (b.cost || 0) > (a.cost || 0) ? b : a);
-      const c = top.cost || 0;
-      if (c >= 8) return 6;
-      if (c >= 6) return 4;
-      return 2;
+      if (!playable.length) return -1;
+      // Score by the best body it unlocks — the stone is worth most when it
+      // lands something that would otherwise have sat in hand all round.
+      const top = playable.reduce((a, b) =>
+        ((Game.getCardCost ? Game.getCardCost(owner, b) : (b.cost || 0)) >
+         (Game.getCardCost ? Game.getCardCost(owner, a) : (a.cost || 0))) ? b : a);
+      const c = Game.getCardCost ? Game.getCardCost(owner, top) : (top.cost || 0);
+      if (c >= 6) return 6;
+      if (c >= 4) return 4;
+      if (c >= 2) return 2;
+      return 1;
     },
   },
 

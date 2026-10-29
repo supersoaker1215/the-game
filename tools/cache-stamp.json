@@ -12,8 +12,8 @@
     "hash": "d02efa90"
   },
   "tricks.js": {
-    "v": 125,
-    "hash": "ced7700a"
+    "v": 126,
+    "hash": "4074e4c3"
   },
   "abilities.js": {
     "v": 512,
@@ -28,12 +28,12 @@
     "hash": "cd48f8d0"
   },
   "game.js": {
-    "v": 823,
-    "hash": "af6da7be"
+    "v": 824,
+    "hash": "9fbf02d9"
   },
   "ai.js": {
-    "v": 75,
-    "hash": "0bc34683"
+    "v": 76,
+    "hash": "eb448d40"
   },
   "roguelite.js": {
     "v": 131,
@@ -56,8 +56,8 @@
     "hash": "063d487d"
   },
   "ui.js": {
-    "v": 1682,
-    "hash": "c68cc5bd"
+    "v": 1683,
+    "hash": "2efd5bfd"
   },
   "board-v2.js": {
     "v": 32,

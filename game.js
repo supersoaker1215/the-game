@@ -5684,8 +5684,9 @@ const Game = {
                 AI.playTricks('ai', () => this._endPhaseAfterHold('endPhase3'));
               });
             };
-            // Red Skull: AI may also deploy character cards during its trick phase.
-            if (this.getAllCardsOf('ai').some(c => c.passive === 'allowCardsInTricksPhase')) {
+            // Red Skull's aura OR a Space Stone the AI played — same question,
+            // one answer (canPlayCardDuringTricks).
+            if (this.canPlayCardDuringTricks('ai', null)) {
               AI.playCards('ai', nextStep);
             } else {
               nextStep();
@@ -21966,9 +21967,41 @@ const Game = {
   _2v2CanPlayCardNow(subPhase, card, side) {
     if (this._2v2CanPlayCards(subPhase)) return true;
     if (!this._2v2CanPlayTricks(subPhase)) return false;
+    return this.canPlayCardDuringTricks(side || 'player', card);
+  },
+
+  // THE ONE ANSWER to "may a card be played during a TRICKS turn?"
+  //
+  // This question was asked in SEVEN places — four in ui.js against 1v1 phase
+  // names, _2v2CanPlayCardNow and the host's own enforcement in 2v2, and the
+  // AI's deploy gate — each spelling out the same two clauses by hand. Adding
+  // a third way to earn the permission meant finding all seven, which is the
+  // shape of bug this repo keeps paying for. They all call this now.
+  //
+  // Three ways to earn it, and they are genuinely different things:
+  //   · the CARD carries it         — Iron Man and Thanos, permanently
+  //   · a BOARD card grants it      — Red Skull's aura, while he lives
+  //   · the SIDE was granted it     — Space Stone, for this round only
+  canPlayCardDuringTricks(side, card) {
     if (card && card.trickPhasePlayable) return true;
-    return this.getAllCardsOf(side || 'player')
-      .some(c => c.passive === 'allowCardsInTricksPhase');
+    if (this.getAllCardsOf(side || 'player')
+            .some(c => c.passive === 'allowCardsInTricksPhase')) return true;
+    return this.spaceStoneTricksActive(side);
+  },
+
+  // Space Stone's grant is ROUND-SCOPED BY CONSTRUCTION — it stores the round
+  // it was played in and is compared against the live round, so it expires on
+  // its own. Nothing has to remember to clear it, which is the failure mode
+  // every other armed one-shot in this file has had at least once (see the
+  // stale-flag sweep in startMatch).
+  spaceStoneTricksActive(side) {
+    const g = this.state && this.state._spaceStoneTricks;
+    return !!(g && side && g[side] === this.state.round);
+  },
+
+  grantSpaceStoneTricks(side) {
+    if (!this.state._spaceStoneTricks) this.state._spaceStoneTricks = {};
+    this.state._spaceStoneTricks[side] = this.state.round;
   },
 
   _2v2CanPlayTricks(subPhase) {

@@ -9,24 +9,29 @@ const CANDY_VAMPIRE_STEAL = 2;
 const TRICK_DEFS = [
   // Cost 0
   { name: "Space Stone", cost: 0,
-    desc: "Choose a card in your hand. It can be played during the Trick Phase at its normal cost.",
+    // NO LONGER PICKS A CARD (2026-10-29). Owner: "i want space stone to not
+    // select a card to play just for the trick hase to llow cards to be
+    // played."
+    //
+    // It used to prompt for one card in hand and stamp trickPhasePlayable on
+    // that instance. Two things were wrong with that beyond the ceremony:
+    //   · In 2v2 it read G.state[owner].hand — the SIDE proxy, which is the
+    //     team, not the seat. The chooser was offered a hand that may not have
+    //     been the one they were holding, and the flag landed on an instance
+    //     the caster might not own.
+    //   · It raised a prompt from inside a trick resolution, so it queued
+    //     behind / collided with any other prompt already armed — a jump offer,
+    //     for one — which is the shape of the report that prompted this change
+    //     ("i played ghotface jump then his card couldnt be played after it was
+    //     bugged out").
+    // Granting the PERMISSION instead of marking a CARD removes the prompt, the
+    // side-proxy read and the per-instance flag in one go. The grant is round-
+    // scoped by construction (see Game.spaceStoneTricksActive) so it cannot go
+    // stale, and it rides the MP wire as ordinary state.
+    desc: "Cards can be played from your hand during this Trick Phase, at their normal cost.",
     play(G, owner) {
-      const hand = G.state[owner].hand.filter(c => !c.isDiscardEffect && !c.trickPhasePlayable);
-      if (!hand.length) {
-        G.log(`Space Stone fizzles — no eligible cards in hand!`);
-        return;
-      }
-      const grant = (card) => {
-        card.trickPhasePlayable = true;
-        G.log(`Space Stone: ${card.name} can be played during the Trick Phase (costs ${card.cost} energy).`);
-      };
-      if (Game.isHuman(owner)) {
-        G.promptCardChoice(owner, hand, "Space Stone",
-          "Choose a card — it can be played during the Trick Phase (at its normal cost)",
-          grant, cards => cards.sort((a, b) => (b.cost || 0) - (a.cost || 0))[0]);
-      } else {
-        grant(hand[0]);
-      }
+      G.grantSpaceStoneTricks(owner);
+      G.log(`Space Stone opens the way — cards can be played during this Trick Phase.`);
     }
   },
   { name: "Time Stone", cost: 0,

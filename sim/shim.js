@@ -454,7 +454,10 @@ this.runSimGame = function (weightsP, weightsA, collect) {
         break;
       case 'player-tricks':
         withP(function () {
-          if (Game.getAllCardsOf('player').some(function (c) { return c.passive === 'allowCardsInTricksPhase'; })) {
+          // Same rule the engine uses — Red Skull's aura OR a Space Stone this
+          // side cast this round. Spelled out separately here, the sim would
+          // quietly not model the Space Stone grant at all.
+          if (Game.canPlayCardDuringTricks('player', null)) {
             AI.playCards('player');
           }
           AI.playTrickPhaseCards('player');
@@ -476,7 +479,7 @@ this.runSimGame = function (weightsP, weightsA, collect) {
         break;
       case 'ai-tricks':
         withA(function () {
-          if (Game.getAllCardsOf('ai').some(function (c) { return c.passive === 'allowCardsInTricksPhase'; })) AI.playCards('ai');
+          if (Game.canPlayCardDuringTricks('ai', null)) AI.playCards('ai');
           AI.playTrickPhaseCards('ai'); AI.playTricks('ai');
         });
         Game.endPhase3();
