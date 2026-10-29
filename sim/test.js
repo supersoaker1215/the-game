@@ -6444,10 +6444,14 @@ test("A card's own printed Revive does not claim a granter", function () {
   assertEq(G._reviveSourceLabel(c), '', 'nor for an unattributed one');
 });
 
-test('AI actions are paced about two seconds apart — BOTH gaps', function () {
-  // Owner: "i wnat a 2 second pause between each Ai action ... if they pplay
-  // superman, 2 seconds, freeze, 2 seconds freeze, 2 seconds, blast 5, 2
-  // seconds, play harley quinn."
+test('AI actions are paced about 1.5 seconds apart — BOTH gaps', function () {
+  // Owner, originally: "i wnat a 2 second pause between each Ai action ... if
+  // they pplay superman, 2 seconds, freeze, 2 seconds freeze, 2 seconds, blast
+  // 5, 2 seconds, play harley quinn."
+  // Trimmed to 1.5s on 2026-10-29 — "the ai is playing good just slightly speed
+  // up thier turn just a bit". The BEAT is still the spec; only its length
+  // moved, and both gaps moved by the same 0.75 so one setting still cannot
+  // desync the two cadences.
   //
   // TWO DIFFERENT GAPS make that sentence, and pinning only one leaves the
   // other free to drift:
@@ -6463,7 +6467,7 @@ test('AI actions are paced about two seconds apart — BOTH gaps', function () {
   UI.settings.aiSpeed = 'normal';
 
   var between = AI.aiStepMs() + AI.aiPostPlayMs();
-  assertEq(between, 2000, 'two seconds between CARDS — got ' + between);
+  assertEq(between, 1500, 'a second and a half between CARDS — got ' + between);
   assert(AI.aiPostPlayMs() > AI.aiStepMs(),
     'weighted after the play — the board is the interesting thing, not the dots');
 
@@ -6477,7 +6481,7 @@ test('AI actions are paced about two seconds apart — BOTH gaps', function () {
   (m[1].match(/(\w+):\s*(\d+)/g) || []).forEach(function (pair) {
     var kv = pair.split(':'); tiers[kv[0].trim()] = parseInt(kv[1], 10);
   });
-  assertEq(tiers.normal, 2000, 'two seconds between the STEPS inside a card — got ' + tiers.normal);
+  assertEq(tiers.normal, 1500, 'the same gap between the STEPS inside a card — got ' + tiers.normal);
   assert(tiers.fast < tiers.normal, 'fast shortens the step');
   assert(tiers.slow > tiers.normal, 'slow lengthens the step');
   // …and the card gap moves with the same dial, so one setting cannot desync
@@ -10183,6 +10187,64 @@ test("2v2: provenance names the SEAT that played it, not the team", function () 
   Game._2v2CurrentActingPlayer = 'p3';
   Game._stampProvenance(t, 'player');
   assertEq(t._playedByName, 'Ryan', "the card's own seat wins over whoever is acting");
+});
+
+// WHAT THE BATMAN WHO LAUGHS MAY AND MAY NOT STEAL — on BOTH doors.
+// His own rule is "the next enemy CARD, not the terrain", and _resolveBwlIntercept
+// honoured it: an environment is skipped AND leaves the steal armed, so it still
+// catches the next real card. playCardFree — the free/jump door that Michael
+// Myers locking on, Ghostface and Jason all come through — carried no such
+// guard, so an environment played that way was stolen and burned the
+// one-per-game intercept. Measured before the fix, steal armed:
+//     playCard      Boiler Room -> not stolen, steal armed   (right)
+//     playCardFree  Boiler Room -> STOLEN, steal consumed    (wrong)
+// Discard effects are asserted on the same door for the same reason: playCard
+// returns from its discard branch before BWL is ever consulted, and that must
+// stay true — a discard is spent for its effect, it never lands in a lane, so
+// there is nothing for him to intercept.
+function bwlArmedGame() {
+  var G = freshGame();
+  G.state.round = 3;
+  G.state.player.currency = 10; G.state.ai.currency = 10;
+  G.state.player.nextCardStolen = true;
+  return G;
+}
+test('BWL does not steal an ENVIRONMENT, and stays armed for the next real card', function () {
+  ['playCard', 'playCardFree'].forEach(function (door) {
+    var G = bwlArmedGame();
+    var envDef = null;
+    for (var i = 0; i < CARD_DEFS.length; i++) if (CARD_DEFS[i].isEnvironment) { envDef = CARD_DEFS[i]; break; }
+    assert(!!envDef, 'an environment card exists to test with');
+    var env = G.createCardInstance(envDef, 'player');
+    G.state.player.hand = [env];
+    var aiHandBefore = G.state.ai.hand.length;
+    G[door]('player', env, 0);
+    assertEq(G.state.ai.hand.length, aiHandBefore,
+      door + ': the environment must not end up in the thief\'s hand');
+    assertEq(!!G.state.player.nextCardStolen, true,
+      door + ': the steal stays armed for the next real card');
+  });
+});
+test('BWL does not consume its steal on a DISCARD effect', function () {
+  var G = bwlArmedGame();
+  var brain = G.createCardInstance(cardByName('Brainiac'), 'player');
+  assertEq(!!brain.isDiscardEffect, true, 'Brainiac is a discard effect');
+  G.state.player.hand = [brain];
+  var discardsBefore = G.state.player.discardPile.length;
+  G.playCard('player', brain, 0);
+  assert(G.state.player.discardPile.length > discardsBefore,
+    'the discard effect fired normally');
+  assertEq(!!G.state.player.nextCardStolen, true,
+    'and it did not satisfy the intercept');
+});
+test('BWL DOES still steal an ordinary card — the control', function () {
+  var G = bwlArmedGame();
+  var hulk = G.createCardInstance(cardByName('Hulk'), 'player');
+  G.state.player.hand = [hulk];
+  var aiHandBefore = G.state.ai.hand.length;
+  G.playCard('player', hulk, 0);
+  assert(G.state.ai.hand.length > aiHandBefore, 'a card with a body is intercepted');
+  assertEq(!!G.state.player.nextCardStolen, false, 'and the steal is consumed');
 });
 
 // A card the Batman Who Laughs INTERCEPTS never landed for the player who paid

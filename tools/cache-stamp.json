@@ -28,12 +28,12 @@
     "hash": "cd48f8d0"
   },
   "game.js": {
-    "v": 822,
-    "hash": "947d9298"
+    "v": 823,
+    "hash": "af6da7be"
   },
   "ai.js": {
-    "v": 74,
-    "hash": "9fbcfebc"
+    "v": 75,
+    "hash": "0bc34683"
   },
   "roguelite.js": {
     "v": 131,
@@ -56,8 +56,8 @@
     "hash": "063d487d"
   },
   "ui.js": {
-    "v": 1681,
-    "hash": "9a484893"
+    "v": 1682,
+    "hash": "c68cc5bd"
   },
   "board-v2.js": {
     "v": 32,

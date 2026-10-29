@@ -586,18 +586,24 @@ const AI = {
     const mode = (typeof UI !== 'undefined' && UI.settings && UI.settings.aiPacing) || 'animated';
     if (mode === 'instant') return 0;
     const spd = (typeof UI !== 'undefined' && UI.settings && UI.settings.aiSpeed) || 'normal';
-    // TWO SECONDS BETWEEN AI ACTIONS. Owner: "when the ai plays its happens
-    // bakc to back no pause i wnat a 2 second pause between each Ai action just
-    // to have soem time."
+    // A BEAT BETWEEN AI ACTIONS, TRIMMED 25% (2026-10-29). Originally two full
+    // seconds, on request: "when the ai plays its happens bakc to back no pause
+    // i wnat a 2 second pause between each Ai action just to have soem time."
+    // That beat is still the point; it was just long enough to drag once the AI
+    // started playing well. Owner: "the ai is playing good just slightly speed
+    // up thier turn just a bit."
     //
     // This is the FIRST half of the gap; aiPostPlayMs is the second, and the
     // two are tuned to add up:
-    //     fast 500 + 700  = 1200
-    //     normal 800 + 1200 = 2000   <- the asked-for beat
-    //     slow 1100 + 1700 = 2800
+    //     fast   400 + 600  = 1000   (was 1200)
+    //     normal 600 + 900  = 1500   (was 2000)
+    //     slow   850 + 1250 = 2100   (was 2800)
+    // The same 0.75 is applied to UI.aiStepDelay, the gap between the STEPS
+    // INSIDE one card, or a Superman turn would keep its old length while the
+    // gaps around it shortened — the two cadences have to move together.
     // Most of it still sits AFTER the card lands, so the shockwave and ripple
     // finish before the next play starts rather than before it begins.
-    return { fast: 500, normal: 800, slow: 1100 }[spd] || 800;
+    return { fast: 400, normal: 600, slow: 850 }[spd] || 600;
   },
 
   // Post-play hold — pause AFTER a card lands so the radial ripple +
@@ -609,7 +615,7 @@ const AI = {
     const mode = (typeof UI !== 'undefined' && UI.settings && UI.settings.aiPacing) || 'animated';
     if (mode === 'instant') return 0;
     const spd = (typeof UI !== 'undefined' && UI.settings && UI.settings.aiSpeed) || 'normal';
-    return { fast: 700, normal: 1200, slow: 1700 }[spd] || 1200;
+    return { fast: 600, normal: 900, slow: 1250 }[spd] || 900;
   },
 
   // End-of-turn pause — gives the player a beat to read the final

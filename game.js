@@ -6944,7 +6944,19 @@ const Game = {
     // target, Ghostface / Jason jumping into an open lane) skipped the
     // intercept check that lives in playCard(), so they'd land on the
     // board normally while BWL's nextCardStolen flag remained active.
-    if (this.state[owner].nextCardStolen) {
+    // SAME EXEMPTIONS AS THE NORMAL DOOR. _resolveBwlIntercept skips
+    // environments outright — "Batman Who Laughs intercepts the next enemy
+    // CARD, not the terrain" — and leaves the steal armed so it still catches
+    // the next real card. This path did not, so an environment played through
+    // the free/jump door was stolen AND burned the one-per-game intercept.
+    // Measured before the fix, with the steal armed:
+    //     playCard      Boiler Room -> not stolen, steal stays armed   (right)
+    //     playCardFree  Boiler Room -> STOLEN, steal consumed          (wrong)
+    // Discard effects never reach here (playCard returns from its own branch
+    // first, and playCardFree has no discard path), but they are named in the
+    // guard anyway so the two doors read the same and a future caller cannot
+    // reintroduce the asymmetry.
+    if (this.state[owner].nextCardStolen && !card.isEnvironment && !card.isDiscardEffect) {
       this.state[owner].nextCardStolen = false;
       // Mark BWL's owner as having consumed their 1-per-game intercept.
       this.state[opp].bwlInterceptUsed = true;

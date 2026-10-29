@@ -2018,17 +2018,19 @@ const UI = {
   // 452ms freeze / 904ms freeze / 1356ms blast. The steps were there; they
   // were just fast enough to read as simultaneous.
   //
-  // 2000 at normal makes that trace exactly the owner's sentence. Paired with
-  // the queue's own 2s between cards (AI.aiStepMs + aiPostPlayMs), a Superman
-  // into a Harley Quinn reads: play, 2s, freeze, 2s, freeze, 2s, blast, 2s,
-  // play.
+  // 1500 at normal, trimmed 25% from the original 2000 (2026-10-29, owner:
+  // "the ai is playing good just slightly speed up thier turn just a bit").
+  // Paired with the queue's own 1.5s between cards (AI.aiStepMs +
+  // aiPostPlayMs, scaled by the same 0.75 so the two cadences cannot desync),
+  // a Superman into a Harley Quinn reads: play, 1.5s, freeze, 1.5s, freeze,
+  // 1.5s, blast, 1.5s, play — 6s of AI turn where it used to be 8s.
   //
   // A CARD WITH MANY STEPS IS NOW GENUINELY LONG — Jigsaw's three traps, Hela's
   // summons — and that is the trade being asked for: "you can see what
   // happens". fast/slow stay as the dial for anyone who disagrees, and
   // `instant` pacing is handled separately by the queue.
   aiStepDelay() {
-    return { fast: 700, normal: 2000, slow: 2800 }[this.settings.aiSpeed] || 2000;
+    return { fast: 550, normal: 1500, slow: 2100 }[this.settings.aiSpeed] || 1500;
   },
 
   // ===================== SFX (procedural Web Audio) =====================
