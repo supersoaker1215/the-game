@@ -193,6 +193,122 @@ test('the card back is served per tier, re-evaluated on every read', function ()
   }
 });
 
+// ---- THE MENU IS FOUR ROWS, AND THE KEYS WORK (2026-11-06) ----------------
+// Executed against the real renderer rather than grepped: a row count is a
+// fact about the tree, and "ArrowDown moves the highlight" only means
+// something if the handler ran. The reference is a console title menu — four
+// big rows on a rail, one lit, a hero on the right, PRESS START in front.
+function menuShell() {
+  // renderMainMenu wants the overlay and a state; the shim parses index.html
+  // so #main-menu-overlay is already in the tree.
+  if (!document.getElementById('main-menu-overlay')) {
+    var ov = document.createElement('div'); ov.id = 'main-menu-overlay'; document.body.appendChild(ov);
+  }
+  Game.init();
+  UI._mmSub = null; UI._titleDone = true;      // the gate is tested on its own below
+  UI.renderMainMenu(Game.state);
+  return document.getElementById('main-menu-overlay');
+}
+function rowLabels(root) {
+  return [...root.querySelectorAll('.mm-panel .mm-option')].map(function (b) {
+    var l = b.querySelector('.mm-option-label');
+    return (l ? l.textContent : b.textContent).replace(/\s+/g, '').toUpperCase();
+  });
+}
+test('the main menu is exactly four rows, in order, with no boxed feature', function () {
+  var el = menuShell();
+  eq(rowLabels(el).join(','), 'PLAY,MULTIPLAYER,LIBRARY,SETTINGS', 'the four');
+  eq(el.querySelectorAll('.mm-feature').length, 0, 'the Multiplayer callout box is gone');
+  eq(el.querySelectorAll('.mm-panel .mm-option .mm-rail-seg').length, 4, 'every row carries its rail segment');
+  ok(!!el.querySelector('.mm-legend'), 'the controls legend is in the shell');
+  ok(el.classList.contains('mm-four'), 'the overlay is in four-row mode');
+});
+test('PLAY and LIBRARY each open four rows plus a Back, one level down', function () {
+  var el = menuShell();
+  UI.mmShowSub('play');
+  eq(rowLabels(el).join(','), 'SOLOMATCH,ROGUELITE,TOURNAMENT,TUTORIAL,BACK', 'play submenu');
+  UI.mmShowSub('library');
+  eq(rowLabels(el).join(','), 'MYDECKS,CODEX,STATS,TOOLS,BACK', 'library submenu');
+  UI.mmShowSub('mp');
+  ok(!!el.querySelector('.mm-subback'), 'multiplayer has a Back now too');
+  UI.mmShowSub(null);
+});
+test('Back goes up ONE level: Solo -> Play -> main', function () {
+  menuShell();
+  UI.mmShowSub('solo');
+  UI.mmBack();
+  eq(UI._mmSub, 'play', 'Solo sits under Play');
+  UI.mmBack();
+  eq(UI._mmSub, null, 'and Play sits under the main list');
+});
+test('ArrowDown / ArrowUp move the single highlighted row; Enter picks it; Esc backs out', function () {
+  var el = menuShell();
+  var active = function () { return [...el.querySelectorAll('.mm-panel .mm-option')].findIndex(function (b) { return b.classList.contains('is-active'); }); };
+  eq(active(), 0, 'the first row is lit on entry');
+  UI._mmKey({ key: 'ArrowDown', preventDefault: function () {} });
+  eq(active(), 1, 'ArrowDown moves it down');
+  UI._mmKey({ key: 'ArrowUp', preventDefault: function () {} });
+  UI._mmKey({ key: 'ArrowUp', preventDefault: function () {} });
+  eq(active(), 3, 'ArrowUp wraps from the top to the bottom');
+  eq(el.querySelectorAll('.mm-panel .mm-option.is-active').length, 1, 'only ever ONE row is lit');
+  // Enter CLICKS the lit row. The shim's click() fires addEventListener
+  // listeners only, never an onclick attribute, so prove the mechanism — the
+  // handler reached for THIS row — by stubbing click on it.
+  UI._mmSetActive(0);
+  var rows = el.querySelectorAll('.mm-panel .mm-option');
+  var clicked = -1;
+  [...rows].forEach(function (b, k) { b.click = function () { clicked = k; }; });
+  UI._mmKey({ key: 'Enter', preventDefault: function () {}, target: el });
+  eq(clicked, 0, 'Enter clicked the lit row (PLAY)');
+  ok(/mmShowSub\('play'\)/.test(rows[0].getAttribute('onclick') || ''), 'and that row opens the Play submenu');
+  UI.mmShowSub('play');
+  UI._mmKey({ key: 'Escape', preventDefault: function () {} });
+  eq(UI._mmSub, null, 'Esc backed out of it');
+});
+test('the title screen gates the menu once, and a press dismisses it into the menu', function () {
+  var el = (function () {
+    if (!document.getElementById('main-menu-overlay')) { var ov = document.createElement('div'); ov.id = 'main-menu-overlay'; document.body.appendChild(ov); }
+    return document.getElementById('main-menu-overlay');
+  })();
+  Game.init();
+  UI._titleDone = false; UI._titleArmed = false; UI._mmSub = null;
+  Game.state.phase = 'main-menu';
+  UI.render();
+  ok(el.classList.contains('is-title'), 'render() shows the title screen first');
+  ok(!!el.querySelector('.ts-prompt'), 'with a PRESS START prompt');
+  eq(el.querySelectorAll('.mm-panel .mm-option').length, 0, 'and no menu rows yet');
+  var tbg = el.querySelector('.ts-bg');
+  ok(tbg && /audio\/cards\/art\//.test(String(tbg.style.backgroundImage || '')), 'the hero art is set on the title background (was url("") via a quote-terminated style attribute)');
+  var realSetTimeout = globalThis.setTimeout;
+  globalThis.setTimeout = function (fn) { fn(); return 0; };   // land the crossfade now
+  try { UI.dismissTitle(); } finally { globalThis.setTimeout = realSetTimeout; }
+  eq(UI._titleDone, true, 'the gate is spent');
+  ok(!el.classList.contains('is-title'), 'the title classes are gone');
+  eq(rowLabels(el).length, 4, 'and the four rows are up');
+  UI.render();
+  eq(rowLabels(el).length, 4, 'a later render stays on the menu — once per load, not per render');
+});
+
+test('the first-run "New here?" prompt waits behind the title screen instead of landing on top of it', function () {
+  var el = document.getElementById('main-menu-overlay');
+  Game.init();
+  UI._titleDone = false; UI._titleArmed = false; UI._mmSub = null; UI._firstRunShown = false;
+  try { localStorage.removeItem('clb-onboarded'); } catch (e) {}
+  if (typeof globalThis.Tutorial === 'undefined') globalThis.Tutorial = { start: function () {} };
+  Game.state.phase = 'main-menu';
+  UI.render();
+  ok(el.classList.contains('is-title'), 'title screen is up');
+  UI._maybeShowFirstRun();                                   // what the 950ms boot timer does
+  eq(document.querySelectorAll('.first-run-overlay').length, 0, 'the prompt does NOT appear over the title');
+  eq(UI._firstRunShown, false, 'and the one-shot flag is not spent by the early ask');
+  var realSetTimeout = globalThis.setTimeout;
+  globalThis.setTimeout = function (fn) { fn(); return 0; };
+  try { UI.dismissTitle(); } finally { globalThis.setTimeout = realSetTimeout; }
+  eq(document.querySelectorAll('.first-run-overlay').length, 1, 'it appears once the menu is up');
+  document.querySelectorAll('.first-run-overlay').forEach(function (n) { n.remove(); });
+  try { localStorage.setItem('clb-onboarded', '1'); } catch (e) {}
+});
+
 print('');
 print('ui-render: ' + __pass + ' passed, ' + __fail + ' failed');
 if (__fail) {

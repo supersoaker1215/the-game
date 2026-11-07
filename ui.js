@@ -8079,6 +8079,11 @@ const UI = {
     // height while it was collapsed. The hand now stays put for the whole
     // round, so the board is one size from start to finish.
 
+    // THE TITLE SCREEN gates the menu once per page load: lockup, a pulsing
+    // PRESS START, any key or tap to continue. It also happens to be the first
+    // user gesture — which is what browsers demand before audio may play — so
+    // the menu arrives WITH its music instead of silent until the first click.
+    if (isMainMenu && !this._titleDone) { this.renderTitleScreen(s); return; }
     if (isMainMenu)    { this.renderMainMenu(s); return; }
     if (isModeSelect)  { this.renderModeSelect(s); return; }
     if (isMyDecks)     { this.renderMyDecks(s); return; }
@@ -17015,6 +17020,10 @@ const UI = {
     if (this._firstRunShown) return;
     try { if (localStorage.getItem('clb-onboarded')) return; } catch (e) { return; }
     if (!Game.state || Game.state.phase !== 'main-menu') return;   // menu only
+    // Not over the title screen: the 950ms boot timer lands while PRESS START
+    // is still up, and a modal on top of the wordmark is the first thing a new
+    // player would ever see. dismissTitle() re-asks once the menu is painted.
+    if (!this._titleDone) return;
     if (typeof Tutorial === 'undefined' || !Tutorial.start) return;
     this._firstRunShown = true;
     const ov = document.createElement('div');
@@ -17047,6 +17056,78 @@ const UI = {
   // Landing screen. Title, five buttons: PLAY, DECK BUILDER, MY DECKS,
   // STATS, SETTINGS. Clicking a button flips Game.state.phase to the
   // target screen and re-renders.
+  // ---- TITLE SCREEN -------------------------------------------------------
+  // Owner: "i want a title screen like [the console game]". The pattern, not
+  // the picture: a full-bleed hero (our own art pool, the same picker the menu
+  // uses), the wordmark centred, and a PRESS START that breathes until any key
+  // or tap dismisses it. Session-scoped — it shows once per load, never again
+  // mid-session, and nothing about it is persisted.
+  _titleDone: false,
+  renderTitleScreen(s) {
+    const el = document.getElementById('main-menu-overlay');
+    if (!el) return;
+    el.classList.remove('mm-four');
+    el.classList.add('is-title');
+    const name = (this.settings && this.settings.defaultMenuHero && this._isMenuHeroName && this._isMenuHeroName(this.settings.defaultMenuHero))
+      ? this.settings.defaultMenuHero
+      : (this._pickRandomMenuHeroName ? this._pickRandomMenuHeroName() : null);
+    const art = name ? this.getCardArtPathDefault(name) : null;
+    const file = art ? decodeURIComponent(String(art).split('/').pop().split('?')[0]) : '';
+    const focal = (art && this._artFocalFor) ? (this._artFocalFor(name, file, 'menu') || 'center') : 'center';
+    const size  = (art && this._artSizeFor)  ? (this._artSizeFor(name, file, 'menu') || 'cover') : 'cover';
+    el.innerHTML = `
+      <div class="ts-bg" aria-hidden="true"></div>
+      <div class="ts-scrim" aria-hidden="true"></div>
+      <div class="ts-lockup">
+        <h1 class="mm-title ts-title">the game</h1>
+        <div class="ts-rule" aria-hidden="true"></div>
+      </div>
+      <button type="button" class="ts-prompt" id="ts-prompt">Press Start</button>`;
+    // Set through the style object, never a style="" attribute: url("…")
+    // inside a double-quoted attribute ends the attribute at its first inner
+    // quote, and the hero silently became url("") — a black title screen.
+    const bgEl = el.querySelector('.ts-bg');
+    if (bgEl && art) {
+      bgEl.style.backgroundImage = `url("${art}")`;
+      bgEl.style.backgroundPosition = focal;
+      bgEl.style.backgroundSize = size;
+    }
+    // Remember the hero so the menu leads with the same face it just showed.
+    if (name) this._lastMenuHeroName = name;
+    this._armTitleDismiss();
+  },
+  _armTitleDismiss() {
+    if (this._titleArmed) return;
+    this._titleArmed = true;
+    // NOT stopPropagation: sfx.arm() listens for these same events on window
+    // to unlock audio, and the whole point of the gate is that this press is
+    // that gesture.
+    const go = (e) => {
+      if (this._titleDone) return;
+      // Ignore modifier-only keys so holding Shift does not skip the screen.
+      if (e && e.type === 'keydown' && /^(Shift|Control|Alt|Meta|CapsLock|Tab)$/.test(e.key || '')) return;
+      this.dismissTitle();
+    };
+    window.addEventListener('pointerdown', go, { passive: true });
+    window.addEventListener('keydown', go);
+  },
+  dismissTitle() {
+    if (this._titleDone) return;
+    this._titleDone = true;
+    const el = document.getElementById('main-menu-overlay');
+    if (el) el.classList.add('is-title-leaving');
+    // Music: the intent was set at boot; this gesture is what lets it play.
+    try { if (this.sfx && this.sfx.startMusic) this.sfx.startMusic(); } catch (e) {}
+    const finish = () => {
+      if (el) el.classList.remove('is-title', 'is-title-leaving');
+      try { this.render(); } catch (e) {}
+      // The first-run nudge waited behind the title; ask again now the menu is up.
+      try { this._maybeShowFirstRun(); } catch (e) {}
+    };
+    const reduced = (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    if (reduced || typeof setTimeout !== 'function') finish(); else setTimeout(finish, 380);
+  },
+
   renderMainMenu(s) {
     const el = document.getElementById('main-menu-overlay');
     if (!el) return;
@@ -17126,6 +17207,7 @@ const UI = {
       ch === ' ' ? ' ' : `<span class="mm-letter" style="--mm-li:${i}">${ch}</span>`).join('');
     const btn = (id, label, sub, icon, onClick) => `
       <button type="button" class="mm-option" id="${id}" style="--mm-idx:${mmIdx++}" onclick="${onClick}">
+        <span class="mm-rail-seg" aria-hidden="true"></span>
         <div class="mm-option-icon">${icon}</div>
         <div class="mm-option-text">
           <div class="mm-option-label">${_letters(label)}</div>
@@ -17216,7 +17298,7 @@ const UI = {
         <div class="mm-header">
           <h1 class="mm-title">the game</h1>
         </div>
-        <button type="button" class="mm-subback" onclick="UI.mmBack()" aria-label="Back to main menu">&larr; Menu</button>
+        <button type="button" class="mm-subback" onclick="UI.mmBack()" aria-label="Back to Play">&larr; Play</button>
         <div class="mm-section">
           <div class="mm-section-label">Solo · vs AI</div>
           <div class="mm-grid mm-grid-section">
@@ -17247,7 +17329,7 @@ const UI = {
         <div class="mm-header">
           <h1 class="mm-title">the game</h1>
         </div>
-        <button type="button" class="mm-subback" onclick="UI.mmBack()" aria-label="Back to main menu">&larr; Menu</button>
+        <button type="button" class="mm-subback" onclick="UI.mmBack()" aria-label="Back to Library">&larr; Library</button>
         <div class="mm-section">
           <div class="mm-section-label">Tools</div>
           <div class="mm-grid mm-grid-section">
@@ -17265,11 +17347,70 @@ const UI = {
       if (sub === 'mp') {
         return this._mpSubmenuHTML(btn, SVG) + botbarHTML;
       }
-      // Default: the main list (Play + Library).
+      // FOUR ROWS (2026-11-06). Owner's reference is a console title menu: a
+      // handful of big all-caps rows hung off a vertical rail, the selected one
+      // gold, a full-bleed hero on the right. Nine rows with icons, sections and
+      // inline counts could never reach that scale — at this viewport nine rows
+      // at the reference's height is 600px of column — so the list is four and
+      // everything else is one level down, through the same in-shell swap Solo
+      // Match and Tools already used. Icons are gone (the rail segment is the
+      // mark now); descriptions stay in the markup for the phone, where mw3
+      // shows them again. The boxed "Multiplayer · beta" callout is gone with
+      // them — it is a row like the others. (Owner: "i like this as the menu
+      // this is the inspiration", then "Four big rows".)
+      if (sub === 'play') {
+        return `
+        <div class="mm-header">
+          <h1 class="mm-title">the game</h1>
+        </div>
+        <div class="mm-section mm-four-list">
+          <div class="mm-grid mm-grid-section">
+            ${btn('mm-play',    'Solo Match',   'Play against the AI',                                    '', "UI.mmShowSub('solo')")}
+            ${(() => {
+              const savedInfo = (typeof Roguelite !== 'undefined' && Roguelite.savedRunInfo) ? Roguelite.savedRunInfo() : null;
+              if (savedInfo) {
+                return btn('mm-rogue', 'Roguelite', `${savedInfo.label} · ${savedInfo.fightsWon} fights won`, '', "Roguelite.resumeRun()");
+              }
+              return btn('mm-rogue', 'Roguelite', 'Climb a 6-fight ladder — build your deck as you go · beta', '', "Roguelite.enterRun()");
+            })()}
+            ${btn('mm-tournament','Tournament', 'Best-of series vs AI — rotating modifiers · new', '', "Tournament.enter()")}
+            ${btn('mm-tutorial','Tutorial',     'Guided walkthrough — play a scripted round',              '', "Tutorial.start()")}
+            ${btn('mm-back-play', 'Back', 'Main menu', '', "UI.mmBack()")}
+          </div>
+        </div>${botbarHTML}`;
+      }
+      if (sub === 'library') {
+        return `
+        <div class="mm-header">
+          <h1 class="mm-title">the game</h1>
+        </div>
+        <div class="mm-section mm-four-list">
+          <div class="mm-grid mm-grid-section">
+            ${metaBtn('mm-decks', 'My Decks', 'Build, edit, copy, or play your decks', '', "Game.goToMyDecks()", `${_deckCount} built`)}
+            ${metaBtn('mm-encyc', 'Codex',    'Every card and trick in the game',       '', "UI.openEncyclopedia()", `${_codexCount} entries`)}
+            ${btn('mm-stats',   'Stats',        'Card win rates and balance trends',                      '', "Game.goToStats()")}
+            ${btn('mm-tools',   'Tools',        'Leaderboard, Sound Gallery, Art Gallery + Sandbox',      '', "UI.mmShowSub('tools')")}
+            ${btn('mm-back-library', 'Back', 'Main menu', '', "UI.mmBack()")}
+          </div>
+        </div>${botbarHTML}`;
+      }
+      // Default: the main list — the four.
       return `
         <div class="mm-header">
           <h1 class="mm-title">the game</h1>
         </div>
+        <div class="mm-section mm-four-list mm-tier-1">
+          <div class="mm-grid mm-grid-section">
+            ${btn('mm-four-play',     'Play',        'Solo, Roguelite, Tournament, Tutorial',   '', "UI.mmShowSub('play')")}
+            ${btn('mm-four-multi',    'Multiplayer', 'Play a friend online',                   '', "UI.mmShowSub('mp')")}
+            ${btn('mm-four-library',  'Library',     'Decks, Codex, Stats, Tools',             '', "UI.mmShowSub('library')")}
+            ${btn('mm-four-settings', 'Settings',    'Audio, graphics, name',                  '', "UI.openSettings()")}
+          </div>
+        </div>
+        <aside id="mm-lb-rail" class="mm-lb-rail"></aside>${botbarHTML}`;
+      // (the previous nine-row list, kept as dead text for one commit so the
+      // diff reads; delete on the next touch)
+      /* legacy main list:
         ${feature('mm-multi', 'Multiplayer', 'Play a friend online · beta', SVG.multi, "UI.openMultiplayer()")}
         <div class="mm-section mm-tier-1">
           <div class="mm-section-label">Play</div>
@@ -17297,16 +17438,25 @@ const UI = {
             ${btn('mm-tools',   'Tools',        'Leaderboard, Sound Gallery, Art Gallery + Sandbox',      SVG.settings, "UI.mmShowSub('tools')")}
           </div>
         </div>
-        <aside id="mm-lb-rail" class="mm-lb-rail"></aside>${botbarHTML}`;
+        <aside id="mm-lb-rail" class="mm-lb-rail"></aside>${botbarHTML}
+      */
     };
     this._mmBuildPanel = buildPanel;   // reused by in-place submenu swaps (mmShowSub)
     const _flowOn = this.settings.menuFlow !== false;
     const _flowI  = this.settings.menuFlowIntensity ?? 0.18;
     el.style.setProperty('--menu-flow-intensity', String(_flowI));
+    el.classList.add('mm-four');
     el.innerHTML = `
       ${_flowOn ? this._menuSceneHTML() : ''}
       <div class="mm-scrim" aria-hidden="true"></div>
-      <div class="mm-panel">${buildPanel(this._mmSub || null)}</div>`;
+      <div class="mm-panel">${buildPanel(this._mmSub || null)}</div>
+      <div class="mm-legend" aria-hidden="true">
+        <span class="mm-legend-key">&uarr;&darr;</span><span class="mm-legend-lbl">Scroll</span>
+        <span class="mm-legend-key">Enter</span><span class="mm-legend-lbl">Select</span>
+        <span class="mm-legend-key">Esc</span><span class="mm-legend-lbl">Back</span>
+      </div>`;
+    this._mmInstallKeys(el);
+    this._mmSetActive(0);
     // THE LEADERBOARD LIVES IN THE MENU COLUMN NOW, under the profile chip.
     // Owner: "place the leaderboard here in the menu and make it tron themed
     // and collapsable" — with an arrow drawn from the floating panel to the
@@ -17407,6 +17557,7 @@ const UI = {
       return;
     }
     panel.innerHTML = this._mmBuildPanel(this._mmSub);
+    this._mmSetActive(0);
     // The leaderboard's mount lives INSIDE the Tools panel, and this swap
     // replaces the panel without re-running renderMainMenu — which is the one
     // place that paints it. So a submenu that carries a live readout has to
@@ -17430,7 +17581,68 @@ const UI = {
     this._mmFlipTimer = setTimeout(() => panel.classList.remove('mm-flipping'), 700);
     try { if (this.sfx && this.sfx.playNav) this.sfx.playNav(); } catch (e) {}
   },
-  mmBack() { this.mmShowSub(null); },
+  // ONE LEVEL UP, not to the root. Solo sits under Play and Tools under
+  // Library, so Back from either lands on its parent; Esc reuses this.
+  _MM_PARENT: { solo: 'play', tools: 'library', play: null, library: null, mp: null },
+  mmBack() {
+    const cur = this._mmSub || null;
+    this.mmShowSub(cur && Object.prototype.hasOwnProperty.call(this._MM_PARENT, cur) ? this._MM_PARENT[cur] : null);
+  },
+
+  // ---- keyboard + the single highlighted row --------------------------------
+  // The reference is a controller menu: one row is lit at a time and the hero
+  // reacts to it. Hover and the arrow keys share that one state (.is-active) so
+  // the mouse never leaves a second row highlighted, and the legend strip is
+  // only honest if the keys actually work.
+  _mmRows() {
+    const el = document.getElementById('main-menu-overlay');
+    return el ? [...el.querySelectorAll('.mm-panel .mm-option')]
+      .filter(b => b.offsetParent !== null || typeof b.getBoundingClientRect !== 'function' || b.getBoundingClientRect().height > 0) : [];
+  },
+  _mmSetActive(idx) {
+    const rows = this._mmRows();
+    if (!rows.length) return;
+    const i = Math.max(0, Math.min(rows.length - 1, idx | 0));
+    rows.forEach((r, k) => r.classList.toggle('is-active', k === i));
+    this._mmActiveIdx = i;
+    // The hero leans toward the row you are on — a few percent, eased in CSS.
+    const el = document.getElementById('main-menu-overlay');
+    if (el) el.style.setProperty('--mm-row', String(i));
+  },
+  _mmInstallKeys(el) {
+    if (!el || el._mmKeysInstalled) return;
+    el._mmKeysInstalled = true;
+    el.addEventListener('keydown', (e) => this._mmKey(e));
+    // Hovering a row makes it THE row, so mouse and keys never disagree.
+    el.addEventListener('mouseover', (e) => {
+      const b = e.target && e.target.closest && e.target.closest('.mm-panel .mm-option');
+      if (!b) return;
+      const k = this._mmRows().indexOf(b);
+      if (k >= 0 && k !== this._mmActiveIdx) this._mmSetActive(k);
+    });
+    el.setAttribute('tabindex', '-1');
+    // Focus the overlay so arrow keys work without a prior click — but not
+    // while a modal (first-run prompt, settings) is up and owns focus.
+    try { if (!document.querySelector('.first-run-overlay, .settings-overlay.is-open')) el.focus({ preventScroll: true }); } catch (e) {}
+  },
+  _mmKey(e) {
+    if (!e || !e.key) return;
+    const rows = this._mmRows();
+    if (!rows.length) return;
+    const i = this._mmActiveIdx | 0;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      this._mmSetActive(e.key === 'ArrowDown' ? (i + 1) % rows.length : (i - 1 + rows.length) % rows.length);
+      if (this.sfx && this.sfx.play) { try { this.sfx.play('cardHover'); } catch (_) {} }
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      // Only when the overlay itself (not a botbar control) has focus.
+      if (e.target && e.target.closest && e.target.closest('.mm-botbar, .mm-lb-rail, input, select')) return;
+      e.preventDefault();
+      const b = rows[i]; if (b) b.click();
+    } else if (e.key === 'Escape') {
+      if (this._mmSub) { e.preventDefault(); this.mmBack(); }
+    }
+  },
 
   // One switch per mode, sitting in that mode's own section of the Solo menu so
   // it is read right next to the button it affects.
@@ -20941,6 +21153,7 @@ const UI = {
             <button type="button" class="mps-deck-act" onclick="event.stopPropagation(); UI._mpOpenDeckBuilder()">Change &rarr;</button>
           </div>`;
         return `
+        <button type="button" class="mm-subback" onclick="UI.mmBack()" aria-label="Back to main menu">&larr; Menu</button>
         <div class="mps-mode${on ? ' is-on' : ''}" role="radio" tabindex="0" aria-checked="${on}"
              onclick="UI._mpPickMode('${m.id}')"
              onkeydown="if(event.key===' '||event.key==='Enter'){event.preventDefault();UI._mpPickMode('${m.id}');}">

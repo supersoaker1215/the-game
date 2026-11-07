@@ -312,6 +312,49 @@ check('every ratio-derived --cf-inset is rounded to whole pixels',
       unroundedRatio.length === 0,
       unroundedRatio.join(' | '));
 
+// ---- 10. the four-row menu block keeps the last word --------------------
+// .mm-option is declared in four places and the label's colour at ~L14792 is
+// !important, so the four-row restyle only paints because its block is LAST
+// in the file and !important at >= (0,4,0). Both halves are asserted: the
+// gold selected state exists in that form, and no later rule has crept in
+// beneath it to re-declare the label's size. (The reference's one defining
+// move is the gold row; losing it to a later .mm-option-label would look
+// exactly like the restyle never shipped.)
+var goldRule = null, lastLabelSize = null;
+var mre2 = /(?:^|\n)([^{}@][^{}]*?)\{([^{}]*)\}/g, mm3;
+while ((mm3 = mre2.exec(BARE))) {
+  var sels3 = mm3[1].split(',').map(function (x) { return x.replace(/\s+/g, ' ').trim(); });
+  var body3 = mm3[2];
+  if (sels3.some(function (x) { return /\.mm-four \.mm-option\.is-active \.mm-option-label/.test(x); })
+      && /color\s*:[^;]*--(mm-gold|gold-rgb)[^;]*!important/.test(body3)) goldRule = BARE.slice(0, mm3.index).split('\n').length + 1;
+  if (sels3.some(function (x) { return /\.mm-option-label$/.test(x); }) && /(?:^|[;{\s])font-size\s*:/.test(body3)) {
+    lastLabelSize = { line: BARE.slice(0, mm3.index).split('\n').length + 1, sel: sels3.join(', '), important: /font-size\s*:[^;]*!important/.test(body3) };
+  }
+}
+check('the gold selected-row rule exists, !important, on the (0,4,0) selector',
+      goldRule !== null, 'no `.mm-four .mm-option.is-active .mm-option-label { color: …gold… !important }` found');
+check('the four-row block holds the LAST .mm-option-label font-size in the sheet',
+      !!lastLabelSize && /\.mm-four/.test(lastLabelSize.sel) && lastLabelSize.important,
+      lastLabelSize ? ('last is L' + lastLabelSize.line + ' `' + lastLabelSize.sel.slice(0, 60) + '`' + (lastLabelSize.important ? '' : ' (not !important)')) : 'none found');
+
+// The title screen centres its lockup inside the SAME overlay the menu
+// left-pins with `.main-menu-overlay { align-items: flex-start !important }`.
+// A normal `align-items: center` on `.is-title` loses to that regardless of
+// specificity (an !important beats every normal declaration) — the wordmark
+// sat on the left edge at 1280px. So the title rule must carry !important too.
+var titleAlign = null;
+var mre3 = /(?:^|\n)([^{}@][^{}]*?)\{([^{}]*)\}/g, mm4;
+while ((mm4 = mre3.exec(BARE))) {
+  var sels4 = mm4[1].split(',').map(function (x) { return x.replace(/\s+/g, ' ').trim(); });
+  if (sels4.some(function (x) { return /^#main-menu-overlay\.is-title$/.test(x); }) && /align-items\s*:/.test(mm4[2])) {
+    titleAlign = { important: /align-items\s*:[^;]*!important/.test(mm4[2]), justImportant: /justify-content\s*:[^;]*!important/.test(mm4[2]) };
+  }
+}
+var baseLeftPin = /\.main-menu-overlay\s*\{[^}]*align-items\s*:\s*flex-start\s*!important/.test(BARE);
+check('the title screen centres with !important (the base overlay left-pins with !important)',
+      !!titleAlign && titleAlign.important && titleAlign.justImportant && baseLeftPin,
+      titleAlign ? ('align !imp=' + titleAlign.important + ' justify !imp=' + titleAlign.justImportant + ' basePin=' + baseLeftPin) : 'no #main-menu-overlay.is-title align-items rule');
+
 print('');
 print('visual-system: ' + pass + ' passed, ' + fails.length + ' failed');
 fails.forEach(function (f) { print('  FAIL  ' + f); });

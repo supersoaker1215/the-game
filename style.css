@@ -52889,3 +52889,164 @@ body.fx-lean .card-taunt { box-shadow: 0 0 14px rgba(255,190,60,0.55), 0 0 26px 
    screen shake, the trick reveal. Every one of them is a one-shot tied to
    something the player did. They are the reason the game feels good and they
    cost nothing while nothing is happening. */
+
+/* ============================================================
+   THE MENU, FOUR ROWS — and the title screen in front of it (2026-11-06)
+   ------------------------------------------------------------
+   Owner's reference is a console title menu: a few big all-caps rows hung
+   off a vertical rail, the selected one GOLD, a full-bleed hero on the
+   right, a controls legend along the bottom, and a PRESS START screen in
+   front of all of it. The structure was already here (left column, right
+   hero, in-shell submenus); what was missing was the scale, the rail, the
+   gold, the keys, and the gate.
+
+   LAST IN THE FILE ON PURPOSE. .mm-option is declared in four places above
+   and .mm-option-label's colour at L14792 is !important, so anything that
+   wants to win here has to be later AND !important at >= (0,4,0). Every
+   declaration below that fights an earlier one says so. The guard in
+   sim/visual-system.js asserts this block holds the last word on the row
+   label's size and the gold state. Pure #000 stays — the hero is the colour.
+   ============================================================ */
+.mm-four {
+  --mm-gold: var(--gold-rgb, 245, 191, 28);
+  --mm-rail-w: 3px;
+  --mm-row-gap: clamp(10px, 1.6vh, 22px);
+}
+/* ---- the rows: bigger, wider-tracked, no icon, hung off the rail ---------- */
+.mm-four .mm-option {
+  position: relative;
+  padding: clamp(8px, 1.3vh, 16px) 10px clamp(8px, 1.3vh, 16px) clamp(18px, 1.6vw, 28px) !important;  /* beats .mm-mw3 .mm-option's --mm-opt-pad */
+  gap: 0 !important;
+  width: fit-content; max-width: 100%;
+}
+.mm-four .mm-grid-section { display: flex; flex-direction: column; gap: var(--mm-row-gap); position: relative; }
+/* the spine: one faint line the segments sit on */
+.mm-four .mm-grid-section::before {
+  content: ''; position: absolute; left: 0; top: 4px; bottom: 4px; width: 1px;
+  background: rgba(var(--theme-rgb, 79,195,247), 0.22);
+}
+.mm-four .mm-option-icon:empty { display: none !important; }
+.mm-four .mm-option-icon:not(:empty) { display: none !important; }   /* no icons in four-row mode; the segment is the mark */
+.mm-four .mm-option-label {
+  font-size: clamp(22px, 2.75vw, 54px) !important;    /* beats L40176 / L2651 clamp(18px, …) */
+  letter-spacing: 0.18em !important;                   /* beats L23519's 0.12em */
+  font-weight: 700;
+  line-height: 1.05;
+}
+/* ---- the rail segment: a bar per row, dim; lit on the active row --------- */
+.mm-four .mm-rail-seg {
+  position: absolute; left: 0; top: 18%; bottom: 18%; width: var(--mm-rail-w);
+  background: rgba(var(--theme-rgb, 79,195,247), 0.28);
+  border-radius: 1px;
+  transition: background 160ms var(--ease-snap, ease-out), box-shadow 160ms var(--ease-snap, ease-out), top 160ms, bottom 160ms;
+}
+/* ---- the ONE highlighted row: gold text, lit segment ---------------------
+   Hover and keyboard focus share .is-active (see UI._mmSetActive), so the two
+   can never disagree. !important because L14792 painted the label colour
+   with !important; (0,4,0) so it also outranks the themed hover at L2636. */
+.mm-four .mm-option.is-active .mm-option-label,
+.mm-four .mm-option:hover .mm-option-label,
+.mm-four .mm-option:focus-visible .mm-option-label {
+  color: rgb(var(--mm-gold)) !important;
+  text-shadow: 0 0 10px rgba(var(--mm-gold), 0.75), 0 0 26px rgba(var(--mm-gold), 0.35) !important;
+}
+.mm-four .mm-option.is-active .mm-rail-seg,
+.mm-four .mm-option:hover .mm-rail-seg,
+.mm-four .mm-option:focus-visible .mm-rail-seg {
+  top: 8%; bottom: 8%;
+  background: rgb(var(--mm-gold));
+  box-shadow: 0 0 8px rgba(var(--mm-gold), 0.9), 0 0 18px rgba(var(--mm-gold), 0.45);
+}
+/* the Back row reads as a quieter sibling, not a fifth mode */
+.mm-four #mm-back-play .mm-option-label,
+.mm-four #mm-back-library .mm-option-label { font-size: clamp(14px, 1.5vw, 26px) !important; letter-spacing: 0.22em !important; opacity: 0.8; }
+.mm-four .mm-subback { margin-bottom: var(--mm-row-gap); }
+/* ---- the lockup: the wordmark grows, with a rule under it ----------------- */
+.mm-four .mm-title {
+  font-size: clamp(34px, min(5.6vw, 8vh), 92px) !important;   /* beats L50310 */
+  letter-spacing: 0.22em !important;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.35);
+  margin-bottom: clamp(18px, 3vh, 40px) !important;
+}
+/* ---- the hero leans toward the row you are on ---------------------------- */
+.mm-four .mm-hero {
+  transition: transform 600ms var(--ease-out-soft, ease-out);
+  transform: translateX(calc(var(--mm-row, 0) * -0.6%));
+}
+/* ---- the legend: keys only where there are keys -------------------------- */
+.mm-legend {
+  position: absolute; left: clamp(34px, 6vw, 120px); bottom: clamp(14px, 2.4vh, 28px);
+  z-index: 4; display: flex; align-items: center; gap: 0 10px;
+  font-family: 'Rajdhani', sans-serif; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.75);
+  pointer-events: none;
+}
+.mm-legend-key {
+  padding: 2px 7px; border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.45); border-radius: 3px;
+  color: var(--text-hi, #f5fbff); font-family: var(--font-mono, 'JetBrains Mono', monospace); letter-spacing: 0.08em; font-size: 11px;
+}
+.mm-legend-lbl { margin-right: 10px; }
+@media (hover: none), (pointer: coarse) { .mm-legend { display: none; } }
+/* ---- phone: the rows have to fit, and the rail still reads --------------- */
+@container (max-width: 520px) {
+  .mm-four .mm-option-label { font-size: clamp(18px, 6vw, 26px) !important; letter-spacing: 0.14em !important; }
+  .mm-four .mm-option { padding-left: 16px !important; }
+  .mm-four { --mm-row-gap: 8px; }
+  .mm-four .mm-title { font-size: clamp(28px, 9vw, 40px) !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mm-four .mm-hero { transition: none; transform: none; }
+  .mm-four .mm-rail-seg { transition: none; }
+}
+
+/* ============================================================
+   THE TITLE SCREEN — a gate in front of the menu
+   ------------------------------------------------------------
+   Full-bleed hero from our own pool (the same picker the menu uses), the
+   wordmark centred over a thin rule, and PRESS START breathing until any
+   key or tap. Lives on the menu overlay under .is-title so it needs no new
+   element and the menu's z-order; .is-title-leaving crossfades it away.
+   ============================================================ */
+/* !important on the two alignment props because the base `.main-menu-overlay`
+   rule pins `align-items: flex-start !important` for the left-column menu, and
+   a normal declaration can never outrank it — the lockup sat on the left edge. */
+#main-menu-overlay.is-title { display: flex; align-items: center !important; justify-content: center !important; flex-direction: column; background: #000; }
+#main-menu-overlay.is-title .ts-bg {
+  position: absolute; inset: -4%;
+  background-repeat: no-repeat; background-size: cover; background-position: center;
+  filter: saturate(0.92) brightness(0.72);
+  animation: tsDrift 26s ease-in-out infinite alternate;
+}
+#main-menu-overlay.is-title .ts-scrim {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 70% 60% at 50% 48%, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.55) 70%, rgba(0,0,0,0.9) 100%);
+}
+#main-menu-overlay.is-title .ts-lockup { position: relative; z-index: 2; text-align: center; margin-top: -6vh; }
+#main-menu-overlay.is-title .ts-title {
+  font-size: clamp(48px, 9vw, 140px) !important;
+  letter-spacing: 0.26em !important; text-indent: 0.26em !important;
+  text-align: center !important; margin: 0 !important;
+}
+#main-menu-overlay.is-title .ts-rule {
+  width: min(72vw, 720px); height: 1px; margin: 14px auto 0;
+  background: linear-gradient(90deg, transparent, rgba(var(--theme-rgb, 79,195,247), 0.8), transparent);
+}
+#main-menu-overlay.is-title .ts-prompt {
+  position: relative; z-index: 2; margin-top: clamp(40px, 10vh, 120px);
+  background: none; border: 0; cursor: pointer;
+  font-family: 'Rajdhani', sans-serif; font-weight: 700; text-transform: uppercase;
+  font-size: clamp(16px, 2.2vw, 30px); letter-spacing: 0.42em; text-indent: 0.42em;
+  color: var(--text-hi, #f5fbff);
+  text-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.85), 0 0 28px rgba(var(--theme-rgb, 79,195,247), 0.4);
+  animation: tsPromptPulse 1.9s ease-in-out infinite;
+}
+#main-menu-overlay.is-title-leaving .ts-bg,
+#main-menu-overlay.is-title-leaving .ts-scrim,
+#main-menu-overlay.is-title-leaving .ts-lockup,
+#main-menu-overlay.is-title-leaving .ts-prompt { transition: opacity 360ms var(--ease-exit, ease-in); opacity: 0; }
+@keyframes tsPromptPulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+@keyframes tsDrift { from { transform: scale(1.0) translateX(0); } to { transform: scale(1.06) translateX(-1.5%); } }
+@media (prefers-reduced-motion: reduce) {
+  #main-menu-overlay.is-title .ts-bg, #main-menu-overlay.is-title .ts-prompt { animation: none; }
+}
