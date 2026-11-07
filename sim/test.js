@@ -9083,8 +9083,12 @@ test("A habitat's two rooms match: both on a card, or both on empty ground", fun
     var h = { name: 'Saw', place: 'The Bathroom', shows: true, fired: false, appearAt: 3 };
     G._runHabitatEvent(h, 3);
     return (h.seated || []).map(function (x) {
-      // The side the room OCCUPIES, which is what the player sees it sitting on.
-      return !!G.state.lanes[x.lane][x.owner];
+      // THE WHOLE LANE, not the owner's half of it. A room is painted across
+      // the lane, and a body standing in it is standing in it whichever side it
+      // belongs to. Measuring one half is how the AI's room came to open on top
+      // of the owner's own card and count as bare ground.
+      var L = G.state.lanes[x.lane];
+      return !!(L.player || L.ai);
     });
   }
   // A body on each side: every seed must produce a MATCHED pair.
@@ -9120,6 +9124,46 @@ test("…and when it cannot match, it still lands and says so", function () {
     return /could not match its two lanes/.test(G.logLineText ? G.logLineText(l) : l);
   });
   assertEq(said, true, 'and the log says the pair is uneven');
+});
+
+test("A room on top of my card is on a card, whichever side's room it is", function () {
+  // Owner's board, second report: one lane holding only their Invisible Woman,
+  // everything else empty. The player's room drew an empty lane; the AI's room
+  // then opened ON the Invisible Woman and the pair was called matched, because
+  // the AI's slot of that lane was empty. ("the enviroments for the events
+  // either spawn in empty lanes for each team or in contested, not one or the
+  // other.")
+  // Pinned so the player's room takes empty lane 1 and the occupied lane 3 is
+  // the FIRST candidate for the AI's — the old rule takes it; this must not.
+  var G = freshGame();
+  G.state.round = 6;
+  place(G, 'Invisible Woman', 'player', 3);
+  var pair = _habitatPair(G, [1, 3, 5, 0, 2, 4]);
+  assertEq(pair.player, 1, 'our room opened on empty ground');
+  assert(pair.ai !== 3, "so theirs must not open on our card (it took lane " + pair.ai + ")");
+  var L = G.state.lanes[pair.ai];
+  assertEq(!!(L.player || L.ai), false, 'it opened on empty ground too');
+  var said = (G.state.log || []).some(function (l) {
+    return /could not match its two lanes/.test(G.logLineText ? G.logLineText(l) : l);
+  });
+  assertEq(said, false, 'and it did not need the fallback — a matching lane was right there');
+});
+
+test("Given the choice, the two rooms land on MIRRORED lanes", function () {
+  // Lane 0 is contested; lane 2 holds only an AI card; lane 4 is contested.
+  // Our room takes lane 0. "Both on a card" alone would accept lane 2 — it is
+  // first in line and it does hold a card — but that puts our room between two
+  // bodies and theirs on its own lone card. Lane 4 is the same situation seen
+  // from the other side, and that is the fairer pair, so it wins when it
+  // exists.
+  var G = freshGame();
+  G.state.round = 6;
+  place(G, 'Hulk', 'player', 0); place(G, 'Hulk', 'ai', 0);
+  place(G, 'Hulk', 'ai', 2);
+  place(G, 'Hulk', 'player', 4); place(G, 'Hulk', 'ai', 4);
+  var pair = _habitatPair(G, [0, 2, 4, 1, 3, 5]);
+  assertEq(pair.player, 0, 'our room took the contested lane');
+  assertEq(pair.ai, 4, 'theirs took the OTHER contested lane, not the lone AI body first in line');
 });
 
 test("The Bathroom chains everything that walks in, and staying costs (-1/-1)", function () {

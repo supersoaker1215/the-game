@@ -18844,6 +18844,19 @@ const Game = {
     // So each room is measured against the side it actually occupies: the
     // player's room against the player's half, the AI's against the AI's.
     //
+    //
+    // AND THEN THE HALF WAS THE WRONG UNIT TOO (2026-11-06). The second pass
+    // measured "the half the room lands on" — the player's room against the
+    // player's slot, the AI's room against the AI's slot — and matched those.
+    // A room is painted across the WHOLE lane, and a body standing in it is
+    // standing in it whichever side it belongs to. So the AI's room opening on
+    // top of the owner's Invisible Woman still counted as bare ground, because
+    // the AI's slot of that lane was empty. Measured on that board shape, with
+    // a correct partner available every time: 36 of 300 seeds seated exactly
+    // that pair and called it matched. (Owner, second report: "the enviroments
+    // for the events either spawn in empty lanes for each team or in
+    // contested, not one or the other.")
+    // What matches now is the lane, in two tiers — see _habitatMatchingLane.
     // The FIRST lane stays random — this constrains only the second, which is
     // what "the other one needs to as well" asks for. One shuffle, as before:
     // drawing from extra shuffled pools would consume a different number of
@@ -18851,11 +18864,7 @@ const Game = {
     const _first = pick[0];
     let _second = null;
     if (need > 1) {
-      const _wantOccupied = !!(this.state.lanes[_first] && this.state.lanes[_first].player);
-      for (let k = 1; k < pick.length; k++) {
-        const i = pick[k];
-        if (!!(this.state.lanes[i] && this.state.lanes[i].ai) === _wantOccupied) { _second = i; break; }
-      }
+      _second = this._habitatMatchingLane(_first, pick.slice(1));
       if (_second == null) {
         // No lane of the matching kind is free. Fall back to the old behaviour
         // rather than refusing the event — a habitat that cannot land is a round
@@ -18884,6 +18893,41 @@ const Game = {
       h.seated = [{ lane: _first, owner: 'player' }, { lane: _second, owner: 'ai' }];
     }
     this._announceHabitatEvent(h, name, def);
+  },
+
+  // WHAT A ROOM STANDS ON — the whole lane, both halves.
+  _laneFootprint(i) {
+    const l = this.state.lanes[i];
+    return { player: !!(l && l.player), ai: !!(l && l.ai) };
+  },
+
+  // THE PARTNER LANE FOR A TWO-ROOM HABITAT. `first` seats the player's room,
+  // the answer seats the AI's. Candidates are scanned in the order the one
+  // shuffle already put them in, so this consumes no rng of its own.
+  //
+  //   Tier 1 — a MIRROR. The AI's room meets, from its side, exactly what the
+  //   player's room meets from theirs: own card <-> own card, enemy card <->
+  //   enemy card. Two rooms on two contested lanes; or mine on their body and
+  //   theirs on mine; or both on nothing. Nobody can tell the halves apart.
+  //
+  //   Tier 2 — the same GROUND. Both lanes hold a card, or neither does. This
+  //   is the owner's rule as stated and it is the relaxation: with one body on
+  //   the board there is no mirror for it, but there may still be a lane that
+  //   is "on a card" rather than "on empty".
+  //
+  // Null means neither tier found a lane; the caller falls back and says so.
+  _habitatMatchingLane(first, candidates) {
+    const a = this._laneFootprint(first);
+    for (const i of candidates) {
+      const b = this._laneFootprint(i);
+      if (b.ai === a.player && b.player === a.ai) return i;
+    }
+    const aOnCard = a.player || a.ai;
+    for (const i of candidates) {
+      const b = this._laneFootprint(i);
+      if ((b.player || b.ai) === aOnCard) return i;
+    }
+    return null;
   },
 
   // Seat one event environment. Deliberately NOT playCard: there is no owner
