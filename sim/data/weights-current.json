@@ -30,5 +30,6 @@
   "trickDrawBonus": 2.368581003847078,
   "trickSummonBonus": 2.3921721811896997,
   "lookaheadMult": 0,
-  "lookaheadHpWeight": 2.651158628067731
+  "lookaheadHpWeight": 2.651158628067731,
+  "allyAdjacency": 0
 }

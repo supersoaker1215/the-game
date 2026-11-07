@@ -93,6 +93,20 @@ this.UI = {
   draftEl: { style: { display: '' } },
   settings: { roundRecap: false, aiSpeed: 'fast', difficulty: 'normal', aiPacing: 'instant' },
   renderGameArea: function () {}, renderHand: function () {}, renderDraft: function () {}, updateLog: function () {},
+  // THE SFX SURFACE THE ENGINE CALLS, as no-ops. abilities.js / game.js /
+  // tricks.js reach UI.sfx.* six ways (playCardSfx, playEffectSfx,
+  // playTrickSfx, playEffect, playCardAbility, play). Most of those call sites
+  // are guarded and silently skipped here; Darth Vader's is wrapped in a
+  // try/catch that LOGS the TypeError instead — harmless in a probe, but the
+  // moment a unit test in sim/test.js drove full games through runSimGame, the
+  // suite runner's error-token grep saw "TypeError" and failed a suite that had
+  // reported 527 passed, 0 failed. The fuzz harness does not token-grep, which
+  // is why that line has been quietly printing there for every Vader cast.
+  // Presentation is not modelled here; the stub only has to be callable.
+  sfx: {
+    play: function () {}, playCardSfx: function () {}, playEffectSfx: function () {},
+    playTrickSfx: function () {}, playEffect: function () {}, playCardAbility: function () {},
+  },
 };
 
 // ---- `window` alias ----

@@ -2112,6 +2112,19 @@ const UI = {
         // theme + ducked hover bed.
         effects: { damage: 'audio/cards/batarangs-play.mp3' },
       },
+      // Mahoraga hover: the full "Sukuna vs Mahoraga" epic version (0:00 → 3:03),
+      // normalised to the −20 LUFS baseline (measured −19.0), 1s fade-in / 2s
+      // fade-out baked in; maxDur 183 lets the whole track run under a long
+      // browse. Play: 0:53 → 0:58 of the same track — the owner's chosen
+      // moment, cut to the ~5s a When Played cue should be — 0.05s / 0.4s
+      // fades, measured −19.2 LUFS. (Owner: "use this song for mahoraga's
+      // hover ... when played use 0:53 ... these should be like 5 seconds and
+      // can be off their hover at specific parts.") attack / death keep their
+      // synth cues in CARD_PROCEDURAL; this row only claims the two file events.
+      'Mahoraga':         {
+        hover: { src: 'audio/cards/mahoraga-hover.mp3', maxDur: 183 },
+        play:  { src: 'audio/cards/mahoraga-play.mp3',  maxDur: 5 },
+      },
       // Spider-Man hover: first 1:20 of Danny Elfman's "Main Title"
       // (Spider-Man 2002). Normalized to -20 LUFS — the unified baseline
       // for signature cinematic hovers (Spider-Man / Anakin / Superman

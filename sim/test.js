@@ -10291,6 +10291,53 @@ test('Iron Man and Red Skull still earn the trick phase their own ways', functio
   assertEq(G.canPlayCardDuringTricks('player', hulk), true, 'which unlocks the ordinary card too');
 });
 
+// THE AI SPREADS OUT ON AN OPEN BOARD (2026-11-06).
+// chooseLane carried a flat "+1.0 next to a living ally" bonus that nothing
+// else separated equal open lanes by, so the tie shuffle never got a tie and
+// the AI took the neighbour every time: 94.3% adjacent against a 60.3% chance
+// level over 522 placements. (Owner: "the ai enemy plays cards next to each
+// other all the time ... more random when theres open lanes or the board
+// empty.") The bonus is now WEIGHTS.allyAdjacency, 0 by default. Both halves
+// are pinned: the default sits near chance, and setting the weight to 1 brings
+// the clustering straight back — so the knob is live, not decorative.
+function _aiAdjacencyRate(games, weight) {
+  if (typeof runSimGame !== 'function') return null;
+  var savedW = AI.WEIGHTS.allyAdjacency, savedSeed = runSimGame.seed, savedN = runSimGame._n;
+  var realChoose = AI.chooseLane;
+  var calls = 0, adjacent = 0, chance = 0;
+  AI.WEIGHTS.allyAdjacency = weight;
+  runSimGame.seed = 777; runSimGame._n = 0;
+  AI.chooseLane = function (card, owner) {
+    var lane = realChoose.apply(this, arguments);
+    if (owner === 'ai' && lane >= 0) {
+      var st = Game.state, open = Game.getOpenLanes('ai'), allies = [];
+      for (var i = 0; i < Game.LANE_COUNT; i++) { var a = st.lanes[i].ai; if (a && a.currentHealth > 0) allies.push(i); }
+      if (open.length >= 2 && allies.length) {
+        var d = Math.min.apply(null, allies.map(function (x) { return Math.abs(x - lane); }));
+        calls++; if (d === 1) adjacent++;
+        chance += open.filter(function (l) { return allies.some(function (x) { return Math.abs(x - l) === 1; }); }).length / open.length;
+      }
+    }
+    return lane;
+  };
+  try { for (var g = 0; g < games; g++) runSimGame(null, null, null); }
+  finally { AI.chooseLane = realChoose; AI.WEIGHTS.allyAdjacency = savedW; runSimGame.seed = savedSeed; runSimGame._n = savedN; }
+  return { calls: calls, adjacent: adjacent / calls, chance: chance / calls };
+}
+test('the AI no longer clusters next to its own cards by default', function () {
+  var r = _aiAdjacencyRate(60, AI.WEIGHTS.allyAdjacency);
+  if (!r) { assert(true, 'no sim driver in this harness'); return; }
+  assert(r.calls > 60, 'enough placements with a real choice to measure (' + r.calls + ')');
+  assert(r.adjacent < r.chance + 0.15,
+    'adjacency ' + (r.adjacent * 100).toFixed(1) + '% should sit near chance ' + (r.chance * 100).toFixed(1) + '%, not far above it');
+});
+test('…and allyAdjacency = 1 brings the clustering straight back (the knob is live)', function () {
+  var r = _aiAdjacencyRate(60, 1);
+  if (!r) { assert(true, 'no sim driver in this harness'); return; }
+  assert(r.adjacent > 0.85,
+    'with the old bonus restored the AI should take the neighbour almost always, got ' + (r.adjacent * 100).toFixed(1) + '%');
+});
+
 // WHAT THE BATMAN WHO LAUGHS MAY AND MAY NOT STEAL — on BOTH doors.
 // His own rule is "the next enemy CARD, not the terrain", and _resolveBwlIntercept
 // honoured it: an environment is skipped AND leaves the steal armed, so it still

@@ -83,6 +83,19 @@ const AI = {
     // tuner in sim/tune.js can tune it alongside the other weights)
     // after the sim is extended with onPlay / trick / chain effects.
     lookaheadMult: 0,
+    // THE "SIT NEXT TO AN ALLY" BONUS, OFF BY DEFAULT (2026-11-06). chooseLane
+    // used to add a flat +1.0 to any open lane adjacent to a living ally (+0.5
+    // one further out). Nothing else separates equal open lanes, so the tie
+    // shuffle below it never got a tie to break: the AI took the neighbour
+    // every time. Measured over 200 games, 522 placements with a real choice:
+    // 94.3% landed adjacent to an ally against a 60.3% chance level (most open
+    // lanes on six lanes neighbour something). Owner: "the ai enemy plays cards
+    // next to each other all the time ... more random when theres open lanes
+    // or the board empty." The genuine adjacency synergies — splash, Black
+    // Widow's freeze — are scored explicitly further down and are untouched.
+    // 1 reproduces the old behaviour exactly; 0 lets equal lanes tie and the
+    // seeded shuffle spread them. Mirrored in sim/data/weights-current.json.
+    allyAdjacency: 0,
     // MEASURED DEAD. Giving hard the lookahead that normal lacks was the
     // obvious idea and it is worth nothing: 400 games a side, seats swapped,
     // hard won 50.5% at weight 1 and 47.5% at weight 4. The original A/B that
@@ -1618,7 +1631,8 @@ const AI = {
         }
         if (alliedLanes.length) {
           const dist = Math.min(...alliedLanes.map(x => Math.abs(x - l)));
-          score += Math.max(0, 1.5 - dist * 0.5);
+          // Scaled by WEIGHTS.allyAdjacency — 0 by default; see the note there.
+          score += this.WEIGHTS.allyAdjacency * Math.max(0, 1.5 - dist * 0.5);
         }
         // ---- 2v2 ----
         if (team) {
