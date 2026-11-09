@@ -2125,6 +2125,17 @@ const UI = {
         hover: { src: 'audio/cards/mahoraga-hover.mp3', maxDur: 183 },
         play:  { src: 'audio/cards/mahoraga-play.mp3',  maxDur: 5 },
       },
+      // Sung Jin-Woo — "Dark Aria <LV2>" (Solo Leveling). Hover is the full
+      // 2:22 track, 1s in / 2s out, measured −20.0 LUFS. When Played is the
+      // ARISE hit: the track sits near silence and then jumps +27.6 dB at 0:42.0
+      // (measured — the largest onset in the file), so the cue is 0:42.0–0:47.0
+      // with 0.05s / 0.4s fades, −19.9 LUFS. No owner timestamp was given for
+      // this one; change the 42.0 in the cut if a different moment is wanted.
+      // Igris and Beru carry no rows — their attack/death stay on the defaults.
+      'Sung Jin-Woo':     {
+        hover: { src: 'audio/cards/sung-jin-woo-hover.mp3', maxDur: 142 },
+        play:  { src: 'audio/cards/sung-jin-woo-play.mp3',  maxDur: 5 },
+      },
       // Spider-Man hover: first 1:20 of Danny Elfman's "Main Title"
       // (Spider-Man 2002). Normalized to -20 LUFS — the unified baseline
       // for signature cinematic hovers (Spider-Man / Anakin / Superman
