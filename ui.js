@@ -16423,7 +16423,7 @@ const UI = {
       return `<div class="twov2-mm-prow ${occupied ? 'is-joined' : ''} ${isAI ? 'is-ai' : ''} ${isSel ? 'is-teamsel' : ''} ${sel && isPartner && pickable ? 'is-swappable' : ''} ${pickable ? 'is-pickable' : ''} team-${teamLabel} ${sideCls}"
         ${pickable ? `onclick="twov2TeamTap('${pk}')" role="button" tabindex="0"` : ''}>
         <span class="twov2-mm-pslot">P${pk[1]}</span>
-        <span class="twov2-mm-pname">${name}</span>
+        <span class="twov2-mm-pname">${String(name).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>
         <span class="twov2-mm-pteam">Team ${teamLabel}</span>
         ${aiCtrl}
         <span class="twov2-mm-pcheck">${hasJoined ? '✓' : (isAI ? UI.BOT_ICON_SVG : '')}</span>
@@ -16438,30 +16438,37 @@ const UI = {
               ? `<div class="twov2-mm-sub">Waiting for players…</div>`
               : ''));
 
+    // SIMPLE AND SLEEK, like the pre-join screen and the 1v1 lobby: the code
+    // is the one big thing, each seat is one line in its team's colour, and
+    // the two host actions are rail rows. One status line at most — the seat
+    // list already says how many have joined.
+    const _railRow = (label, onClick) => `
+      <button type="button" class="twov2-row" onclick="${onClick}">
+        <span class="twov2-seg" aria-hidden="true"></span><span class="twov2-row-label">${label}</span>
+      </button>`;
+    const _hostRows = (isHost && occupiedCount === 4)
+      ? `<div class="twov2-rows">
+           ${balanced ? _railRow('Start Match', 'twov2OnlineStart()') : ''}
+           ${_railRow('Shuffle Teams', 'twov2TeamRandom()')}
+         </div>
+         ${balanced ? '' : `<div class="twov2-mm-sub">Teams must be two a side to start</div>`}`
+      : '';
     el.innerHTML = `
-      <div class="twov2-mm">
+      <div class="twov2-mm twov2-tron twov2-lobby">
         ${heroHtml}
         <div class="twov2-mm-content">
           <button type="button" class="twov2-mm-back" onclick="twov2OnlineLeave()">&larr; Leave</button>
           <h1 class="twov2-mm-title">the game</h1>
-          <div class="twov2-mm-label">Online 2v2 · Lobby</div>
           ${isHost
-            ? `<div class="twov2-mm-codebig" onclick="UI._2v2CopyCode && UI._2v2CopyCode()" title="Room code">${code}</div>
-               ${occupiedCount < 4
-                  ? `<div class="twov2-mm-sub">Share this code — ${4 - occupiedCount} seat${4 - occupiedCount === 1 ? '' : 's'} still open</div>`
-                  : ''}`
-            : `<div class="twov2-mm-sub">Waiting for host to start…</div>`}
+            ? `<div class="twov2-mm-codebig" onclick="UI._2v2CopyCode && UI._2v2CopyCode()" title="Tap to copy">${code}</div>
+               <div class="twov2-mm-kicker">${occupiedCount < 4
+                  ? `Share this code · ${4 - occupiedCount} seat${4 - occupiedCount === 1 ? '' : 's'} open`
+                  : '2v2 lobby · room full'}</div>`
+            : `<div class="twov2-mm-kicker">2v2 lobby · waiting for the host to start</div>`}
           ${errorHtml}
           <div class="twov2-mm-players">${playerRows}</div>
           ${teamHint}
-          ${isHost && occupiedCount === 4
-            ? `<button type="button" class="twov2-mm-opt" onclick="twov2TeamRandom()"><span class="twov2-mm-ic">&#9186;</span>Shuffle Teams</button>`
-            : ''}
-          ${isHost && occupiedCount === 4
-            ? (balanced
-                ? `<button type="button" class="twov2-mm-opt" onclick="twov2OnlineStart()"><span class="twov2-mm-ic">&#9655;</span>Start Match</button>`
-                : `<div class="twov2-mm-sub">Teams must be two a side to start</div>`)
-            : `<div class="twov2-mm-sub">${joinedCount} joined · ${occupiedCount}/4 seats filled</div>`}
+          ${_hostRows}
         </div>
       </div>`;
   },

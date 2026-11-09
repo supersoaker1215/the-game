@@ -348,6 +348,30 @@ test('the 1v1 waiting lobby is simple: code, seat lines, rail rows — no dead S
   UI._mpLobby = {};
 });
 
+test('2v2 waiting room: seat names are text not HTML, rows not boxes, Start/Shuffle are rail rows', function () {
+  var host = document.createElement('div');
+  document.body.appendChild(host);
+  Game.init();
+  Game.goTo2v2OnlineLobby();
+  var tt = Game.state.twoVTwo;
+  tt.you = 'p1';
+  tt.players.p1.name = 'Henry'; tt.players.p2.name = '<b>Ryan</b>';
+  tt.players.p3.name = 'Bot'; tt.players.p3.isAI = true;
+  tt.players.p4.name = 'Bot 2'; tt.players.p4.isAI = true;
+  tt.joinedPlayers = { p1: true, p2: true, p3: false, p4: false };
+  UI._2v2OnlineRoomCode = 'QX7K';
+  UI._render2v2OnlineLobby(host, Game.state, tt);
+  eq(host.querySelectorAll('.twov2-tron').length, 1, 'the waiting room uses the sleek layout');
+  eq(host.querySelectorAll('.twov2-mm-pname b').length, 0, 'a peer-supplied name is escaped, never parsed as HTML');
+  var names = []; host.querySelectorAll('.twov2-mm-pname').forEach(function (n) { names.push(n.textContent); });
+  ok(names.indexOf('<b>Ryan</b>') >= 0, 'the name prints literally (got ' + names.join(',') + ')');
+  eq(host.querySelectorAll('.twov2-mm-ic, .twov2-mm-label').length, 0, 'no ▷ icons, no barred label');
+  var labels = []; host.querySelectorAll('.twov2-row-label').forEach(function (n) { labels.push(n.textContent); });
+  eq(labels.join('|'), 'Start Match|Shuffle Teams', 'a full balanced room offers Start then Shuffle as rail rows');
+  host.remove();
+  UI._2v2OnlineRoomCode = null;
+});
+
 print('');
 print('ui-render: ' + __pass + ' passed, ' + __fail + ' failed');
 if (__fail) {

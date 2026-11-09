@@ -53260,3 +53260,39 @@ body.fx-lean .card-taunt { box-shadow: 0 0 14px rgba(255,190,60,0.55), 0 0 26px 
 .voice-panel .vp-diag { color: rgba(var(--theme-rgb, 79,195,247), 0.55); opacity: 1; }
 .voice-panel .vp-row { border-radius: 0; }
 @media (prefers-reduced-motion: reduce) { .voice-panel .vp-head::before { transition: none; } }
+
+/* ============================================================
+   2v2 WAITING ROOM, SIMPLE AND SLEEK (2026-11-09)
+   Owner: "yes do the 2v2 waiting room too". Same language as the pre-join
+   screen and the 1v1 lobby: big glow code, one line per seat in its team's
+   colour (yours = your neon, theirs = red), the AI controls as plain glow
+   text, and Start / Shuffle as rail rows. No divider lines, no bordered
+   buttons, no green check.
+   ============================================================ */
+.twov2-tron .twov2-mm-codebig {
+  font-size: clamp(54px, 7vw, 104px); letter-spacing: 0.06em; line-height: 1; margin: 6px 0 6px;
+}
+.twov2-tron .twov2-mm-sub {
+  font-size: 13px; font-weight: 700; letter-spacing: 0.24em; text-transform: uppercase;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.75); text-shadow: none; margin: 8px 0 0;
+}
+.twov2-tron .twov2-mm-players { margin: clamp(18px, 3vh, 34px) 0 clamp(12px, 2vh, 22px); gap: 8px; max-width: 520px; }
+.twov2-tron .twov2-mm-prow { border-bottom: 0; padding: 4px 0; gap: 16px; opacity: 0.55; }
+.twov2-tron .twov2-mm-prow.is-joined, .twov2-tron .twov2-mm-prow.is-ai { opacity: 1; }
+.twov2-tron .twov2-mm-pslot { font-size: 13px; letter-spacing: 0.2em; min-width: 28px; }
+.twov2-tron .twov2-mm-pname {
+  font-size: clamp(18px, 1.9vw, 28px); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+}
+.twov2-tron .twov2-mm-pteam { font-size: 12px; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; }
+.twov2-tron .twov2-mm-pcheck { color: rgb(var(--theme-rgb, 79,195,247)); }
+.twov2-tron .twov2-mm-aibtn,
+.twov2-tron .twov2-mm-aibtn.is-remove {
+  background: none; border: 0; border-radius: 0; box-shadow: none; padding: 2px 0;
+  font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase;
+}
+.twov2-tron .twov2-mm-aibtn:hover,
+.twov2-tron .twov2-mm-aibtn.is-remove:hover {
+  border: 0; box-shadow: none;
+  color: rgb(var(--mm-gold, 245,191,28)); text-shadow: 0 0 10px rgba(var(--mm-gold, 245,191,28), 0.7);
+}
+.twov2-tron .twov2-rows { margin-top: clamp(10px, 2vh, 22px); }
