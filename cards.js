@@ -364,7 +364,7 @@ const CARD_DEFS = [
   { name: "Sung Jin-Woo", cost: 5, attack: 5, health: 5, type: "hero",
     skipAutoUntrickable: true,
     abilities: [],
-    desc: "Costs all of your energy and enters as (X/X), where X is the energy spent. When Played: Summon Igris and Beru in the nearest empty lanes. Then choose a card in your dead pile to revive — always if it costs ≤ 6, 66% if 7–8, 33% if 9 or more." },
+    desc: "Costs all of your energy and enters as (X/X), where X is the energy spent. When Played: Summon Igris, then Beru, each in a lane you choose. Then choose a card in your dead pile to revive — always if it costs ≤ 6, 66% if 7–8, 33% if 9 or more." },
   // His shadows. Printed 0/0 because both numbers are his: ATK is his minus 3
   // (Beru) or 4 (Igris), and the 0 HP is the promise that nothing but his
   // departure can end them (Game.reconcileShadows).

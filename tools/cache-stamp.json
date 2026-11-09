@@ -8,16 +8,16 @@
     "hash": "f4ff37ff"
   },
   "cards.js": {
-    "v": 285,
-    "hash": "78ab3611"
+    "v": 286,
+    "hash": "a09bfb26"
   },
   "tricks.js": {
     "v": 126,
     "hash": "4074e4c3"
   },
   "abilities.js": {
-    "v": 513,
-    "hash": "91724575"
+    "v": 514,
+    "hash": "596e0c33"
   },
   "engine/combat.js": {
     "v": 4,

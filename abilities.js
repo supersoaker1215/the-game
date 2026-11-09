@@ -6558,61 +6558,78 @@ const CARD_ABILITIES = {
     onPlay(G, self, lane) {
       const owner = self.owner;
       const here = (lane != null && lane >= 0) ? lane : G.findCardLane(self);
-      // 1. ARISE. Nearest empty lane first, ties to the lower lane, re-read
-      //    live before each summon (Beru's own When Played may change the
-      //    board). Placed directly, inside the summon-loop mark, because the
-      //    lanes are decided — there is nothing to ask (Hela's forced branch).
+      // 1. ARISE — Igris first, then Beru, each into a lane the PLAYER picks
+      //    (owner: "he summons igris 1st in any lane and beru in any lane he
+      //    chooses"). Chained through onComplete so Beru's prompt only opens
+      //    once Igris stands, and the revive only once both do. The lane list
+      //    is ordered nearest-first: a human sees every open lane either way,
+      //    and every path that does NOT choose (the AI, the prompt timeout,
+      //    one open lane) takes the nearest.
       const nearest = () => G.getOpenLanes(owner)
         .sort((a, b) => (Math.abs(a - here) - Math.abs(b - here)) || (a - b));
-      G._withSummonLoop(() => {
-        ['Igris', 'Beru'].forEach(name => {
-          const d = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(x => x.name === name) : null;
-          if (!d) return;
-          const l = nearest()[0];
-          if (l === undefined) { G.log(`  [SUNG JIN-WOO] No empty lane for ${name}.`); return; }
-          G.summonCard(owner, l, d.name, d.cost, d.attack, d.health, d.abilities || [], d);
-          const sc = G.state.lanes[l] && G.state.lanes[l][owner];
-          if (sc && sc.name === name) {
-            sc._shadowOf = self.id;
+      // summonCardChoice does not hand back the card it placed, so bind the
+      // new arrival by name: the one shadow of that name on our side that has
+      // no master yet. (reconcileShadows may already have adopted it to us —
+      // that is the same answer.)
+      const bind = (name) => {
+        for (let i = 0; i < G.LANE_COUNT; i++) {
+          const c = G.state.lanes[i] && G.state.lanes[i][owner];
+          if (c && c.name === name && (c._shadowOf == null || c._shadowOf === self.id) && !c._isToken) {
+            c._shadowOf = self.id;
             // A shadow is not a deck card: it never enters the dead pile, so
             // nothing can raise it apart from its master.
-            sc._isToken = true;
-          }
-        });
-      });
-      G.reconcileShadows();
-      // 2. THE REVIVE. A chosen card from your own dead pile, at the owner's
-      //    odds by its cost. A miss leaves it where it lay.
-      const pile = (G.state[owner].deadPile || []).filter(e => e && e.name
-        && typeof CARD_DEFS !== 'undefined' && CARD_DEFS.some(d => d.name === e.name)
-        && !(CARD_ABILITIES[e.name] && CARD_ABILITIES[e.name].isShadow));
-      if (!pile.length) { G.log('  [SUNG JIN-WOO] The dead pile is empty — nothing to raise.'); return; }
-      if (!G.getOpenLanes(owner).length) { G.log('  [SUNG JIN-WOO] No empty lane — nothing can be raised.'); return; }
-      const chance = (e) => CARD_ABILITIES['Sung Jin-Woo'].reviveChance(e.cost);
-      G.promptCardChoice(owner, pile, 'Sung Jin-Woo — Arise',
-        'Choose a card to revive. Cost ≤ 6: always. 7–8: 66%. 9 or more: 33%.',
-        (picked) => {
-          if (!picked) return;
-          const p = chance(picked);
-          const roll = G.rng();
-          const pct = Math.round(p * 100);
-          if (roll >= p) {
-            G.log(`  [ARISE] ${picked.name} does not answer (${pct}% chance) — it stays in the dead pile.`);
-            if (typeof UI !== 'undefined' && UI.showAITrickToast) { try { UI.showAITrickToast('Arise', `${picked.name} did not rise (${pct}% chance).`, 'info'); } catch (e) {} }
+            c._isToken = true;
             return;
           }
-          const dp = G.state[owner].deadPile || [];
-          const idx = dp.indexOf(picked);
-          if (idx > -1) dp.splice(idx, 1);
-          const def = CARD_DEFS.find(d => d.name === picked.name) || picked;
-          G.log(`  [ARISE] ${picked.name} rises${p < 1 ? ` (${pct}% chance)` : ''}!`);
-          if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.playEffectSfx) { try { UI.sfx.playEffectSfx('Revive', self); } catch (e) {} }
-          G.summonCardChoice(owner, def.name, def.cost, def.attack, def.health, def.abilities || [], null, null, def);
-        },
-        // AI: the most cost it can EXPECT to get back.
-        cards => cards.slice().sort((a, b) =>
-          ((b.cost | 0) * chance(b)) - ((a.cost | 0) * chance(a)))[0],
-        { forcePrompt: true });
+        }
+      };
+      const raise = (name, next) => {
+        const d = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(x => x.name === name) : null;
+        const open = nearest();
+        if (!d || !open.length) {
+          if (d) G.log(`  [SUNG JIN-WOO] No empty lane for ${name}.`);
+          next();
+          return;
+        }
+        G.summonCardChoice(owner, d.name, d.cost, d.attack, d.health, d.abilities || [], open,
+          () => { bind(name); G.reconcileShadows(); next(); }, d);
+      };
+      raise('Igris', () => raise('Beru', () => revive()));
+      // (called once Igris and Beru are both placed)
+      function revive() {
+        // 2. THE REVIVE. A chosen card from your own dead pile, at the owner's
+        //    odds by its cost. A miss leaves it where it lay.
+        const pile = (G.state[owner].deadPile || []).filter(e => e && e.name
+          && typeof CARD_DEFS !== 'undefined' && CARD_DEFS.some(d => d.name === e.name)
+          && !(CARD_ABILITIES[e.name] && CARD_ABILITIES[e.name].isShadow));
+        if (!pile.length) { G.log('  [SUNG JIN-WOO] The dead pile is empty — nothing to raise.'); return; }
+        if (!G.getOpenLanes(owner).length) { G.log('  [SUNG JIN-WOO] No empty lane — nothing can be raised.'); return; }
+        const chance = (e) => CARD_ABILITIES['Sung Jin-Woo'].reviveChance(e.cost);
+        G.promptCardChoice(owner, pile, 'Sung Jin-Woo — Arise',
+          'Choose a card to revive. Cost ≤ 6: always. 7–8: 66%. 9 or more: 33%.',
+          (picked) => {
+            if (!picked) return;
+            const p = chance(picked);
+            const roll = G.rng();
+            const pct = Math.round(p * 100);
+            if (roll >= p) {
+              G.log(`  [ARISE] ${picked.name} does not answer (${pct}% chance) — it stays in the dead pile.`);
+              if (typeof UI !== 'undefined' && UI.showAITrickToast) { try { UI.showAITrickToast('Arise', `${picked.name} did not rise (${pct}% chance).`, 'info'); } catch (e) {} }
+              return;
+            }
+            const dp = G.state[owner].deadPile || [];
+            const idx = dp.indexOf(picked);
+            if (idx > -1) dp.splice(idx, 1);
+            const def = CARD_DEFS.find(d => d.name === picked.name) || picked;
+            G.log(`  [ARISE] ${picked.name} rises${p < 1 ? ` (${pct}% chance)` : ''}!`);
+            if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.playEffectSfx) { try { UI.sfx.playEffectSfx('Revive', self); } catch (e) {} }
+            G.summonCardChoice(owner, def.name, def.cost, def.attack, def.health, def.abilities || [], null, null, def);
+          },
+          // AI: the most cost it can EXPECT to get back.
+          cards => cards.slice().sort((a, b) =>
+            ((b.cost | 0) * chance(b)) - ((a.cost | 0) * chance(a)))[0],
+          { forcePrompt: true });
+      }
     },
   },
   "Beru": {

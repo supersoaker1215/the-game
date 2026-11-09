@@ -32,6 +32,11 @@ function reset() {
   Game.state.firstPlayer = 'player';
   Game.state.activePlayer = 'player';
   Game.history = [];
+  // A real match seats a human on 'player' and the bot on 'ai'; Game.init alone
+  // leaves both unset, which would make every human prompt auto-resolve.
+  Game.state.player.isHuman = true;
+  Game.state.ai.isHuman = false;
+  installLaneSpy(Game);
   for (var i = 0; i < Game.LANE_COUNT; i++) {
     Game.state.lanes[i].player = null; Game.state.lanes[i].ai = null; Game.state.lanes[i].destroyed = false;
   }
@@ -47,14 +52,33 @@ function onBoard(G, owner, name) {
 }
 // Play him and answer the revive prompt (if any) with nothing to keep the
 // case about one thing. An empty dead pile raises no prompt at all.
+// THE LANE PROMPT, OBSERVED. sim/shim.js replaces Game.promptLaneChoice with an
+// instant random pick, so a held-open prompt can never be seen here. This spy
+// stands in for the player instead: it records every prompt in the order it
+// was raised (and what was on the board at that moment), and answers with the
+// lanes a case queued in __picks — else the first lane offered, the nearest.
+var __asked = [], __picks = [], __boardAtAsk = [];
+function installLaneSpy(G) {
+  __asked = []; __picks = []; __boardAtAsk = [];
+  G.promptLaneChoice = function (owner, lanes, title, desc, cb) {
+    __asked.push(title);
+    __boardAtAsk.push({ igris: !!onBoard(G, owner, 'Igris'), beru: !!onBoard(G, owner, 'Beru') });
+    var l = __picks.length ? __picks.shift() : lanes[0];
+    if (lanes.indexOf(l) < 0) throw new Error('lane ' + l + ' was not offered for ' + title);
+    cb(l);
+  };
+}
+function answerLanes(G, picks) { return __asked.slice(); }
 // An ally already stands in lane 6, so the engine's universal Lone Wolf
 // (+1/+1 to a card entering an empty board) stays out of these numbers.
-function playSJW(G, owner, energy, lane) {
+function playSJW(G, owner, energy, lane, picks) {
   if (!G.state.lanes[5][owner]) place(G, 'Bane', owner, 5);
   G.state[owner].currency = energy;
+  if (picks) __picks = picks.slice();
   var sjw = inHand(G, 'Sung Jin-Woo', owner);
   var res = G.playCard(owner, sjw, lane);
-  return { sjw: sjw, res: res };
+  var asked = answerLanes(G, picks);
+  return { sjw: sjw, res: res, asked: asked };
 }
 
 t('cost and body follow the purse while he is in hand', function () {
@@ -102,6 +126,7 @@ t('a hand buff survives the lock (Red Skull style +2/+2)', function () {
   var pv = G.energyScaledPreview(c);
   eq('preview carries the buff', pv.attack + '/' + pv.health, '6/6');
   G.playCard('player', c, 0);
+  answerLanes(G);
   eq('lands 6/6 at X=4', c.attack + '/' + c.currentHealth, '6/6');
 });
 
@@ -110,22 +135,41 @@ t('Lone Wolf still applies to him like any card (empty board: X+1)', function ()
   G.state.player.currency = 5;
   var c = inHand(G, 'Sung Jin-Woo', 'player');
   G.playCard('player', c, 2);
+  answerLanes(G);
   eq('5 energy alone -> 6/6', c.attack + '/' + c.currentHealth, '6/6');
 });
 
-t('he raises Igris and Beru in the nearest empty lanes, at his ATK −4 / −3', function () {
+t('Igris comes FIRST into a lane the player picks, then Beru into a lane the player picks', function () {
   var G = reset();
-  var r = playSJW(G, 'player', 7, 2);
+  var r = playSJW(G, 'player', 7, 2, [4, 0]);
+  eq('two prompts, Igris then Beru', r.asked.join(' | '), 'Place Igris | Place Beru');
   var ig = onBoard(G, 'player', 'Igris'), be = onBoard(G, 'player', 'Beru');
-  ok('Igris summoned', !!ig); ok('Beru summoned', !!be);
-  eq('Igris nearest (lane 1, tie to the lower)', G.findCardLane(ig), 1);
-  eq('Beru next (lane 3)', G.findCardLane(be), 3);
+  eq('Igris where the player put him (lane 5)', G.findCardLane(ig), 4);
+  eq('Beru where the player put him (lane 1)', G.findCardLane(be), 0);
   eq('Igris ATK = 7 − 4', ig.attack, 3);
   eq('Beru ATK = 7 − 3', be.attack, 4);
   eq('both Overdrive', ig.isOverdrive && be.isOverdrive, true);
   eq('linked by id', ig._shadowOf === r.sjw.id && be._shadowOf === r.sjw.id, true);
+  eq('never dead-pile cards', ig._isToken && be._isToken, true);
   eq('ATK is their own, not a buff (base moves with it)', be.baseAttack, 4);
   ok('bound shadows are Invincible', ig.invincibleTurns > 0 && be.invincibleTurns > 0);
+});
+
+t('Beru\'s prompt does not open until Igris is placed', function () {
+  var G = reset();
+  playSJW(G, 'player', 6, 2, [3, 1]);
+  eq('asked Igris first', __asked[0], 'Place Igris');
+  eq('when Igris was asked, neither was on the board', JSON.stringify(__boardAtAsk[0]), '{"igris":false,"beru":false}');
+  eq('when Beru was asked, Igris already stood', JSON.stringify(__boardAtAsk[1]), '{"igris":true,"beru":false}');
+});
+
+t('the AI takes the nearest lanes, Igris first', function () {
+  var G = reset();
+  place(G, 'Bane', 'ai', 5);
+  G.state.ai.currency = 7;
+  G.playCard('ai', inHand(G, 'Sung Jin-Woo', 'ai'), 2);
+  eq('Igris nearest (lane 2, tie to the lower)', G.findCardLane(onBoard(G, 'ai', 'Igris')), 1);
+  eq('Beru next nearest (lane 4)', G.findCardLane(onBoard(G, 'ai', 'Beru')), 3);
 });
 
 t('Beru freezes the highest-cost enemy when he lands', function () {
@@ -248,6 +292,7 @@ t('undo after playing him restores the purse, the hand and an empty board', func
   G.state.player.currency = 6;
   var c = inHand(G, 'Sung Jin-Woo', 'player');
   G.playCard('player', c, 2);
+  answerLanes(G);
   G.undo();
   eq('purse back', G.state.player.currency, 6);
   eq('him back in hand', G.state.player.hand.length, 1);
