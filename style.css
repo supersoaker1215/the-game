@@ -53177,3 +53177,86 @@ body.fx-lean .card-taunt { box-shadow: 0 0 14px rgba(255,190,60,0.55), 0 0 26px 
 /* the deck line wraps whole phrases, never one word per line */
 .mps-tron .mps-deck { flex-wrap: wrap; row-gap: 2px; }
 .mps-tron .mps-deck-name, .mps-tron .mps-deck-count, .mps-tron .mps-deck-act { white-space: nowrap; }
+
+/* ============================================================
+   1v1 LOBBY + VOICE, SIMPLE AND SLEEK (2026-11-09)
+   Same language as the setup screen: the room code is big glow text (no
+   filled tiles), the seats are single lines coloured by owner, the actions
+   are rail rows. VOICE is glow text with a rail tick, not a bordered pill;
+   opened, it is a pure-black panel with the menu's spine instead of a frame.
+   ============================================================ */
+.mpl-tron .mpl-code { flex-direction: column; align-items: flex-start; gap: 6px; }
+.mpl-tron .mpl-code-tiles { gap: 0.18em; }
+.mpl-tron .mpl-code-cap {
+  font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 700;
+  letter-spacing: 0.24em; text-transform: uppercase; color: rgba(var(--theme-rgb, 79,195,247), 0.75);
+}
+.mpl-tron .mpl-seats { gap: 10px; margin-top: clamp(20px, 3.4vh, 38px); }
+.mpl-tron .mpl-seat, .mpl-tron .mpl-seat > * { background: none; padding: 0; clip-path: none; border: 0; }
+.mpl-tron .mpl-seat-head { padding: 0; gap: 16px; clip-path: none; }
+.mpl-tron .mpl-seat-name {
+  flex: 0 1 auto; font-family: 'Rajdhani', sans-serif; font-size: clamp(20px, 2vw, 30px);
+  font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+}
+.mpl-tron .mpl-seat-state { font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 0.22em; }
+.mpl-tron .mpl-seat-deck { padding: 2px 0 0; border: 0; }
+.mpl-tron .mpl-rail { margin-top: clamp(18px, 3vh, 34px); }
+
+/* the selectors sim/mp-screens.js reads by name, restated for boxless use */
+.mpl-code-tile {
+  width: auto; height: auto; display: inline-block; background: none; clip-path: none;
+  font-family: 'Rajdhani', sans-serif; font-size: clamp(54px, 7vw, 104px); font-weight: 700;
+  letter-spacing: 0.06em; line-height: 1; color: rgb(var(--theme-rgb));
+  filter: drop-shadow(0 0 1px rgba(255,255,255,0.6))
+          drop-shadow(0 0 12px rgba(var(--theme-rgb), 0.55));
+}
+.mpl-code-tiles.is-closed .mpl-code-tile {
+  background: none; border: 0; color: rgba(var(--theme-rgb), 0.35); filter: none;
+}
+.mpl-code-tiles.mp-code-copied .mpl-code-tile { color: rgb(var(--mm-gold, 245,191,28)); }
+.mpl-seat.is-you {
+  background: none; padding: 0; color: rgb(var(--theme-rgb));
+  filter: drop-shadow(0 0 1px rgba(255,255,255,0.35))
+          drop-shadow(0 0 8px rgba(var(--theme-rgb), 0.45));
+}
+.mpl-seat.is-opp {
+  background: none; padding: 0; color: rgb(var(--own-opponent));
+  filter: drop-shadow(0 0 1px rgba(255,255,255,0.35))
+          drop-shadow(0 0 8px rgba(var(--own-opponent), 0.45));
+}
+.mpl-tron .mpl-seat.is-you .mpl-seat-name { color: rgb(var(--theme-rgb)); }
+.mpl-tron .mpl-seat.is-opp .mpl-seat-name { color: rgb(var(--own-opponent)); }
+.mpl-seat.is-open .mpl-seat-name { color: var(--mp-text-off); }
+.mpl-start.is-ready {
+  border: 0; color: rgb(var(--theme-rgb));
+  filter: drop-shadow(0 0 1px rgba(255,255,255,0.6))
+          drop-shadow(0 0 8px rgba(var(--theme-rgb), 0.45));
+}
+
+/* ---- VOICE ------------------------------------------------------------ */
+.voice-panel {
+  border: 0; border-radius: 0; box-shadow: none; background: transparent;
+}
+.voice-panel:not(.collapsed) {
+  background: #000;
+  border-left: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.22);   /* the menu's spine */
+}
+.voice-panel .vp-head { position: relative; padding: 7px 12px 7px 14px; letter-spacing: 0.24em; }
+.voice-panel .vp-head::before {             /* the rail tick, lit on hover like a menu row */
+  content: ''; position: absolute; left: 0; top: 22%; bottom: 22%; width: 3px; border-radius: 1px;
+  background: rgba(var(--theme-rgb, 79,195,247), 0.35);
+  transition: background 160ms var(--ease-snap, ease-out), top 160ms, bottom 160ms;
+}
+.voice-panel .vp-head:hover::before, .voice-panel .vp-head:focus-visible::before {
+  top: 10%; bottom: 10%; background: rgb(var(--mm-gold, 245,191,28));
+}
+.voice-panel .vp-head:hover .vp-off, .voice-panel .vp-head:focus-visible .vp-off {
+  color: rgb(var(--mm-gold, 245,191,28));
+  text-shadow: 0 0 10px rgba(var(--mm-gold, 245,191,28), 0.7);
+}
+.voice-panel .vp-off { text-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.45); }
+.voice-panel .vp-count { border: 0; border-radius: 0; padding: 0; }
+.voice-panel .vp-err { border: 0; border-radius: 0; padding: 2px 4px; background: none; }
+.voice-panel .vp-diag { color: rgba(var(--theme-rgb, 79,195,247), 0.55); opacity: 1; }
+.voice-panel .vp-row { border-radius: 0; }
+@media (prefers-reduced-motion: reduce) { .voice-panel .vp-head::before { transition: none; } }

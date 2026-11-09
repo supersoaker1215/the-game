@@ -21275,11 +21275,12 @@ const UI = {
             <span class="mps-deck-count">${_esc(opts.deckCount || '')}</span>
             ${opts.deckAct ? `<button type="button" class="mps-deck-act" onclick="${opts.deckAct}">Change &rarr;</button>` : ''}
           </div>`;
+        // ONE LINE PER SEAT: the colour says whose it is (yours = your neon,
+        // theirs = red, open = neutral), so no dot, no frame, no panel.
         return `
         <div class="mpl-seat ${cls}">
           <div class="mpl-seat-head">
-            <span class="mpl-seat-dot" aria-hidden="true"></span>
-            <span class="mpl-seat-name">${opts.open ? 'Open seat' : _esc(opts.name)}</span>
+            <span class="mpl-seat-name">${opts.open ? 'Waiting for opponent\u2026' : _esc(opts.name)}</span>
             ${right}
           </div>${deck}
         </div>`;
@@ -21298,41 +21299,34 @@ const UI = {
                   deck: _isDeck ? true : null, deckHidden: true, deckCount: _oppCounts })
         : _seat({ open: true, addAi: '' });
 
-      const _evOn = this._mpEventsOn();
-      const _summary = [
-        _isDeck ? 'Custom decks' : 'Classic draft',
-        'Random events ' + (_evOn ? 'on' : 'off'),
-        '6 lanes',
-      ].join(' \u00b7 ');
-
+      // SIMPLE AND SLEEK, like the setup screen: the code is the one big thing
+      // (you read it out loud), the actions are rail rows, the seats are lines.
+      // Gone: the filled code tiles, the Copy/Share pair that did the same
+      // thing, the VS rule, the summary (it read the wrong mode's events and
+      // hard-coded "6 lanes") and a START button nothing could ever enable.
+      const _row = (id, label, onClick) => `
+        <button type="button" class="mm-option" id="${id}" onclick="${onClick}">
+          <span class="mm-rail-seg" aria-hidden="true"></span>
+          <div class="mm-option-icon"></div>
+          <div class="mm-option-text"><div class="mm-option-label">${label}</div></div>
+        </button>`;
       body = `
-        <div class="mpl">
-          <div class="mpl-codewrap">
-            <span class="mps-lbl">Room code</span>
-            <div class="mpl-code">
-              <div class="mpl-code-tiles${_full ? ' is-closed' : ''}" id="mp-code-display"
-                   onclick="UI._mpCopyCode()" title="Tap to copy">${_tiles}</div>
-              <div class="mpl-code-acts">
-                <button type="button" class="mpl-code-act" onclick="UI._mpCopyCode()">Copy</button>
-                <button type="button" class="mpl-code-act" onclick="UI._mpCopyCode()">Share</button>
-              </div>
-            </div>
-            ${_full ? `<div class="mpl-code-cap">Room full \u2014 code closed</div>` : ''}
+        <div class="mpl mpl-tron">
+          <div class="mpl-code">
+            <div class="mpl-code-tiles${_full ? ' is-closed' : ''}" id="mp-code-display"
+                 onclick="UI._mpCopyCode()" title="Tap to copy" role="button" aria-label="Room code ${_esc(_code)}, tap to copy">${_tiles}</div>
+            <div class="mpl-code-cap">${_full ? 'Room full' : 'Share this code'}</div>
           </div>
 
           <div class="mpl-seats">
             ${_mySeat}
-            <div class="mpl-vs"><span>VS</span></div>
             ${_oppSeat}
           </div>
 
-          <div class="mpl-foot">
-            <div class="mpl-summary">${_esc(_summary)}</div>
-            <div class="mpl-startrow">
-              <button type="button" class="mpl-start${_ready ? ' is-ready' : ''}"
-                      ${_ready ? '' : 'disabled'}>Start</button>
-              <span class="mpl-seatcount${_ready ? ' is-ready' : ''}">${_seated} / 2 seated${
-                _ready ? ' \u2014 both ready' : (_oppIn ? ' \u2014 waiting on decks\u2026' : ' \u2014 waiting for players\u2026')}</span>
+          <div class="mm-section mm-four-list mpl-rail">
+            <div class="mm-grid mm-grid-section">
+              ${_full ? '' : _row('mpl-copy', 'Copy Code', 'UI._mpCopyCode()')}
+              ${_isDeck ? _row('mpl-deck', 'Change Deck', 'UI._mpOpenDeckBuilder()') : ''}
             </div>
           </div>
         </div>`;

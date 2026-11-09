@@ -329,6 +329,25 @@ test('the MULTIPLAYER menu row runs the full multiplayer entry (room listeners),
      'onclick is ' + (row && row.getAttribute('onclick')));
 });
 
+test('the 1v1 waiting lobby is simple: code, seat lines, rail rows — no dead START, one copy action', function () {
+  var el = menuShell();
+  UI.mmShowSub('mp');
+  UI._mpState = { tab: 'create', status: 'waiting', code: 'QX7K', mode: 'classic', you: 'player', opponent: null };
+  UI._mpLobby = { oppName: '' };
+  UI._mpRender();
+  eq(el.querySelectorAll('.mpl-tron').length, 1, 'the lobby renders');
+  eq(el.querySelectorAll('.mpl-code-tile').length, 4, 'the code is still four letters (tap to copy)');
+  eq(el.querySelectorAll('button[disabled], .mpl-start').length, 0, 'no START button nothing could ever enable');
+  eq(el.querySelectorAll('.mpl-code-act, .mpl-vs, .mpl-summary, .mpl-seat-dot').length, 0, 'Copy/Share pair, VS rule, summary and seat dots are gone');
+  eq(el.querySelectorAll('#mpl-copy.mm-option').length, 1, 'one COPY CODE rail row');
+  UI._mpLobby = { oppName: 'Ryan' };
+  UI._mpRender();
+  eq(el.querySelectorAll('#mpl-copy').length, 0, 'a full room drops the copy row');
+  eq(el.querySelectorAll('.mpl-seat.is-opp').length, 1, 'the opponent seat appears');
+  UI._mpState = { tab: 'create', code: null, status: 'idle', you: null, opponent: null };
+  UI._mpLobby = {};
+});
+
 print('');
 print('ui-render: ' + __pass + ' passed, ' + __fail + ' failed');
 if (__fail) {
