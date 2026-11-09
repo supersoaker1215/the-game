@@ -21160,7 +21160,6 @@ const UI = {
             <button type="button" class="mps-deck-act" onclick="event.stopPropagation(); UI._mpOpenDeckBuilder()">Change &rarr;</button>
           </div>`;
         return `
-        <button type="button" class="mm-subback" onclick="UI.mmBack()" aria-label="Back to main menu">&larr; Menu</button>
         <div class="mps-mode${on ? ' is-on' : ''}" role="radio" tabindex="0" aria-checked="${on}"
              onclick="UI._mpPickMode('${m.id}')"
              onkeydown="if(event.key===' '||event.key==='Enter'){event.preventDefault();UI._mpPickMode('${m.id}');}">
@@ -21193,6 +21192,7 @@ const UI = {
             </div>
           </div>
 
+          <button type="button" class="mm-subback" onclick="UI._mpBack()" aria-label="Back to main menu">&larr; Menu</button>
           <div class="mps-lbl mps-lbl-block">Mode</div>
           <div class="mps-modes" role="radiogroup" aria-label="Multiplayer mode">${_modes}</div>
 
