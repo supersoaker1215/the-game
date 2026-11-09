@@ -309,6 +309,26 @@ test('the first-run "New here?" prompt waits behind the title screen instead of 
   try { localStorage.setItem('clb-onboarded', '1'); } catch (e) {}
 });
 
+test('multiplayer setup is simple: one back, modes + CREATE ROOM as rail rows, no boxed panels', function () {
+  var el = menuShell();
+  UI.mmShowSub('mp');
+  eq(el.querySelectorAll('.mm-subback, .mp-crumb-back').length, 1, 'exactly one way back (it printed once per mode)');
+  eq(rowLabels(el).join('|'), '2V2ONLINE|1V1ONLINE|1V1CUSTOMDECKS|CREATEROOM',
+     'the three modes and CREATE ROOM are the rail rows, so arrows/Enter and gold work here too');
+  eq(el.querySelectorAll('.mm-panel .mps-mode.mm-option').length, 3, 'each mode IS a menu row');
+  eq(el.querySelectorAll('.mm-panel .mm-rail-seg').length, 4, 'one rail segment per row');
+  eq(el.querySelectorAll('.mps-mode.is-on').length, 1, 'exactly one chosen mode');
+  eq(el.querySelectorAll('.mps-cta, .mps-mode-head, .mps-create-sub').length, 0, 'the old boxed CTA and card heads are gone');
+  ok(!!el.querySelector('#mp-name-input') && !!el.querySelector('#mp-code-slots'), 'name field and code slots keep their ids');
+});
+
+test('the MULTIPLAYER menu row runs the full multiplayer entry (room listeners), not just the panel swap', function () {
+  var el = menuShell();
+  var row = el.querySelector('#mm-four-multi');
+  ok(!!row && /UI\.openMultiplayer\(\)/.test(row.getAttribute('onclick') || ''),
+     'onclick is ' + (row && row.getAttribute('onclick')));
+});
+
 print('');
 print('ui-render: ' + __pass + ' passed, ' + __fail + ' failed');
 if (__fail) {

@@ -53023,3 +53023,157 @@ body.fx-lean .card-taunt { box-shadow: 0 0 14px rgba(255,190,60,0.55), 0 0 26px 
 @media (prefers-reduced-motion: reduce) {
   #main-menu-overlay.is-title .ts-bg, #main-menu-overlay.is-title .ts-prompt { animation: none; }
 }
+
+/* ============================================================
+   MULTIPLAYER, SIMPLE AND SLEEK (2026-11-09)
+   Owner, on the setup screen and the 2v2 pre-join screen: "these need
+   redesign — way too much stuff, i need simple sleek like tron."
+   Both screens now speak the main menu's language: big uppercase rows hung
+   off one rail, gold on the row you are on, underline fields, pure black,
+   no panels. Every rule is scoped (.mps-tron / .twov2-tron) except the five
+   selectors sim/mp-screens.js reads by name — those are restated here, last,
+   so the glow contract (drop-shadow with a 1px white core, following the
+   player's neon) still holds on what is now a boxless row.
+   ============================================================ */
+
+/* ---- setup: name + neon, one line ------------------------------------- */
+.mps-tron .mps-idrow { align-items: center; gap: 28px; margin: 4px 0 clamp(14px, 2.4vh, 26px); }
+.mm-section.mp-section .mps-tron .mps-name {
+  width: min(260px, 52vw); flex: 0 1 auto;
+  font-family: 'Rajdhani', sans-serif; font-size: 22px; font-weight: 600; letter-spacing: 0.08em;
+  border-bottom: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55) !important;
+}
+.mm-section.mp-section .mps-tron .mps-name:focus { border-bottom-color: rgb(var(--theme-rgb, 79,195,247)) !important; }
+.mps-tron .mps-chips { gap: 10px; }
+.mps-tron .mps-chip { width: 14px; height: 14px; clip-path: none; }
+
+/* ---- setup: the modes and CREATE ROOM are rail rows ------------------- */
+.mps-tron .mps-mode, .mps-tron .mps-create { clip-path: none; background: none; border: 0; }
+.mps-tron .mps-mode > *, .mps-tron .mps-mode.is-on > * { background: none; }
+.mps-tron .mps-create::after { display: none; }
+.mps-tron .mps-create { margin-top: clamp(8px, 1.6vh, 18px); width: fit-content; justify-content: flex-start; }
+.mps-tron .mm-option-sub {
+  font-family: 'Rajdhani', sans-serif; font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.6); margin-top: 4px;
+}
+/* the chosen mode: a lit square after its name and a lit segment (gold stays
+   "the row you are on", exactly as on the main menu) */
+.mps-tron .mps-mode-ind {
+  display: inline-block; width: 9px; height: 9px; flex: none;
+  margin-left: 0.7em; vertical-align: 0.28em;
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.45); background: none; box-shadow: none;
+}
+.mm-four .mps-tron .mps-mode.is-on .mm-rail-seg { background: rgb(var(--theme-rgb, 79,195,247)); }
+/* the deck: one quiet line under its mode, no panel */
+.mps-tron .mps-deck {
+  clip-path: none; border: 0; padding: 0 0 0 clamp(18px, 1.6vw, 28px); margin-top: -4px;
+  font-family: 'Rajdhani', sans-serif;
+}
+.mps-tron .mps-deck-act { margin-left: 14px; color: rgb(var(--theme-rgb, 79,195,247)); }
+.mps-tron .mps-deck-act:hover { color: rgb(var(--mm-gold, 245,191,28)); }
+
+/* ---- setup: events + join, single lines -------------------------------- */
+.mps-tron .mps-ev { gap: 10px; margin-top: clamp(16px, 2.6vh, 30px); width: fit-content; }
+.mps-tron .mps-ev-text, .mps-tron .mps-ev-val, .mps-tron .mps-join-lbl {
+  flex: 0 0 auto; font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 700;
+  letter-spacing: 0.24em; text-transform: uppercase; color: rgba(var(--theme-rgb, 79,195,247), 0.75);
+}
+.mps-tron .mps-ev-sw { width: 9px; height: 9px; flex: 0 0 9px; background: none; border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.45); }
+.mps-tron .mps-ev-sw::after { display: none; }
+.mps-tron .mps-ev.is-on .mps-ev-val { color: rgb(var(--theme-rgb, 79,195,247)); }
+.mps-tron .mps-join { gap: 14px; margin-top: 14px; }
+.mps-tron .mps-join .mp-code-slots { gap: 8px; }
+.mps-tron .mps-join .mp-code-slot {
+  width: 26px; height: 32px; clip-path: none; background: none; border: 0;
+  border-bottom: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);
+  font-family: 'Rajdhani', sans-serif; font-size: 22px; font-weight: 700; color: #fff;
+}
+.mps-tron .mps-join .mp-code-slot:focus { border-bottom-color: rgb(var(--theme-rgb, 79,195,247)); }
+.mps-tron .mps-enter { font-size: 22px; color: rgb(var(--theme-rgb, 79,195,247)); }
+.mps-tron .mps-enter:hover { color: rgb(var(--mm-gold, 245,191,28)); }
+
+/* ---- the five selectors the screen test reads by name ----------------- */
+.mps-mode.is-on {
+  background: none;
+  filter: drop-shadow(0 0 1px rgba(255,255,255,0.35))
+          drop-shadow(0 0 8px rgba(var(--theme-rgb), 0.35));
+}
+.mps-create {
+  background: none; padding: 0; border: 0;
+  filter: drop-shadow(0 0 1px rgba(255,255,255,0.35))
+          drop-shadow(0 0 8px rgba(var(--theme-rgb), 0.35));
+}
+.mps-mode.is-on .mps-mode-ind {
+  border-color: rgb(var(--theme-rgb));
+  background: rgb(var(--theme-rgb));
+  box-shadow: none;
+}
+.mps-ev.is-on .mps-ev-sw { background: rgb(var(--theme-rgb)); border-color: rgb(var(--theme-rgb)); }
+
+/* ---- 2v2 pre-join: the same screen language ---------------------------- */
+.twov2-tron .twov2-mm-content { padding: clamp(28px, 5vh, 52px) clamp(24px, 4.4vw, 56px); max-width: 680px; }
+.twov2-tron .twov2-mm-title {
+  font-size: clamp(34px, min(5.6vw, 8vh), 92px); letter-spacing: 0.22em; margin: 0 0 6px;
+}
+.twov2-tron .twov2-mm-kicker {
+  font-size: 13px; font-weight: 700; letter-spacing: 0.24em; text-transform: uppercase;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.75); margin: 0 0 clamp(18px, 3vh, 34px);
+}
+.twov2-tron .twov2-mm-nameinput {
+  display: block; flex: none; width: min(300px, 70vw); margin: 0 0 clamp(18px, 3vh, 34px);
+  font-size: 22px; letter-spacing: 0.08em;
+  border-bottom: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);
+}
+.twov2-tron .twov2-rows {
+  position: relative; display: flex; flex-direction: column; gap: clamp(10px, 1.6vh, 22px);
+}
+.twov2-tron .twov2-rows::before {
+  content: ''; position: absolute; left: 0; top: 4px; bottom: 4px; width: 1px;
+  background: rgba(var(--theme-rgb, 79,195,247), 0.22);
+}
+.twov2-tron .twov2-row {
+  position: relative; display: flex; align-items: center; gap: 18px; width: fit-content; max-width: 100%;
+  padding: clamp(8px, 1.3vh, 16px) 10px clamp(8px, 1.3vh, 16px) clamp(18px, 1.6vw, 28px);
+  background: none; border: 0; cursor: pointer; text-align: left;
+}
+.twov2-tron .twov2-seg {
+  position: absolute; left: 0; top: 18%; bottom: 18%; width: 3px; border-radius: 1px;
+  background: rgba(var(--theme-rgb, 79,195,247), 0.28);
+  transition: background 160ms var(--ease-snap, ease-out), top 160ms, bottom 160ms;
+}
+.twov2-tron .twov2-row-label {
+  font-family: 'Rajdhani', sans-serif; font-weight: 700; line-height: 1.05; text-transform: uppercase;
+  font-size: clamp(22px, 2.75vw, 54px); letter-spacing: 0.18em;
+  color: rgb(var(--theme-rgb, 79,195,247));
+  text-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.55);
+  transition: color 160ms var(--ease-snap, ease-out), text-shadow 160ms;
+}
+.twov2-tron .twov2-row:hover .twov2-row-label,
+.twov2-tron .twov2-row:focus-visible .twov2-row-label,
+.twov2-tron .twov2-row:focus-within .twov2-row-label {
+  color: rgb(var(--mm-gold, 245,191,28));
+  text-shadow: 0 0 10px rgba(var(--mm-gold, 245,191,28), 0.75), 0 0 26px rgba(var(--mm-gold, 245,191,28), 0.35);
+}
+.twov2-tron .twov2-row:hover .twov2-seg,
+.twov2-tron .twov2-row:focus-visible .twov2-seg,
+.twov2-tron .twov2-row:focus-within .twov2-seg {
+  top: 8%; bottom: 8%; background: rgb(var(--mm-gold, 245,191,28));
+  box-shadow: 0 0 8px rgba(var(--mm-gold, 245,191,28), 0.9);
+}
+.twov2-tron .twov2-row-join { cursor: default; }
+.twov2-tron .twov2-mm-code { width: 5.4em; font-size: 24px; }
+.twov2-tron .twov2-mm-go { font-size: 24px; letter-spacing: 0; color: rgb(var(--theme-rgb, 79,195,247)); }
+.twov2-tron .twov2-mm-go:hover { color: rgb(var(--mm-gold, 245,191,28)); transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .twov2-tron .twov2-seg, .twov2-tron .twov2-row-label { transition: none; }
+}
+/* phone: the touch rule (button { min-height: 40px }) stretched the neon chips
+   into bars — keep them square, at a size a thumb can still hit */
+@container (max-width: 520px) {
+  .mps-tron .mps-chip { min-height: 0; width: 22px; height: 22px; }
+  /* name + six chips do not fit on one phone line: the chips drop below */
+  .mps-tron .mps-idrow { flex-wrap: wrap; row-gap: 14px; }
+}
+/* the deck line wraps whole phrases, never one word per line */
+.mps-tron .mps-deck { flex-wrap: wrap; row-gap: 2px; }
+.mps-tron .mps-deck-name, .mps-tron .mps-deck-count, .mps-tron .mps-deck-act { white-space: nowrap; }

@@ -16354,24 +16354,31 @@ const UI = {
       // it doesn't have to be re-entered every visit.
       let savedName = '';
       try { savedName = localStorage.getItem('2v2PlayerName') || ''; } catch (e) {}
+      // …or the name already typed on the multiplayer screen, so it is never asked twice.
+      if (!savedName && this._mpName) { try { savedName = this._mpName() || ''; } catch (e) {} }
       savedName = savedName.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').slice(0, 18);
+      const _tq2 = (typeof Tournament !== 'undefined' && Tournament._online && Tournament._online.mode === '2v2') ? Tournament._online : null;
+      // SAME LOOK AS THE MENU (owner: "simple sleek like tron"): the full-size
+      // wordmark, one line of context, an underline name, and the two actions
+      // as rail rows. No icons, no "host" tag, no second smaller title.
       el.innerHTML = `
-        <div class="twov2-mm">
+        <div class="twov2-mm twov2-tron">
           ${heroHtml}
           <div class="twov2-mm-content">
-            <button type="button" class="twov2-mm-back" onclick="Game.goToMainMenu()">&larr; Menu</button>
+            <button type="button" class="twov2-mm-back" onclick="Game.goToMainMenu(); if (UI.openMultiplayer) UI.openMultiplayer();">&larr; Menu</button>
             <h1 class="twov2-mm-title">the game</h1>
-            <div class="twov2-mm-label">${(typeof Tournament !== 'undefined' && Tournament._online && Tournament._online.mode === '2v2') ? '🏆 Tournament · Online 2v2' : 'Online 2v2'}</div>
-            <div class="twov2-mm-sub">${(typeof Tournament !== 'undefined' && Tournament._online && Tournament._online.mode === '2v2') ? `Best of ${Tournament._online.length} team series · fill all 4 seats, then the host starts the number game` : '4 players · 2 teams · 8 lanes'}</div>
+            <div class="twov2-mm-kicker">${_tq2 ? `Tournament · 2v2 · best of ${_tq2.length}` : '2v2 online · 4 players · 2 teams'}</div>
             ${errorHtml}
-            <div class="twov2-mm-namerow">
-              <label class="twov2-mm-namelabel" for="2v2-online-name">Name</label>
-              <input class="twov2-mm-nameinput" id="2v2-online-name" type="text" maxlength="18" placeholder="Your name" autocomplete="off" value="${savedName}" />
-            </div>
-            <button type="button" class="twov2-mm-opt" onclick="twov2OnlineCreate()"><span class="twov2-mm-ic">&#9655;</span>Create Room <span class="twov2-mm-optsub">host</span></button>
-            <div class="twov2-mm-joinrow">
-              <input class="twov2-mm-code" id="2v2-online-code" type="text" maxlength="4" placeholder="XXXX" autocomplete="off" oninput="this.value=this.value.toUpperCase()" />
-              <button type="button" class="twov2-mm-go" onclick="twov2OnlineJoin()">Join &rarr;</button>
+            <input class="twov2-mm-nameinput" id="2v2-online-name" type="text" maxlength="18" placeholder="Your name" aria-label="Your name" autocomplete="off" value="${savedName}" />
+            <div class="twov2-rows">
+              <button type="button" class="twov2-row" onclick="twov2OnlineCreate()">
+                <span class="twov2-seg" aria-hidden="true"></span><span class="twov2-row-label">Create Room</span>
+              </button>
+              <div class="twov2-row twov2-row-join">
+                <span class="twov2-seg" aria-hidden="true"></span><span class="twov2-row-label">Join</span>
+                <input class="twov2-mm-code" id="2v2-online-code" type="text" maxlength="4" placeholder="CODE" aria-label="Room code" autocomplete="off" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')twov2OnlineJoin()" />
+                <button type="button" class="twov2-mm-go" onclick="twov2OnlineJoin()" aria-label="Join with this code">&rarr;</button>
+              </div>
             </div>
           </div>
         </div>`;
@@ -17413,7 +17420,7 @@ const UI = {
         <div class="mm-section mm-four-list mm-tier-1">
           <div class="mm-grid mm-grid-section">
             ${btn('mm-four-play',     'Play',        'Solo, Roguelite, Tournament, Tutorial',   '', "UI.mmShowSub('play')")}
-            ${btn('mm-four-multi',    'Multiplayer', 'Play a friend online',                   '', "UI.mmShowSub('mp')")}
+            ${btn('mm-four-multi',    'Multiplayer', 'Play a friend online',                   '', "UI.openMultiplayer()")}
             ${btn('mm-four-library',  'Library',     'Decks, Codex, Stats, Tools',             '', "UI.mmShowSub('library')")}
             ${btn('mm-four-settings', 'Settings',    'Audio, graphics, name',                  '', "UI.openSettings()")}
           </div>
@@ -21066,7 +21073,9 @@ const UI = {
   // is one action — the mode was already chosen above it.
   _mpCreateFromSetup() {
     const m = this._mpMode();
-    if (m === '2v2') { if (typeof Game !== 'undefined' && Game.goTo2v2OnlineLobby) Game.goTo2v2OnlineLobby(); return; }
+    // 2v2 skips its own pre-join screen: the name and the Create were both
+    // already given here, so asking for them again was a second screen for nothing.
+    if (m === '2v2') { if (typeof Game !== 'undefined' && Game.goTo2v2OnlineLobby) { Game.goTo2v2OnlineLobby(); twov2OnlineCreate(this._mpName()); } return; }
     this._mpCreateRoom(m === '1v1deck' ? 'deck' : 'classic');
   },
 
@@ -21109,11 +21118,6 @@ const UI = {
     // are left-aligned status rows with a glow-text action (no boxes).
     let body = '';
     if (st.status === 'idle') {
-      const joinInline = (st.tab === 'join') ? `
-        <div class="mp-join-inline">
-          <input id="mp-join-code" class="mp-code-min" maxlength="4" placeholder="CODE" autocapitalize="characters" autocomplete="off" spellcheck="false" oninput="this.value=this.value.toUpperCase()" />
-          <button type="button" class="mp-glow-go" onclick="UI._mpUniversalJoin()">Join &rarr;</button>
-        </div>` : '';
       // THE LOBBY, REBUILT TO THE OWNER'S LAYOUT.
       //
       // "CREATE ROOM ·" used to be a PREFIX repeated on two rows, which wrapped
@@ -21146,74 +21150,78 @@ const UI = {
                  data-theme="${t}" title="${_esc(t)}" aria-label="Neon ${_esc(t)}"
                  onclick="UI.previewTheme('${t}'); UI._mpRender();"></button>`).join('');
 
+      // THE MODES ARE RAIL ROWS — the same .mm-option the main menu uses, so
+      // they get the rail, the gold active row and arrow/Enter keys for free.
+      // The CHOSEN mode is marked by its lit square and lit rail segment;
+      // gold stays what it means everywhere else: "the row you are on".
       const _modes = this._MP_MODES.map(m => {
         const on = (m.id === _mode);
-        // The deck row is nested INSIDE the custom-decks block and dimmed until
-        // that mode is chosen, because it is a property of the mode and not of
-        // the screen. It used to sit at the bottom as a screen-level footer,
-        // which said it applied to every mode; it applies to one.
-        const deckRow = (m.id !== '1v1deck') ? '' : `
-          <div class="mps-deck${on ? ' is-on' : ''}">
+        const row = `
+          <button type="button" class="mm-option mps-mode${on ? ' is-on' : ''}" id="mps-mode-${m.id}"
+                  role="radio" aria-checked="${on}" onclick="UI._mpPickMode('${m.id}')">
+            <span class="mm-rail-seg" aria-hidden="true"></span>
+            <div class="mm-option-icon"></div>
+            <div class="mm-option-text">
+              <div class="mm-option-label">${m.title}<span class="mps-mode-ind" aria-hidden="true"></span></div>
+              <div class="mm-option-sub">${m.meta}</div>
+            </div>
+          </button>`;
+        // The deck belongs to the one mode that has decks, and only shows once
+        // that mode is chosen — one quiet line, no panel.
+        const deckRow = (m.id !== '1v1deck' || !on) ? '' : `
+          <div class="mps-deck is-on">
             <span class="mps-deck-lbl">Deck</span>
             <span class="mps-deck-name">${_esc(_activeDeck)}</span>
             <span class="mps-deck-count">${_deckCount ? _deckCount + ' cards' : 'not built'}</span>
             <button type="button" class="mps-deck-act" onclick="event.stopPropagation(); UI._mpOpenDeckBuilder()">Change &rarr;</button>
           </div>`;
-        return `
-        <div class="mps-mode${on ? ' is-on' : ''}" role="radio" tabindex="0" aria-checked="${on}"
-             onclick="UI._mpPickMode('${m.id}')"
-             onkeydown="if(event.key===' '||event.key==='Enter'){event.preventDefault();UI._mpPickMode('${m.id}');}">
-          <div class="mps-mode-head">
-            <span class="mps-mode-text">
-              <span class="mps-mode-title">${m.title}</span>
-              <span class="mps-mode-meta">${m.meta}</span>
-            </span>
-            <span class="mps-mode-ind" aria-hidden="true"></span>
-          </div>${deckRow}
-        </div>`;
+        return row + deckRow;
       }).join('');
+      const _modeTitle = (this._MP_MODES.find(x => x.id === _mode) || {}).title || '';
 
       const _slots = [0,1,2,3].map(i =>
         `<input class="mp-code-slot" data-cs="${i}" maxlength="1" inputmode="latin" autocapitalize="characters"`
         + ` autocomplete="off" spellcheck="false" aria-label="Room code letter ${i+1}" />`).join('');
 
       const _evOn = this._mpEventsOn();
+      // SIMPLE AND SLEEK (owner: "way too much stuff i need simple sleek like
+      // tron"). No boxes, no captions the controls already say. Name and neon
+      // on one line; the modes and CREATE ROOM on the rail; events and the
+      // join code as single quiet lines under it.
       body = `
-        <div class="mps">
+        <div class="mps mps-tron">
           <div class="mps-idrow">
-            <div class="mps-field">
-              <label class="mps-lbl" for="mp-name-input">Name</label>
-              <input type="text" id="mp-name-input" class="mps-name" maxlength="12" placeholder="Your name"
-                     value="${_esc(this._mpName())}" oninput="UI._mpSaveName(this.value)" />
-            </div>
-            <div class="mps-neon">
-              <span class="mps-lbl">Neon</span>
-              <div class="mps-chips" role="radiogroup" aria-label="Neon colour">${_chips}</div>
+            <input type="text" id="mp-name-input" class="mps-name" maxlength="12" placeholder="Your name"
+                   aria-label="Your name" value="${_esc(this._mpName())}" oninput="UI._mpSaveName(this.value)" />
+            <div class="mps-chips" role="radiogroup" aria-label="Neon colour">${_chips}</div>
+          </div>
+
+          <div class="mm-section mm-four-list mps-rail">
+            <div class="mm-grid mm-grid-section mps-modes" role="radiogroup" aria-label="Multiplayer mode">
+              ${_modes}
+              <button type="button" class="mm-option mps-create" id="mps-create" onclick="UI._mpCreateFromSetup()">
+                <span class="mm-rail-seg" aria-hidden="true"></span>
+                <div class="mm-option-icon"></div>
+                <div class="mm-option-text">
+                  <div class="mm-option-label">Create Room</div>
+                  <div class="mm-option-sub">${_esc(_modeTitle)}</div>
+                </div>
+              </button>
             </div>
           </div>
 
-          <button type="button" class="mm-subback" onclick="UI._mpBack()" aria-label="Back to main menu">&larr; Menu</button>
-          <div class="mps-lbl mps-lbl-block">Mode</div>
-          <div class="mps-modes" role="radiogroup" aria-label="Multiplayer mode">${_modes}</div>
-
           <label class="mps-ev${_evOn ? ' is-on' : ''}">
-            <span class="mps-ev-text">Random events</span>
             <input type="checkbox" ${_evOn ? 'checked' : ''} onchange="UI._mpToggleEvents()"
                    aria-label="Random events">
             <span class="mps-ev-sw" aria-hidden="true"></span>
+            <span class="mps-ev-text">Random events</span>
             <span class="mps-ev-val">${_evOn ? 'On' : 'Off'}</span>
           </label>
 
-          <div class="mps-cta">
-            <button type="button" class="mps-create" onclick="UI._mpCreateFromSetup()">
-              <span class="mps-create-label">Create Room</span>
-              <span class="mps-create-sub">Opens the lobby</span>
-            </button>
-            <div class="mps-join">
-              <span class="mps-lbl">or join</span>
-              <div class="mp-code-slots" id="mp-code-slots">${_slots}</div>
-              <button type="button" class="mps-enter" onclick="UI._mpJoinFromSlots()">Enter code &rarr;</button>
-            </div>
+          <div class="mps-join">
+            <span class="mps-join-lbl">Join</span>
+            <div class="mp-code-slots" id="mp-code-slots">${_slots}</div>
+            <button type="button" class="mps-enter" onclick="UI._mpJoinFromSlots()" aria-label="Join with this code">&rarr;</button>
           </div>
         </div>`;
     } else if (st.status === 'waiting') {
@@ -21386,8 +21394,14 @@ const UI = {
         <span class="mp-crumb-sep">/</span>
         <span class="mp-crumb-here">${_tq ? 'Tournament' : (_inRoom ? _crumbMode : 'Multiplayer')}</span>
       </nav>`;
+    // Idle: a single "← Menu" (the crumb said the same thing twice, with a
+    // label naming the screen you are already looking at). In a room or a
+    // tournament the crumb stays, because there it carries real information.
+    const _top = (st.status === 'idle' && !_tq)
+      ? `<button type="button" class="mm-subback mp-top-back" onclick="UI._mpBack()" aria-label="Back to main menu">&larr; Menu</button>`
+      : crumb;
     return `
-      ${crumb}
+      ${_top}
       <div class="mm-header mp-header"><h1 class="mm-title">the game</h1></div>
       <div class="mm-section mp-section">
         ${tourneyBanner}
@@ -39940,9 +39954,11 @@ function twov2OnlineDraftMulligan() {
 UI._2v2OnlineRoomCode = null;
 UI._2v2OnlineError    = null;
 
-function twov2OnlineCreate() {
+function twov2OnlineCreate(nameArg) {
   const nameEl = document.getElementById('2v2-online-name');
-  const name = nameEl ? (nameEl.value.trim() || 'Player 1') : 'Player 1';
+  // A name handed in (the multiplayer setup screen already asked) wins.
+  const name = (typeof nameArg === 'string' && nameArg.trim()) ? nameArg.trim().slice(0, 18)
+    : (nameEl ? (nameEl.value.trim() || 'Player 1') : 'Player 1');
   // Remember the typed name so it pre-fills next time (owner: "i dont want to
   // keep having to type it in"). Only persist a real entry, never the fallback.
   if (nameEl && nameEl.value.trim()) { try { localStorage.setItem('2v2PlayerName', nameEl.value.trim()); } catch (e) {} }
