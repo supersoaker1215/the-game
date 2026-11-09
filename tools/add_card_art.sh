@@ -33,7 +33,10 @@ cp "$SRC" "art-originals/$NAME.png"
 # 2. Full tier — smart_crop finds the subject and fits it to 3:4 WITHOUT
 #    cutting into it, letterboxing rather than clipping when the source is the
 #    wrong shape. (A naive top-crop would take the droid's antennae off.)
-python3 tools/smart_crop.py "$SRC" "audio/cards/art/$NAME.png"
+#    768 = the AAA-audit face cap (longest edge); a 360x472 master would be the
+#    low-res tier the backlog is still regenerating, so new art goes in at
+#    full quality and is only ever DOWN-sampled from here.
+python3 tools/smart_crop.py "$SRC" "audio/cards/art/$NAME.png" 768
 
 # 3. The two smaller tiers, derived from the full one so all three agree.
 #    Conventions read off the existing 200-odd files, not invented here:

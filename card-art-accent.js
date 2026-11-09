@@ -3,14 +3,14 @@
 // =============================================================================
 // One border colour per art file, taken from the painting itself. Replaces the
 // four hard-coded cost tiers (1-3 green / 4-6 blue / 7-8 white / 9-10 gold),
-// which gave the whole set of 259 paintings exactly four borders.
+// which gave the whole set of 263 paintings exactly four borders.
 // Owner: "get rid of the rarity neon highlights ... i want each card to have a
 // border that compliments their card art."
 //
 // Regenerate with:  python3 sim/tools/card-art-accent.py
 // The derivation, and why each step is there, is documented in that script.
 //
-// 259 files, 3 of them monochrome (steel 150,170,190).
+// 263 files, 3 of them monochrome (steel 150,170,190).
 // Keyed by FILE, not by card name, so an art VARIANT gets its own border.
 window.CARD_ART_ACCENT = {
   'Adamantium.png': '120,171,245',
@@ -36,6 +36,7 @@ window.CARD_ART_ACCENT = {
   'Batman 3.png': '238,121,34',
   'Batman.png': '238,123,34',
   'Battle Droid.png': '188,180,169',
+  'Beru.png': '117,182,245',
   'Bifrost.png': '126,134,245',
   'Big Wig.png': '126,133,245',
   'Black Panther 2.png': '152,199,64',
@@ -58,6 +59,7 @@ window.CARD_ART_ACCENT = {
   'Darth Vader.png': '117,182,245',
   'Davy Jones.png': '105,230,217',
   'Deadpool.png': '212,92,117',
+  'Death.png': '131,127,245',
   'Deathstroke 2.png': '239,92,40',
   'Deathstroke.png': '122,164,245',
   'Doombot.png': '169,142,97',
@@ -113,6 +115,7 @@ window.CARD_ART_ACCENT = {
   'Hulk 2.png': '49,239,61',
   'Hulk.png': '86,238,36',
   'Human Torch.png': '238,123,34',
+  'Igris.png': '116,186,245',
   'Invisible Woman 2.png': '117,184,245',
   'Invisible Woman.png': '123,157,245',
   'Iron Giant.jpg': '115,190,244',
@@ -222,6 +225,7 @@ window.CARD_ART_ACCENT = {
   'Spinosaurus.png': '175,238,24',
   'Star-Lord.png': '178,122,245',
   'Stripe.jpg': '239,75,45',
+  'Sung Jin-Woo.png': '176,166,205',
   'Super Soldier Serum.png': '110,206,244',
   'Superman 2.png': '239,111,36',
   'Superman 3.jpg': '188,169,171',

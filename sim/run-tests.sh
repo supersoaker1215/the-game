@@ -321,6 +321,9 @@ run_suite sim/max-health-floor.js
 echo "=== art-accent.js (a card's border comes from its own art) ==="
 run_suite sim/art-accent.js
 
+echo "=== sung-jin-woo.js (X-cost X/X, shadows bound to their master, odds-based revive) ==="
+run_suite sim/sung-jin-woo.js
+
 echo ""
 echo "=== forecast-batch.js (hover forecast measures first, builds second) ==="
 run_suite sim/forecast-batch.js

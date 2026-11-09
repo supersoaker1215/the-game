@@ -437,6 +437,9 @@ const Game = {
     // branch is for the RAW DEFS the codex, the draft and the deck builder hand
     // in, which carry no _printed00 to have been stamped correctly.
     if (card.copiesOpposite) return true;
+    // Same claim, two more cards: Sung Jin-Woo prints 0/0 because he is X/X,
+    // and his shadows print 0 ATK because theirs is his minus a number.
+    if (card.scalesWithEnergy || card.isShadow) return true;
     // …AND ANYTHING PRINTED 0/0, which is the fact the three flags above were
     // only ever standing in for. Reading the printed numbers instead of a flag
     // is what makes this survive a reclassification, and it just had to: Jigsaw
@@ -5819,7 +5822,104 @@ const Game = {
 
   // ===================== PLAY CARDS / TRICKS =====================
 
+  // ===================== ENERGY-SCALED CARDS (Sung Jin-Woo) =====================
+  // Owner: "his cost and stats scale with how much energy you have — if you
+  // have 5 energy he is a 5/5." He is an X card: X is whatever is left in your
+  // purse, he takes ALL of it, and he lands as an X/X.
+  //
+  // DERIVED WHILE HE IS IN HAND, LOCKED THE MOMENT HE LANDS. In hand nothing is
+  // stamped: getCardCost — the one reader the engine, the AI and the renderer
+  // all ask — answers from the live purse, so the number on the tile moves as
+  // you spend and cannot go stale. Landing is the opposite: that is an event,
+  // and the X he was paid is a fact about that card from then on, so it is
+  // written once (_lockEnergyScaled) into the same base fields every other
+  // card's printed stats live in. Everything downstream — the dead-pile reset,
+  // revive, the 10-cost titan rules, kill tempo — then reads an ordinary X-cost
+  // X/X and needs no special case.
+  //
+  // The flag is read off the ABILITY TABLE by name in createCardInstance rather
+  // than off the def it is handed: a dead-pile record is a field whitelist and
+  // would drop it, and a Sung Jin-Woo drawn back out of the pile must scale
+  // again.
+  //
+  // MODIFIERS DO NOT TOUCH IT. A discount on "all of your energy" has no
+  // sensible reading, and an enemy +1 (Silver Surfer) would price him above
+  // anything the purse can hold — unplayable for as long as that card stands.
+  isEnergyScaled(card) {
+    // Never on the board: a copy that arrived without being paid for (a jump,
+    // a summon, a dead-pile raise) keeps the body it came with, and a board
+    // card that re-priced off the purse would bust the render cache on every
+    // energy change (_cardVisualSnapshot reads getCardCost for board cards).
+    return !!(card && card.scalesWithEnergy && card._energyLocked == null
+              && this.findCardLane(card) < 0);
+  },
+  // The purse of whoever is HOLDING the card. In 2v2 a side is a team and the
+  // side proxy is bridged to the acting seat, so a card sitting in the other
+  // teammate's hand has to read that seat's own energy — the same resolution
+  // the Batman lock already does (isCardBatmanBlocked).
+  _purseHolding(owner, card) {
+    const side = this.state && this.state[owner];
+    if (!side) return 0;
+    if (card && Array.isArray(side.hand) && side.hand.indexOf(card) >= 0) return Math.max(0, side.currency | 0);
+    const tt = this.state.twoVTwo;
+    if (card && tt && tt.players && this._2v2SLOTS) {
+      const pk = this._2v2SLOTS.find(k => {
+        const p = tt.players[k];
+        return p && Array.isArray(p.hand) && p.hand.indexOf(card) >= 0;
+      });
+      if (pk) { const p = tt.players[pk]; return Math.max(0, (p.energy | 0) - (p.usedEnergy | 0)); }
+    }
+    return Math.max(0, side.currency | 0);
+  },
+  // X, right now. FLOORS AT 1: with an empty purse he costs 1 and cannot be
+  // played, rather than arriving free as a 0/0 that still raises two shadows.
+  // A chained partner (Pinhead) is paid for out of the same purse, so it comes
+  // off the top — otherwise "all your energy" plus the partner is always one
+  // more than you have and the pair could never be played.
+  energyScaledValue(owner, card) {
+    let purse = this._purseHolding(owner, card);
+    if (card && card._chained && this.chainPartnerOf) {
+      const partner = this.chainPartnerOf(owner, card);
+      if (partner && !this.isEnergyScaled(partner)) purse -= this.getCardCost(owner, partner);
+    }
+    return Math.max(1, purse | 0);
+  },
+  // What a tile should PRINT for a card still in hand: X for the cost, and X
+  // plus whatever is already stacked on the hand instance (Red Skull's empower
+  // lands on hand cards) for the body. null for every other card, so a caller
+  // can use the answer as its own test.
+  energyScaledPreview(card) {
+    if (!this.isEnergyScaled(card) || !card.owner || !this.state || !this.state[card.owner]) return null;
+    const x = this.energyScaledValue(card.owner, card);
+    const hp = this.mod('glassJaw') ? Math.max(1, Math.floor(x / 2)) : x;
+    return {
+      cost: x,
+      attack: Math.max(0, x + ((card.attack | 0) - (card.baseAttack | 0))),
+      health: Math.max(1, hp + ((card.maxHealth | 0) - (card.baseHealth | 0))),
+    };
+  },
+  // The one write. Sets the BASE to X and carries across anything the hand
+  // instance had already gained or lost, so an empowered Sung Jin-Woo lands
+  // empowered. Idempotent — a card is locked once per life.
+  _lockEnergyScaled(card, x) {
+    if (!card || !card.scalesWithEnergy || card._energyLocked != null) return;
+    x = Math.max(1, x | 0);
+    const dAtk = (card.attack | 0) - (card.baseAttack | 0);
+    const dMax = (card.maxHealth | 0) - (card.baseHealth | 0);
+    const missing = Math.max(0, (card.maxHealth | 0) - (card.currentHealth | 0));
+    const hp = this.mod('glassJaw') ? Math.max(1, Math.floor(x / 2)) : x;
+    card._energyLocked = x;
+    card.cost = x; card.baseCost = x;
+    card.baseAttack = x; card.attack = Math.max(0, x + dAtk);
+    card.baseHealth = hp; card.maxHealth = Math.max(1, hp + dMax);
+    card.currentHealth = Math.max(1, card.maxHealth - missing);
+    card._printed00 = false;
+    this.log(`  [ENERGY] ${card.name} takes ${x} energy — enters as ${card.attack}/${card.currentHealth}.`);
+  },
+
   getCardCost(owner, card) {
+    // An energy-scaled card still in hand costs the purse itself — see above.
+    if (this.isEnergyScaled(card)) return this.energyScaledValue(owner, card);
     let cost = Math.max(0, card.cost - this.state[owner].discount);
     // Anarchy — every card costs 1 less, floored at 0.
     if (this.mod('anarchy')) cost = Math.max(0, cost - 1);
@@ -6562,6 +6662,12 @@ const Game = {
     }
     const cost = this.getCardCost(owner, card);
     if (this.state[owner].currency < cost) return false;
+    // ENERGY-SCALED: this is the moment X becomes a fact. Locked BEFORE the
+    // Batman Who Laughs intercept below, so a stolen Sung Jin-Woo crosses the
+    // table as the X/X that was paid for, not as his printed placeholder.
+    // Nothing after this line refuses the play, and the undo snapshot was
+    // taken above — so the lock can never be left on a card still in hand.
+    if (this.isEnergyScaled(card)) this._lockEnergyScaled(card, cost);
 
     const opp = this.opponent(owner);
     // Batman Who Laughs intercept — extracted to _resolveBwlIntercept;
@@ -10447,6 +10553,28 @@ const Game = {
   _handleDeathNow(card, laneIdx, killer) {
     if (card._deathHandled) return;
     card._deathHandled = true;
+    // A BOUND SHADOW DOES NOT DIE. Its Invincible already turns away damage,
+    // destroy and devour at their own doors; this is the backstop for the two
+    // dozen places that write currentHealth = 0 and call handleDeath directly,
+    // which no shield is ever consulted on. First in the list on purpose: a
+    // shadow that cannot die must never spend the Iron Giant or a Phoenix
+    // charge "surviving". Two things outrank it, both owner rulings that
+    // predate it — the Rift eats through everything, and nothing stands in a
+    // destroyed lane.
+    if (card.isShadow && !card._shadowDissolving && !card._riftDoomed) this._adoptShadow(card);
+    if (card.isShadow && !card._shadowDissolving && !card._riftDoomed && this.shadowBound(card)) {
+      const _sl = this.findCardLane(card);
+      if (_sl >= 0 && !this.state.lanes[_sl].destroyed) {
+        card._deathHandled = false;
+        card._deathQueued = false;
+        card.currentHealth = Math.max(1, Math.min(card.maxHealth | 0 || 1,
+          (card._hpBeforeKill | 0) > 0 ? (card._hpBeforeKill | 0) : 1));
+        delete card._hpBeforeKill;
+        if ((card.invincibleTurns | 0) < 99) card.invincibleTurns = 999;
+        this.log(`  [SHADOW] ${card.name} cannot be destroyed while its master stands.`);
+        return;
+      }
+    }
     // Phoenix etch — once-per-life revive at full HP. Cancels the
     // death entirely: clear the guard, restore HP, fire onDeath-style
     // visuals via the helper, return early so dead-pile push and
@@ -10711,6 +10839,11 @@ const Game = {
       this._creditChain(killer, 'statsKillValue', killTempo);
     }
     this.removeFromLane(card, laneIdx);
+    // A master that has left the board is holding nothing up. We are inside
+    // the death stack here, so the shadows' own deaths queue and resolve after
+    // this one finishes, in order. (A master that REVIVED returned above and
+    // never reaches this line — his shadows never notice.)
+    if (card.commandsShadows) this.reconcileShadows();
     // Tokens (inline-summoned Ant/Parademon/etc. — see _isToken flag in
     // summonCard) skip the dead pile entirely. They're ephemeral and
     // shouldn't be resurrected by Lazarus Pit / Solomon Grundy / Hela.
@@ -12152,6 +12285,8 @@ const Game = {
     if (a || h) this._noteEffectOn(card, `+${a}/+${h}`);
     // Splash-tracks-ATK cards (Hulk) keep splashRange live on ANY stat change.
     if (card._splashTracksAtk) card.splashRange = Math.max(0, card.attack | 0);
+    // His shadows' ATK is his minus a number, so they move when he does.
+    if (a && card.commandsShadows) this.reconcileShadows();
   },
 
   // Lex Luthor's preventDraw, in ONE place so every draw path honors it.
@@ -12535,6 +12670,7 @@ const Game = {
     if (source && atkReduced > 0) {
       this._creditChain(source, 'statsDebuffValue', atkReduced);
     }
+    if (atkReduced > 0 && card.commandsShadows) this.reconcileShadows();
   },
 
   // THE SHIELD GAUNTLET, in one place: Invincible, Damage Immunity, 10-cost
@@ -12884,6 +13020,9 @@ const Game = {
   _ironGiantIntercept(card, laneIdx, killer) {
     try {
       if (!card || card.isEnvironment || !card.owner) return false;
+      // A shadow dissolving because its master left cannot be kept: saved, it
+      // would stand for one instruction and dissolve again with the Giant spent.
+      if (card._shadowDissolving) return false;
       if (this.state.gameOver) return false;
       // Consume-on-read decline guard: doDecline re-enters handleDeath
       // with this flag set so the offer isn't repeated for the same
@@ -13113,7 +13252,12 @@ const Game = {
     }
   },
 
-  killCardSilent(card) { const l = this.findCardLane(card); if (l >= 0) this.removeFromLane(card, l); },
+  killCardSilent(card) {
+    const l = this.findCardLane(card);
+    if (l >= 0) this.removeFromLane(card, l);
+    // A transform (Super Soldier Serum) removes the card without a death.
+    if (card && card.commandsShadows) this.reconcileShadows();
+  },
 
   // YODA'S HALF-DAMAGE SHIELD — DERIVED FROM THE BOARD, NEVER STAMPED.
   // It used to be a per-side counter on state, bumped in Yoda's onPlay and
@@ -13495,6 +13639,9 @@ const Game = {
       this.removeFromLane(card, l);
       this.state.voidPile.push({ name: card.name, cost: card.cost });
       this.log(`  [DEVOUR] ${card.name} is devoured to the void!`);
+      // Devour skips handleDeath, which is exactly the exit a stamped
+      // "master died" flag would have missed. Nothing is stamped — ask again.
+      if (card.commandsShadows) this.reconcileShadows();
       // AN ALLY IS STILL GONE. Devour deliberately skips handleDeath (void
       // pile, not dead pile) — which is right for the VICTIM, since the void is
       // exactly the promise that it can never come back, so its own onDeath
@@ -16749,6 +16896,13 @@ const Game = {
         }
       }
     }
+    // KIND FLAGS COME FROM THE ABILITY TABLE, BY NAME. A dead-pile record is a
+    // field whitelist, so a flag that only lived on the def would be gone the
+    // first time the card was rebuilt from the pile. A deliberate plain-body
+    // copy (_dumbCopy) is not the real card and takes none of them.
+    const _kind = (typeof CARD_ABILITIES !== 'undefined' && def && def.name && !def._dumbCopy)
+      ? (CARD_ABILITIES[def.name] || null) : null;
+    const _kindFlag = (k) => !!((def && def[k]) || (_kind && _kind[k]));
     const card = {
       id: nextCardId++,
       // Marker so drawCards can detect a pre-built card instance vs a
@@ -16783,7 +16937,8 @@ const Game = {
       // And the flag has to be right HERE rather than excused downstream,
       // because her own onPlay clears `copiesOpposite` the moment her stats
       // resolve, so on the board there is nothing left to except her by.
-      _printed00: (!def.copiesOpposite && (def.attack | 0) === 0 && (def.health | 0) === 0),
+      _printed00: (!def.copiesOpposite && !_kindFlag('scalesWithEnergy') && !_kindFlag('isShadow')
+                   && (def.attack | 0) === 0 && (def.health | 0) === 0),
       abilities: [...(def.abilities || [])], type: def.type || 'neutral',
       // Pristine ability list captured at instance creation. Used by
       // handleDeath's dead-pile reset so a revived card comes back with
@@ -16946,6 +17101,11 @@ const Game = {
       // and on the draft, the renderer shows "?" instead of her base
       // 0/0. Cleared by her onPlay once she takes a stance.
       copiesOpposite: !!def.copiesOpposite,
+      // Sung Jin-Woo (X-cost X/X — see isEnergyScaled) and the two shadows he
+      // raises (see reconcileShadows).
+      scalesWithEnergy: _kindFlag('scalesWithEnergy'),
+      commandsShadows: _kindFlag('commandsShadows'),
+      isShadow: _kindFlag('isShadow'),
       _grantedBuffs: null,
       _recurringBT: def._recurringBT || false,
     };
@@ -20487,6 +20647,143 @@ const Game = {
     this.recomputeAuras();
   },
 
+  // ===================== SHADOWS (Sung Jin-Woo's Igris and Beru) =====================
+  // Owner: "cannot be killed until Sung Jin-Woo is killed. his attack is based
+  // on sung jin woo and he has 0 health."
+  //
+  // A shadow is three facts, and all three are READ OFF THE BOARD, never
+  // stamped and unwound:
+  //   1. its ATK is its master's ATK minus a printed number (Beru 3, Igris 4)
+  //   2. while its master stands it carries the engine's own Invincible — the
+  //      one shield that damage, destroy, devour, stat strips, the AI's target
+  //      scoring and the renderer's overlay ALL already honour, so nothing has
+  //      to learn about shadows separately
+  //   3. the moment its master is not standing, it dissolves
+  //
+  // (3) is what makes (2) safe to write. There is no "master died, now take the
+  // shield back off" step to forget: a shadow without a master is not unshielded,
+  // it is gone. Devour skips handleDeath, a transform never fires onDeath, a
+  // bounce is not a death at all — none of it matters, because the question is
+  // only ever "is he on the board right now".
+  //
+  // "0 health" is the printed number. createCardInstance has always floored a
+  // printed 0 to a real 1 (a card at 0 is a corpse to every sweep in this file),
+  // so the body underneath is 1 HP that nothing can reach; the renderer prints
+  // the 0 the card promises (UI reads `isShadow`).
+  //
+  // The link is the master's ID. Two Sung Jin-Woos each keep their own pair.
+  _shadowSpec(card) {
+    if (!card || !card.isShadow || typeof CARD_ABILITIES === 'undefined') return null;
+    return CARD_ABILITIES[card.name] || null;
+  },
+  // The living master, or null. "Living" is strict on purpose: a master at 0 HP
+  // whose death is still being resolved is already not holding anything up.
+  _shadowMasterOf(card) {
+    if (!card || !card.isShadow || card._shadowOf == null) return null;
+    const s = this.state;
+    if (!s || !s.lanes) return null;
+    for (let i = 0; i < this.LANE_COUNT; i++) {
+      const l = s.lanes[i];
+      if (!l) continue;
+      const m = (l.player && l.player.id === card._shadowOf) ? l.player
+              : (l.ai && l.ai.id === card._shadowOf) ? l.ai : null;
+      if (m) return (m.currentHealth > 0 && !m._deathHandled && !l.destroyed) ? m : null;
+    }
+    return null;
+  },
+  shadowBound(card) { return !!this._shadowMasterOf(card); },
+  // A shadow that does not know its master yet takes the card that summoned it,
+  // else any Sung Jin-Woo standing on its own side. Sung Jin-Woo's own When
+  // Played stamps the link directly; this is for every other way a shadow could
+  // come to exist (a sandbox spawn, a future summoner) so none of them can put
+  // an orphan on the board that then quietly never dies.
+  _adoptShadow(card) {
+    if (!card || !card.isShadow) return;
+    if (card._shadowOf != null) {
+      if (card._shadowAtk == null) card._shadowAtk = card.attack | 0;
+      return;
+    }
+    const ok = (m) => !!(m && m.commandsShadows && m.currentHealth > 0 && !m._deathHandled
+                         && this.findCardLane(m) >= 0);
+    let m = ok(card._summonedBy) ? card._summonedBy : null;
+    if (!m) m = this.getAllCardsOf(card.owner).find(ok) || null;
+    if (!m) return;
+    card._shadowOf = m.id;
+    // The master-derived share of its ATK starts at whatever it was summoned
+    // at; reconcileShadows only ever applies the drift from there.
+    if (card._shadowAtk == null) card._shadowAtk = card.attack | 0;
+    if ((card.invincibleTurns | 0) < 99) card.invincibleTurns = 999;
+  },
+  // The whole rule, run from live sources. Called by the aura reconcile (so
+  // every move, summon, round start and death sweep reaches it), by the stat
+  // doors when a master's ATK changes, and by each shadow just before it swings.
+  reconcileShadows() {
+    const s = this.state;
+    if (!s || !s.lanes) return;
+    // Re-entrancy, same shape as recomputeAuras: a dissolve can kill, a kill
+    // can summon, a summon reconciles. Queue one more pass; never nest two.
+    if (this._reconcilingShadows) { this._shadowReconcileQueued = true; return; }
+    this._reconcilingShadows = true;
+    try {
+      let guard = 0;
+      do {
+        this._shadowReconcileQueued = false;
+        const doomed = [];
+        for (let i = 0; i < this.LANE_COUNT; i++) {
+          const l = s.lanes[i];
+          if (!l) continue;
+          [l.player, l.ai].forEach(c => {
+            if (!c || !c.isShadow || c.currentHealth <= 0 || c._deathHandled || c._deathQueued) return;
+            this._adoptShadow(c);
+            const m = this._shadowMasterOf(c);
+            if (!m) { doomed.push(c); return; }
+            // (2) the shield. Topped up rather than set once: the round tick
+            // counts it down and an ability strip (Moder) can zero it, and a
+            // bound shadow is invincible regardless.
+            if ((c.invincibleTurns | 0) < 99) c.invincibleTurns = 999;
+            // (1) the attack. Only the DIFFERENCE between what the master now
+            // implies and what is already recorded is applied, and the record
+            // keeps what measurably landed — so a debuff on the shadow itself
+            // stays on it, and a suppression (Gojo, Obi-Wan) is written through
+            // rather than broken.
+            const spec = this._shadowSpec(c);
+            const want = Math.max(0, (m.attack | 0) - ((spec && spec.shadowAtkOffset) | 0));
+            const d = want - (c._shadowAtk | 0);
+            if (!d || c.isCrazy) return;
+            const trueAtk = () => (c.attack | 0)
+              + (c._gojoAttackZeroed !== undefined ? (c._gojoAttackZeroed | 0) : 0)
+              + (c._obiWanAttackZeroed !== undefined ? (c._obiWanAttackZeroed | 0) : 0);
+            const before = trueAtk();
+            this.setTrueAttack(c, Math.max(0, before + d));
+            const landed = trueAtk() - before;
+            c._shadowAtk = (c._shadowAtk | 0) + landed;
+            // The printed base moves with it: this ATK is the card's own, not
+            // a buff, so the orb must not glow green for it.
+            c.baseAttack = Math.max(0, (c.baseAttack | 0) + landed);
+            if (landed) this.log(`  [SHADOW] ${c.name} follows ${m.name} — ATK ${before} → ${before + landed}.`);
+          });
+        }
+        doomed.forEach(c => this._dissolveShadow(c));
+      } while (this._shadowReconcileQueued && ++guard < 8);
+    } finally {
+      this._reconcilingShadows = false;
+    }
+  },
+  // (3). A real death through the real door, so every reaction to an ally
+  // leaving still fires — minus the two saves that would only undo it:
+  // _shadowDissolving tells the death backstop and the Iron Giant that this one
+  // is not negotiable. It is a mark on a card that is already leaving, not a
+  // state anything has to remember to clear.
+  _dissolveShadow(c) {
+    const l = this.findCardLane(c);
+    if (l < 0 || c.currentHealth <= 0) return;
+    this.log(`  [SHADOW] ${c.name} dissolves — its master no longer stands.`);
+    c._shadowDissolving = true;
+    c.invincibleTurns = 0;
+    c.currentHealth = 0;
+    this.handleDeath(c, l, null);
+  },
+
   // ===================== AURA RECOMPUTE =====================
   // Studio-style stat reconciliation. Instead of each aura stamping flags on
   // its targets and trying to unwind them on every move/death (the bug family
@@ -20617,6 +20914,9 @@ const Game = {
         this.log(`  [AURA] ${c.name} ${fmt(landedAtk)}/${fmt(landedHp)}`);
       }
     });
+    // Shadows read their master's ATK, which this pass may have just moved —
+    // so they reconcile AFTER it, never before. See reconcileShadows.
+    this.reconcileShadows();
   },
 
   // ===================== UNDO / SNAPSHOT API =====================

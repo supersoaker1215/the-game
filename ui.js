@@ -27607,11 +27607,18 @@ const UI = {
     const displayCost = inHand && card.owner && Game.getCardCost
       ? Game.getCardCost(card.owner, card)
       : card.cost;
+    // AN X CARD (Sung Jin-Woo) prints the X it would be right now — cost AND
+    // body — from the engine's own answer, so the tile cannot disagree with
+    // what playing it does. null for every other card.
+    const _xNow = (inHand && typeof Game !== 'undefined' && Game.energyScaledPreview)
+      ? Game.energyScaledPreview(card) : null;
     // Discounted / inflated cost. This used to recolour the DIGIT, which the
     // corner wedge can no longer carry — the digit is the engraved hole and has
     // to stay dark to read as one. It repaints the WEDGE instead, so a cheapened
     // card lights its whole corner green and an inflated one goes red.
-    const costStyle = displayCost < baseCost ? '--cost-neon:46,204,113' : displayCost > baseCost ? '--cost-neon:231,76,60' : '';
+    // An X cost is neither a discount nor a tax — it is the card — so it never
+    // lights the wedge green or red against its printed reference number.
+    const costStyle = _xNow ? '' : displayCost < baseCost ? '--cost-neon:46,204,113' : displayCost > baseCost ? '--cost-neon:231,76,60' : '';
     const cornerIndicators = '';
 
     // Buff/debuff classes on the stat orbs — compare current to the
@@ -27665,7 +27672,7 @@ const UI = {
       ? Game._cardEffectiveAtk(card)
       : rawAtk;
     const atkBoosted = effAtk !== rawAtk && Number.isFinite(effAtk);
-    const atkCell = hideAtk ? '?' : (atkBoosted ? effAtk : rawAtk);
+    const atkCell = hideAtk ? '?' : (_xNow ? _xNow.attack : (atkBoosted ? effAtk : rawAtk));
     // HP fallback: a live card instance carries currentHealth (a number, and
     // legitimately 0 when damaged — which must still print "0"). A raw
     // CARD_DEF has no currentHealth, only `health`. Foresee / Scry pickers
@@ -27675,8 +27682,14 @@ const UI = {
     // currentHealth when present (0 included via != null), else the def's
     // full health, else maxHealth. Display-only — the drawn card is still
     // instantiated at full health by createCardInstance.
+    // A BOUND SHADOW (Igris, Beru) prints the 0 its card promises. The engine
+    // body underneath is 1 HP that nothing can reach — see Game.reconcileShadows.
+    const _shadowZero = !inHand && card.isShadow && typeof Game !== 'undefined'
+      && Game.shadowBound && Game.shadowBound(card);
     const hpCell  = hideAllStats
       ? '?'
+      : _xNow ? _xNow.health
+      : _shadowZero ? 0
       : (card.currentHealth != null ? card.currentHealth
          : (card.health != null ? card.health
             : (card.maxHealth != null ? card.maxHealth : 0)));
@@ -29437,7 +29450,9 @@ const UI = {
     // keyword stays 'Immunity' for tooltip + class lookup.
     // A permanent immunity prints no count — there is nothing to count down.
     if (c.immunityCharges > 0) b.push(badge('badge-immune', (c.immunityCharges > 1 && !c.permanentImmunity) ? `Immunity ${c.immunityCharges}` : 'Immunity', 'Immunity'));
-    if (c.invincibleTurns > 0) b.push(badge('badge-invincible', `Invincible ${c.invincibleTurns}`, 'Invincible'));
+    // A shadow's shield lasts exactly as long as its master stands, so a round
+    // count (it is held at 999) would be a lie — the badge says what it is.
+    if (c.invincibleTurns > 0) b.push(badge('badge-invincible', c.isShadow ? 'Invincible' : `Invincible ${c.invincibleTurns}`, 'Invincible'));
     if (c.unresistibleCharges > 0) b.push(badge('badge-unresistible', c.unresistibleCharges > 1 ? `Unresistible ${c.unresistibleCharges}` : 'Unresistible', 'Unresistible'));
     if (c.tauntTurns > 0) b.push(badge('badge-taunt', `Taunt ${c.tauntTurns}`, 'Taunt'));
     if (c.hasHunt) b.push(badge('badge-hunt', 'Hunt', 'Hunt'));

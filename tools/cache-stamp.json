@@ -8,16 +8,16 @@
     "hash": "f4ff37ff"
   },
   "cards.js": {
-    "v": 284,
-    "hash": "d02efa90"
+    "v": 285,
+    "hash": "78ab3611"
   },
   "tricks.js": {
     "v": 126,
     "hash": "4074e4c3"
   },
   "abilities.js": {
-    "v": 512,
-    "hash": "a1c27a34"
+    "v": 513,
+    "hash": "91724575"
   },
   "engine/combat.js": {
     "v": 4,
@@ -28,8 +28,8 @@
     "hash": "cd48f8d0"
   },
   "game.js": {
-    "v": 825,
-    "hash": "b75c3803"
+    "v": 826,
+    "hash": "7e917d8d"
   },
   "ai.js": {
     "v": 77,
@@ -44,20 +44,20 @@
     "hash": "19440620"
   },
   "card-art-manifest.js": {
-    "v": 84,
-    "hash": "cb1c4b2c"
+    "v": 85,
+    "hash": "f62d0d0d"
   },
   "card-art-accent.js": {
-    "v": 1,
-    "hash": "de187388"
+    "v": 2,
+    "hash": "9ff1a921"
   },
   "leaderboard.js": {
     "v": 4,
     "hash": "063d487d"
   },
   "ui.js": {
-    "v": 1685,
-    "hash": "64dce170"
+    "v": 1686,
+    "hash": "322d826e"
   },
   "board-v2.js": {
     "v": 32,

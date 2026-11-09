@@ -697,6 +697,12 @@ window.CARD_ART_ACCENT_OVERRIDE = {
   // generator that a small intense subject on black is not a monochrome image,
   // which re-derives all 259 borders — a much larger change than one card.
   'Superman': '240,57,76',
+  // SUNG JIN-WOO — the same collapse as Superman, on violet. His painting is a
+  // black coat on black with one purple rim light: chroma_frac 0.0465, so the
+  // generator found the right hue (255.5 deg) and then muted it to 176,166,205,
+  // a grey lavender. Same method as above — the generator's own hue through the
+  // shipped neon() at full vividness — not a hand-picked colour.
+  'Sung Jin-Woo': '157,126,245',
 
   // NAMED BY THE OWNER, SAMPLED FROM THE CARD'S OWN PAINTING.
   // "power stone puple, fear toxin orange, mind stone yellow, jokers purple,

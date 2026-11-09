@@ -355,6 +355,27 @@ const CARD_DEFS = [
     desc: "When Played: Freeze 1 the enemy opposite. Add 2 to your Block Meter. While Active: When Wonder Woman's attack lands on an enemy card, deal (ATK−1) to 1 chained enemy." },
 
   // ==================== COST 5 ====================
+  // SUNG JIN-WOO is an X card: he costs all of your energy and lands as an X/X
+  // (see Game.isEnergyScaled). The printed 5/5 is the owner's own example — "if
+  // you have 5 energy he is a 5/5" — and is what the codex, the draft and the
+  // deck curve file him under. In hand the tile prints the live X.
+  // skipAutoUntrickable: at 10+ energy his locked cost reaches the titan line,
+  // and a scaling card is not a titan (Doomsday's ruling, same flag).
+  { name: "Sung Jin-Woo", cost: 5, attack: 5, health: 5, type: "hero",
+    skipAutoUntrickable: true,
+    abilities: [],
+    desc: "Costs all of your energy and enters as (X/X), where X is the energy spent. When Played: Summon Igris and Beru in the nearest empty lanes. Then choose a card in your dead pile to revive — always if it costs ≤ 6, 66% if 7–8, 33% if 9 or more." },
+  // His shadows. Printed 0/0 because both numbers are his: ATK is his minus 3
+  // (Beru) or 4 (Igris), and the 0 HP is the promise that nothing but his
+  // departure can end them (Game.reconcileShadows).
+  { name: "Beru", cost: 3, attack: 0, health: 0, type: "hero",
+    _spawnOnly: true,
+    abilities: ["Overdrive"],
+    desc: "Shadow: ATK is Sung Jin-Woo's ATK −3. Cannot be destroyed while Sung Jin-Woo stands, and dissolves when he leaves. When Played: Freeze the highest-cost enemy." },
+  { name: "Igris", cost: 2, attack: 0, health: 0, type: "hero",
+    _spawnOnly: true,
+    abilities: ["Overdrive"],
+    desc: "Shadow: ATK is Sung Jin-Woo's ATK −4. Cannot be destroyed while Sung Jin-Woo stands, and dissolves when he leaves." },
   { name: "T-Rex", cost: 5, attack: 3, health: 7, type: "scifi",
     _spawnOnly: true,
     abilities: ["Armor 1", "Hunt", "Overdrive"],

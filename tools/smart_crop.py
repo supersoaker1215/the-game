@@ -71,10 +71,13 @@ def find_subject_bbox(img, std_threshold=15):
     return (int(cols[0]), int(rows[0]), int(cols[-1] + 1), int(rows[-1] + 1))
 
 
-def smart_crop(src, dest, pad_pct=0.05, std_threshold=15):
+def smart_crop(src, dest, pad_pct=0.05, std_threshold=15, max_h=None):
     """Open `src`, detect the subject, crop + extend to target aspect
-    while keeping the subject fully in frame, save to `dest` at
-    360x472. Returns the final PIL Image."""
+    while keeping the subject fully in frame, save to `dest`. Output is
+    360x472 unless `max_h` is given: then the 3:4 crop is kept at its own
+    resolution up to `max_h` tall (never upscaled) — the AAA audit's
+    "faces capped at 768 longest edge" tier, so a 736px source does not
+    get thrown away to 360px on the way in. Returns the final PIL Image."""
     img = Image.open(src).convert('RGB')
     W, H = img.size
 
@@ -144,14 +147,20 @@ def smart_crop(src, dest, pad_pct=0.05, std_threshold=15):
 
     cropped = img.crop((x1, y1, x2, y2))
 
-    out = cropped.resize((TARGET_W, TARGET_H), Image.LANCZOS)
+    if max_h:
+        out_h = min(int(max_h), cropped.height)
+        out_w = int(round(out_h * TARGET_ASPECT))
+    else:
+        out_w, out_h = TARGET_W, TARGET_H
+    out = cropped.resize((out_w, out_h), Image.LANCZOS)
     out.save(dest, optimize=True)
     return out
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 3:
-        print(f'Usage: {sys.argv[0]} SRC.jpg DEST.png')
+    if len(sys.argv) not in (3, 4):
+        print(f'Usage: {sys.argv[0]} SRC.jpg DEST.png [MAX_HEIGHT]')
         sys.exit(1)
-    smart_crop(sys.argv[1], sys.argv[2])
-    print(f'Saved → {sys.argv[2]}')
+    max_h = int(sys.argv[3]) if len(sys.argv) == 4 else None
+    out = smart_crop(sys.argv[1], sys.argv[2], max_h=max_h)
+    print(f'Saved → {sys.argv[2]}  {out.width}x{out.height}')
