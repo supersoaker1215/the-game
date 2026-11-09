@@ -52949,12 +52949,11 @@ body.fx-lean .card-taunt { box-shadow: 0 0 14px rgba(255,190,60,0.55), 0 0 26px 
 .mm-four #mm-back-play .mm-option-label,
 .mm-four #mm-back-library .mm-option-label { font-size: clamp(14px, 1.5vw, 26px) !important; letter-spacing: 0.22em !important; opacity: 0.8; }
 .mm-four .mm-subback { margin-bottom: var(--mm-row-gap); }
-/* ---- the lockup: the wordmark grows, with a rule under it ----------------- */
+/* ---- the lockup: the wordmark grows. No rule under it — the owner removed
+   both the thick bar and this thin line (2026-11-09). ------------------------- */
 .mm-four .mm-title {
   font-size: clamp(34px, min(5.6vw, 8vh), 92px) !important;   /* beats L50310 */
   letter-spacing: 0.22em !important;
-  padding-bottom: 6px;
-  border-bottom: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.35);
   margin-bottom: clamp(18px, 3vh, 40px) !important;
 }
 /* ---- the hero leans toward the row you are on ---------------------------- */
