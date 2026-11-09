@@ -53296,3 +53296,9 @@ body.fx-lean .card-taunt { box-shadow: 0 0 14px rgba(255,190,60,0.55), 0 0 26px 
   color: rgb(var(--mm-gold, 245,191,28)); text-shadow: 0 0 10px rgba(var(--mm-gold, 245,191,28), 0.7);
 }
 .twov2-tron .twov2-rows { margin-top: clamp(10px, 2vh, 22px); }
+
+/* VOICE AND THE BUILD BADGE share the bottom-left corner. The badge only shows
+   on menu screens (body.on-main-menu), and the 1v1 lobby is one — so when both
+   are up, VOICE sits on top of the badge instead of under it. The badge is
+   inline-styled at bottom:6px and ~19px tall; 34px clears it with a gap. */
+body.on-main-menu .voice-panel { bottom: 34px; }

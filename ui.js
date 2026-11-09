@@ -8082,6 +8082,12 @@ const UI = {
     // main-menu marker on <body>, only the negative `in-match`, so this adds
     // one rather than inferring "menu" from the absence of everything else.
     document.body.classList.toggle('on-main-menu', !!isMainMenu);
+    // VOICE ON EVERY SCREEN, NOT ONLY MATCH SCREENS. Voice.mount() removes the
+    // panel itself outside an online room, but it was only ever called from the
+    // match and 2v2 renders below — and the menu screens return before reaching
+    // them, so a panel left over from a 2v2 room stayed on the main menu,
+    // sitting on the build badge. Asked here, before any screen's early return.
+    this._safe('voice-gate', () => { if (typeof Voice !== 'undefined') Voice.mount(); });
     // COMBAT ZOOM — REMOVED (owner: "can you remove the zoom in for the combat
     // phase"). During combat the hand and tricks used to fold away so the board
     // could claim the height, unfolding again when the fight ended. The whole

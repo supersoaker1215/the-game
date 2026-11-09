@@ -80,7 +80,14 @@ const Voice = {
   _inOnlineMatch() {
     try {
       const tt = (typeof Game !== 'undefined') && Game.state && Game.state.twoVTwo;
-      if (tt && tt.online) return true;
+      // A 2v2 room record OUTLIVES the room: going back to the menu leaves
+      // state.twoVTwo in place with online:true, so this said "in an online
+      // match" on the main menu and the panel stayed there, on top of the build
+      // badge. The phase is the honest answer — on a menu screen you are not in
+      // a 2v2 room, whatever record is left behind.
+      const ph = (Game.state && Game.state.phase) || '';
+      const onMenu = /^(main-menu|mode-select|my-decks|stats)$/.test(ph) || ph.indexOf('roguelite') === 0;
+      if (tt && tt.online && !onMenu) return true;
       return !!(typeof Game !== 'undefined' && Game.isMultiplayer && Game.isMultiplayer());
     } catch (e) { return false; }
   },

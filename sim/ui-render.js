@@ -372,6 +372,19 @@ test('2v2 waiting room: seat names are text not HTML, rows not boxes, Start/Shuf
   UI._2v2OnlineRoomCode = null;
 });
 
+test('VOICE: a 2v2 room left behind does not keep the panel on the main menu, and it clears the build badge', function () {
+  if (typeof Voice === 'undefined') load('./voice.js');
+  Game.init();
+  Game.goTo2v2OnlineLobby();
+  eq(Voice._inOnlineMatch(), true, 'inside the 2v2 lobby, voice is live');
+  Game.state.phase = 'main-menu';   // what going back to the menu leaves behind: the room record, still online
+  ok(Game.state.twoVTwo && Game.state.twoVTwo.online, 'the stale room record is still marked online');
+  eq(Voice._inOnlineMatch(), false, 'on the main menu, voice is not live — so mount() removes the panel');
+  var css = read('style.css');
+  ok(/body\.on-main-menu \.voice-panel\s*\{\s*bottom:\s*34px/.test(css), 'when both show, VOICE sits above the badge');
+  ok(/'voice-gate'/.test(read('ui.js')), 'the voice check runs before the menu screens return');
+});
+
 print('');
 print('ui-render: ' + __pass + ' passed, ' + __fail + ' failed');
 if (__fail) {

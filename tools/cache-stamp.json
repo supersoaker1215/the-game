@@ -1,7 +1,7 @@
 {
   "style.css": {
-    "v": 1695,
-    "hash": "70bff681"
+    "v": 1696,
+    "hash": "80eee1a3"
   },
   "board-v2.css": {
     "v": 108,
@@ -56,16 +56,16 @@
     "hash": "063d487d"
   },
   "ui.js": {
-    "v": 1692,
-    "hash": "a9d6dd7b"
+    "v": 1693,
+    "hash": "82714d56"
   },
   "board-v2.js": {
     "v": 32,
     "hash": "9ad5e175"
   },
   "voice.js": {
-    "v": 6,
-    "hash": "cc8af63f"
+    "v": 7,
+    "hash": "0e3f3a96"
   },
   "tutorial.js": {
     "v": 15,
