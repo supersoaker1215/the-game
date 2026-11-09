@@ -44249,21 +44249,12 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   align-items: flex-start;
   position: relative;
 }
-/* The rule is a clipped block, not a border — a border cannot taper. The
-   polygon takes the last 42px down to a point so it reads as a circuit trace
-   leaving the title rather than a line that simply stops. */
-.mm-panel .mm-header::after {
-  content: "";
-  display: block;
-  width: 62%; height: 3px;
-  margin: 0 0 26px;
-  background: linear-gradient(90deg,
-    rgba(var(--theme-rgb, 79,195,247), 0.95) 0%,
-    rgba(var(--theme-rgb, 79,195,247), 0.75) 62%,
-    rgba(var(--theme-rgb, 79,195,247), 0.45) 100%);
-  clip-path: polygon(0 0, calc(100% - 42px) 0, 100% 100%, 0 100%);
-  box-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.55);
-}
+/* The thick tapered bar that sat under the title (an ::after here) was
+   removed by the owner 2026-11-09. The 29px it occupied (3px + 26px margin)
+   is kept as header spacing so the rows below do not jump up. Added ON TOP of
+   the .mm-mw3 spacing variable (which sets this margin later in the file), at
+   (0,3,0) so it outranks that (0,2,0) rule regardless of order. */
+.mm-mw3 .mm-panel .mm-header { margin-bottom: calc(var(--mm-vr, 24px) + 29px); }
 
 /* ---- Featured mode — chamfered on the two opposite corners ---- */
 .mm-panel .mm-feature {
@@ -52974,20 +52965,6 @@ body.fx-lean .card-taunt { box-shadow: 0 0 14px rgba(255,190,60,0.55), 0 0 26px 
   transition: transform 600ms var(--ease-out-soft, ease-out);
   transform: translateX(calc(var(--mm-row, 0) * -0.6%));
 }
-/* ---- the legend: keys only where there are keys -------------------------- */
-.mm-legend {
-  position: absolute; left: clamp(34px, 6vw, 120px); bottom: clamp(14px, 2.4vh, 28px);
-  z-index: 4; display: flex; align-items: center; gap: 0 10px;
-  font-family: 'Rajdhani', sans-serif; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase;
-  color: rgba(var(--theme-rgb, 79,195,247), 0.75);
-  pointer-events: none;
-}
-.mm-legend-key {
-  padding: 2px 7px; border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.45); border-radius: 3px;
-  color: var(--text-hi, #f5fbff); font-family: var(--font-mono, 'JetBrains Mono', monospace); letter-spacing: 0.08em; font-size: 11px;
-}
-.mm-legend-lbl { margin-right: 10px; }
-@media (hover: none), (pointer: coarse) { .mm-legend { display: none; } }
 /* ---- phone: the rows have to fit, and the rail still reads --------------- */
 @container (max-width: 520px) {
   .mm-four .mm-option-label { font-size: clamp(18px, 6vw, 26px) !important; letter-spacing: 0.14em !important; }

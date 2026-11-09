@@ -220,7 +220,7 @@ test('the main menu is exactly four rows, in order, with no boxed feature', func
   eq(rowLabels(el).join(','), 'PLAY,MULTIPLAYER,LIBRARY,SETTINGS', 'the four');
   eq(el.querySelectorAll('.mm-feature').length, 0, 'the Multiplayer callout box is gone');
   eq(el.querySelectorAll('.mm-panel .mm-option .mm-rail-seg').length, 4, 'every row carries its rail segment');
-  ok(!!el.querySelector('.mm-legend'), 'the controls legend is in the shell');
+  eq(el.querySelectorAll('.mm-legend').length, 0, 'no on-screen key legend (owner removed it)');
   ok(el.classList.contains('mm-four'), 'the overlay is in four-row mode');
 });
 test('PLAY and LIBRARY each open four rows plus a Back, one level down', function () {

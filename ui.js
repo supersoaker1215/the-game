@@ -17460,12 +17460,8 @@ const UI = {
     el.innerHTML = `
       ${_flowOn ? this._menuSceneHTML() : ''}
       <div class="mm-scrim" aria-hidden="true"></div>
-      <div class="mm-panel">${buildPanel(this._mmSub || null)}</div>
-      <div class="mm-legend" aria-hidden="true">
-        <span class="mm-legend-key">&uarr;&darr;</span><span class="mm-legend-lbl">Scroll</span>
-        <span class="mm-legend-key">Enter</span><span class="mm-legend-lbl">Select</span>
-        <span class="mm-legend-key">Esc</span><span class="mm-legend-lbl">Back</span>
-      </div>`;
+      <div class="mm-panel">${buildPanel(this._mmSub || null)}</div>`;
+    // No on-screen key legend (owner removed it 2026-11-09). The keys still work.
     this._mmInstallKeys(el);
     this._mmSetActive(0);
     // THE LEADERBOARD LIVES IN THE MENU COLUMN NOW, under the profile chip.
