@@ -44250,11 +44250,8 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   position: relative;
 }
 /* The thick tapered bar that sat under the title (an ::after here) was
-   removed by the owner 2026-11-09. The 29px it occupied (3px + 26px margin)
-   is kept as header spacing so the rows below do not jump up. Added ON TOP of
-   the .mm-mw3 spacing variable (which sets this margin later in the file), at
-   (0,3,0) so it outranks that (0,2,0) rule regardless of order. */
-.mm-mw3 .mm-panel .mm-header { margin-bottom: calc(var(--mm-vr, 24px) + 29px); }
+   removed by the owner 2026-11-09, and then its space too ("move the menu up"):
+   the rows now sit at the .mm-mw3 spacing under the title rule. */
 
 /* ---- Featured mode — chamfered on the two opposite corners ---- */
 .mm-panel .mm-feature {
