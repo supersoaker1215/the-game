@@ -53302,3 +53302,34 @@ body.fx-lean .card-taunt { box-shadow: 0 0 14px rgba(255,190,60,0.55), 0 0 26px 
    are up, VOICE sits on top of the badge instead of under it. The badge is
    inline-styled at bottom:6px and ~19px tall; 34px clears it with a gap. */
 body.on-main-menu .voice-panel { bottom: 34px; }
+
+/* ============================================================
+   MENU POLISH — the Episode III subtitle (2026-11-09)
+   A spaced-out subtitle under the wordmark: the game's working name.
+   (The reference's rail also runs past its rows as dim empty segments. Tried
+   and measured here: in this layout the title sits in the rail's own column
+   above the rows and the leaderboard / Now Playing below them, so ghost
+   segments landed on text in both directions — 22-135px over THE GAME, and
+   370-539px over the leaderboard. Not shipped.)
+   ============================================================ */
+.mm-tagline, .ts-tagline {
+  font-family: 'Rajdhani', sans-serif; font-weight: 700; text-transform: uppercase;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.80);
+  text-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.35);
+}
+/* The older .mm-mw3 tagline was centred between two hairline rules; the
+   owner has just had every line around the title removed, so here it is plain
+   spaced caps, left-aligned on the wordmark, like the Episode III subtitle. */
+.mm-four .mm-tagline::before, .mm-four .mm-tagline::after { content: none; }
+.mm-four .mm-tagline {
+  justify-content: flex-start;
+  font-size: clamp(11px, 1.05vw, 17px); letter-spacing: 0.62em;
+  margin: calc(-1 * clamp(10px, 1.8vh, 26px)) 0 clamp(16px, 2.6vh, 34px) 0.1em;
+}
+#main-menu-overlay.is-title .ts-tagline {
+  position: relative; z-index: 2; margin-top: 12px; text-align: center;
+  font-size: clamp(12px, 1.4vw, 20px); letter-spacing: 0.62em; text-indent: 0.62em;
+}
+@container (max-width: 520px) {
+  .mm-four .mm-tagline { letter-spacing: 0.42em; }
+}

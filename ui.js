@@ -17112,6 +17112,7 @@ const UI = {
       <div class="ts-lockup">
         <h1 class="mm-title ts-title">the game</h1>
         <div class="ts-rule" aria-hidden="true"></div>
+        <div class="ts-tagline">Card Lane Battle</div>
       </div>
       <button type="button" class="ts-prompt" id="ts-prompt">Press Start</button>`;
     // Set through the style object, never a style="" attribute: url("…")
@@ -17327,7 +17328,7 @@ const UI = {
       if (sub === 'solo') {
         return `
         <div class="mm-header">
-          <h1 class="mm-title">the game</h1>
+          <h1 class="mm-title">the game</h1><div class="mm-tagline">Card Lane Battle</div>
         </div>
         <button type="button" class="mm-subback" onclick="UI.mmBack()" aria-label="Back to Play">&larr; Play</button>
         <div class="mm-section">
@@ -17358,7 +17359,7 @@ const UI = {
       if (sub === 'tools') {
         return `
         <div class="mm-header">
-          <h1 class="mm-title">the game</h1>
+          <h1 class="mm-title">the game</h1><div class="mm-tagline">Card Lane Battle</div>
         </div>
         <button type="button" class="mm-subback" onclick="UI.mmBack()" aria-label="Back to Library">&larr; Library</button>
         <div class="mm-section">
@@ -17392,7 +17393,7 @@ const UI = {
       if (sub === 'play') {
         return `
         <div class="mm-header">
-          <h1 class="mm-title">the game</h1>
+          <h1 class="mm-title">the game</h1><div class="mm-tagline">Card Lane Battle</div>
         </div>
         <div class="mm-section mm-four-list">
           <div class="mm-grid mm-grid-section">
@@ -17413,7 +17414,7 @@ const UI = {
       if (sub === 'library') {
         return `
         <div class="mm-header">
-          <h1 class="mm-title">the game</h1>
+          <h1 class="mm-title">the game</h1><div class="mm-tagline">Card Lane Battle</div>
         </div>
         <div class="mm-section mm-four-list">
           <div class="mm-grid mm-grid-section">
@@ -17428,7 +17429,7 @@ const UI = {
       // Default: the main list — the four.
       return `
         <div class="mm-header">
-          <h1 class="mm-title">the game</h1>
+          <h1 class="mm-title">the game</h1><div class="mm-tagline">Card Lane Battle</div>
         </div>
         <div class="mm-section mm-four-list mm-tier-1">
           <div class="mm-grid mm-grid-section">
@@ -21409,7 +21410,7 @@ const UI = {
       : crumb;
     return `
       ${_top}
-      <div class="mm-header mp-header"><h1 class="mm-title">the game</h1></div>
+      <div class="mm-header mp-header"><h1 class="mm-title">the game</h1><div class="mm-tagline">Card Lane Battle</div></div>
       <div class="mm-section mp-section">
         ${tourneyBanner}
         ${nameRow}

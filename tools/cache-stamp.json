@@ -1,7 +1,7 @@
 {
   "style.css": {
-    "v": 1696,
-    "hash": "80eee1a3"
+    "v": 1697,
+    "hash": "50fe4a14"
   },
   "board-v2.css": {
     "v": 108,
@@ -56,8 +56,8 @@
     "hash": "063d487d"
   },
   "ui.js": {
-    "v": 1694,
-    "hash": "9c53df95"
+    "v": 1695,
+    "hash": "cfe4a60b"
   },
   "board-v2.js": {
     "v": 32,

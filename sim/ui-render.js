@@ -385,6 +385,17 @@ test('VOICE: a 2v2 room left behind does not keep the panel on the main menu, an
   ok(/'voice-gate'/.test(read('ui.js')), 'the voice check runs before the menu screens return');
 });
 
+test('the wordmark carries its subtitle on the menu, every submenu and the title screen', function () {
+  var el = menuShell();
+  eq((el.querySelector('.mm-header .mm-tagline') || {}).textContent, 'Card Lane Battle', 'main menu');
+  UI.mmShowSub('play');
+  ok(!!el.querySelector('.mm-panel .mm-tagline'), 'Play submenu');
+  UI.mmShowSub('mp');
+  ok(!!el.querySelector('.mm-panel .mm-tagline'), 'multiplayer');
+  UI._mmSub = null;
+  ok(/class="ts-tagline">Card Lane Battle</.test(read('ui.js')), 'title screen lockup');
+});
+
 print('');
 print('ui-render: ' + __pass + ' passed, ' + __fail + ' failed');
 if (__fail) {
