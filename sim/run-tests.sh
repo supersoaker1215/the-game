@@ -350,6 +350,9 @@ run_suite sim/sjw-ai.js
 echo "=== trade-impact.js (lunge + flash together; every vibe yields to one-shots) ==="
 run_suite sim/trade-impact.js
 
+echo "=== kill-float.js (the killing blow shows its number) ==="
+run_suite sim/kill-float.js
+
 echo "=== sung-jin-woo.js (X-cost X/X, shadows bound to their master, odds-based revive) ==="
 run_suite sim/sung-jin-woo.js
 

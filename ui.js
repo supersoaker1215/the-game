@@ -13058,6 +13058,39 @@ const UI = {
   // Per-tier feedback parameters. Each channel in the hit handler reads
   // its value here so the whole feedback set stays coordinated — tune
   // one row and every channel for that tier moves together.
+  // Where each card died (see spawnDestroyParticles), so a hit that lands
+  // after its card has left the board can still be drawn where it stood.
+  // Short-lived and self-pruning: the swing beat is at most ~0.5s.
+  _rememberDeathRect(cardId, cardEl) {
+    try {
+      const r = cardEl.getBoundingClientRect();
+      if (!(r.width > 0)) return;
+      const m = this._deathRects || (this._deathRects = new Map());
+      const now = performance.now();
+      m.forEach((v, k) => { if (now - v.t > 4000) m.delete(k); });
+      m.set(String(cardId), { left: r.left, top: r.top, width: r.width, height: r.height, t: now });
+    } catch (e) {}
+  },
+  // The "-N" for a hit whose card is already gone: the same .dmg-float the
+  // node branch builds (same classes, same --pop-scale tiers), parented to a
+  // fixed box sized and placed exactly where the card stood.
+  _fxKillFloat(ev, fx) {
+    const dr = this._deathRects && this._deathRects.get(String(ev.cardId));
+    if (!dr || performance.now() - dr.t > 4000 || typeof document === 'undefined') return null;
+    const box = document.createElement('div');
+    box.className = 'dmg-float-anchor';
+    box.style.cssText = `position:fixed; left:${dr.left}px; top:${dr.top}px; width:${dr.width}px; height:${dr.height}px; pointer-events:none; z-index:2600;`;
+    const float = document.createElement('div');
+    const pop = (fx && fx.pop) || 1.7;
+    float.className = 'dmg-float dmg-hit' + (pop >= 1.6 ? ' dmg-float-lethal' : pop >= 1.35 ? ' dmg-float-heavy' : '');
+    float.textContent = `-${ev.amount}`;
+    float.style.setProperty('--pop-scale', String(pop));
+    float.style.setProperty('--dx', '0px');
+    box.appendChild(float);
+    document.body.appendChild(box);
+    setTimeout(() => box.remove(), 1200);
+    return float;
+  },
   _TIER_FX: {
     light:  { flashMs: 230, flashCls: '',             shake: null,     knockback: 0,  burst: 0.62, pop: 1.00, chips: 2, hitPause: 0,   sfxGain: 0.78 },
     medium: { flashMs: 330, flashCls: '',             shake: 'light',  knockback: 5,  burst: 1.00, pop: 1.16, chips: 4, hitPause: 0,   sfxGain: 1.00 },
@@ -13889,6 +13922,9 @@ const UI = {
           if (fx.hitPause) this._hitPauseFreeze(fx.hitPause);
           try { this.sfx.play('hit', fx.sfxGain, 0); } catch (e) {}
           if (ev.amount > 0) this._haptic('hit');
+          // THE KILLING NUMBER. Every other hit pops its "-N"; the one that
+          // kills used to show none, because its card was already gone.
+          if (ev.amount > 0) this._fxKillFloat(ev, fx);
         };
         if (beat) setTimeout(fire, beat); else fire();
       }
@@ -37295,6 +37331,12 @@ const UI = {
     if (cardId == null) return;
     const cardEl = document.querySelector(`[data-card-id="${cardId}"]`);
     if (!cardEl) return;
+    // REMEMBER WHERE IT DIED. This runs at the moment of death, while the card
+    // is still on the board; the killing blow's own beat (number, shake,
+    // freeze) plays 175-515ms later on the swing beat, by which time the node
+    // is gone. _fxKillFloat reads this to put the "-N" where the card was.
+    // Recorded before the reduced-motion gate: the number is information.
+    this._rememberDeathRect(cardId, cardEl);
     // Reduced-motion gate (2026-06 accessibility sweep). The 8-particle
     // burst + shockwave + shard spray + Tron-dissolve are all cosmetic;
     // the card still leaves the board via the normal render. Motion-
