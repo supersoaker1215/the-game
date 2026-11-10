@@ -35156,15 +35156,25 @@ const UI = {
     const bootAt = performance.now();
     const reset = () => { n = 0; slow = 0; last = 0; };
 
+    // OFF-DUTY, IT SLEEPS. Owner: "is the cursor taking up a lot of power" —
+    // the cursor measured ~0.1ms/frame and goes fully idle; THIS loop did not.
+    // Asking for a frame every frame keeps the browser producing frames (a
+    // main-thread wake ~60x a second) for the whole session, and outside a
+    // match it was doing nothing with them but asking again: measured 121
+    // callbacks in 2s on a still main menu. Now, while there is nothing to
+    // sample, it checks back once a second on a timer and only asks for frames
+    // during actual play.
+    const IDLE_CHECK_MS = 1000;
+    const sleep = () => { reset(); setTimeout(step, IDLE_CHECK_MS); };
     const step = () => {
       // A backgrounded tab throttles rAF to ~1Hz. Those gaps are not a frame
       // rate signal — discard the window and wait.
-      if (document.hidden) { reset(); requestAnimationFrame(step); return; }
+      if (document.hidden) { sleep(); return; }
       // Boot storm, and any moment that is not actual play. Menus, the draft
       // and the deck builder animate heavily by design and are not what the
       // in-match FX budget should be judged on.
       if (performance.now() - bootAt < WARMUP_MS || !document.body.classList.contains('in-match')) {
-        reset(); requestAnimationFrame(step); return;
+        sleep(); return;
       }
       const now = performance.now();
       if (last === 0) { last = now; requestAnimationFrame(step); return; }
