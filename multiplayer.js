@@ -219,6 +219,17 @@ const Multiplayer = {
       .concat(typeof WONDER_DEFS !== 'undefined' ? WONDER_DEFS : []);
     const cardAbilities = (typeof CARD_ABILITIES !== 'undefined' ? CARD_ABILITIES : {});
 
+    // RE-LINK THE DEAD PILES serializeState sent once (see there): the side's
+    // pile is its team's pile, the same array, exactly as on the host.
+    ['player', 'ai'].forEach(side => {
+      const p = state[side];
+      const t = p && p._deadPileTeam;
+      if (!t) return;
+      const team = state.twoVTwo && state.twoVTwo.teams && state.twoVTwo.teams[t];
+      p.deadPile = (team && Array.isArray(team.deadPile)) ? team.deadPile : [];
+      delete p._deadPileTeam;
+    });
+
     // Build a card-id → card-instance map so _summonedById
     // back-references can be repaired into real object references
     // after rehydration.
@@ -552,6 +563,39 @@ const Multiplayer = {
     //    self-healing (drawFromSummonDeck re-inits via _initSummonDeck when the
     //    pool is missing or empty), so dropping it cannot desync or strand a
     //    draw. Same fairness note as above: it was leaking the summon order.
+    // ---- THE DEAD PILES (late-game lag, measured 2026-11-10) -------------------
+    // A 2v2 round-24 broadcast was 88KB, ~43% of it dead piles — sent TWICE,
+    // because in 2v2 each side record holds the very same array as its team
+    // (s.player.deadPile === tt.teams.A.deadPile) and JSON writes a shared
+    // array out once per reference. And each entry carried ~420 bytes, most of
+    // it end-of-match stats nobody else reads mid-match.
+    // (1) SEND ONCE: when a side's pile IS its team's pile, ship a pointer; the
+    //     receiver re-links them (_rehydrateState), restoring the aliasing too.
+    // (2) SLIM: drop stats* from dead entries until the match is over. Every
+    //     reader of those counters already reads `c.statsX || 0`, and at game
+    //     over they travel again in full for the victory screen.
+    const _tt0 = state && state.twoVTwo;
+    if (_tt0 && _tt0.teams && clone.twoVTwo && clone.twoVTwo.teams) {
+      ['player', 'ai'].forEach(side => {
+        const live = state[side] && state[side].deadPile;
+        if (!live || !clone[side]) return;
+        const team = ['A', 'B'].find(t => _tt0.teams[t] && _tt0.teams[t].deadPile === live);
+        if (team && clone.twoVTwo.teams[team]) {
+          delete clone[side].deadPile;
+          clone[side]._deadPileTeam = team;
+        }
+      });
+    }
+    if (!state.gameOver) {
+      const slim = (pile) => (pile || []).forEach(e => {
+        if (!e || typeof e !== 'object') return;
+        for (const k in e) if (k.charCodeAt(0) === 115 && k.indexOf('stats') === 0) delete e[k];
+      });
+      ['player', 'ai'].forEach(side => { if (clone[side]) slim(clone[side].deadPile); });
+      if (clone.twoVTwo && clone.twoVTwo.teams) ['A', 'B'].forEach(t => {
+        if (clone.twoVTwo.teams[t]) slim(clone.twoVTwo.teams[t].deadPile);
+      });
+    }
     delete clone.summonDeck;
     // 4. draft.history — the Back button's undo stack. draftUndo refuses to run
     //    in multiplayer, so it is unusable on either client, and each entry

@@ -321,6 +321,9 @@ run_suite sim/max-health-floor.js
 echo "=== art-accent.js (a card's border comes from its own art) ==="
 run_suite sim/art-accent.js
 
+echo "=== wire-deadpile.js (dead piles sent once and slim mid-match — the late-game online lag) ==="
+run_suite sim/wire-deadpile.js
+
 echo "=== sw-prune.js (the offline asset cache keeps one copy of each file) ==="
 run_suite sim/sw-prune.js
 
