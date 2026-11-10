@@ -7433,15 +7433,24 @@ const UI = {
 
   // ===================== PHASE BANNER =====================
 
+  BANNER_STAGGER_MS: 240,
+  BANNER_HOLD_MS: 1000,
   showPhaseBanner(text, opts) {
     if (!this.phaseBanner) return;
     // Typewriter letter-stagger — each char gets its own span with an
     // incremental animation-delay. Spaces render as .space to keep the
     // visual gap without making the span zero-width.
-    const letters = [...text].map((ch, i) => {
+    // SNAP-FAST (owner: "make the turn banner faster"). The stagger used to be a
+    // flat 35ms a letter, so "Your Turn — Cards & Tricks" was not readable until
+    // ~1.3s and the banner sat on screen ~2.1s. The whole word now rides in over
+    // at most BANNER_STAGGER_MS whatever its length (same cascade, compressed),
+    // and the short-phase hold is BANNER_HOLD_MS — readable at ~0.46s, gone ~1.2s.
+    const chars = [...text];
+    const step = Math.min(35, this.BANNER_STAGGER_MS / Math.max(1, chars.length - 1));
+    const letters = chars.map((ch, i) => {
       const cls = ch === ' ' ? 'letter space' : 'letter';
       const safe = ch === ' ' ? '&nbsp;' : (ch === '<' ? '&lt;' : ch === '>' ? '&gt;' : ch === '&' ? '&amp;' : ch);
-      return `<span class="${cls}" style="animation-delay:${i * 35}ms">${safe}</span>`;
+      return `<span class="${cls}" style="animation-delay:${Math.round(i * step)}ms">${safe}</span>`;
     }).join('');
     this.phaseBannerText.innerHTML = letters;
     // Phase gets its own colour, not just combat. The banner was near-white for
@@ -7456,7 +7465,9 @@ const UI = {
     // read time than a generic phase transition. Default 1800ms;
     // long banners (>40 chars or explicit opts.duration) hold longer
     // so the player can actually read them.
-    let duration = 1800;
+    // Short phase banners hold BANNER_HOLD_MS; a long informational message keeps
+    // its reading-time rule (unchanged), and an explicit duration always wins.
+    let duration = this.BANNER_HOLD_MS;
     if (opts && opts.duration) duration = opts.duration;
     else if (text.length > 40) duration = Math.min(5000, 1800 + (text.length - 40) * 55);
     this._bannerTimeout = setTimeout(() => {

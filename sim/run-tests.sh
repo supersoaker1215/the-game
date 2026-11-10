@@ -366,6 +366,9 @@ run_suite sim/overdrive-callout.js
 echo "=== round-banner-rm.js (ROUND N still shows under reduced motion) ==="
 run_suite sim/round-banner-rm.js
 
+echo "=== phase-banner-fast.js (the turn banner is Snap-fast) ==="
+run_suite sim/phase-banner-fast.js
+
 echo "=== sung-jin-woo.js (X-cost X/X, shadows bound to their master, odds-based revive) ==="
 run_suite sim/sung-jin-woo.js
 

@@ -53615,3 +53615,18 @@ body:not(.ai-thinking) .ai-thinking-ring circle {
     animation-duration: 1.6s !important;
   }
 }
+
+/* ============================================================
+   SNAP-FAST PHASE BANNER (2026-11-10)
+   ============================================================
+   Owner: "make the turn banner faster". Measured from the code: "Your Turn —
+   Cards & Tricks" readable at ~1.29s (26 letters × 35ms stagger + 380ms each),
+   on screen ~2.1s (1800ms hold + 300ms fade) — Snap's turn call is ~0.9s.
+   Now (with UI.BANNER_STAGGER_MS 240 / BANNER_HOLD_MS 1000): readable at
+   ~0.46s, gone at ~1.2s. The banner's two decorations are scaled to fit inside
+   the shorter window instead of being cut off by the fade. Same specificity as
+   the originals, later in the sheet. */
+.phase-banner-text .letter { animation-duration: 220ms; }
+.phase-banner { transition: opacity 0.2s var(--ease-snap); }
+.phase-banner.active .phase-banner-text { animation-duration: 450ms; }
+.phase-banner.active .phase-banner-text::after { animation-duration: 0.65s; animation-delay: 0.1s; }
