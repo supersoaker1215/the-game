@@ -9703,6 +9703,33 @@ const UI = {
   // Clipping matters too: `.lane` is overflow:visible (several existing FX
   // rely on that), so an unclipped sail hung 33px below the waterline showing
   // the body that is supposed to be underwater.
+  // OVERDRIVE — "attacks again after a kill". A boxless glow-text callout in the
+  // keyword's own colour (--kw-overdrive, the badge's token) over the card that
+  // is about to swing again; ×N on the second link onward. On the body-level
+  // FX layer, so a render mid-chain can't delete it (lane FX rule).
+  _fxOverdrive(ev) {
+    if (typeof document === 'undefined') return;
+    const stage = this._fxLaneStage(ev.lane, 'overdrive-stage');
+    if (!stage) return;
+    const sr = stage.getBoundingClientRect();
+    const cardEl = ev.cardId != null ? document.querySelector(`.board [data-card-id="${ev.cardId}"]`) : null;
+    let y = sr.height * (this._fxDomSide && this._fxDomSide(ev.owner) === 'player' ? 0.72 : 0.28);
+    if (cardEl) { const cr = cardEl.getBoundingClientRect(); if (cr.height) y = cr.top - sr.top + cr.height * 0.38; }
+    const tag = document.createElement('div');
+    tag.className = 'od-callout';
+    tag.style.top = y + 'px';
+    tag.textContent = 'OVERDRIVE';
+    if ((ev.chain | 0) > 1) {
+      const n = document.createElement('span');
+      n.className = 'od-chain';
+      n.textContent = '\u00d7' + (ev.chain | 0);
+      tag.appendChild(n);
+    }
+    stage.appendChild(tag);
+    try { this.sfx && this.sfx.play && this.sfx.play('overdrive'); } catch (e) {}
+    if (this._haptic) { try { this._haptic('hit'); } catch (e) {} }
+    setTimeout(() => stage.remove(), 950);
+  },
   _fxLaneStage(laneIdx, cls) {
     const laneEl = this.laneElAt(laneIdx);
     if (!laneEl) return null;
@@ -13551,7 +13578,7 @@ const UI = {
   // _queueSigFx), and any type added later until someone decides otherwise.
   _FX_TRACKS: {
     combat: ['swing', 'hit', 'hpHit', 'block', 'blocked', 'armor', 'evade', 'heal', 'move',
-             'enterAndDie', 'blockDrain', 'artWeapon', 'laneVoid'],
+             'enterAndDie', 'blockDrain', 'artWeapon', 'laneVoid', 'overdrive'],
     announce: ['trickReveal', 'discardReveal', 'envReveal', 'titan', 'legendary', 'ballyhoo',
                'shadowman', 'ironGiantSave'],
   },
@@ -13886,6 +13913,10 @@ const UI = {
     }
     if (ev.type === 'laneVoid') {
       this._fxLaneVoid(ev);
+      return;
+    }
+    if (ev.type === 'overdrive') {
+      this._fxOverdrive(ev);
       return;
     }
     if (ev.type === 'artWeapon') {

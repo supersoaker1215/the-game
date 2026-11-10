@@ -360,6 +360,9 @@ run_suite sim/land-thump.js
 echo "=== drag-land.js (a dragged card lands where it was dropped) ==="
 run_suite sim/drag-land.js
 
+echo "=== overdrive-callout.js (Overdrive is seen, not just logged) ==="
+run_suite sim/overdrive-callout.js
+
 echo "=== sung-jin-woo.js (X-cost X/X, shadows bound to their master, odds-based revive) ==="
 run_suite sim/sung-jin-woo.js
 

@@ -9506,8 +9506,14 @@ const Game = {
     this.applyHawkeyePassive(card.owner, splashed, card);
   },
 
-  handleOverdrive(card, laneIdx) {
+  handleOverdrive(card, laneIdx, chain) {
     const defOwner = this.opponent(card.owner);
+    chain = chain || 1;
+    // THE MOMENT IS SEEN, not just logged. Overdrive is the game's chain-kill
+    // keyword and it used to have no tell at all — the extra swing looked like
+    // any other hit. attackerId groups it with the kill that triggered it, so
+    // the callout lands on that beat (UI._fxOverdrive). chain counts the links.
+    this.emitFX('overdrive', { cardId: card.id, attackerId: card.id, owner: card.owner, lane: laneIdx, chain });
     this.log(`  [OVERDRIVE] ${card.name} attacks again!`);
     let target = this.getAttackTarget(card.owner, laneIdx);
     if (!target || target.currentHealth <= 0) target = this.state.lanes[laneIdx][defOwner];
@@ -9520,7 +9526,7 @@ const Game = {
     }
     const killed = this.applyCombatDamage(card, target);
     this.cleanupDead();
-    if (killed && card.currentHealth > 0) this.handleOverdrive(card, laneIdx);
+    if (killed && card.currentHealth > 0) this.handleOverdrive(card, laneIdx, chain + 1);
   },
 
   resolveUncontestedLane(laneIdx, side, advanceCallback) {
