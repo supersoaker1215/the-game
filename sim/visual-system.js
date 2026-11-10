@@ -355,6 +355,33 @@ check('the title screen centres with !important (the base overlay left-pins with
       !!titleAlign && titleAlign.important && titleAlign.justImportant && baseLeftPin,
       titleAlign ? ('align !imp=' + titleAlign.important + ' justify !imp=' + titleAlign.justImportant + ' basePin=' + baseLeftPin) : 'no #main-menu-overlay.is-title align-items rule');
 
+// ---- every @keyframes is played by something ---------------------------
+// A keyframe nothing names is dead weight, and worse, a trap: a reader finds
+// the animation, assumes it runs, and builds on it. Ten were deleted on
+// 2026-11-10 (aaaBlockBreathe, tronConicFlow, cardStressTremble … — several
+// disabled by owner request years of commits ago, left "in place but unused").
+// A keyframe counts as used when a CSS animation / animation-name / custom
+// property names it, or when any shipped JS / index.html names it as a whole
+// word (JS sets style.animation and builds FX with these names).
+(function () {
+  var names = []; var re = /@(?:-webkit-)?keyframes\s+([\w-]+)\s*\{/g, mm;
+  while ((mm = re.exec(BARE))) names.push(mm[1]);
+  var cssUse = {};
+  var dre = /(?:animation(?:-name)?|--[\w-]+)\s*:\s*([^;{}]+)/g, dm;
+  while ((dm = dre.exec(BARE))) (dm[1].match(/[A-Za-z_][\w-]*/g) || []).forEach(function (t) { cssUse[t] = true; });
+  var jsText = '';
+  ['ui.js', 'game.js', 'abilities.js', 'tricks.js', 'ai.js', 'roguelite.js', 'multiplayer.js',
+   'voice.js', 'tutorial.js', 'tournament.js', 'index.html'].forEach(function (f) {
+    try { jsText += '\n' + read(f); } catch (e) {}
+  });
+  var dead = names.filter(function (n) {
+    if (cssUse[n]) return false;
+    return !new RegExp('(^|[^\\w-])' + n.replace(/[-]/g, '\\-') + '([^\\w-]|$)').test(jsText);
+  });
+  check('every @keyframes is used by a CSS animation or named in the shipped JS',
+        dead.length === 0, 'dead: ' + dead.join(', '));
+})();
+
 print('');
 print('visual-system: ' + pass + ' passed, ' + fails.length + ' failed');
 fails.forEach(function (f) { print('  FAIL  ' + f); });

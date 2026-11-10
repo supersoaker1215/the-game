@@ -13,7 +13,7 @@
 // refreshes code and leaves the assets alone.
 //   CODE_CACHE  — bumped on every deploy (that's the point: fresh code).
 //   ASSET_CACHE — bumped ONLY when the art/audio themselves change.
-const CACHE_VERSION = 'clb-v971-green-gate';
+const CACHE_VERSION = 'clb-v972-green-gate';
 const CODE_CACHE  = CACHE_VERSION;
 const ASSET_CACHE = 'clb-assets-v1';
 const APP_SHELL = [
@@ -28,6 +28,37 @@ self.addEventListener('install', (event) => {
   );
 });
 
+// THE ASSET CACHE KEEPS ONE COPY PER FILE. Assets are cache-first and keyed by
+// the full URL, so every ?v= bump (the art version, an audio stamp) stored a
+// complete second copy of each file and nothing ever removed the first — the
+// cache only grew. Two halves: on fetch, a new version of a path replaces the
+// old ones (putAsset); on activate, copies already stranded in a player's cache
+// are swept, keeping the newest ?v= of each path (pruneAssetCache).
+function assetVersion(u) {
+  const m = /[?&]v=([^&]*)/.exec(u);
+  if (!m) return -1;
+  const n = parseFloat(m[1]);
+  return isNaN(n) ? 0 : n;
+}
+function pathOf(u) { const i = u.indexOf('?'); return i < 0 ? u : u.slice(0, i); }
+function pruneAssetCache() {
+  return caches.open(ASSET_CACHE).then((cache) => cache.keys().then((reqs) => {
+    const newest = {};
+    reqs.forEach((r) => {
+      const p = pathOf(r.url), v = assetVersion(r.url);
+      if (!newest[p] || v > newest[p].v) newest[p] = { v, url: r.url };
+    });
+    return Promise.all(reqs
+      .filter((r) => newest[pathOf(r.url)].url !== r.url)
+      .map((r) => cache.delete(r)));
+  }));
+}
+function putAsset(cache, req, res) {
+  // ignoreSearch: every stored version of this path, whatever its ?v=.
+  return cache.delete(pathOf(req.url), { ignoreSearch: true })
+    .then(() => cache.put(req, res));
+}
+
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -36,7 +67,9 @@ self.addEventListener('activate', (event) => {
       Promise.all(keys
         .filter((k) => k !== CODE_CACHE && k !== ASSET_CACHE)
         .map((k) => caches.delete(k)))
-    ).then(() => self.clients.claim())
+    ).then(() => pruneAssetCache())
+     .catch(() => {})                       // a failed sweep must never block activation
+     .then(() => self.clients.claim())
   );
 });
 
@@ -97,7 +130,7 @@ self.addEventListener('fetch', (event) => {
         const copy = res.clone();
         // Heavy, rarely-changing media lands in the ASSET cache so a code
         // deploy can never evict it.
-        caches.open(ASSET_CACHE).then((c) => c.put(req, copy));
+        caches.open(ASSET_CACHE).then((c) => putAsset(c, req, copy));
       }
       return res;
     }))

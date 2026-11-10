@@ -321,6 +321,9 @@ run_suite sim/max-health-floor.js
 echo "=== art-accent.js (a card's border comes from its own art) ==="
 run_suite sim/art-accent.js
 
+echo "=== sw-prune.js (the offline asset cache keeps one copy of each file) ==="
+run_suite sim/sw-prune.js
+
 echo "=== phone-hand.js (phone hand: full row, cards fill slots, honest chrome width, player block at the bottom) ==="
 run_suite sim/phone-hand.js
 

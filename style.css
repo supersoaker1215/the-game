@@ -9749,7 +9749,6 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
    can paint a name independently of its column. */
 .game-over-stats .go-card-ally { color: #7fd0ff; }
 .game-over-stats .go-card-enemy { color: #ff9a8c; }
-@keyframes sotmRise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 @media (max-width: 600px) {
   .sotm-body { flex-direction: column; align-items: center; gap: 12px; }
   .sotm-card { width: 90%; max-width: 220px; }
@@ -18071,8 +18070,8 @@ body.theme-purple .board-section {
    in a circle"). The progress is already conveyed by the X/8 number
    inside the ring; the rotating fill arc was redundant motion.
    Replaced by a stationary breathing glow on the ring border —
-   lives on .block-circle's own border-color/box-shadow which we
-   already pulse via aaaBlockBreathe below. */
+   lives on .block-circle's own border-color/box-shadow. (That pulse was
+   later disabled too, below, and its keyframe deleted 2026-11-10.) */
 .block-circle::before { display: none !important; }
 
 /* Stationary breath pulse — DISABLED per user feedback 2026-05-18:
@@ -18082,10 +18081,6 @@ body.theme-purple .board-section {
    shrink, HP shake). No idle motion. */
 .block-circle {
   animation: none;
-}
-@keyframes aaaBlockBreathe {
-  0%, 100% { filter: brightness(1); }
-  50%      { filter: brightness(1); }
 }
 @media (prefers-reduced-motion: reduce) {
   .block-circle { animation: none; }
@@ -18872,11 +18867,6 @@ body.ai-thinking .ai-thinking-dots { display: inline-flex; }
    like it"). The 600ms spin combined with the gold brightness boost
    was the source of the rotating yellow flash. Keyframe kept for
    reference; the .energy-round-spin class is now a no-op. */
-@keyframes energyRoundSpin {
-  0%   { transform: rotate(0deg)   scale(1); }
-  50%  { transform: rotate(180deg) scale(1.12); filter: brightness(1.3); }
-  100% { transform: rotate(360deg) scale(1); }
-}
 .energy-text.energy-round-spin { animation: none; }
 
 /* C — Unified focus outline. Earlier rules declared focus rings
@@ -22666,9 +22656,6 @@ body.combat-anticipate .board {
      infinite;` here. */
   animation: none;
 }
-@keyframes tronConicFlow {
-  to { --tron-flow-angle: 360deg; }
-}
 
 /* AI-side perimeter — enemy current. Apply on the AI HP bar, energy
    pill, etc. Follows --enemy-r/g/b so when the player picks red, the
@@ -24106,21 +24093,12 @@ body:not(.round-first-player):not(.round-first-ai) .hud-round #round-num::before
    class because those classes' transforms override via cascade
    while their animation runs (and the tremor only resumes after
    they finish). */
-@keyframes cardStressTremble {
-  0%, 100% { transform: translate(0, 0); }
-  20%      { transform: translate(-0.5px,  0.4px); }
-  40%      { transform: translate( 0.5px, -0.3px); }
-  60%      { transform: translate(-0.4px,  0.3px); }
-  80%      { transform: translate( 0.4px, -0.4px); }
-}
 .card.card-hp-critical {
   /* Tremor animation removed — user feedback: "get rid of the low
      health shake of the cards." The red rim accent below is kept
      because it's informational (signals "this card is in lethal
-     range") rather than motion. The cardStressTremble keyframe and
-     --tremor-phase variable are left in place but unused so any
-     downstream code still referencing them stays valid; they just
-     no longer animate anything. */
+     range") rather than motion. The cardStressTremble keyframe was
+     deleted 2026-11-10 — nothing referenced it. */
 }
 /* Ally cards at 1 HP get a subtle red rim accent. Reads as "this
    card is wounded" while sitting at the same z-rest level. */
@@ -31367,16 +31345,6 @@ body.killcam .board::before {
    declarations below. */
 body.combat-anticipate::before { content: none !important; }
 body.combat-anticipate::after  { content: none !important; }
-@keyframes combatAnticipateWash {
-  0%   { opacity: 0; }
-  25%  { opacity: 1; }
-  100% { opacity: 0; }
-}
-@keyframes combatAnticipateRing {
-  0%   { transform: scale(1.30); opacity: 0; }
-  35%  { transform: scale(1.00); opacity: 1; }
-  100% { transform: scale(0.55); opacity: 0; }
-}
 @media (prefers-reduced-motion: reduce) {
   body.combat-anticipate::before,
   body.combat-anticipate::after { display: none; }
@@ -32101,10 +32069,6 @@ body.combat-anticipate::after  { content: none !important; }
 /* Screen breath — slow brightness pulse mimicking a CRT refresh
    subtle enough to register as "alive monitor" rather than "thing
    that's animating." 1.5% brightness range. */
-@keyframes aaaScreenBreath {
-  0%, 100% { filter: saturate(0.92) brightness(0.96); }
-  50%      { filter: saturate(0.94) brightness(0.985); }
-}
 @media (prefers-reduced-motion: reduce) {
   .card-portrait { animation: none; }
 }
@@ -32435,11 +32399,6 @@ body.round-tick .board::after {
   will-change: transform, opacity;
   /* Stop click-through — only the backdrop dismisses */
   pointer-events: auto;
-}
-@keyframes cardInspectPopIn {
-  0%   { transform: scale(0.72); opacity: 0; }
-  60%  { transform: scale(1.04); opacity: 1; }
-  100% { transform: scale(1.00); }
 }
 /* ============================================================
    TRON RETICLE BUTTON — the reusable form of the in-match action
@@ -33071,11 +33030,6 @@ body.round-tick .board::after {
 }
 
 /* Start-of-round stalk — a wake sliding across the lane he moves into. */
-@keyframes spinoWake {
-  0%   { transform: translateX(-115%) scaleX(0.6); opacity: 0;   }
-  25%  { opacity: 0.85; }
-  100% { transform: translateX(115%)  scaleX(1);   opacity: 0;   }
-}
 
 /* Hunt Meter discharge — one heavy lunge on the card itself. */
 @keyframes spinoRampage {
