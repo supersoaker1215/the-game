@@ -339,6 +339,9 @@ run_suite sim/drag-smooth.js
 echo "=== fx-probe-idle.js (frame-rate probe sleeps outside a match) ==="
 run_suite sim/fx-probe-idle.js
 
+echo "=== idle-loops.js (repainting idle loops paused at Normal / where invisible) ==="
+run_suite sim/idle-loops.js
+
 echo "=== sung-jin-woo.js (X-cost X/X, shadows bound to their master, odds-based revive) ==="
 run_suite sim/sung-jin-woo.js
 

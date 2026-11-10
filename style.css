@@ -53340,3 +53340,47 @@ body.on-main-menu .voice-panel { bottom: 34px; }
      layout by UI._syncHandRealWidth; until it exists the old value stands. */
   .player-hand-section .hand-cards .card { --sb-card: var(--hand-real-w, var(--hand-card-w, 86px)); }
 }
+
+/* ============================================================
+   IDLE LOOPS THAT REPAINT, CAUGHT BY MEASUREMENT (2026-11-10)
+   ============================================================
+   Owner: "do 2" — cut in-match power. Measured on a 12-card board at the
+   default tier (Normal): 32 infinite animations, 24 of them repainting, and an
+   idle frame cost 2.5ms of main thread vs 0.3ms with the loops paused.
+
+   PAUSED, NOT REMOVED. `animation-play-state: paused` holds an animation at
+   one frame with the SAME precedence it had while running (animations outrank
+   every normal declaration), so the still frame is exactly a frame of the loop
+   — nothing underneath gets to show through that the loop was covering. And a
+   paused animation is never ticked. Every selector is wrapped in :where() so
+   it weighs no more than the base rule it follows: any one-shot that assigns
+   its own `animation` shorthand at higher specificity (a hit, a play, the
+   boot stagger) resets play-state to running and plays as before.
+
+   1. Card edge tube (tronTubePulseCard, on every hand + board card's ::after).
+      The Normal-tier doctrine already says loops that repaint go, held at a
+      static value — this one animates border-color + box-shadow and was
+      missed. Held at a quarter cycle (between dim and peak). High keeps it. */
+:where(body.fx-lean) .tron-perimeter-card::after {
+  animation-play-state: paused;
+  animation-delay: calc(var(--tron-perim-card-cycle) * -0.25);
+}
+/* 2. Lane number pulse in an OCCUPIED lane — at every tier, because it is
+      invisible there: an occupancy rule holds box-shadow + border-color, and
+      sampled 8x over 3s the value never moved (empty lanes: 8 distinct). It
+      was repainting six circles a frame to show nothing. */
+:where(.lane.occ-ai, .lane.occ-player, .lane.occ-both) .lane-number {
+  animation-play-state: paused;
+}
+/* 3. Lane number pulse in an EMPTY lane at Normal — a box-shadow loop, same
+      doctrine as 1, held at a quarter cycle. High keeps it. */
+:where(body.fx-lean) .lane-number {
+  animation-play-state: paused;
+  animation-delay: calc(var(--tron-circle-pulse-cycle) * -0.25);
+}
+/* 4. AI thinking ring — opacity 0 for the whole of the player's turn, but
+      its stroke-dashoffset loop (SVG, repaints) never stopped. Paused while
+      the AI is not thinking; it still fades out, just without spinning. */
+body:not(.ai-thinking) .ai-thinking-ring circle {
+  animation-play-state: paused;
+}
