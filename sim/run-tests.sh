@@ -369,6 +369,9 @@ run_suite sim/round-banner-rm.js
 echo "=== phase-banner-fast.js (the turn banner is Snap-fast) ==="
 run_suite sim/phase-banner-fast.js
 
+echo "=== trade-sequence.js (each lunge lands on its hit; death comes last) ==="
+run_suite sim/trade-sequence.js
+
 echo "=== sung-jin-woo.js (X-cost X/X, shadows bound to their master, odds-based revive) ==="
 run_suite sim/sung-jin-woo.js
 

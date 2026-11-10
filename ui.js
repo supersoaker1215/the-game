@@ -8938,7 +8938,7 @@ const UI = {
       if (prev.inHand) continue;
       const deadEl = this._prevEls.get(id);
       if (!deadEl) continue;
-      this._spawnDeathGhost(prev.rect, deadEl.outerHTML);
+      this._spawnDeathGhost(prev.rect, deadEl.outerHTML, id);
     }
   },
 
@@ -9258,14 +9258,27 @@ const UI = {
     try { this._haptic && this._haptic('block'); } catch (e) {}
   },
 
-  _spawnDeathGhost(rect, html) {
+  _spawnDeathGhost(rect, html, id) {
     const wrap = document.createElement('div');
     wrap.innerHTML = html;
     const el = wrap.firstElementChild;
     if (!el) return;
-    el.classList.add('card-death-ghost');
     el.classList.remove('card-enter', 'card-exit', 'card-flying');
     el.removeAttribute('data-card-id'); // prevent selector collisions
+    // HELD: the card died in combat but its swing/hit/death beats are still to
+    // come — stand in for it, unanimated, until _releaseDeath dissolves it.
+    if (id != null && this._isDeathHeld && this._isDeathHeld(id)) {
+      el.classList.add('card-death-hold');
+      el.setAttribute('data-ghost-of', String(id));
+      el.style.top = rect.top + 'px';
+      el.style.left = rect.left + 'px';
+      el.style.width = rect.width + 'px';
+      el.style.height = rect.height + 'px';
+      document.body.appendChild(el);
+      setTimeout(() => { if (el.isConnected) el.remove(); }, 4000);   // backstop
+      return;
+    }
+    el.classList.add('card-death-ghost');
     el.style.top = rect.top + 'px';
     el.style.left = rect.left + 'px';
     el.style.width = rect.width + 'px';
@@ -13215,6 +13228,26 @@ const UI = {
   // Per-tier feedback parameters. Each channel in the hit handler reads
   // its value here so the whole feedback set stays coordinated — tune
   // one row and every channel for that tier moves together.
+  // THE ATTACKER'S LUNGE, timed so its impact frame (cardLungeAttacker* 35%,
+  // ~190ms of 540) lands on the swing's beat — the same beat its hits, flash,
+  // number and sound use. Always via setTimeout (even 0) so a card the engine
+  // already killed has had its held stand-in spawned by the render first.
+  _LUNGE_IMPACT_MS: 190,
+  _LUNGE_MS: 540,
+  _lungeOnBeat(id, beatMs) {
+    if (id == null || typeof document === 'undefined') return;
+    if (this._reducedMotion && this._reducedMotion()) return;
+    const start = Math.max(0, (beatMs || 0) - this._LUNGE_IMPACT_MS);
+    setTimeout(() => {
+      const el = document.querySelector(`[data-card-id="${id}"]`)
+        || document.querySelector(`[data-ghost-of="${id}"]`);
+      if (!el) return;
+      el.classList.remove('combat-target', 'combat-attacker');
+      void el.offsetWidth;
+      el.classList.add('combat-attacker');
+      setTimeout(() => el.classList.remove('combat-attacker'), this._LUNGE_MS);
+    }, start);
+  },
   // Where each card died (see spawnDestroyParticles), so a hit that lands
   // after its card has left the board can still be drawn where it stood.
   // Short-lived and self-pruning: the swing beat is at most ~0.5s.
@@ -13886,6 +13919,7 @@ const UI = {
     // hears it — they never run the engine line.
     if (ev.type === 'swing') {
       const beat = (this._reducedMotion && this._reducedMotion()) ? 0 : this._swingBeatMs(ev.owner);
+      this._lungeOnBeat(ev.attackerId, beat);
       if (beat > 0) {
         this._bookLaneAudioUntil(beat);
         setTimeout(() => this._playAttackerCue(ev.attackerId, ev.name), beat);
@@ -14086,6 +14120,12 @@ const UI = {
           // THE KILLING NUMBER. Every other hit pops its "-N"; the one that
           // kills used to show none, because its card was already gone.
           if (ev.amount > 0) this._fxKillFloat(ev, fx);
+          const g = document.querySelector(`[data-ghost-of="${ev.cardId}"]`);
+          if (g) {
+            g.style.setProperty('--flash-ms', fx.flashMs + 'ms');
+            g.classList.remove('hit-flash'); void g.offsetWidth;
+            g.classList.add('hit-flash'); if (fx.flashCls) g.classList.add(fx.flashCls);
+          }
         };
         if (beat) setTimeout(fire, beat); else fire();
       }
@@ -37490,6 +37530,50 @@ const UI = {
     // is gone. _fxKillFloat reads this to put the "-N" where the card was.
     // Recorded before the reduced-motion gate: the number is information.
     this._rememberDeathRect(cardId, cardEl);
+    // THE DEATH WAITS FOR ITS HIT. In combat the engine kills a card before the
+    // UI has shown a single swing, so the dissolve used to start at ~40ms and
+    // the render removed the card at ~77ms — before the attacker lunged and
+    // half a second before the killing "-N". Now the visual is held to the
+    // card's death beat (_deathBeatMs, the same beat its death SOUND already
+    // waits for): the card stays on screen (live, or as its held stand-in),
+    // lunges and takes its hit, THEN dissolves.
+    const hold = this._deathHoldMs(owner);
+    if (hold > 0) {
+      const m = this._deathHold || (this._deathHold = new Map());
+      const laneEl = cardEl.closest && cardEl.closest('.lane');
+      const atkEl = cardEl.querySelector && cardEl.querySelector('.stat-circle.stat-atk');
+      m.set(String(cardId), {
+        at: performance.now(), hold,
+        side: owner === 'player' ? 'player' : 'ai',
+        lane: laneEl && laneEl.dataset ? parseInt(laneEl.dataset.lane, 10) : null,
+        atk: atkEl ? (parseInt(atkEl.textContent, 10) || 0) : 0,
+      });
+      setTimeout(() => this._releaseDeath(cardId), hold);
+      return;
+    }
+    this._dissolveCardEl(cardEl);
+  },
+  _deathHoldMs(owner) {
+    if (!this.sfx || !this.sfx._inCombat) return 0;
+    if (this._reducedMotion && this._reducedMotion()) return 0;
+    return this._deathBeatMs(owner === 'player' ? 'player' : 'ai');
+  },
+  _isDeathHeld(id) { return !!(this._deathHold && this._deathHold.has(String(id))); },
+  _releaseDeath(cardId) {
+    if (this._deathHold) this._deathHold.delete(String(cardId));
+    const live = document.querySelector(`#board [data-card-id="${cardId}"]`);
+    if (live) { this._dissolveCardEl(live); return; }
+    const g = document.querySelector(`[data-ghost-of="${cardId}"]`);
+    if (!g) return;
+    g.classList.remove('card-death-hold', 'combat-attacker', 'combat-target', 'hit-flash');
+    void g.offsetWidth;
+    g.classList.add('card-death-ghost');
+    setTimeout(() => g.remove(), 760);
+  },
+  // The death visual proper (unchanged from spawnDestroyParticles' original
+  // body): Tron dissolve on the tile + particle burst / shockwave / shards.
+  _dissolveCardEl(cardEl) {
+    if (!cardEl) return;
     // Reduced-motion gate (2026-06 accessibility sweep). The 8-particle
     // burst + shockwave + shard spray + Tron-dissolve are all cosmetic;
     // the card still leaves the board via the normal render. Motion-
@@ -37913,7 +37997,17 @@ const UI = {
     // CSS animation runs on whichever class wins the cascade.
     const lane = Game.state.lanes && Game.state.lanes[cur];
     if (!lane) return;
-    const p = lane.player, a = lane.ai;
+    // A combatant the engine already killed is gone from lane state by the time
+    // this render runs — but it fought. Its held death (spawnDestroyParticles)
+    // remembers its lane and the ATK it showed, so it still takes part.
+    const heldIn = (side) => {
+      if (!this._deathHold) return null;
+      for (const [hid, h] of this._deathHold) {
+        if (h.lane === cur && h.side === side) return { id: hid, attack: h.atk, currentHealth: 0, _held: true };
+      }
+      return null;
+    };
+    const p = lane.player || heldIn('player'), a = lane.ai || heldIn('ai');
     // Updated lunge duration (320 → 540) — see CSS keyframes for the
     // new anticipation→impact-hold→recoil structure. Class cleanup
     // matches the new total so the card returns to its rest pose
@@ -37923,9 +38017,13 @@ const UI = {
     // We fire the hit-flash + camera-shake at 190ms so they land at
     // the start of the impact-hold frame.
     const IMPACT_AT_MS = 190;
+    // A card the engine already killed is on screen as its held stand-in
+    // (see _deathHoldMs), which carries data-ghost-of instead of data-card-id.
+    const cardOrGhost = (id) => document.querySelector(`[data-card-id="${id}"]`)
+      || document.querySelector(`[data-ghost-of="${id}"]`);
     const classOnCard = (id, cls, dur) => {
       if (id == null) return null;
-      const el = document.querySelector(`[data-card-id="${id}"]`);
+      const el = cardOrGhost(id);
       if (!el) return null;
       el.classList.remove(cls);
       void el.offsetWidth;
@@ -37952,7 +38050,7 @@ const UI = {
     // Hit-flash on a card — re-uses the existing .hit-flash class
     // which paints a brief scanline + brightness pulse.
     const hitFlashOn = (id) => {
-      const el = id != null ? document.querySelector(`[data-card-id="${id}"]`) : null;
+      const el = id != null ? cardOrGhost(id) : null;
       if (!el) return;
       el.classList.remove('hit-flash');
       void el.offsetWidth;
@@ -37970,18 +38068,15 @@ const UI = {
       // `animation` property at equal specificity, so the later one silently
       // wins and the other is lost. It's one or the other, per card.
       // Mirrors the resolver's own swing rule (alive, not frozen, ATK > 0).
-      const canSwing = (c) => !!c && c.currentHealth > 0
-        && !c.isFrozen && !c.isStunned && (c.attack || 0) > 0;
-      classOnCard(p.id, canSwing(p) ? 'combat-attacker' : 'combat-target');
-      classOnCard(a.id, canSwing(a) ? 'combat-attacker' : 'combat-target');
-      // Drive impact effects at the ~190ms mark so the hit-flash and
-      // camera-shake align with the keyframe's impact-hold frame.
-      const peakAtk = Math.max(p.attack || 0, a.attack || 0);
-      setTimeout(() => {
-        hitFlashOn(p.id);
-        hitFlashOn(a.id);
-        shakeForAtk(peakAtk);
-      }, IMPACT_AT_MS);
+      // CONTESTED LANES LUNGE FROM THEIR SWING EVENTS, not from here. This runs
+      // when the lane activates, but the hits it should line up with are paced
+      // by the FX director (each beat 240ms+ apart on top of the swing gap), so
+      // a lunge started here landed its impact ~200ms before its own "-N".
+      // Each 'swing' now lunges its attacker so the impact frame lands exactly
+      // on that swing's beat (_lungeOnBeat), and the hits it groups with bring
+      // the flash, shake, knockback and number. A held death (heldIn) keeps a
+      // lane whose defender died classed as contested, so the survivor doesn't
+      // fall through to the uncontested face-lunge below.
     } else if (p) {
       // Uncontested ally lane → swings at the AI's HP bar.
       classOnCard(p.id, 'combat-attacker');

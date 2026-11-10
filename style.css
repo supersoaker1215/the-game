@@ -53630,3 +53630,18 @@ body:not(.ai-thinking) .ai-thinking-ring circle {
 .phase-banner { transition: opacity 0.2s var(--ease-snap); }
 .phase-banner.active .phase-banner-text { animation-duration: 450ms; }
 .phase-banner.active .phase-banner-text::after { animation-duration: 0.65s; animation-delay: 0.1s; }
+
+/* ============================================================
+   HELD DEATH STAND-IN (2026-11-10)
+   ============================================================
+   A card the engine killed mid-combat stays on screen in its own spot until
+   its death beat (UI._deathHoldMs → _releaseDeath), so it can still lunge and
+   take its hit; then it becomes a .card-death-ghost and derezzes. Same box
+   as the ghost, no animation of its own — the lunge / hit-flash one-shots
+   play on it exactly as on the live tile. */
+.card-death-hold {
+  position: fixed !important;
+  z-index: 9998;
+  pointer-events: none;
+  margin: 0 !important;
+}

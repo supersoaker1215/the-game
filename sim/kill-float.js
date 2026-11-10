@@ -17,10 +17,16 @@ var pass = 0, fails = [];
 function check(name, cond, detail) { if (cond) pass++; else fails.push(name + (detail ? ' — ' + detail : '')); }
 
 var sp = SRC.indexOf('spawnDestroyParticles(cardId, owner) {');
-var spBody = SRC.slice(sp, sp + 1600);
-check('death records where the card stood, BEFORE the reduced-motion gate',
-  spBody.indexOf('_rememberDeathRect(cardId, cardEl)') > 0 &&
-  spBody.indexOf('_rememberDeathRect(cardId, cardEl)') < spBody.indexOf('_reducedMotion'));
+var spBody = SRC.slice(sp, SRC.indexOf('  _deathHoldMs(owner) {', sp));
+// The reduced-motion gate now lives in _dissolveCardEl / _deathHoldMs (the
+// death hold, sim/trade-sequence.js) — the rule is still "recorded before
+// anything can return or dissolve".
+var rec = spBody.indexOf('_rememberDeathRect(cardId, cardEl)');
+var afterEl = spBody.indexOf('if (!cardEl) return;');
+check('death records where the card stood before any early return or dissolve',
+  rec > afterEl && afterEl > 0 &&
+  (spBody.indexOf('return', afterEl + 20) === -1 || rec < spBody.indexOf('return', afterEl + 20)) &&
+  rec < spBody.indexOf('_dissolveCardEl(cardEl)'));
 var miss = SRC.indexOf("// The card is already off the board — which is precisely what happens on");
 var missBody = SRC.slice(miss, miss + 2600);
 check('the missing-card (killing blow) branch draws the number', /this\._fxKillFloat\(ev, fx\)/.test(missBody));
