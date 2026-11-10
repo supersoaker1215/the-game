@@ -372,6 +372,9 @@ run_suite sim/phase-banner-fast.js
 echo "=== trade-sequence.js (each lunge lands on its hit; death comes last) ==="
 run_suite sim/trade-sequence.js
 
+echo "=== draft-trick-hover.js (draft tricks never magnify on hover) ==="
+run_suite sim/draft-trick-hover.js
+
 echo "=== sung-jin-woo.js (X-cost X/X, shadows bound to their master, odds-based revive) ==="
 run_suite sim/sung-jin-woo.js
 

@@ -9055,7 +9055,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   transition: transform 240ms var(--ease-out-soft, cubic-bezier(0.22, 1, 0.36, 1)), box-shadow 0.2s var(--ease-snap);
 }
 .trick-card.playable { cursor: pointer; }
-.trick-card:hover {
+.trick-card:where(:not(.trick-draft)):hover {
   transform: scale(1.5) translateY(-6px);
   z-index: 100;
   filter: blur(0);
@@ -21734,7 +21734,7 @@ body.combat-anticipate .board {
 }
 /* In-match trick chips are small (132px) — the 1.5× magnify is what makes them
    readable on hover. */
-.trick-card:hover {
+.trick-card:where(:not(.trick-draft)):hover {
   transform: scale(1.5) translateY(-6px)
              rotateX(calc(var(--tilt-y, 0) * -6deg))
              rotateY(calc(var(--tilt-x, 0) * 6deg));
@@ -21752,7 +21752,7 @@ body.combat-anticipate .board {
   will-change: transform;
 }
 @media (prefers-reduced-motion: reduce) {
-  .trick-card:hover {
+  .trick-card:where(:not(.trick-draft)):hover {
     transform: scale(1.5) translateY(-6px) !important;
     transition: none !important;
   }
@@ -37552,8 +37552,17 @@ body.low-fx .card.ally-card:hover,
 body.low-fx .card.enemy-card:hover {
   transform: scale(1.4) !important;
 }
-body.low-fx .trick-card:hover {
+body.low-fx .trick-card:where(:not(.trick-draft)):hover {
   transform: scale(1.5) translateY(-6px) !important;
+}
+/* DRAFT TRICKS NEVER MAGNIFY (owner, 2026-11-10: "in the draft the tricks
+   magnify on hover that shouldnt happen"). The 1.5x above is for the 132px
+   in-match chips. Measured at Reduced: a draft trick grew 343 -> 515px because
+   `body.low-fx .trick-card:hover` (0,3,1) !important out-ranked the draft's
+   own lift (0,3,0) — every trick magnify rule now skips .trick-draft (zero
+   added specificity), and at Reduced the draft keeps the plain 8px lift. */
+body.low-fx .draft-card.trick-draft:hover {
+  transform: translateY(-8px) !important;
 }
 /* Inner content-layer pop-out needs the 3D context — drop it. */
 body.low-fx .hand-card-wrapper:hover .card.hand-card .card-desc,
