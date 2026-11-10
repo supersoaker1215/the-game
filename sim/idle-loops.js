@@ -44,6 +44,17 @@ cases.forEach(function (c) {
 var tube = ruleAt(':where(body.fx-lean) .tron-perimeter-card::after');
 check('High keeps the card tube (only fx-lean pauses it)', !!tube && !ruleAt('.tron-perimeter-card::after:where(*)'));
 
+// ---- PANEL + HUD TUBES (screens other than the board) ---------------------
+// Measured, deck builder idle: 9.1-9.5ms/frame with no pauses (117 loops),
+// 2.2 with only the card tube paused, 0.3 with panels too. Held at the quarter
+// cycle of EACH tier (panel border 0.576 = midway 0.30-0.85, card 0.376).
+var base = ruleAt(':where(body.fx-lean) .tron-perimeter::after');
+check('panel/HUD tube held at Normal', !!base && /animation-play-state:\s*paused/.test(base.body) && /--tron-perim-hud-cycle/.test(base.body));
+var slow = ruleAt(':where(body.fx-lean) .tron-perimeter-slow::after');
+check('panel tier holds at ITS quarter (8s cycle, not the 6s HUD one)', !!slow && /--tron-perim-panel-cycle\)\s*\*\s*-0\.25/.test(slow.body));
+check('the tier delays come after the base tube rule they tie with',
+  !!base && !!slow && slow.at > base.at && base.at > CSS.search(/\n\.tron-perimeter::after\s*\{/));
+
 // ---- VIBES RIDE THE SLOT -------------------------------------------------
 // Measured, same page, same loops running: idle frame 1.4-1.5ms (loops on the
 // card) → 0.2-0.3ms (loops on the slot); 12 cards: 2.7-3.2ms → 0.2ms. And with
@@ -69,7 +80,7 @@ Object.keys(LOOPS).forEach(function (v) {
 var crazy = ruleAt(':where(body.fx-lean:not(.low-fx)) .card-slot:where(:has(> .card.status-crazy:not(.card-enter):not(.card-exit)))');
 check('crazy wobble rides the slot', !!crazy && /cardCrazyWobble/.test(crazy.body));
 check('the crazy restore no longer targets slot-hosted cards',
-  /body\.fx-lean:not\(\.low-fx\) \.card\.status-crazy:not\(:where\(\.card-slot > \*\)\)\s*\{/.test(CSS));
+  /body\.fx-lean:not\(\.low-fx\) \.card\.status-crazy:not\(:where\(\.card-slot > \*\)\)(:where\(:not\([^)]*\)\))?\s*\{/.test(CSS));
 check('the slot keeps each card\'s desync phase', /:where\(body\.fx-lean:not\(\.low-fx\)\) \.card-slot:where\(:has\(> \.card:is\([^)]*\)\)\)\s*\{\s*animation-delay:\s*var\(--vibe-delay/.test(CSS));
 var UIJS = read('ui.js');
 check('ui.js copies --vibe-delay from the card onto its slot (only when it changed)',

@@ -7316,7 +7316,12 @@ body.hit-pause .ai-hand * {
 /* Only NEGATIVE / control statuses override the card frame glow.
    Positive traits (invincible, taunt, dmg-immune, armor, evade) live in the
    trait badge row, not on the frame. */
-.card.status-critical { box-shadow: 0 0 14px rgba(255,105,180,0.9), 0 0 28px rgba(255,20,147,0.5) !important; animation: critical-pulse 0.7s ease-in-out infinite alternate; }
+.card.status-critical { box-shadow: 0 0 14px rgba(255,105,180,0.9), 0 0 28px rgba(255,20,147,0.5) !important; }
+/* Every idle STATUS loop on the card yields while a one-shot is on it (lunge,
+   hit-flash, knockback, landing, enter/exit) — `animation` is one property, so
+   a loop that wins the cascade swallows the one-shot whole. :where() keeps the
+   specificity exactly where it was. Pinned by sim/status-oneshots.js. */
+.card.status-critical:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)) { animation: critical-pulse 0.7s ease-in-out infinite alternate; }
 @keyframes critical-pulse {
   from { box-shadow: 0 0 10px rgba(255,105,180,0.8), 0 0 20px rgba(255,20,147,0.4) !important; }
   to   { box-shadow: 0 0 22px rgba(255,105,180,1.0), 0 0 44px rgba(255,20,147,0.7) !important; }
@@ -7332,11 +7337,13 @@ body.hit-pause .ai-hand * {
    crosstalk glow. The animation name is scoped and duration is
    irregular so multiple crazy cards on the same board don't sync. */
 .card.status-crazy {
-  animation: cardCrazyWobble 3.4s ease-in-out infinite,
-             cardCrazyGlitch 1.1s steps(3, end) infinite;
   box-shadow:
     0 0 14px rgba(255,105,180,0.55),
     0 0 28px rgba(155,89,182,0.28) !important;
+}
+.card.status-crazy:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)) {
+  animation: cardCrazyWobble 3.4s ease-in-out infinite,
+             cardCrazyGlitch 1.1s steps(3, end) infinite;
 }
 @keyframes cardCrazyWobble {
   0%, 100% { transform: rotate(-1.2deg); }
@@ -29151,10 +29158,10 @@ input[type="number"]::-webkit-outer-spin-button {
   0%, 100% { filter: brightness(1) saturate(1); }
   50%      { filter: brightness(1.18) saturate(1.15); }
 }
-.card.status-stunned,
-.card.status-frozen,
-.card.status-feared,
-.card.status-mind-ctrl {
+.card.status-stunned:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)),
+.card.status-frozen:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)),
+.card.status-feared:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)),
+.card.status-mind-ctrl:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)) {
   animation: statusGlowPulse 1.6s ease-in-out infinite;
 }
 
@@ -32823,7 +32830,7 @@ body.round-tick .board::after {
   0%,100% { box-shadow: 0 0 8px  rgba(255,110,0,0.62), 0 0 18px rgba(255,60,0,0.26); }
   50%     { box-shadow: 0 0 18px rgba(255,165,0,0.90), 0 0 32px rgba(255,85,0,0.50); }
 }
-.card.status-burning:not(.card-enter):not(.card-exit) {
+.card.status-burning:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)) {
   animation: statusBurningPulse 1.8s ease-in-out infinite !important;
 }
 
@@ -39179,13 +39186,13 @@ body.hand-text-always .trick-cards .trick-card.face-flipped .trick-desc {
   .badge-insane,
   .game-particle,
   .card-damaged .stat-hp,
-  .card.status-crazy,
-  .card.status-critical,
-  .card.status-stunned,
-  .card.status-frozen,
-  .card.status-feared,
-  .card.status-mind-ctrl,
-  .card.status-burning:not(.card-enter):not(.card-exit),
+  .card.status-crazy:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)),
+  .card.status-critical:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)),
+  .card.status-stunned:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)),
+  .card.status-frozen:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)),
+  .card.status-feared:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)),
+  .card.status-mind-ctrl:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)),
+  .card.status-burning:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)),
   .card-frost::after {
     animation: none !important;
   }
@@ -39204,13 +39211,13 @@ body.fx-lean .badge-crazy,
 body.fx-lean .badge-insane,
 body.fx-lean .game-particle,
 body.fx-lean .card-damaged .stat-hp,
-body.fx-lean .card.status-crazy,
-body.fx-lean .card.status-critical,
-body.fx-lean .card.status-stunned,
-body.fx-lean .card.status-frozen,
-body.fx-lean .card.status-feared,
-body.fx-lean .card.status-mind-ctrl,
-body.fx-lean .card.status-burning:not(.card-enter):not(.card-exit),
+body.fx-lean .card.status-crazy:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)),
+body.fx-lean .card.status-critical:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)),
+body.fx-lean .card.status-stunned:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)),
+body.fx-lean .card.status-frozen:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)),
+body.fx-lean .card.status-feared:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)),
+body.fx-lean .card.status-mind-ctrl:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)),
+body.fx-lean .card.status-burning:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)),
 body.fx-lean .card-frost::after {
   animation: none !important;
 }
@@ -52763,7 +52770,7 @@ body.fx-lean .card.vibe-magnetic:not(.card-enter):not(.card-exit) {
    wobble is worth keeping — it is compositor-only, and it is the whole read of
    the card — so it is restored here and only the glitch stays off. Reduced,
    which is stricter, leaves both stopped. */
-body.fx-lean:not(.low-fx) .card.status-crazy:not(:where(.card-slot > *)) {
+body.fx-lean:not(.low-fx) .card.status-crazy:not(:where(.card-slot > *)):where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)) {
   animation: cardCrazyWobble 3.4s ease-in-out infinite !important;
 }
 
@@ -53373,6 +53380,18 @@ body.on-main-menu .voice-panel { bottom: 34px; }
       The Normal-tier doctrine already says loops that repaint go, held at a
       static value — this one animates border-color + box-shadow and was
       missed. Held at a quarter cycle (between dim and peak). High keeps it. */
+/*    Panels and HUD bars carry the same tube (tronTubePulse, 6s HUD / 8s
+      panel) and the same doctrine applies. Measured in the deck builder: two
+      thin section frames (601x15, 300x15) cost 2.2ms a frame idle, 0.3ms
+      paused — each repaint re-rasterised the scrolling card grid under them.
+      Card first, then the tiers by cycle, so each holds at ITS quarter. */
+:where(body.fx-lean) .tron-perimeter::after {
+  animation-play-state: paused;
+  animation-delay: calc(var(--tron-perim-hud-cycle) * -0.25);
+}
+:where(body.fx-lean) .tron-perimeter-slow::after {
+  animation-delay: calc(var(--tron-perim-panel-cycle) * -0.25);
+}
 :where(body.fx-lean) .tron-perimeter-card::after {
   animation-play-state: paused;
   animation-delay: calc(var(--tron-perim-card-cycle) * -0.25);
