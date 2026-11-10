@@ -44,6 +44,37 @@ cases.forEach(function (c) {
 var tube = ruleAt(':where(body.fx-lean) .tron-perimeter-card::after');
 check('High keeps the card tube (only fx-lean pauses it)', !!tube && !ruleAt('.tron-perimeter-card::after:where(*)'));
 
+// ---- VIBES RIDE THE SLOT -------------------------------------------------
+// Measured, same page, same loops running: idle frame 1.4-1.5ms (loops on the
+// card) → 0.2-0.3ms (loops on the slot); 12 cards: 2.7-3.2ms → 0.2ms. And with
+// the loop off the card, its one-shots play: combat-attacker/target, hit-flash,
+// card-knockback, card-landing all resolved to the vibe before, their own now.
+var LOOPS = { titan: 'vibeTitanBreatheLean', phase: 'vibePhaseShimmerLean', symbiote: 'vibeSymbioteOoze',
+              cosmic: 'vibeCosmicDrift', speed: 'vibeSpeedJitter', alien: 'vibeAlienTwitch' };
+Object.keys(LOOPS).forEach(function (v) {
+  var slotSel = ':where(body.fx-lean:not(.low-fx)) .card-slot:where(:has(> .card.vibe-' + v + ':not(.card-enter):not(.card-exit)))';
+  var slot = ruleAt(slotSel);
+  check(v + ': the loop runs on the SLOT at Normal', !!slot && slot.body.indexOf(LOOPS[v]) >= 0, slot && slot.body.trim());
+  // Every rule that puts an `animation` on a .card.vibe-X must be kept off slot-hosted cards at Normal.
+  var re = new RegExp('(^|\\n)([^{}\\n]*\\.card\\.vibe-' + v + '[^{}\\n]*)\\{([^}]*)\\}', 'g'), m, leaks = [];
+  while ((m = re.exec(CSS))) {
+    var sel = m[2], body2 = m[3];
+    if (!/(^|;|\s)animation\s*:/.test(body2) || /animation\s*:\s*none/.test(body2)) continue;
+    if (/\.card-slot|hand-card|low-fx|prefers-reduced/.test(sel)) continue;
+    if (/:not\(:where\((body\.fx-lean )?\.card-slot > \*\)\)/.test(sel)) continue;
+    leaks.push(sel.trim());
+  }
+  check(v + ': no card-level loop left on a slot-hosted card', leaks.length === 0, leaks.join(' | '));
+});
+var crazy = ruleAt(':where(body.fx-lean:not(.low-fx)) .card-slot:where(:has(> .card.status-crazy:not(.card-enter):not(.card-exit)))');
+check('crazy wobble rides the slot', !!crazy && /cardCrazyWobble/.test(crazy.body));
+check('the crazy restore no longer targets slot-hosted cards',
+  /body\.fx-lean:not\(\.low-fx\) \.card\.status-crazy:not\(:where\(\.card-slot > \*\)\)\s*\{/.test(CSS));
+check('the slot keeps each card\'s desync phase', /:where\(body\.fx-lean:not\(\.low-fx\)\) \.card-slot:where\(:has\(> \.card:is\([^)]*\)\)\)\s*\{\s*animation-delay:\s*var\(--vibe-delay/.test(CSS));
+var UIJS = read('ui.js');
+check('ui.js copies --vibe-delay from the card onto its slot (only when it changed)',
+  /host\.classList\.contains\('card-slot'\)[\s\S]{0,200}getPropertyValue\('--vibe-delay'\)[\s\S]{0,120}!== vd/.test(UIJS));
+
 print('idle-loops: ' + pass + ' passed, ' + fails.length + ' failed');
 fails.forEach(function (f) { print('  FAIL  ' + f); });
 if (fails.length) throw new Error('idle-loops failed');

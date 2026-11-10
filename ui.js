@@ -20302,6 +20302,16 @@ const UI = {
       // radius is 0.08 of the card's width and the label and button sit well
       // clear of the card's silhouette.
       if (host.querySelectorAll('.card, .trick-card').length !== 1) return;
+      // THE IDLE VIBE RIDES THE SLOT at Normal (style.css: VIBES RIDE THE SLOT),
+      // so the slot needs the card's desync phase. Copied only when it
+      // changed — rewriting it would restart the slot's loop every render.
+      if (host.classList.contains('card-slot')) {
+        const vd = card.style.getPropertyValue('--vibe-delay');
+        if (host.style.getPropertyValue('--vibe-delay') !== vd) {
+          if (vd) host.style.setProperty('--vibe-delay', vd);
+          else host.style.removeProperty('--vibe-delay');
+        }
+      }
       let cs;
       try { cs = getComputedStyle(card); } catch (e) { return; }
       const rgb = (cs.getPropertyValue('--portrait-frame-rgb') || '').trim();

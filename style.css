@@ -7374,9 +7374,11 @@ body.hit-pause .ai-hand * {
   50%     { transform: rotate(0.6deg);  }
 }
 .card.vibe-cosmic:not(.card-enter):not(.card-exit) {
+  box-shadow: 0 0 14px rgba(147,112,219,0.38), 0 0 28px rgba(var(--theme-rgb, 79,195,247),0.22) !important;
+}
+.card.vibe-cosmic:not(.card-enter):not(.card-exit):not(:where(body.fx-lean .card-slot > *)) {
   animation: vibeCosmicHue 4.2s ease-in-out infinite,
              vibeCosmicDrift 6.3s ease-in-out infinite;
-  box-shadow: 0 0 14px rgba(147,112,219,0.38), 0 0 28px rgba(var(--theme-rgb, 79,195,247),0.22) !important;
 }
 
 /* SYMBIOTE — viscous skew. For Klyntar spawn (Venom, Carnage, etc.) */
@@ -7386,8 +7388,10 @@ body.hit-pause .ai-hand * {
   66%     { transform: skew(-0.7deg, 0.4deg) translateY(0.4px); }
 }
 .card.vibe-symbiote:not(.card-enter):not(.card-exit) {
-  animation: vibeSymbioteOoze 3.8s ease-in-out infinite;
   box-shadow: 0 0 14px rgba(40,0,40,0.75), 0 0 28px rgba(155,0,60,0.38) !important;
+}
+.card.vibe-symbiote:not(.card-enter):not(.card-exit):not(:where(body.fx-lean .card-slot > *)) {
+  animation: vibeSymbioteOoze 3.8s ease-in-out infinite;
 }
 
 /* SLASHER — slow menacing red breathe. For horror icons. */
@@ -7407,8 +7411,10 @@ body.hit-pause .ai-hand * {
   50%     { transform: scale(1.018); filter: var(--card-tube) brightness(1.06); }
 }
 .card.vibe-titan:not(.card-enter):not(.card-exit) {
-  animation: vibeTitanBreathe 3.6s ease-in-out infinite;
   box-shadow: 0 0 16px rgba(110,30,130,0.40), 0 0 32px rgba(0,0,0,0.6) !important;
+}
+.card.vibe-titan:not(.card-enter):not(.card-exit):not(:where(body.fx-lean .card-slot > *)) {
+  animation: vibeTitanBreathe 3.6s ease-in-out infinite;
 }
 
 /* PHASE — opacity pulse. For intangibles (Invisible Woman, J'onn). */
@@ -7417,6 +7423,8 @@ body.hit-pause .ai-hand * {
   50%     { opacity: 0.82; filter: var(--card-tube) brightness(1.15); }
 }
 .card.vibe-phase:not(.card-enter):not(.card-exit) {
+}
+.card.vibe-phase:not(.card-enter):not(.card-exit):not(:where(body.fx-lean .card-slot > *)) {
   animation: vibePhaseShimmer 2.8s ease-in-out infinite;
 }
 
@@ -7429,8 +7437,10 @@ body.hit-pause .ai-hand * {
   75%     { transform: translateX(-0.4px); }
 }
 .card.vibe-speed:not(.card-enter):not(.card-exit) {
-  animation: vibeSpeedJitter 0.55s linear infinite;
   box-shadow: 0 0 14px rgba(var(--gold-rgb),0.52), 0 0 28px rgba(255,255,120,0.28) !important;
+}
+.card.vibe-speed:not(.card-enter):not(.card-exit):not(:where(body.fx-lean .card-slot > *)) {
+  animation: vibeSpeedJitter 0.55s linear infinite;
 }
 
 /* MAGNETIC — hue cycle + pulsing metallic halo. For tech/metal cards. */
@@ -7457,8 +7467,10 @@ body.hit-pause .ai-hand * {
   86%           { transform: translate(-0.3px, 0.2px) rotate(-0.2deg); }
 }
 .card.vibe-alien:not(.card-enter):not(.card-exit) {
-  animation: vibeAlienTwitch 2.9s ease-in-out infinite;
   box-shadow: 0 0 14px rgba(40,80,40,0.55), 0 0 30px rgba(80,20,20,0.30) !important;
+}
+.card.vibe-alien:not(.card-enter):not(.card-exit):not(:where(body.fx-lean .card-slot > *)) {
+  animation: vibeAlienTwitch 2.9s ease-in-out infinite;
 }
 
 /* Per-card idle-vibe desync (2026-06 polish). Without this, every
@@ -52710,7 +52722,7 @@ body.low-fx .card-glow-host { filter: none !important; }
    still breathes and a Cosmic still drifts — they just stop repainting. */
 
 /* Cosmic: hue-rotate (repaint) out, the rotate drift stays. */
-body.fx-lean .card.vibe-cosmic:not(.card-enter):not(.card-exit) {
+body.fx-lean .card.vibe-cosmic:not(.card-enter):not(.card-exit):not(:where(.card-slot > *)) {
   animation: vibeCosmicDrift 6.3s ease-in-out infinite;
 }
 /* Slasher: the menace WAS a box-shadow loop, so it becomes the static high
@@ -52728,7 +52740,7 @@ body.fx-lean .card.vibe-slasher:not(.card-enter):not(.card-exit) {
   0%,100% { transform: scale(1);     }
   50%     { transform: scale(1.018); }
 }
-body.fx-lean .card.vibe-titan:not(.card-enter):not(.card-exit) {
+body.fx-lean .card.vibe-titan:not(.card-enter):not(.card-exit):not(:where(.card-slot > *)) {
   animation: vibeTitanBreatheLean 3.6s ease-in-out infinite;
 }
 /* Phase: same split. Opacity is compositor-cheap, so the shimmer survives
@@ -52737,7 +52749,7 @@ body.fx-lean .card.vibe-titan:not(.card-enter):not(.card-exit) {
   0%,100% { opacity: 1;    }
   50%     { opacity: 0.82; }
 }
-body.fx-lean .card.vibe-phase:not(.card-enter):not(.card-exit) {
+body.fx-lean .card.vibe-phase:not(.card-enter):not(.card-exit):not(:where(.card-slot > *)) {
   animation: vibePhaseShimmerLean 2.8s ease-in-out infinite;
 }
 /* Magnetic: both of its loops repaint (hue filter + box-shadow halo). The
@@ -52751,7 +52763,7 @@ body.fx-lean .card.vibe-magnetic:not(.card-enter):not(.card-exit) {
    wobble is worth keeping — it is compositor-only, and it is the whole read of
    the card — so it is restored here and only the glitch stays off. Reduced,
    which is stricter, leaves both stopped. */
-body.fx-lean:not(.low-fx) .card.status-crazy {
+body.fx-lean:not(.low-fx) .card.status-crazy:not(:where(.card-slot > *)) {
   animation: cardCrazyWobble 3.4s ease-in-out infinite !important;
 }
 
@@ -53383,4 +53395,50 @@ body.on-main-menu .voice-panel { bottom: 34px; }
       the AI is not thinking; it still fades out, just without spinning. */
 body:not(.ai-thinking) .ai-thinking-ring circle {
   animation-play-state: paused;
+}
+
+/* ============================================================
+   VIBES RIDE THE SLOT (2026-11-10)
+   ============================================================
+   Owner: "i want them to look good and the lag to go down."
+   The per-card idle loops kept at Normal (breathe, ooze, shimmer, drift,
+   jitter, twitch, crazy wobble) only touch transform/opacity, which should
+   be free — but on a `.card` the browser does not hand them to the
+   compositor. Measured, 12 cards: animating the CARD 2.7-3.2ms of main
+   thread per frame, the same keyframes on the card's SLOT 0.2ms. The slot
+   holds exactly the card (plus its glow, which is drawn by the slot's own
+   filter), so the card moves exactly as it did.
+   It also fixes a bug: the loop on the card OUTRANKED every one-shot on it —
+   a vibe card's computed animation stayed the vibe through combat-attacker,
+   combat-target, hit-flash(-heavy/-lethal), card-knockback and card-landing,
+   so those cards never lunged or flashed. With the loop off the card they do.
+   :where() keeps the slot rules at (0,1,0), so the slot's own state pulses
+   (playable, target-highlight) still win while they are on. The card side is
+   the `:not(:where(body.fx-lean .card-slot > *))` on the vibe rules. High
+   (no fx-lean) is untouched; Reduced stops everything as before. */
+@media (prefers-reduced-motion: no-preference) {
+  :where(body.fx-lean:not(.low-fx)) .card-slot:where(:has(> .card.vibe-titan:not(.card-enter):not(.card-exit))) {
+    animation: vibeTitanBreatheLean 3.6s ease-in-out infinite;
+  }
+  :where(body.fx-lean:not(.low-fx)) .card-slot:where(:has(> .card.vibe-phase:not(.card-enter):not(.card-exit))) {
+    animation: vibePhaseShimmerLean 2.8s ease-in-out infinite;
+  }
+  :where(body.fx-lean:not(.low-fx)) .card-slot:where(:has(> .card.vibe-symbiote:not(.card-enter):not(.card-exit))) {
+    animation: vibeSymbioteOoze 3.8s ease-in-out infinite;
+  }
+  :where(body.fx-lean:not(.low-fx)) .card-slot:where(:has(> .card.vibe-cosmic:not(.card-enter):not(.card-exit))) {
+    animation: vibeCosmicDrift 6.3s ease-in-out infinite;
+  }
+  :where(body.fx-lean:not(.low-fx)) .card-slot:where(:has(> .card.vibe-speed:not(.card-enter):not(.card-exit))) {
+    animation: vibeSpeedJitter 0.55s linear infinite;
+  }
+  :where(body.fx-lean:not(.low-fx)) .card-slot:where(:has(> .card.vibe-alien:not(.card-enter):not(.card-exit))) {
+    animation: vibeAlienTwitch 2.9s ease-in-out infinite;
+  }
+  :where(body.fx-lean:not(.low-fx)) .card-slot:where(:has(> .card.status-crazy:not(.card-enter):not(.card-exit))) {
+    animation: cardCrazyWobble 3.4s ease-in-out infinite;
+  }
+  :where(body.fx-lean:not(.low-fx)) .card-slot:where(:has(> .card:is(.vibe-titan, .vibe-phase, .vibe-symbiote, .vibe-cosmic, .vibe-speed, .vibe-alien))) {
+    animation-delay: var(--vibe-delay, 0s);
+  }
 }
