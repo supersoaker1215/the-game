@@ -12277,6 +12277,11 @@ test('2v2: the AI stops playing when its turn ends, instead of being refused', f
 // The engine used to sort them and take the oldest, which is the card making
 // its own most interesting decision. (Owner: "when dath is played the user get
 // to choose who to jump in front of.")
+test('Death is a 3-cost 3/4 (owner, 2026-11-10)', function () {
+  var d = cardByName('Death');
+  assertEq(d.cost, 3, 'cost'); assertEq(d.attack, 3, 'attack'); assertEq(d.health, 4, 'health');
+});
+
 test('Death asks who he rose for instead of reaping the oldest by default', function () {
   var G = freshGame();
   G.state.round = 6;

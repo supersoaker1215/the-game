@@ -33647,7 +33647,57 @@ const UI = {
       const i = laneEls().indexOf(lane);
       return i >= 0 ? i : null;
     };
-    const clearHi = () => document.querySelectorAll('.lane.drag-over').forEach(l => l.classList.remove('drag-over'));
+    let hiLane = null;
+    const clearHi = () => { hiLane = null; document.querySelectorAll('.lane.drag-over').forEach(l => l.classList.remove('drag-over')); };
+
+    // ONE FRAME OF DRAG, shared by touch and mouse. Owner: "the animation of
+    // drag to play seems choppy i want that very smooth."
+    // The move handlers used to do all the work per INPUT EVENT: reposition the
+    // ghost through left/top (layout + a repaint of its drop-shadow filter),
+    // read its size back (a forced layout right after that write), strip and
+    // re-add the lane highlight, and hit-test — and a phone digitiser delivers
+    // 2+ events per frame, so most of that was redrawn and thrown away. Now the
+    // handlers only record the latest point; this runs once per display frame.
+    //   • position rides transform (see _positionDragGhost) → compositor only
+    //   • the lane highlight is touched only when the lane under it CHANGES
+    //   • the tilt eases toward a per-FRAME velocity instead of jumping with
+    //     each raw event, and keeps easing back to level while the finger rests
+    const dragFrame = () => {
+      if (!d) return;
+      d.raf = 0;
+      if (d.px == null) return;
+      if (d.ghost) {
+        const vx = d.px - (d.fx != null ? d.fx : d.px);
+        d.fx = d.px;
+        const target = Math.max(-12, Math.min(12, vx * 0.45));
+        d.tilt = (d.tilt || 0) + (target - (d.tilt || 0)) * 0.35;
+        if (Math.abs(d.tilt) < 0.05 && target === 0) d.tilt = 0;
+        this._positionDragGhost(d.ghost, d.px, d.py, d.tilt);
+        // Still leaning → one more frame to settle, even with the finger still.
+        if (d.tilt !== 0) d.raf = requestAnimationFrame(dragFrame);
+      }
+      if (d.card && (d.px !== d.hx || d.py !== d.hy)) {
+        d.hx = d.px; d.hy = d.py;
+        const i = laneIdxUnder(d.px, d.py);
+        if (i !== hiLane) {
+          clearHi();
+          hiLane = i;
+          if (i != null) { const l = UI.laneElAt(i); if (l) l.classList.add('drag-over'); }
+        }
+      }
+    };
+    const queueDragMove = (x, y) => {
+      if (!d) return;
+      d.px = x; d.py = y;
+      if (!d.raf) d.raf = requestAnimationFrame(dragFrame);
+    };
+    // A release must judge the card where it IS, so a frame still pending is
+    // applied before the drop reads the ghost's box.
+    const flushDragFrame = () => {
+      if (!d) return;
+      if (d.raf) { cancelAnimationFrame(d.raf); d.raf = 0; }
+      if (d.ghost && d.px != null) this._positionDragGhost(d.ghost, d.px, d.py, d.tilt || 0);
+    };
 
     // The top edge of the hand area (cards + trick tray). A release ABOVE this
     // line is an unambiguous "play" gesture — anywhere over the board or the
@@ -33807,22 +33857,9 @@ const UI = {
         try { if (this._haptic) this._haptic('cardPlay'); } catch (_) {}
       }
       e.preventDefault();
-      if (d.ghost) {
-        // Velocity tilt — the card angles toward the direction you're moving
-        // and settles back to level when you pause, like holding a card in
-        // hand on the PC build.
-        const dxi = t.clientX - (d.lastX != null ? d.lastX : t.clientX);
-        d.lastX = t.clientX;
-        d.tilt = Math.max(-16, Math.min(16, (d.tilt || 0) * 0.62 + dxi * 0.9));
-        this._positionDragGhost(d.ghost, t.clientX, t.clientY, d.tilt);
-      }
-      clearHi();
-      // Lane drop-highlight is a CARD thing — tricks are lane-less, they
-      // play the moment they're dropped clear of the tray.
-      if (d.card) {
-        const i = laneIdxUnder(t.clientX, t.clientY);
-        if (i != null) { const l = UI.laneElAt(i); if (l) l.classList.add('drag-over'); }
-      }
+      // Velocity tilt + position + lane highlight all happen once per frame in
+      // dragFrame (the highlight is a CARD thing — tricks are lane-less).
+      queueDragMove(t.clientX, t.clientY);
     }, { passive: false });
 
     // Drop resolution, shared by touch and mouse. Takes plain coordinates so
@@ -33830,6 +33867,7 @@ const UI = {
     // everything downstream (lane hit-test, trick tray, cancel) is identical.
     const endAt = (px, py) => {
       if (!d) return;
+      flushDragFrame();
       const wasDrag = d.moved, card = d.card, trick = d.trick, ghost = d.ghost, pickIdx = d.pickIdx;
       // JUDGE THE DROP BY WHERE THE CARD IS, NOT WHERE THE FINGER IS.
       // The ghost is drawn well above the fingertip (it is centred about 62% of
@@ -33938,6 +33976,7 @@ const UI = {
     document.addEventListener('touchend', end, { passive: true });
     document.addEventListener('touchcancel', (e) => {
       if (!d) return;
+      if (d.raf) cancelAnimationFrame(d.raf);
       if (d.ghost) d.ghost.remove();
       clearHi();
       document.body.classList.remove('mobile-card-dragging');
@@ -34026,17 +34065,7 @@ const UI = {
       // chose.
       if (e.buttons === 0) { endAt(null, null); return; }
       e.preventDefault();   // stop the drag turning into a text selection
-      if (d.ghost) {
-        const dxi = e.clientX - (d.lastX != null ? d.lastX : e.clientX);
-        d.lastX = e.clientX;
-        d.tilt = Math.max(-16, Math.min(16, (d.tilt || 0) * 0.62 + dxi * 0.9));
-        this._positionDragGhost(d.ghost, e.clientX, e.clientY, d.tilt);
-      }
-      clearHi();
-      if (d.card) {
-        const i = laneIdxUnder(e.clientX, e.clientY);
-        if (i != null) { const l = UI.laneElAt(i); if (l) l.classList.add('drag-over'); }
-      }
+      queueDragMove(e.clientX, e.clientY);
     });
 
     document.addEventListener('mouseup', (e) => {
@@ -34076,11 +34105,26 @@ const UI = {
   // leaning. The centring offsets are applied in real pixels off the measured
   // box rather than via translate(-50%,-62%), so centring does not depend on
   // transform surviving either.
+  //
+  // SMOOTHNESS (owner: "the animation of drag to play seems choppy"): left/top
+  // are written ONCE, at the lift point, and every later frame moves the card
+  // with a translate in the inline !important transform — the compositor slides
+  // an already-painted layer instead of re-laying-out the box and repainting
+  // its drop-shadow filter each move. The size is measured once too: reading
+  // offsetWidth right after the previous frame's write was a forced layout per
+  // move. The old guarantee still holds — an inline !important transform
+  // outranks every stylesheet rule, and if the transform were ever lost the
+  // card would rest where it was LIFTED, never at 0,0.
   _positionDragGhost(g, x, y, tilt) {
     if (!g) return;
-    const w = g.offsetWidth || 0, h = g.offsetHeight || 0;
-    g.style.setProperty('left', (x - w / 2) + 'px', 'important');
-    g.style.setProperty('top',  (y - h * 0.62) + 'px', 'important');
+    if (!g._dragW) { g._dragW = g.offsetWidth || 0; g._dragH = g.offsetHeight || 0; }
+    const w = g._dragW, h = g._dragH;
+    if (g._dragAx == null) {
+      g._dragAx = x - w / 2; g._dragAy = y - h * 0.62;
+      g.style.setProperty('left', g._dragAx + 'px', 'important');
+      g.style.setProperty('top',  g._dragAy + 'px', 'important');
+    }
+    const tx = (x - w / 2) - g._dragAx, ty = (y - h * 0.62) - g._dragAy;
     // transform-origin MUST be the centre here. The .card-drag-ghost rule sets
     // `transform-origin: 0 0`, which is right for a magnify-from-the-corner
     // effect and wrong for this: with a top-left origin the scale and the tilt
@@ -34090,7 +34134,7 @@ const UI = {
     // pointer. Centre origin makes the transform purely cosmetic — it can grow
     // and lean the card without ever moving where it sits.
     g.style.setProperty('transform-origin', '50% 50%', 'important');
-    g.style.setProperty('transform', `rotate(${(tilt || 0).toFixed(1)}deg) scale(1.06)`, 'important');
+    g.style.setProperty('transform', `translate3d(${tx.toFixed(1)}px, ${ty.toFixed(1)}px, 0) rotate(${(tilt || 0).toFixed(2)}deg) scale(1.06)`, 'important');
   },
   _makeCardDragGhost(cardEl, px, py) {
     const g = cardEl.cloneNode(true);
@@ -34143,7 +34187,7 @@ const UI = {
     // demoted to what it should always have been — the cosmetic tilt and scale.
     // Worst case now costs the tilt, not the position.
     g.style.cssText = `position:fixed; left:-9999px; top:-9999px; z-index:3000;
-      pointer-events:none; width:${w}px; margin:0; opacity:1;`;
+      pointer-events:none; width:${w}px; margin:0; opacity:1; will-change:transform;`;
     document.body.appendChild(g);
     // Place it AT THE POINTER the moment it exists, rather than trusting the
     // caller to do it on the same tick. The caller does — both drag handlers

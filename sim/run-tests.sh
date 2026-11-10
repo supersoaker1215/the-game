@@ -333,6 +333,9 @@ run_suite sim/sw-prune.js
 echo "=== phone-hand.js (phone hand: full row, cards fill slots, honest chrome width, player block at the bottom) ==="
 run_suite sim/phone-hand.js
 
+echo "=== drag-smooth.js (drag ghost: one frame step, compositor translate, eased tilt) ==="
+run_suite sim/drag-smooth.js
+
 echo "=== sung-jin-woo.js (X-cost X/X, shadows bound to their master, odds-based revive) ==="
 run_suite sim/sung-jin-woo.js
 
