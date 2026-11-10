@@ -53333,3 +53333,49 @@ body.on-main-menu .voice-panel { bottom: 34px; }
 @container (max-width: 520px) {
   .mm-four .mm-tagline { letter-spacing: 0.42em; }
 }
+
+/* ============================================================
+   PHONE HAND LAYOUT (2026-11-10)
+   Spec: docs/superpowers/specs/2026-11-10-phone-hand-layout-design.md
+   Phone widths only; desktop and 2v2 online are untouched.
+   ============================================================ */
+@container (max-width: 520px) {
+  /* SECTION 1 + 3 — one column; the player's block anchors to the bottom.
+     The desktop grid (1fr auto) sits hand and tricks side by side, which on a
+     375px phone left the hand 232px. As a column the hand owns the full row,
+     the tricks drop beneath it, and the free height (the board is width-bound
+     here, so it cannot use it) opens between the board and the player. */
+  body.in-match:not(.twov2-online-game) #game-area {
+    display: flex; flex-direction: column; min-height: 100dvh;
+  }
+  body.in-match:not(.twov2-online-game) #game-area > .player-bar { margin-top: auto; }
+  body.in-match:not(.twov2-online-game) #game-area > .hand-meter-col { align-self: flex-start; }
+
+  /* SECTION 2.3 — the card fills its slot. The desktop width rule at (0,4,1)
+     outranked the phone flex rule at (0,3,0), so a 92px card sat in a 52px
+     slot and every card piled onto the next. Same selector, later, wins. */
+  body.in-match .player-hand-section .hand-cards .card { width: 100%; min-width: 0; max-width: none; }
+  /* …and its height follows its own 92:182 shape. A 130px floor (authored for
+     the 92px card) left 19px of dead black under a 56px card, below the art. */
+  .player-hand-section .hand-cards .card { min-height: 0; }
+  /* THE NAME FITS THE WINDOW YOU CAN SEE. The card's clip-path trims the frame
+     inset off each side; the name box sat 2px in with 6px padding, so its inner
+     width (what UI._cnPlateWidth hands the fitter) was 4px wider than the visible
+     window, and names were cut at both edges on narrow cards (measured on a
+     56px card: plate 40px, window 36px, ink 8-51px). Padding by the frame
+     inset makes the plate the window, so the existing fitter targets it. */
+  .player-hand-section .hand-cards .card .card-name-overlay {
+    padding-left: var(--cf-inset, 8px); padding-right: var(--cf-inset, 8px);
+  }
+  /* At the fitter's 8px floor the wide tracking (~0.21em) is what pushed the
+     longest names past the window (Deadpool 47.5px in a 36px window). Tight
+     tracking on the narrow phone hand card gives that width back. */
+  .player-hand-section .hand-cards .card .cn-text { letter-spacing: 0.04em; }
+  /* SECTION 2.4 — the floor: a slot never goes below 56px (the board already
+     ships honest 51px cards). Past that the row scrolls instead of shrinking. */
+  .player-hand-section .hand-cards .hand-card-wrapper { min-width: 56px; }
+
+  /* SECTION 2.1 — chrome from the REAL width. --hand-real-w is measured after
+     layout by UI._syncHandRealWidth; until it exists the old value stands. */
+  .player-hand-section .hand-cards .card { --sb-card: var(--hand-real-w, var(--hand-card-w, 86px)); }
+}

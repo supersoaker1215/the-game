@@ -25167,6 +25167,24 @@ const UI = {
   // the answer (200px) and every pass after that is identical. Running it
   // twice here means the player never sees the intermediate size — without it
   // the first paint of a hand was visibly smaller than the second.
+  // THE HAND CARD'S REAL WIDTH, published once on the row (phone spec, section
+  // 2.1). At phone width the slot is sized by flex, not by --hand-card-w, so the
+  // card's chrome (badges, stat circles, name, chamfer) was drawn for 110px on a
+  // ~60px card. Every slot in the row is the same width, so one measurement on
+  // the row serves all of them — and the row survives re-renders, unlike the
+  // card nodes. Cannot feed back: the slot is flex: 1 1 0 between fixed
+  // min/max widths, and nothing --hand-real-w drives can change it.
+  _syncHandRealWidth() {
+    try {
+      const row = document.querySelector('.player-hand-section .hand-cards');
+      if (!row) return;
+      const slot = row.querySelector('.hand-card-wrapper');
+      const w = slot ? Math.round(slot.getBoundingClientRect().width) : 0;
+      if (w < 40) return;                       // hidden / pre-layout: keep the old value
+      const v = w + 'px';
+      if (row.style.getPropertyValue('--hand-real-w') !== v) row.style.setProperty('--hand-real-w', v);
+    } catch (e) {}
+  },
   _fitHandToViewport(_pass) {
     const area = document.getElementById('game-area');
     const row = document.querySelector('.player-hand-section');
@@ -25293,6 +25311,11 @@ const UI = {
       w = Math.max(HAND_MIN, Math.min(w, byWidth));
     }
     area.style.setProperty('--hand-card-w', Math.floor(w) + 'px');
+    // The phone slot width only settles after this pass lays out — measure it
+    // a frame later (rAF + timeout, the same double-signal the passes use).
+    { let _d = false; const _go = () => { if (_d) return; _d = true; this._syncHandRealWidth(); };
+      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(_go);
+      setTimeout(_go, 60); }
     // Tricks ride the same 0..1 position on that range so the two groups stay
     // in proportion instead of one outgrowing the other.
     // FLOORED, LIKE ITS TWO SIBLINGS. --hand-card-w (just above) and

@@ -321,6 +321,9 @@ run_suite sim/max-health-floor.js
 echo "=== art-accent.js (a card's border comes from its own art) ==="
 run_suite sim/art-accent.js
 
+echo "=== phone-hand.js (phone hand: full row, cards fill slots, honest chrome width, player block at the bottom) ==="
+run_suite sim/phone-hand.js
+
 echo "=== sung-jin-woo.js (X-cost X/X, shadows bound to their master, odds-based revive) ==="
 run_suite sim/sung-jin-woo.js
 
