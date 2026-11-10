@@ -8893,6 +8893,7 @@ const UI = {
     for (const [id, el] of current) {
       const prev = this._prevRects.get(id);
       if (!prev || !prev.inHand) continue;
+      if (this._wasDragDropped(id)) continue;   // landed in place (see _markDragDropped)
       if (el.classList.contains('hand-card')) continue;
       this._animateFly(el, prev.rect);
     }
@@ -8932,7 +8933,11 @@ const UI = {
 
   // Flight tuning — the hand→lane arc duration. Kept as a property so the
   // landing-burst hook in installPolishLayer can fire on the same beat.
-  _FLY_DUR_MS: 460,
+  // 460 → 360: Snap's play is ~300ms of travel; ours now spends the first ~14%
+  // on a wind-up dip (see cardFlightArc) and the rest on the arc. Every waiter
+  // reads this property (land() fallback, landing burst) or sits well past it
+  // (the 900ms card-flying sweeps), so nothing else is keyed to the old 460.
+  _FLY_DUR_MS: 360,
 
   // Land FX for a PLAYER card touching down in its lane: the settle
   // animation + lane dip + claim wave + dust kick + ring ripple. Called
@@ -8940,7 +8945,9 @@ const UI = {
   // the landing frame by _animateFly for cards that flew from the hand.
   //   flown=true  → quick spring "thud" settle (the flight already revealed)
   //   flown=false → the full 1s fade-up entrance (cardBuildInMask/Fade)
-  _spawnPlayerLandFx(cardEl, laneEl, slotEl, flown) {
+  //   opts.thump=false → a lateral slide (not a play): no shake/flash/ring.
+  //   opts.cost        → card cost for the shake tier (looked up if absent)
+  _spawnPlayerLandFx(cardEl, laneEl, slotEl, flown, opts) {
     if (!cardEl) return;
     if (flown) {
       cardEl.classList.remove('card-landing');
@@ -8970,6 +8977,84 @@ const UI = {
       slotEl.appendChild(ring);
       setTimeout(() => ring.remove(), 900);
     }
+    if (!opts || opts.thump !== false) {
+      this._landThump(laneEl, opts && opts.cost, 'player', cardEl);
+    }
+  },
+
+  // THE TOUCHDOWN THUMP — the one canonical "a card just hit the board" beat,
+  // called from BOTH landing paths (_spawnPlayerLandFx for your cards and a 2v2
+  // partner's; the ai-slot branch of renderBoard for the AI, the MP opponent
+  // and the 2v2 enemy team), so every surface inherits it. Three layers:
+  //   1. a tiny screen shake, tiered by cost and always BELOW the lightest hit
+  //      shake (land-s/m/l = 1 / 1.25 / 1.5px vs light 2px), never pre-empting
+  //      a running hit shake, and never under reduced motion or low-fx;
+  //   2. a ~250ms lane flash — an opacity-only overlay on the body-level FX
+  //      layer (renderBoard deletes lane children and rewrites the lane class,
+  //      so anything parented to the lane dies on the next render);
+  //   3. the place shockring, staged at the card's rect AT touchdown. It used to
+  //      ride Game.playCard on the next frame, appended to a card that is
+  //      opacity:0 for the whole flight, so most of its 700ms was invisible.
+  // One-shot, self-removing, transforms/opacity only.
+  // Sound: deliberately none here. Every procedural cue is gated off by the
+  // owner (sfx.PROCEDURAL_CUES = false, "leave all imported sounds"), so a
+  // synth thud would be silent; the per-card play cue still fires at commit
+  // (its stagger + hover-lockout gates are keyed to that moment), now 360ms
+  // ahead of touchdown instead of 460ms.
+  _landShakeTier(cost) {
+    const c = +cost || 0;
+    return c >= 7 ? 'land-l' : c >= 4 ? 'land-m' : 'land-s';
+  },
+  _landCostOf(cardEl) {
+    try {
+      const raw = cardEl && cardEl.getAttribute && cardEl.getAttribute('data-card-id');
+      if (raw == null || typeof Game === 'undefined' || !Game.findCard) return 0;
+      const c = Game.findCard(raw) || Game.findCard(Number(raw));
+      return c ? (+c.cost || 0) : 0;
+    } catch (e) { return 0; }
+  },
+  _landThump(laneEl, cost, owner, cardEl) {
+    try {
+      const lowFx = !!(document.body && document.body.classList.contains('low-fx'));
+      const rm = !!(this._reducedMotion && this._reducedMotion());
+      if (cost == null) cost = this._landCostOf(cardEl);
+      // A re-render mid-flight (makeCardElCached reuses tiles) can leave the
+      // element land() captured detached — aim at the LIVE tile and its lane.
+      if (cardEl && cardEl.isConnected === false) {
+        const id = cardEl.getAttribute && cardEl.getAttribute('data-card-id');
+        const live = id != null && document.querySelector(`.board .card[data-card-id="${id}"]`);
+        if (live) { cardEl = live; laneEl = live.closest('.lane') || laneEl; }
+      }
+      // A whole-board rebuild (undo, reconnect) "lands" every card at once —
+      // one shake for the burst, not a stutter.
+      const now = Date.now();
+      if (!rm && !lowFx && now - (this._lastLandThumpAt || 0) > 120) {
+        this._lastLandThumpAt = now;
+        this._screenShake(this._landShakeTier(cost));
+      }
+      if (lowFx) return;
+      const layer = this._fxLayer();
+      if (laneEl && laneEl.getBoundingClientRect) {
+        const r = laneEl.getBoundingClientRect();
+        if (r && r.width) {
+          const flash = document.createElement('div');
+          flash.className = 'lane-land-flash ' + (owner === 'ai' ? 'flash-ai' : 'flash-player');
+          flash.style.cssText = `left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;`;
+          layer.appendChild(flash);
+          setTimeout(() => flash.remove(), 300);
+        }
+      }
+      if (!rm && cardEl && cardEl.getBoundingClientRect) {
+        const cr = cardEl.getBoundingClientRect();
+        if (cr && cr.width) {
+          const ring = document.createElement('div');
+          ring.className = 'card-place-shockring fx-staged' + (owner === 'ai' ? ' ring-ai' : ' ring-player');
+          ring.style.cssText = `left:${cr.left}px;top:${cr.top}px;width:${cr.width}px;height:${cr.height}px;`;
+          layer.appendChild(ring);
+          setTimeout(() => ring.remove(), 760);
+        }
+      }
+    } catch (e) { /* non-fatal — the card has still landed */ }
   },
 
   // Hand → board flight. The card you play physically travels from its hand
@@ -8980,6 +9065,19 @@ const UI = {
   // hidden (.card-flying, added at placement) until the ghost lands, so we
   // never show it sitting in the lane mid-flight. AI cards use reveal-flip
   // and never fly; reduced-motion skips the arc entirely.
+  // Cards just released by a drag over a lane. Short-lived on purpose: it only
+  // has to survive the play's own render(s), and an id that came back to the
+  // hand later must fly again.
+  _markDragDropped(id) {
+    if (id == null) return;
+    (this._dragDropped || (this._dragDropped = new Map())).set(String(id), performance.now());
+  },
+  _wasDragDropped(id) {
+    const m = this._dragDropped; if (!m || id == null) return false;
+    const t = m.get(String(id)); if (t == null) return false;
+    if (performance.now() - t > 2500) { m.delete(String(id)); return false; }
+    return true;
+  },
   _animateFly(realEl, fromRect) {
     if (!realEl || !fromRect) return;
     const slot = realEl.closest('.player-slot');
@@ -9111,7 +9209,7 @@ const UI = {
       realEl.classList.remove('card-flying');
       const slot = realEl.closest('.player-slot, .ai-slot');
       const lane = realEl.closest('.lane');
-      try { this._spawnPlayerLandFx(realEl, lane, slot, true); } catch (e) {}
+      try { this._spawnPlayerLandFx(realEl, lane, slot, true, { thump: false }); } catch (e) {}
     };
     ghost.addEventListener('animationend', land, { once: true });
     setTimeout(land, DUR + 90);   // the card can never stay hidden
@@ -9387,6 +9485,25 @@ const UI = {
   _screenShake(intensity) {
     const area = document.getElementById('game-area');
     if (!area) return;
+    // Never under reduced motion or the low-fx tier — for EVERY tier, not just
+    // the landing ones (this had no gate; low-fx only hid it via the
+    // transform:none !important on #game-area).
+    if (this._reducedMotion && this._reducedMotion()) return;
+    if (document.body && document.body.classList.contains('low-fx')) return;
+    // Landing ticks (land-s/m/l — see _landThump) are the smallest shakes in
+    // the game and must never cut a running hit shake short.
+    const isLand = /^land-[sml]$/.test(String(intensity));
+    const now = Date.now();
+    if (isLand && now < (this._shakeUntil || 0)) return;
+    if (isLand) {
+      const lc = 'screen-shake-' + intensity;
+      area.classList.remove('screen-shake', 'screen-shake-light', 'screen-shake-heavy',
+        'screen-shake-land-s', 'screen-shake-land-m', 'screen-shake-land-l');
+      void area.offsetWidth;
+      area.classList.add(lc);
+      setTimeout(() => area.classList.remove(lc), 200);
+      return;
+    }
     // Audit finding: every hit shook the screen the same. Now hits
     // scale: light (chip damage) = small wobble, heavy (≥30% max HP
     // or ≥10 raw damage) = big shake. Caller passes intensity 'light'
@@ -9394,10 +9511,12 @@ const UI = {
     const cls = intensity === 'heavy' ? 'screen-shake-heavy'
       : intensity === 'light' ? 'screen-shake-light'
       : 'screen-shake';
-    area.classList.remove('screen-shake', 'screen-shake-light', 'screen-shake-heavy');
+    area.classList.remove('screen-shake', 'screen-shake-light', 'screen-shake-heavy',
+      'screen-shake-land-s', 'screen-shake-land-m', 'screen-shake-land-l');
     void area.offsetWidth;
     area.classList.add(cls);
     const dur = intensity === 'heavy' ? 460 : intensity === 'light' ? 220 : 300;
+    this._shakeUntil = now + dur;
     setTimeout(() => area.classList.remove(cls), dur);
   },
 
@@ -24880,6 +24999,37 @@ const UI = {
     }
   },
 
+  // A STAT ORB MID-POP SURVIVES THE TRANSPLANT. _flipStatOrb decorates the orb
+  // AFTER renderBoard; any later render inside the 600ms pop whose snapshot
+  // busts for another reason (a status landing, the predictor flipping, armor)
+  // rebuilt the card's children and destroyed the popping orb — the same
+  // cancellation as the lunge and the art flicker. Kept only while it is
+  // popping AND already counting to the number the fresh orb prints
+  // (data-prev-stat is _tickStatDigit's target): a NEW value takes the fresh
+  // orb, which animateStatChanges then pops itself. Safe by construction — the
+  // pop classes still clear on _flipStatOrb's own 600ms timer on this node.
+  _STAT_POP_CLASSES: ['stat-changed', 'stat-up', 'stat-down'],
+  _preservePoppingOrbs(cached, fresh) {
+    if (!cached || !fresh) return;
+    const pop = this._STAT_POP_CLASSES;
+    ['stat-atk', 'stat-hp'].forEach(which => {
+      const oldO = cached.querySelector(':scope > .stat-circle.stat-changed.' + which);
+      if (!oldO) return;
+      const newO = fresh.querySelector(':scope > .stat-circle.' + which);
+      if (!newO) return;
+      const target = oldO.getAttribute('data-prev-stat');
+      if (target == null || target !== (newO.textContent || '').trim()) return;
+      // Class DIFF, not a className write — the live node keeps its animation.
+      const want = new Set(String(newO.className).trim().split(/\s+/).filter(Boolean));
+      String(oldO.className).trim().split(/\s+/).filter(Boolean).forEach(c => {
+        if (!want.has(c) && pop.indexOf(c) === -1) oldO.classList.remove(c);
+      });
+      want.forEach(c => { if (!oldO.classList.contains(c)) oldO.classList.add(c); });
+      const tip = newO.getAttribute('title');
+      if (tip != null) oldO.setAttribute('title', tip); else oldO.removeAttribute('title');
+      fresh.replaceChild(oldO, newO);
+    });
+  },
   makeCardElCached(card, inHand, side) {
     if (!card || card.id == null || inHand) {
       // Hand cards aren't covered by this cache — they re-shuffle position
@@ -24929,6 +25079,9 @@ const UI = {
       // the "art glitching in and out" flicker) — must run before the
       // replaceChildren transplant below.
       this._preserveCardArt(cached, fresh);
+      // Same for a stat orb that is mid-pop: keep the live node so the 600ms
+      // hit/buff punch is not thrown away by a re-render inside it.
+      this._preservePoppingOrbs(cached, fresh);
       // Move children from fresh into cached without recreating fresh
       // (replaceChildren is faster + avoids innerHTML stringification).
       cached.replaceChildren(...fresh.childNodes);
@@ -25717,7 +25870,7 @@ const UI = {
       // cleared by land() in _animateFly, which holds the element from when the
       // flight began; a re-render mid-flight (makeCardElCached reuses tiles)
       // leaves that call clearing a node no longer on the board while the live
-      // tile stays invisible and clickable. The flight is 460ms + a 90ms
+      // tile stays invisible and clickable. The flight is 360ms + a 90ms
       // fallback, so anything still flying after 900ms is stuck by definition.
       // This query runs against the LIVE DOM, which is what makes it catch the
       // reused-tile case the timeouts structurally cannot.
@@ -26336,6 +26489,10 @@ const UI = {
           ring.className = 'card-landing-ring ring-ai';
           aiSlot.appendChild(ring);
           setTimeout(() => ring.remove(), 900);
+          // The touchdown thump (shake + lane flash + shockring) — the same
+          // canonical beat a player card gets, so the AI, an MP opponent and
+          // the 2v2 enemy team all land with weight.
+          this._landThump(el, aiDisplayCard.cost, 'ai', cardEl);
         }
         // DEFAULT click handler — tap a board card to open the inspect
         // popup (PvZ Heroes-style full-detail view: big art, name,
@@ -26562,7 +26719,8 @@ const UI = {
           // Everything else (summons, environments, reduced-motion) lands
           // in place immediately.
           const pv = this._prevRects && this._prevRects.get(plDisplayCard.id);
-          const willFly = pv && pv.inHand && !(this._reducedMotion && this._reducedMotion());
+          const willFly = pv && pv.inHand && !(this._reducedMotion && this._reducedMotion())
+            && !this._wasDragDropped(plDisplayCard.id);
           if (willFly) {
             // THE THIRD MEMBER OF THE INVISIBLE-CARD FAMILY. card-enter and
             // card-exit each carry a stamp, a self-removing timeout AND a
@@ -26570,7 +26728,7 @@ const UI = {
             // only removal was land() inside _animateFly, which holds the
             // element captured when the flight STARTED — and makeCardElCached
             // reuses board tiles across renders, so a re-render during the
-            // ~460ms flight leaves land() clearing a detached node while the
+            // ~360ms flight leaves land() clearing a detached node while the
             // live tile keeps `opacity: 0` forever. Invisible, still
             // clickable, and on the card you just played. (User: "the cards
             // played would go invisible and you could click on them but on the
@@ -28041,9 +28199,7 @@ const UI = {
     // Droideka round, no Critical and no Yoda mark, and calling the helper on a
     // raw CARD_DEF from a Foresee picker would read undefined flags anyway.
     const rawAtk = card.attack;
-    const effAtk = (!inHand && typeof Game !== 'undefined' && Game._cardEffectiveAtk && card.attack != null)
-      ? Game._cardEffectiveAtk(card)
-      : rawAtk;
+    const effAtk = this._displayedAtk(card, inHand);
     const atkBoosted = effAtk !== rawAtk && Number.isFinite(effAtk);
     const atkCell = hideAtk ? '?' : (_xNow ? _xNow.attack : (atkBoosted ? effAtk : rawAtk));
     // HP fallback: a live card instance carries currentHealth (a number, and
@@ -34010,6 +34166,12 @@ const UI = {
         // instead of bouncing the card back to hand.
         if (i == null && t && releasedClear) i = nearestLaneByX(t.clientX, card);
         if (i != null && Game.state.selectedCard === card) {
+          // A DROPPED CARD LANDS WHERE IT WAS DROPPED. The ghost is already
+          // over the lane, so the hand→lane flight is the wrong motion — and
+          // on this path it never ran at all, so the gesture most players use
+          // had no settle, no ring and no thump. Marked here, read by
+          // renderBoard (land in place) and _applyMotionEffects (no flight).
+          UI._markDragDropped(card.id);
           this.onLaneClick(i);
         } else if (Game.state.selectedCard === card) {
           Game.state.selectedCard = null; this.render();   // dropped into hand → cancel
@@ -35727,46 +35889,11 @@ const UI = {
     // landed card, sized to match the card via inset:-2px, with a
     // border that animates (scale + opacity + border-width) outward.
     // CSS does all the animation; JS just spawns + cleans up.
-    const spawnPlaceShockring = (cardEl, owner) => {
-      if (reduceMotion || !cardEl) return;
-      const ring = document.createElement('div');
-      ring.className = 'card-place-shockring' + (owner === 'ai' ? ' ring-ai' : ' ring-player');
-      cardEl.appendChild(ring);
-      // Cleanup after the keyframe finishes (700ms + 50ms grace)
-      setTimeout(() => ring.remove(), 760);
-    };
-    if (Game.playCard) {
-      const origPlayRing = Game.playCard.bind(Game);
-      Game.playCard = (owner, card, laneIdx, ...rest) => {
-        const r = origPlayRing(owner, card, laneIdx, ...rest);
-        if (r && card && card.id != null && typeof laneIdx === 'number' && laneIdx >= 0) {
-          // Defer to the next frame so the lane DOM has rebuilt and
-          // the new card element is queryable.
-          requestAnimationFrame(() => {
-            const newEl = document.querySelector(`[data-card-id="${card.id}"]`);
-            if (newEl && !newEl.classList.contains('hand-card')) {
-              spawnPlaceShockring(newEl, owner);
-            }
-          });
-        }
-        return r;
-      };
-    }
-    if (Game.playCardFree) {
-      const origFreeRing = Game.playCardFree.bind(Game);
-      Game.playCardFree = (owner, card, laneIdx, ...rest) => {
-        const r = origFreeRing(owner, card, laneIdx, ...rest);
-        if (card && card.id != null && typeof laneIdx === 'number' && laneIdx >= 0) {
-          requestAnimationFrame(() => {
-            const newEl = document.querySelector(`[data-card-id="${card.id}"]`);
-            if (newEl && !newEl.classList.contains('hand-card')) {
-              spawnPlaceShockring(newEl, owner);
-            }
-          });
-        }
-        return r;
-      };
-    }
+    // MOVED to UI._landThump. It used to ride Game.playCard/playCardFree on
+    // the next frame, appended to the new card — which, for a card thrown from
+    // the hand, is opacity:0 (card-flying) for the whole flight, so most of the
+    // ring played invisibly. It now fires at the actual touchdown on both
+    // landing paths, staged on the body-level FX layer.
 
     // -------- (c) HP-bar damage pulse --------
     // When face damage lands on a player, run a bright light packet
@@ -36495,30 +36622,14 @@ const UI = {
       }
     }
 
-    // ---- (2) ANTICIPATION DIP BEFORE CARD FLIGHT -------------------------
-    // Real motion has WINDUP. A baseball pitcher rocks back before
-    // throwing; a card "compresses" before launching from your hand.
-    // We add a 90ms downward dip on the card before Game.playCard
-    // commits, then the existing FLIP flight launches from the
-    // depressed position. Subtle (~3px) but adds tangible weight.
-    if (Game.playCard) {
-      const origPlay = Game.playCard.bind(Game);
-      Game.playCard = (owner, card, laneIdx, ...rest) => {
-        // Player-side only; AI plays don't need anticipation since
-        // the player isn't directing them physically.
-        if (!reduceMotion && owner === 'player' && card && card.id != null) {
-          const handCardEl = document.querySelector(`.player-hand-section .card[data-card-id="${card.id}"]`);
-          if (handCardEl) {
-            handCardEl.classList.add('card-anticipating');
-            // The CSS transition for translateY runs the dip; we
-            // remove the class after the flight starts so it doesn't
-            // persist on the lane card.
-            setTimeout(() => handCardEl.classList.remove('card-anticipating'), 200);
-          }
-        }
-        return origPlay(owner, card, laneIdx, ...rest);
-      };
-    }
+    // ---- (2) ANTICIPATION — now part of the flight itself ----------------
+    // This used to add .card-anticipating to the HAND tile inside a
+    // Game.playCard wrapper and then call playCard in the same tick. The play
+    // re-renders synchronously, the hand tile is replaced, and the class sits in
+    // _DECORATION_CLASSES (stripped by the diff renderer), so the 200ms dip was
+    // never on screen. The wind-up now lives in the cardFlightArc keyframe on
+    // the body-level flight ghost (first ~14%: dip 4px + compress), which no
+    // render can strip — and it is purely visual, the engine resolves at once.
 
     // ---- (3) LANE RECEPTIVE CUE — visual anticipation -------------------
     // When the player grabs a card from hand (state.selectedCard
@@ -38233,6 +38344,19 @@ const UI = {
   // (A) Stat counter flip: compare previous stat values and flip the
   // orb when they change. Called after every renderBoard.
   _lastCardStats: new Map(),
+  // THE ATK THE ORB PRINTS — the one place that decides it. makeCardEl renders
+  // this number and animateStatChanges diffs it, so a change you can SEE is a
+  // change that pops. The diff used to read raw card.attack while the orb read
+  // Game._cardEffectiveAtk, so Han Solo's Critical (x2), Droideka's overcharge
+  // and Yoda's combined force changed the number with no pop at all.
+  // Board only (inHand → raw): see the note at the orb in makeCardEl.
+  _displayedAtk(card, inHand) {
+    const rawAtk = card.attack;
+    const effAtk = (!inHand && typeof Game !== 'undefined' && Game._cardEffectiveAtk && card.attack != null)
+      ? Game._cardEffectiveAtk(card)
+      : rawAtk;
+    return Number.isFinite(effAtk) ? effAtk : rawAtk;
+  },
   animateStatChanges() {
     if (!Game.state || !Game.state.lanes) return;
     Game.state.lanes.forEach(lane => {
@@ -38240,7 +38364,7 @@ const UI = {
         const card = lane[side];
         if (!card || card.id == null) return;
         const prev = this._lastCardStats.get(card.id) || {};
-        const atk = card.attack, hp = card.currentHealth;
+        const atk = this._displayedAtk(card, false), hp = card.currentHealth;
         if (prev.atk != null && prev.atk !== atk) this._flipStatOrb(card.id, 'atk', atk - prev.atk);
         if (prev.hp  != null && prev.hp  !== hp)  this._flipStatOrb(card.id, 'hp',  hp  - prev.hp);
         this._lastCardStats.set(card.id, { atk, hp });

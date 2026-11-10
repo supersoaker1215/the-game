@@ -8223,6 +8223,35 @@ body.hit-pause .ai-hand * {
 #game-area.screen-shake-light { animation: screenShakeLight 0.20s ease-out; }
 #game-area.screen-shake { animation: screenShake 0.28s ease-out; }
 #game-area.screen-shake-heavy { animation: screenShakeHeavy 0.45s cubic-bezier(0.36, 0, 0.66, -0.56); }
+/* LANDING THUMP — the smallest shakes in the game, fired by UI._landThump the
+   instant a played card touches down (both sides). Tiered by card cost and
+   always below the light hit shake (2px / 200ms): 1-3 cost 1px, 4-6 1.25px,
+   7+ 1.5px. Mostly vertical — a set-down, not a hit. One-shot. */
+@keyframes screenShakeLandS {
+  0%, 100% { transform: translate(0, 0); }
+  30%      { transform: translate(0, 1px); }
+  65%      { transform: translate(0, -0.5px); }
+}
+@keyframes screenShakeLandM {
+  0%, 100% { transform: translate(0, 0); }
+  25%      { transform: translate(-0.5px, 1.25px); }
+  55%      { transform: translate(0.5px, -0.75px); }
+  80%      { transform: translate(0, 0.25px); }
+}
+@keyframes screenShakeLandL {
+  0%, 100% { transform: translate(0, 0); }
+  20%      { transform: translate(-0.75px, 1.5px); }
+  45%      { transform: translate(0.75px, -1px); }
+  70%      { transform: translate(-0.25px, 0.5px); }
+}
+#game-area.screen-shake-land-s { animation: screenShakeLandS 140ms ease-out; }
+#game-area.screen-shake-land-m { animation: screenShakeLandM 160ms ease-out; }
+#game-area.screen-shake-land-l { animation: screenShakeLandL 180ms ease-out; }
+/* Belt to the JS gate in _screenShake: no shake of any tier under reduced
+   motion. */
+@media (prefers-reduced-motion: reduce) {
+  #game-area[class*="screen-shake"] { animation: none !important; }
+}
 
 /* ---- THANOS SNAP LANE FLASH ----
    Temporarily paints rolled lanes with a fading purple "gauntlet" glow so
@@ -8292,10 +8321,17 @@ body.hit-pause .ai-hand * {
    the 78%→100% settle bleeds back to 1.0 — same micro-thud feel
    the previous transition-based stage B had. Audit finding:
    "trajectory is linear, no arc, no weight." */
+/* 0-14% is the WIND-UP: the ghost starts exactly on the hand tile (no pop),
+   dips 4px and compresses before it launches — the anticipation beat that the
+   old hand-tile .card-anticipating class never got on screen (the play's
+   re-render replaced the tile in the same tick). On the body-level ghost no
+   render can strip it. Then the arc, a ~5% overshoot on touchdown (82%), and
+   the settle to 1.0. */
 @keyframes cardFlightArc {
-  0%   { transform: translate3d(0, 0, 0) rotate(-6deg) scale(0.96); }
-  45%  { transform: translate3d(calc(var(--fly-dx, 0px) * 0.45), calc(var(--fly-dy, 0px) * 0.45 - var(--fly-peak-y, 60px)), 0) rotate(-2deg) scale(1.07); }
-  78%  { transform: translate3d(var(--fly-dx, 0px), var(--fly-dy, 0px), 0) rotate(0deg) scale(1.025); }
+  0%   { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); }
+  14%  { transform: translate3d(0, 4px, 0) rotate(-6deg) scale(0.96); }
+  50%  { transform: translate3d(calc(var(--fly-dx, 0px) * 0.45), calc(var(--fly-dy, 0px) * 0.45 - var(--fly-peak-y, 60px)), 0) rotate(-2deg) scale(1.07); }
+  82%  { transform: translate3d(var(--fly-dx, 0px), var(--fly-dy, 0px), 0) rotate(0deg) scale(1.05); }
   100% { transform: translate3d(var(--fly-dx, 0px), var(--fly-dy, 0px), 0) rotate(0deg) scale(1.0); }
 }
 /* Real card stays hidden the entire duration of the flight (matches
@@ -18489,6 +18525,31 @@ body.theme-purple .board-section {
   100% { transform: translateY(0); }
 }
 .lane.lane-landed { animation: laneLandDip 380ms var(--ease-out-soft); }
+/* Touchdown LIGHT — a ~250ms flash over the lane the card hit, spawned by
+   UI._landThump into #signature-fx-layer at the lane's screen rect (lane
+   children and the lane class die on the next renderBoard). The gradient is
+   static; only opacity animates, so it stays on the compositor. */
+.lane-land-flash {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 4px;
+  opacity: 0;
+  will-change: opacity;
+  animation: laneLandFlash 250ms ease-out forwards;
+}
+.lane-land-flash.flash-player {
+  background: radial-gradient(ellipse 70% 55% at 50% 72%,
+    rgba(var(--theme-rgb, 79,195,247), 0.42), rgba(var(--theme-rgb, 79,195,247), 0.10) 60%, transparent 85%);
+}
+.lane-land-flash.flash-ai {
+  background: radial-gradient(ellipse 70% 55% at 50% 28%,
+    rgba(255,110,90, 0.40), rgba(231,76,60, 0.10) 60%, transparent 85%);
+}
+@keyframes laneLandFlash {
+  0%   { opacity: 0; }
+  18%  { opacity: 1; }
+  100% { opacity: 0; }
+}
 @keyframes dustKick {
   0%   { opacity: 0; transform: translate(-50%, 0) scale(0.4); }
   30%  { opacity: 1; }
@@ -23331,18 +23392,8 @@ body::after {
   transform: none;  /* JS spring sets translate3d directly */
 }
 
-/* (2) Anticipation dip — 90ms downward windup before the FLIP
-   flight begins. The card "compresses" 3px on click commit, then
-   the existing flight ghost launches from there. Tiny windup but
-   reads as "the card has weight and is gathering energy." */
-.card.card-anticipating {
-  animation: cardAnticipate 200ms var(--ease-out-quart);
-}
-@keyframes cardAnticipate {
-  0%   { transform: translate3d(0, 0, 0); }
-  45%  { transform: translate3d(0, 4px, 0) scale(0.98); }
-  100% { transform: translate3d(0, 0, 0); }
-}
+/* (2) Anticipation dip — now the first 14% of cardFlightArc on the flight
+   ghost (the hand-tile class never reached the screen). */
 
 /* (3) Lane receptive cue — when the player has a card selected,
    each empty lane that could legally accept it gets a gentle
@@ -23420,7 +23471,6 @@ body::after {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .card.card-anticipating { animation: none; }
   .landing-mote { display: none !important; }
   .lane.lane-receptive { transition: none; }
 }
@@ -24023,6 +24073,13 @@ html {
     opacity: 0;
     border-width: 0.5px;
   }
+}
+/* Staged at touchdown on #signature-fx-layer (UI._landThump) — the layer is
+   fixed at the viewport, so left/top/width/height come inline from the card's
+   rect and the in-card inset is dropped. */
+.card-place-shockring.fx-staged {
+  inset: auto;
+  border-radius: 0;   /* cards are square-cornered (see .card .card-place-shockring) */
 }
 @media (prefers-reduced-motion: reduce) {
   .card-place-shockring { display: none !important; }
@@ -31270,6 +31327,14 @@ body.low-fx .board-section .crt-scanlines { display: none; }
    ============================================================ */
 .card.card-damaged .stat-circle.stat-hp {
   color: #ff5b5b;
+}
+/* THE IDLE PULSE YIELDS TO THE ONE-SHOT. This loop used to sit in the rule
+   above at 0,4,0 and so outranked `.stat-circle.stat-changed.stat-down`
+   (0,3,0): every hit after a card's first landed with no pop at all, because
+   the first hit is what made it .card-damaged. The loop now simply does not
+   match an orb that is mid-pop (.stat-changed carries .stat-up/.stat-down),
+   and resumes when _flipStatOrb clears the class 600ms later. */
+.card.card-damaged .stat-circle.stat-hp:not(.stat-changed) {
   animation: hpDamagedPulse 1.5s ease-in-out infinite;
 }
 /* Black floor first, same as every other stat state — a damaged card is the
@@ -39169,7 +39234,9 @@ body.hand-text-always .trick-cards .trick-card.face-flipped .trick-desc {
      .badge-insane      cardCrazyGlitch 1.4s steps
      .card.status-crazy cardCrazyWobble 3.4s        (a per-card TRANSFORM loop)
      .game-particle     gameDrift linear            (purely ornamental drift)
-     .card-damaged .stat-hp                          (pulse on an already-red number)
+     .card-damaged .stat-hp                          (pulse on an already-red number;
+                                                      :not(.stat-changed) so the one-shot
+                                                      hit/heal pop still plays on it)
      status glow pulses on critical / stunned / frozen / feared / mind-ctrl / burning
 
    NO INFORMATION IS LOST. The badge text still says CRITICAL, BURNING, CRAZY —
@@ -39185,7 +39252,7 @@ body.hand-text-always .trick-cards .trick-card.face-flipped .trick-desc {
   .badge-crazy,
   .badge-insane,
   .game-particle,
-  .card-damaged .stat-hp,
+  .card-damaged .stat-hp:not(.stat-changed),
   .card.status-crazy:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)),
   .card.status-critical:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)),
   .card.status-stunned:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)),
@@ -39210,7 +39277,7 @@ body.fx-lean .badge-burning,
 body.fx-lean .badge-crazy,
 body.fx-lean .badge-insane,
 body.fx-lean .game-particle,
-body.fx-lean .card-damaged .stat-hp,
+body.fx-lean .card-damaged .stat-hp:not(.stat-changed),
 body.fx-lean .card.status-crazy:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)),
 body.fx-lean .card.status-critical:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)),
 body.fx-lean .card.status-stunned:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)),

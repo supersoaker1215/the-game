@@ -352,6 +352,13 @@ run_suite sim/trade-impact.js
 
 echo "=== kill-float.js (the killing blow shows its number) ==="
 run_suite sim/kill-float.js
+echo "=== stat-pop.js (every board stat change pops: hurt cards, boosted ATK, re-render mid-pop) ==="
+run_suite sim/stat-pop.js
+
+echo "=== land-thump.js (card touchdown: cost-tiered micro-shake, lane flash, ring at landing, wind-up in flight) ==="
+run_suite sim/land-thump.js
+echo "=== drag-land.js (a dragged card lands where it was dropped) ==="
+run_suite sim/drag-land.js
 
 echo "=== sung-jin-woo.js (X-cost X/X, shadows bound to their master, odds-based revive) ==="
 run_suite sim/sung-jin-woo.js

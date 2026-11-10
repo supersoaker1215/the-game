@@ -151,6 +151,16 @@ load('./sim/shim.js');
     c.parentNode = this; this.childNodes.splice(i, 0, c);
     return c;
   };
+  // makeCardElCached's transplant swaps live nodes (the composited art, a
+  // popping stat orb) into the fresh tree with this; missing, it threw.
+  El.prototype.replaceChild = function (c, old) {
+    var i = this.childNodes.indexOf(old);
+    if (i < 0) throw new Error('replaceChild: not a child');
+    if (c.parentNode) c.parentNode.removeChild(c);
+    i = this.childNodes.indexOf(old);
+    this.childNodes[i] = c; c.parentNode = this; old.parentNode = null;
+    return old;
+  };
   El.prototype.setAttribute = function (k, v) {
     this.attributes[k] = String(v);
     if (k === 'class') this.className = String(v);

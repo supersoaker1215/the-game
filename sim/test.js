@@ -7305,8 +7305,11 @@ test("Droideka's overcharge shows on his ATK orb, not just in the damage", funct
   var line = src.slice(i, i + 220);
   assert(/atkBoosted \? effAtk/.test(line),
     'the orb prints the effective value when a multiplier is live');
-  var j = src.indexOf('const effAtk =');
-  assert(j > -1 && /_cardEffectiveAtk/.test(src.slice(j, j + 260)),
+  // effAtk is UI._displayedAtk — the one helper the orb AND the stat-pop diff
+  // read (sim/stat-pop.js) — and that helper is what calls _cardEffectiveAtk.
+  var j = src.indexOf('const effAtk = this._displayedAtk(card, inHand)');
+  var h = src.indexOf('\n  _displayedAtk(card, inHand) {');
+  assert(j > -1 && h > -1 && /_cardEffectiveAtk/.test(src.slice(h, h + 400)),
     'and effAtk comes from Game._cardEffectiveAtk — the same helper combat uses');
 });
 
