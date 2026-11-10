@@ -363,6 +363,9 @@ run_suite sim/drag-land.js
 echo "=== overdrive-callout.js (Overdrive is seen, not just logged) ==="
 run_suite sim/overdrive-callout.js
 
+echo "=== round-banner-rm.js (ROUND N still shows under reduced motion) ==="
+run_suite sim/round-banner-rm.js
+
 echo "=== sung-jin-woo.js (X-cost X/X, shadows bound to their master, odds-based revive) ==="
 run_suite sim/sung-jin-woo.js
 

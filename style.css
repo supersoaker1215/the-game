@@ -53592,3 +53592,26 @@ body:not(.ai-thinking) .ai-thinking-ring circle {
   .od-callout { animation: odFade 800ms linear forwards; animation-duration: 800ms !important; }
   @keyframes odFade { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }
 }
+
+/* ============================================================
+   ROUND BANNER UNDER REDUCED MOTION (2026-11-10)
+   ============================================================
+   roundBannerReveal starts AND ends at opacity 0, and the global
+   reduced-motion catch-all (`animation-duration: 0.01ms !important`) snaps
+   every animation to its end frame — so a player who asked for less motion
+   never saw "ROUND N" at all. The catch-all's own comment assumes end frames
+   are visible; this one isn't. Reduced motion should SHORTEN, not remove:
+   the banner fades in, holds, fades out, with no zoom. A class selector's
+   !important duration outranks the catch-all's universal one. */
+@keyframes roundBannerFade {
+  0%   { opacity: 0; transform: translate(-50%, -50%); }
+  10%  { opacity: 1; transform: translate(-50%, -50%); }
+  85%  { opacity: 1; transform: translate(-50%, -50%); }
+  100% { opacity: 0; transform: translate(-50%, -50%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .round-banner.active {
+    animation: roundBannerFade 1.6s linear;
+    animation-duration: 1.6s !important;
+  }
+}
