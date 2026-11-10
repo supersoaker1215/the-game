@@ -7838,6 +7838,21 @@ const Game = {
     const mode = (typeof UI !== 'undefined' && UI.settings && UI.settings.aiSpeed) || 'normal';
     return { fast: 280, normal: 900, slow: 1500 }[mode] || 900;
   },
+  // ONE TIMELINE (presentation director, step 2). COMBAT_LANE_DELAY is already
+  // stretched by the UI (ui.js, "Audio-aware lane delay") for any sound still
+  // playing and any animation still running — but only what has STARTED. Beats
+  // the director is still holding in its queue were invisible to it, so the
+  // next lane could start over them. This waits for whichever is longer: that
+  // existing wait, or the director's remaining playback. Only the director's
+  // share is capped (2.5s) so a stuck queue can never hold a fight; the
+  // audio-tail part keeps its own rules. Headless / no UI: the fixed gap.
+  _LANE_WAIT_CAP_MS: 2500,
+  _laneGapMs() {
+    const base = this.COMBAT_LANE_DELAY;
+    let busy = 0;
+    try { if (typeof UI !== 'undefined' && UI.fxRemainingMs) busy = UI.fxRemainingMs('combat') || 0; } catch (e) {}
+    return Math.max(base, Math.min(busy, this._LANE_WAIT_CAP_MS));
+  },
   get COMBAT_POST_DELAY() {
     const mode = (typeof UI !== 'undefined' && UI.settings && UI.settings.aiSpeed) || 'normal';
     return { fast: 350, normal: 1100, slow: 1800 }[mode] || 1100;
@@ -8031,7 +8046,7 @@ const Game = {
 // Push the resolved lane so guests watch the aftermath before the
           // next lane lights up — twin of the pre-lane push above.
           this._pushOnlineState({ silent: true });
-          this._schedule(() => resolveLane(i + 1), this.COMBAT_LANE_DELAY);
+          this._schedule(() => resolveLane(i + 1), this._laneGapMs());
         });
       };
       // A CARD KILLED BY BURN/BLEED IS GONE BEFORE THE LANE FIGHTS.

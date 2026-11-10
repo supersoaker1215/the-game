@@ -107,6 +107,8 @@ var NOT_FX = {
   _whenAnnouncementsIdle: 1,  // ai.js — local pacing: waits for THIS client's notices to clear
   _renderLeaderboard: 1,      // leaderboard.js — a local modal, drawn from data every client fetches
   _renderMenuLeaderboard: 1,  // leaderboard.js — likewise, the always-on menu panel
+  fxRemainingMs: 1,           // game.js — a QUERY (how long the director still plays), read by the
+                              // host's lane pacing; draws nothing, so there is nothing to relay
 };
 
 function callsTo(text) {

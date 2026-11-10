@@ -3393,6 +3393,74 @@ const UI = {
       this._master.gain.value = Math.max(0, Math.min(1, v));
     },
 
+    // ===================== THE MIXER (Web Audio buses) =====================
+    // File sounds used to play straight out of <audio> elements and fade by
+    // writing element.volume on a timer. That cannot be mixed as groups, and on
+    // iOS Safari element.volume is READ-ONLY (always 1) — every fade and duck in
+    // this file silently did nothing on an iPhone. Each element is now routed
+    // element -> its own GainNode -> a bus (music / sfx / voice) -> mix -> out.
+    //
+    // THE TRICK THAT KEEPS EVERY EXISTING FADE WORKING: a routed element's
+    // `volume` property is redefined on that instance to read/write its
+    // GainNode. All the code that already writes `el.volume` (fades, cap fades,
+    // ducks, the voice channel) now drives the mixer unchanged, and the native
+    // element volume is pinned at 1. Routing only happens once the context is
+    // RUNNING (after the first gesture) — a suspended context would play
+    // silence — and any failure leaves that element on the old native path.
+    // Buses are separate from this._master (the synth's master, already at the
+    // SFX volume) so the SFX setting is never applied twice.
+    _MIX_BUS_OF: { voiceLine: 'voice', play: 'voice', ability: 'voice', hover: 'sfx', effect: 'sfx', death: 'sfx', music: 'music' },
+    _mixReady() {
+      return !this._mixOff && !!(this._ctx && this._ctx.state === 'running'
+        && typeof this._ctx.createMediaElementSource === 'function');
+    },
+    _mixBus(name) {
+      if (!this._mix) {
+        const ctx = this._ctx, mix = { out: ctx.createGain() };
+        mix.out.connect(ctx.destination);
+        ['music', 'sfx', 'voice'].forEach(b => { mix[b] = ctx.createGain(); mix[b].connect(mix.out); });
+        this._mix = mix;
+      }
+      return this._mix[name] || this._mix.sfx;
+    },
+    _route(el, bus) {
+      if (!el || el._mixGain || el._mixFailed) return !!(el && el._mixGain);
+      if (!this._mixReady()) return false;
+      try {
+        const ctx = this._ctx;
+        const desc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'volume');
+        const start = desc && desc.get ? desc.get.call(el) : 1;
+        const src = ctx.createMediaElementSource(el);
+        const g = ctx.createGain();
+        g.gain.value = start;
+        src.connect(g);
+        g.connect(this._mixBus(bus));
+        if (desc && desc.set) desc.set.call(el, 1);
+        Object.defineProperty(el, 'volume', {
+          configurable: true,
+          get() { return g.gain.value; },
+          set(v) { g.gain.value = Math.max(0, Math.min(1, +v || 0)); },
+        });
+        el._mixGain = g; el._mixBusName = bus;
+        this._mixRouted = (this._mixRouted || 0) + 1;
+        return true;
+      } catch (e) {
+        el._mixFailed = true;   // this element stays native; the rest still route
+        return false;
+      }
+    },
+    // Duck a whole bus (e.g. music under a voice line) with a smooth ramp, and
+    // bring it back. No-ops off the mixer.
+    _mixDuck(bus, level, ms) {
+      if (!this._mix || !this._mix[bus]) return;
+      const g = this._mix[bus].gain, t = this._ctx.currentTime;
+      try { g.cancelScheduledValues(t); g.setTargetAtTime(level, t, (ms || 150) / 3000); } catch (e) { g.value = level; }
+    },
+    mixStats() {
+      return { ready: this._mixReady(), routed: this._mixRouted || 0,
+               buses: this._mix ? { music: this._mix.music.gain.value, sfx: this._mix.sfx.gain.value, voice: this._mix.voice.gain.value } : null };
+    },
+
     // Autoplay policies suspend the AudioContext until a user gesture — arm it
     // on first click or keypress so later engine-triggered play() calls work.
     // Also the hook that retries menu music start once we have a gesture
@@ -3404,7 +3472,9 @@ const UI = {
       const resume = () => {
         this._init();
         if (this._ctx && this._ctx.state === 'suspended') {
-          try { this._ctx.resume().catch(() => {}); } catch (e) {}
+          try { this._ctx.resume().then(() => { if (this._music) this._route(this._music, 'music'); }).catch(() => {}); } catch (e) {}
+        } else if (this._music) {
+          this._route(this._music, 'music');
         }
         // iOS blocks HTMLAudioElement.play() outside a user-gesture call stack.
         // Playing a silent Audio here within the gesture unlocks the pool so
@@ -3786,6 +3856,7 @@ const UI = {
       // mid-menu can auto-resume) but skip actual playback.
       if (UI.settings.menuMusic === false) { this._musicWantPlay = true; return; }
       const a = this._ensureMusic();
+      this._route(a, 'music');   // into the mixer's music bus (no-op before the first gesture)
       // Already playing a menu track? Keep it going. Navigating between menu
       // screens (main-menu → mode-select / my-decks / stats, etc.) re-calls
       // startMusic via wrapMenu — it must NOT re-roll or restart the loop, so
@@ -4423,6 +4494,12 @@ const UI = {
           pick._voiceUnder = false;
           this._voiceNow = { el: pick, pri, at: Date.now() };
         }
+        if (pri === 3 && !pick._voiceUnder && this._mix) {
+          this._mixDuck('music', this._VOICE_UNDER_GAIN, 150);
+          const up = () => { if (this._voiceNow && this._voiceNow.el === pick) this._mixDuck('music', 1, 600); };
+          pick.addEventListener('ended', up, { once: true });
+          pick.addEventListener('pause', up, { once: true });
+        }
         this._voiceStat = this._voiceStat || { cues: 0, replaced: 0, under: 0 };
         this._voiceStat.cues++;
         if (curLive && pri === cur.pri) this._voiceStat.replaced++;
@@ -4464,6 +4541,10 @@ const UI = {
       // at currentTime instead of jumping back to 0; for everything
       // else we rewind. Per-event fade-in duration via opts.fadeIn
       // (hover 1000ms, play 500ms; default 130ms for death).
+      // Into the mixer first (no-op until the context is running, or if routing
+      // fails for this element) — and a context iOS suspended gets woken.
+      if (this._ctx && this._ctx.state === 'suspended') { try { this._ctx.resume().catch(() => {}); } catch (e) {} }
+      this._route(pick, this._MIX_BUS_OF[cat] || 'sfx');
       try {
         pick.volume = 0;
         // `pick.currentTime = 0` used to sit bare inside this same try. On iOS
@@ -13352,7 +13433,7 @@ const UI = {
   fxDirectorStats() { const D = this._fxDirector(); return Object.assign({}, D.stat, { queued: D.combat.length + D.announce.length }); },
   _fxReset() {
     const D = this._fxDirector();
-    D.combat.length = 0; D.announce.length = 0; D.busy.combat = false; D.busy.announce = false;
+    D.combat.length = 0; D.announce.length = 0; D.busy.combat = false; D.busy.announce = false; D.until = {};
     clearTimeout(D._tCombat); clearTimeout(D._tAnnounce);
   },
   _fxDirect(events) {
@@ -13373,8 +13454,14 @@ const UI = {
       const q = D[tr];
       // CALM PATH — an idle track handed one beat plays it this frame, so the
       // host's normal play (events trickling in one combat step at a time)
-      // looks exactly as it always did.
-      if (!D.busy[tr] && !q.length && incoming.length === 1) { this._fxPlayBeat(incoming[0]); D.stat.beats++; return; }
+      // looks exactly as it always did. It then HOLDS the track for the beat's
+      // real length, so anything arriving mid-animation waits for it.
+      if (!D.busy[tr] && !q.length && incoming.length === 1) {
+        const len = this._fxPlayBeat(incoming[0]);
+        D.stat.beats++;
+        this._fxHold(tr, len, 1);
+        return;
+      }
       q.push(...incoming);
       D.stat.paced += incoming.length;
       if (tr === 'combat' && q.length > 24) this._fxMergeCosmetic(q);
@@ -13391,14 +13478,56 @@ const UI = {
     const beat = q.shift();
     if (!beat) { D.busy[tr] = false; return; }
     D.busy[tr] = true;
-    this._fxPlayBeat(beat);
+    const len = this._fxPlayBeat(beat);
     D.stat.beats++;
-    const scale = Math.min(2.5, 1 + q.length / 6);
-    const wait = Math.round((this._FX_SPACING_MS[tr] || 240) / scale);
+    this._fxHold(tr, len, Math.min(2.5, 1 + q.length / 6));
+  },
+  // Hold the track for this beat: its measured length, never less than the
+  // track's minimum spacing, divided by the catch-up factor when behind.
+  _fxHold(tr, lenMs, scale) {
+    const D = this._fxDirector();
+    D.busy[tr] = true;
+    const wait = Math.round(Math.max(this._FX_SPACING_MS[tr] || 240, lenMs || 0) / (scale || 1));
+    D.until = D.until || {};
+    D.until[tr] = Date.now() + wait;
+    if (lenMs > (this._FX_SPACING_MS[tr] || 240)) D.stat.measuredLonger = (D.stat.measuredLonger || 0) + 1;
     const key = tr === 'combat' ? '_tCombat' : '_tAnnounce';
+    clearTimeout(D[key]);
     D[key] = setTimeout(() => this._fxPump(tr), wait);
   },
-  _fxPlayBeat(beat) { for (const ev of beat) this._fxPlayOneSafe(ev); },
+  // A BEAT LASTS AS LONG AS ITS ANIMATIONS. Rather than a hand-kept table of
+  // effect lengths (which drifts the day a CSS duration is retuned), the beat is
+  // measured: the animations it started are read back from the browser and the
+  // track holds until the longest one ends. Looping animations (infinite) are
+  // ignored, and the wait is capped so nothing can stall the queue. Returns ms.
+  _FX_BEAT_CAP_MS: 2400,
+  _fxPlayBeat(beat) {
+    const canRead = typeof document !== 'undefined' && typeof document.getAnimations === 'function';
+    const before = canRead ? new Set(document.getAnimations()) : null;
+    for (const ev of beat) this._fxPlayOneSafe(ev);
+    if (!canRead) return 0;
+    let longest = 0;
+    try {
+      document.getAnimations().forEach(a => {
+        if (before.has(a)) return;
+        const t = a.effect && a.effect.getComputedTiming ? a.effect.getComputedTiming() : null;
+        if (!t || !isFinite(t.endTime)) return;
+        const left = t.endTime - (typeof a.currentTime === 'number' ? a.currentTime : 0);
+        if (left > longest) longest = left;
+      });
+    } catch (e) { return 0; }
+    return Math.min(this._FX_BEAT_CAP_MS, Math.max(0, Math.round(longest)));
+  },
+  // How long until the track has played everything it holds — what the ENGINE
+  // waits on before it starts the next lane (step 2: one timeline).
+  fxRemainingMs(tr) {
+    const D = this._fxDirector();
+    const t = tr || 'combat';
+    const now = Date.now();
+    const playing = Math.max(0, (D.until && D.until[t] || 0) - now);
+    const queued = (D[t] || []).length * (this._FX_SPACING_MS[t] || 240);
+    return D.busy[t] ? playing + queued : 0;
+  },
   // Far behind: drop the purely cosmetic events first (a swing lunge, a drain
   // shimmer), keeping every hit, kill and announcement.
   _fxMergeCosmetic(q) {
