@@ -3818,6 +3818,9 @@ const UI = {
     // twice is safe; the second call is a no-op while ducking is active.
     // User spec: "when you hover a card I'd like the main menu music
     // to be quieter so it isn't muddy."
+    _VOICE_PRIORITY: { voiceLine: 3, play: 2, ability: 1 },
+    _VOICE_UNDER_GAIN: 0.35,
+    voiceStats() { return Object.assign({ cues: 0, replaced: 0, under: 0 }, this._voiceStat || {}); },
     _MUSIC_DUCK_FACTOR: 0.18,  // duck to ~18% of normal level (-15 dB)
     // 2026-05-19 — dropped 600 → 220 ms so the bed responds at the
     // same pace as the hover audio's 120 ms fade-in. With a 600 ms
@@ -4396,7 +4399,35 @@ const UI = {
       const cat = (opts && opts.category) || (isHover ? 'hover' : 'effect');
       const catGain = this._CATEGORY_GAIN[cat] ?? 1.0;
       const entryGain = (opts && opts.gain) ? opts.gain : 1.0;
-      const vol = Math.max(0, Math.min(1, (UI.settings.sfxVolume ?? 0.55) * catGain * entryGain));
+      let vol = Math.max(0, Math.min(1, (UI.settings.sfxVolume ?? 0.55) * catGain * entryGain));
+      // THE VOICE CHANNEL — one foreground cue owns it at a time (spec:
+      // docs/superpowers/specs/2026-11-10-presentation-director-design.md).
+      // Priority: voice line 3 > card play / spawn / kill 2 > ability 1.
+      //   newer, equal priority  -> takes the channel; the old cue fades out
+      //                             (two play cues used to overlap at 60/100,
+      //                             which is the garble a voice line got lost in)
+      //   higher priority        -> takes the channel; the old cue is ducked below
+      //   lower priority         -> plays UNDER the current cue at 35%, never cut
+      const _VPRI = this._VOICE_PRIORITY;
+      if (!isHover && _VPRI[cat]) {
+        const pri = _VPRI[cat];
+        const cur = this._voiceNow;
+        const curLive = cur && cur.el && cur.el !== pick && !cur.el.paused && !cur.el.ended;
+        if (curLive && pri < cur.pri) {
+          vol *= this._VOICE_UNDER_GAIN;                 // under the current owner
+          pick._voiceUnder = true;
+        } else {
+          if (curLive && pri === cur.pri) {
+            try { this._fadeToPauseAtPosition(cur.el, 250); } catch (e) {}
+          }
+          pick._voiceUnder = false;
+          this._voiceNow = { el: pick, pri, at: Date.now() };
+        }
+        this._voiceStat = this._voiceStat || { cues: 0, replaced: 0, under: 0 };
+        this._voiceStat.cues++;
+        if (curLive && pri === cur.pri) this._voiceStat.replaced++;
+        if (pick._voiceUnder) this._voiceStat.under++;
+      }
       // Tag the audio element with its category so other code paths
       // (voice-first ducking below) can decide who-ducks-who.
       pick._sfxCategory = cat;
@@ -4416,7 +4447,9 @@ const UI = {
           this._clearFadeTimers(other, '_voiceDuckInterval');
           // Duck to 60% of current — supporting effects step back so
           // the play moment lands cleanly.
-          const tgt = other._sfxPreDuck * 0.60;
+          // A voice line pulls everything else down to 35% (was 60%): it is the
+          // one cue the player must not miss.
+          const tgt = other._sfxPreDuck * (cat === 'voiceLine' ? this._VOICE_UNDER_GAIN : 0.60);
           this._fadeVolume(other, tgt, 150, '_voiceDuckInterval');
           clearTimeout(other._sfxRestoreTimer);
           other._sfxRestoreTimer = setTimeout(() => {
@@ -13269,485 +13302,596 @@ const UI = {
     try { this.sfx.playCardSfx(name, 'attack'); } catch (e) {}
   },
 
+  // THE PRESENTATION DIRECTOR (spec: docs/superpowers/specs/2026-11-10-
+  // presentation-director-design.md). The engine resolves instantly and emits
+  // events; this decides WHEN each one plays. It used to play every event it was
+  // handed in the same frame, so a burst — a guest receiving a whole combat in
+  // one broadcast, an area hit, a chain — collapsed into one frame and read as
+  // skipped. Measured first: the 60-event cap was not losing them (Game.fxStats).
   showDamageFloats() {
     const events = Game.flushDmg();
+    if (events.length) this._fxDirect(events);
+  },
+
+  // Which track an event plays on. Anything not listed plays immediately,
+  // exactly as before — sounds, relayed cinematics (they keep their own pacing,
+  // _queueSigFx), and any type added later until someone decides otherwise.
+  _FX_TRACKS: {
+    combat: ['swing', 'hit', 'hpHit', 'block', 'blocked', 'armor', 'evade', 'heal', 'move',
+             'enterAndDie', 'blockDrain', 'artWeapon', 'laneVoid'],
+    announce: ['trickReveal', 'discardReveal', 'envReveal', 'titan', 'legendary', 'ballyhoo',
+               'shadowman', 'ironGiantSave'],
+  },
+  // Cosmetic beats the catch-up may merge away when far behind. Never hits,
+  // kills or announcements.
+  _FX_COSMETIC: { swing: 1, blockDrain: 1, artWeapon: 1 },
+  _FX_SPACING_MS: { combat: 240, announce: 700 },
+  _fxTrackOf(ev) {
+    if (!this._fxTrackMap) {
+      const m = {};
+      Object.keys(this._FX_TRACKS).forEach(t => this._FX_TRACKS[t].forEach(ty => { m[ty] = t; }));
+      this._fxTrackMap = m;
+    }
+    return (ev && this._fxTrackMap[ev.type]) || 'immediate';
+  },
+  // One BEAT = what happens at the same instant. Consecutive events from the
+  // same attacker (its swing, then the hits it lands — an area hit included)
+  // are one beat; with no attacker, consecutive events of the same type are.
+  _fxSameBeat(a, b) {
+    if (!a || !b) return false;
+    if (a.attackerId != null && a.attackerId === b.attackerId) return true;
+    if (a.type === 'swing' && a.cardId != null && a.cardId === b.attackerId) return true;
+    return a.attackerId == null && b.attackerId == null && a.type === b.type;
+  },
+  _fxDirector() {
+    return this._fxDir || (this._fxDir = {
+      combat: [], announce: [], busy: { combat: false, announce: false },
+      stat: { events: 0, beats: 0, paced: 0, merged: 0, maxBacklog: 0 },
+    });
+  },
+  fxDirectorStats() { const D = this._fxDirector(); return Object.assign({}, D.stat, { queued: D.combat.length + D.announce.length }); },
+  _fxReset() {
+    const D = this._fxDirector();
+    D.combat.length = 0; D.announce.length = 0; D.busy.combat = false; D.busy.announce = false;
+    clearTimeout(D._tCombat); clearTimeout(D._tAnnounce);
+  },
+  _fxDirect(events) {
+    const D = this._fxDirector();
+    D.stat.events += events.length;
+    const beats = { combat: [], announce: [] };
     for (const ev of events) {
-      // ---- FX-stream board events (System 3/3) — engine-emitted, replayed
-      // on every client including the MP guest (they ride state broadcasts).
-      // Signature FX relayed from the host (see installFxBridge). ONLY the
-      // guest replays these — the host already ran the animation live when its
-      // engine called the function, so replaying would double-fire it.
-      if (ev.type === 'sig') {
-        // Replay on any non-host online client — 1v1 guest AND the three
-        // non-host seats of a 2v2 room. The host already animated live.
-        // PACED, NOT DUMPED. The host resolves combat over several seconds on
-        // async timers but broadcasts ONCE, in _2v2PostCombat, after the whole
-        // battle is over. So the guest receives one snapshot carrying every
-        // queued FX event at once — and firing them all in a single frame is
-        // why combat "just skips" for the guest while the host watches it lane
-        // by lane. Owner: "the host sees the lane by lane attacks fine but it
-        // just skips for me."
-        // Spacing them out here is deliberately the GUEST-SIDE half of the fix:
-        // it changes playback timing only, and cannot touch host combat or any
-        // game state. A single relayed effect still plays instantly — the delay
-        // only appears once a batch arrives, which is exactly the combat case.
-        if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') this._queueSigFx(ev);
-        continue;
-      }
-      // 2v2 trick reveal relayed from the host (see Game.playTrick). Guests
-      // don't run the engine, so this FX event is their only reveal trigger;
-      // the host already showed it live and must not double-fire. `mine` is
-      // computed against the guest's own seat so their own plays read as "you".
-      if (ev.type === 'trickReveal') {
-        if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
-          const tt = Game.state && Game.state.twoVTwo;
-          const mine = !!(tt && ev.seat && ev.seat === tt.you);
-          try { if (this.sfx && this.sfx.playTrickSfx) this.sfx.playTrickSfx(ev.name, 'play'); } catch (e) {}
-          if (ev.name !== 'Time Stone' && this.showTrickReveal) {
-            // The payload has carried `seat` all along; it was only ever used
-            // for the mine/not-mine flip. Resolve it to the caster's name too.
-            let _who = null;
-            try { _who = (ev.seat && Game._2v2SeatName) ? Game._2v2SeatName(ev.seat) : null; } catch (e) {}
-            if (mine) _who = 'You';
-            try { this.showTrickReveal(ev.name, ev.desc || '', ev.cost, mine, _who); } catch (e) {}
-          }
-        }
-        continue;
-      }
-      // Discard-effect reveal relayed from the host — guests only, the host
-      // already showed it live in playCard's discard branch. Same shape as
-      // trickReveal: `mine` is computed against this client's own seat so your
-      // own discard reads as yours.
-      if (ev.type === 'discardReveal') {
-        if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
-          const tt = Game.state && Game.state.twoVTwo;
-          const mine = !!(tt && ev.seat && ev.seat === tt.you);
-          if (this.showCardReveal) {
-            try { this.showCardReveal(ev.name, ev.desc || '', ev.cost, mine, 'Discarded for Effect'); } catch (e) {}
-          }
-        }
-        continue;
-      }
-      // Shadow Man's two appearances, relayed to the seats that never run the
-      // engine — same shape as Ballyhoo's.
-      if (ev.type === 'shadowman') {
-        if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
-          try { if (this.showShadowMan) this.showShadowMan(ev.phase, null); } catch (e) {}
-        }
-        continue;
-      }
-      // …and each Wonder Weapon as it is handed over.
-      if (ev.type === 'wonderWeapon') {
-        if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
-          const def = this._trickDefByName(ev.weapon) || { name: ev.weapon, desc: '' };
-          try { if (this.showWonderWeapon) this.showWonderWeapon(ev.seat, def, ev.category || ''); } catch (e) {}
-        }
-        continue;
-      }
-      // MC Ballyhoo's arrival, relayed to the seats that do not run the engine.
-      if (ev.type === 'ballyhoo') {
-        if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
-          // The same arrival the host just ran — music, lead-in and all.
-          try { if (this.showBallyhoo) this.showBallyhoo(); } catch (e) {}
-        }
-        continue;
-      }
-      // Brainiac's scan — guests only (the caster's own client already showed it
-      // live). Everyone is told a scan is RUNNING and whose hand it reads; the
-      // cards themselves stay with the caster. Same shape as trickReveal.
-      if (ev.type === 'brainiacScan') {
-        if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
-          const tt = Game.state && Game.state.twoVTwo;
-          const mine = !!(tt && ev.seat && ev.seat === tt.you);
-          if (this.showCardReveal) {
-            try { this.showCardReveal(ev.name || 'Brainiac', ev.desc || '', ev.cost, mine, ev.label || ''); } catch (e) {}
-          }
-        }
-        continue;
-      }
-      // Brainiac per-draw reveal — the ONE card the watched hand just drew, at
-      // its reduced stats, shown ONLY on the caster's screen. Unlike the scan
-      // announce above, the host does NOT show this live (the engine emits it for
-      // every seat), so it fires for whichever client owns ev.seat — host or
-      // guest alike. Nobody else sees the private read.
-      if (ev.type === 'brainiacDraw') {
+      const tr = this._fxTrackOf(ev);
+      if (tr === 'immediate') { this._fxPlayOneSafe(ev); continue; }
+      const list = beats[tr];
+      const last = list[list.length - 1];
+      if (tr === 'combat' && last && this._fxSameBeat(last[last.length - 1], ev)) last.push(ev);
+      else list.push([ev]);
+    }
+    ['combat', 'announce'].forEach(tr => {
+      const incoming = beats[tr];
+      if (!incoming.length) return;
+      const q = D[tr];
+      // CALM PATH — an idle track handed one beat plays it this frame, so the
+      // host's normal play (events trickling in one combat step at a time)
+      // looks exactly as it always did.
+      if (!D.busy[tr] && !q.length && incoming.length === 1) { this._fxPlayBeat(incoming[0]); D.stat.beats++; return; }
+      q.push(...incoming);
+      D.stat.paced += incoming.length;
+      if (tr === 'combat' && q.length > 24) this._fxMergeCosmetic(q);
+      if (q.length > D.stat.maxBacklog) D.stat.maxBacklog = q.length;
+      if (!D.busy[tr]) this._fxPump(tr);
+    });
+  },
+  // Play the next beat, then wait. The wait SHRINKS as the backlog grows
+  // (x1 at an empty queue, up to x2.5) — catch up by playing faster, not by
+  // throwing beats away.
+  _fxPump(tr) {
+    const D = this._fxDirector();
+    const q = D[tr];
+    const beat = q.shift();
+    if (!beat) { D.busy[tr] = false; return; }
+    D.busy[tr] = true;
+    this._fxPlayBeat(beat);
+    D.stat.beats++;
+    const scale = Math.min(2.5, 1 + q.length / 6);
+    const wait = Math.round((this._FX_SPACING_MS[tr] || 240) / scale);
+    const key = tr === 'combat' ? '_tCombat' : '_tAnnounce';
+    D[key] = setTimeout(() => this._fxPump(tr), wait);
+  },
+  _fxPlayBeat(beat) { for (const ev of beat) this._fxPlayOneSafe(ev); },
+  // Far behind: drop the purely cosmetic events first (a swing lunge, a drain
+  // shimmer), keeping every hit, kill and announcement.
+  _fxMergeCosmetic(q) {
+    const D = this._fxDirector();
+    for (let i = q.length - 1; i >= 0; i--) {
+      const kept = q[i].filter(ev => !this._FX_COSMETIC[ev.type]);
+      D.stat.merged += q[i].length - kept.length;
+      if (kept.length) q[i] = kept; else q.splice(i, 1);
+    }
+  },
+  // One failing effect must not take the rest of its batch with it (the old
+  // single loop aborted on the first throw).
+  _fxPlayOneSafe(ev) {
+    try { this._fxPlayOne(ev); } catch (e) { if (typeof console !== 'undefined') console.error('[fx]', ev && ev.type, e); }
+  },
+  // What each event DOES — the dispatcher body, moved here unchanged (each
+  // `continue` of the old loop is a `return`).
+  _fxPlayOne(ev) {
+    // ---- FX-stream board events (System 3/3) — engine-emitted, replayed
+    // on every client including the MP guest (they ride state broadcasts).
+    // Signature FX relayed from the host (see installFxBridge). ONLY the
+    // guest replays these — the host already ran the animation live when its
+    // engine called the function, so replaying would double-fire it.
+    if (ev.type === 'sig') {
+      // Replay on any non-host online client — 1v1 guest AND the three
+      // non-host seats of a 2v2 room. The host already animated live.
+      // PACED, NOT DUMPED. The host resolves combat over several seconds on
+      // async timers but broadcasts ONCE, in _2v2PostCombat, after the whole
+      // battle is over. So the guest receives one snapshot carrying every
+      // queued FX event at once — and firing them all in a single frame is
+      // why combat "just skips" for the guest while the host watches it lane
+      // by lane. Owner: "the host sees the lane by lane attacks fine but it
+      // just skips for me."
+      // Spacing them out here is deliberately the GUEST-SIDE half of the fix:
+      // it changes playback timing only, and cannot touch host combat or any
+      // game state. A single relayed effect still plays instantly — the delay
+      // only appears once a batch arrives, which is exactly the combat case.
+      if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') this._queueSigFx(ev);
+      return;
+    }
+    // 2v2 trick reveal relayed from the host (see Game.playTrick). Guests
+    // don't run the engine, so this FX event is their only reveal trigger;
+    // the host already showed it live and must not double-fire. `mine` is
+    // computed against the guest's own seat so their own plays read as "you".
+    if (ev.type === 'trickReveal') {
+      if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
         const tt = Game.state && Game.state.twoVTwo;
-        if (tt && ev.seat && ev.seat === tt.you && ev.card && this._fxBrainiacScan) {
-          try { this._fxBrainiacScan([ev.card], ev.who || 'Opponent', 'drew a card', false); } catch (e) {}
+        const mine = !!(tt && ev.seat && ev.seat === tt.you);
+        try { if (this.sfx && this.sfx.playTrickSfx) this.sfx.playTrickSfx(ev.name, 'play'); } catch (e) {}
+        if (ev.name !== 'Time Stone' && this.showTrickReveal) {
+          // The payload has carried `seat` all along; it was only ever used
+          // for the mine/not-mine flip. Resolve it to the caster's name too.
+          let _who = null;
+          try { _who = (ev.seat && Game._2v2SeatName) ? Game._2v2SeatName(ev.seat) : null; } catch (e) {}
+          if (mine) _who = 'You';
+          try { this.showTrickReveal(ev.name, ev.desc || '', ev.cost, mine, _who); } catch (e) {}
         }
-        continue;
       }
-      // Iron Giant sacrifice reveal — guests only (the host already showed it
-      // live in doSave). Mirrors trickReveal: audio cue + the card reveal.
-      if (ev.type === 'ironGiantSave') {
-        if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
-          const tt = Game.state && Game.state.twoVTwo;
-          let mine = false;
-          if (tt && tt.online) {
-            mine = (!!ev.seat && ev.seat === tt.you) ||
-                   !!(Game._2v2TeamSide && tt.players && tt.players[tt.you] &&
-                      Game._2v2TeamSide[tt.players[tt.you].team] === ev.owner);
-          } else {
-            mine = (ev.owner === 'player');
-          }
-          try { if (this.sfx && this.sfx.playCardSfx) this.sfx.playCardSfx('Iron Giant', 'ability'); } catch (e) {}
-          if (this.showCardReveal) {
-            try { this.showCardReveal('Iron Giant', (ev.saved ? ev.saved + ' survives — all enemies take 1.' : ''), null, mine, 'Iron Giant Sacrificed!'); } catch (e) {}
-          }
+      return;
+    }
+    // Discard-effect reveal relayed from the host — guests only, the host
+    // already showed it live in playCard's discard branch. Same shape as
+    // trickReveal: `mine` is computed against this client's own seat so your
+    // own discard reads as yours.
+    if (ev.type === 'discardReveal') {
+      if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
+        const tt = Game.state && Game.state.twoVTwo;
+        const mine = !!(tt && ev.seat && ev.seat === tt.you);
+        if (this.showCardReveal) {
+          try { this.showCardReveal(ev.name, ev.desc || '', ev.cost, mine, 'Discarded for Effect'); } catch (e) {}
         }
-        continue;
       }
-      if (ev.type === 'titan') {
-        const tEl = this.board && this.board.querySelector(`.card-slot .card[data-card-id="${ev.cardId}"]`);
-        if (tEl) this.fxTitanEntrance(tEl, ev.owner, ev.cardId, ev.name);
-        continue;
+      return;
+    }
+    // Shadow Man's two appearances, relayed to the seats that never run the
+    // engine — same shape as Ballyhoo's.
+    if (ev.type === 'shadowman') {
+      if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
+        try { if (this.showShadowMan) this.showShadowMan(ev.phase, null); } catch (e) {}
       }
-      if (ev.type === 'legendary') {
-        const lEl = this.board && this.board.querySelector(`.card-slot .card[data-card-id="${ev.cardId}"]`);
-        this.fxLegendaryEntrance(lEl, ev.owner, ev.cardId, ev.name);
-        continue;
+      return;
+    }
+    // …and each Wonder Weapon as it is handed over.
+    if (ev.type === 'wonderWeapon') {
+      if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
+        const def = this._trickDefByName(ev.weapon) || { name: ev.weapon, desc: '' };
+        try { if (this.showWonderWeapon) this.showWonderWeapon(ev.seat, def, ev.category || ''); } catch (e) {}
       }
-      // Status cue (Freeze / Fear / Mind Control) relayed from the host — guests
-      // only, the host already played it live at the engine call (_statusSfx).
-      if (ev.type === 'sfx') {
-        if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') this._replaySfx(ev);
-        continue;
+      return;
+    }
+    // MC Ballyhoo's arrival, relayed to the seats that do not run the engine.
+    if (ev.type === 'ballyhoo') {
+      if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
+        // The same arrival the host just ran — music, lead-in and all.
+        try { if (this.showBallyhoo) this.showBallyhoo(); } catch (e) {}
       }
-      // A SWING HAPPENED — the attacker's own cue, on the beat its side owns.
-      // Emitted by Game.applyCombatDamage, which is the one door every swing
-      // goes through, so this fires whether the hit lands, is dodged, is
-      // absorbed, or kills. It used to hang off the 'hit' event in two separate
-      // branches below, which meant it went silent on exactly the swings a
-      // player most wants to hear. Riding the FX stream also means a guest
-      // hears it — they never run the engine line.
-      if (ev.type === 'swing') {
-        const beat = (this._reducedMotion && this._reducedMotion()) ? 0 : this._swingBeatMs(ev.owner);
-        if (beat > 0) {
-          this._bookLaneAudioUntil(beat);
-          setTimeout(() => this._playAttackerCue(ev.attackerId, ev.name), beat);
+      return;
+    }
+    // Brainiac's scan — guests only (the caster's own client already showed it
+    // live). Everyone is told a scan is RUNNING and whose hand it reads; the
+    // cards themselves stay with the caster. Same shape as trickReveal.
+    if (ev.type === 'brainiacScan') {
+      if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
+        const tt = Game.state && Game.state.twoVTwo;
+        const mine = !!(tt && ev.seat && ev.seat === tt.you);
+        if (this.showCardReveal) {
+          try { this.showCardReveal(ev.name || 'Brainiac', ev.desc || '', ev.cost, mine, ev.label || ''); } catch (e) {}
+        }
+      }
+      return;
+    }
+    // Brainiac per-draw reveal — the ONE card the watched hand just drew, at
+    // its reduced stats, shown ONLY on the caster's screen. Unlike the scan
+    // announce above, the host does NOT show this live (the engine emits it for
+    // every seat), so it fires for whichever client owns ev.seat — host or
+    // guest alike. Nobody else sees the private read.
+    if (ev.type === 'brainiacDraw') {
+      const tt = Game.state && Game.state.twoVTwo;
+      if (tt && ev.seat && ev.seat === tt.you && ev.card && this._fxBrainiacScan) {
+        try { this._fxBrainiacScan([ev.card], ev.who || 'Opponent', 'drew a card', false); } catch (e) {}
+      }
+      return;
+    }
+    // Iron Giant sacrifice reveal — guests only (the host already showed it
+    // live in doSave). Mirrors trickReveal: audio cue + the card reveal.
+    if (ev.type === 'ironGiantSave') {
+      if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
+        const tt = Game.state && Game.state.twoVTwo;
+        let mine = false;
+        if (tt && tt.online) {
+          mine = (!!ev.seat && ev.seat === tt.you) ||
+                 !!(Game._2v2TeamSide && tt.players && tt.players[tt.you] &&
+                    Game._2v2TeamSide[tt.players[tt.you].team] === ev.owner);
         } else {
-          this._playAttackerCue(ev.attackerId, ev.name);
+          mine = (ev.owner === 'player');
         }
-        continue;
-      }
-      if (ev.type === 'statusSfx') {
-        if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
-          try { if (this.sfx && this.sfx.play && ev.sound) this.sfx.play(ev.sound); } catch (e) {}
+        try { if (this.sfx && this.sfx.playCardSfx) this.sfx.playCardSfx('Iron Giant', 'ability'); } catch (e) {}
+        if (this.showCardReveal) {
+          try { this.showCardReveal('Iron Giant', (ev.saved ? ev.saved + ' survives — all enemies take 1.' : ''), null, mine, 'Iron Giant Sacrificed!'); } catch (e) {}
         }
-        continue;
       }
-      // Effect cue relayed from the host — the event fanfares (Jurassic Park's
-      // welcome, the Saw line, a Cog VP's theme) are fired from engine code, so
-      // a guest, who never runs the engine, heard none of them. Guests ONLY:
-      // the host already played it live inside Game._effectSfx.
-      if (ev.type === 'effectSfx') {
-        if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
-          try { if (this.sfx && this.sfx.playEffect && ev.sound) this.sfx.playEffect(ev.sound); } catch (e) {}
+      return;
+    }
+    if (ev.type === 'titan') {
+      const tEl = this.board && this.board.querySelector(`.card-slot .card[data-card-id="${ev.cardId}"]`);
+      if (tEl) this.fxTitanEntrance(tEl, ev.owner, ev.cardId, ev.name);
+      return;
+    }
+    if (ev.type === 'legendary') {
+      const lEl = this.board && this.board.querySelector(`.card-slot .card[data-card-id="${ev.cardId}"]`);
+      this.fxLegendaryEntrance(lEl, ev.owner, ev.cardId, ev.name);
+      return;
+    }
+    // Status cue (Freeze / Fear / Mind Control) relayed from the host — guests
+    // only, the host already played it live at the engine call (_statusSfx).
+    if (ev.type === 'sfx') {
+      if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') this._replaySfx(ev);
+      return;
+    }
+    // A SWING HAPPENED — the attacker's own cue, on the beat its side owns.
+    // Emitted by Game.applyCombatDamage, which is the one door every swing
+    // goes through, so this fires whether the hit lands, is dodged, is
+    // absorbed, or kills. It used to hang off the 'hit' event in two separate
+    // branches below, which meant it went silent on exactly the swings a
+    // player most wants to hear. Riding the FX stream also means a guest
+    // hears it — they never run the engine line.
+    if (ev.type === 'swing') {
+      const beat = (this._reducedMotion && this._reducedMotion()) ? 0 : this._swingBeatMs(ev.owner);
+      if (beat > 0) {
+        this._bookLaneAudioUntil(beat);
+        setTimeout(() => this._playAttackerCue(ev.attackerId, ev.name), beat);
+      } else {
+        this._playAttackerCue(ev.attackerId, ev.name);
+      }
+      return;
+    }
+    if (ev.type === 'statusSfx') {
+      if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
+        try { if (this.sfx && this.sfx.play && ev.sound) this.sfx.play(ev.sound); } catch (e) {}
+      }
+      return;
+    }
+    // Effect cue relayed from the host — the event fanfares (Jurassic Park's
+    // welcome, the Saw line, a Cog VP's theme) are fired from engine code, so
+    // a guest, who never runs the engine, heard none of them. Guests ONLY:
+    // the host already played it live inside Game._effectSfx.
+    if (ev.type === 'effectSfx') {
+      if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
+        try { if (this.sfx && this.sfx.playEffect && ev.sound) this.sfx.playEffect(ev.sound); } catch (e) {}
+      }
+      return;
+    }
+    if (ev.type === 'envReveal') {
+      this.fxEnvReveal(ev.lane, ev.name);
+      return;
+    }
+    if (ev.type === 'enterAndDie') {
+      this._fxEnterAndDie(ev);
+      return;
+    }
+    if (ev.type === 'move') {
+      this._fxCardSlide(ev);
+      return;
+    }
+    if (ev.type === 'laneVoid') {
+      this._fxLaneVoid(ev);
+      return;
+    }
+    if (ev.type === 'artWeapon') {
+      const wEl = document.querySelector(`[data-card-id="${ev.cardId}"]`);
+      if (wEl) this._fxArtWeapon(ev.weapon, wEl);
+      return;
+    }
+    if (ev.type === 'blockDrain') {
+      this.fxBlockAbsorb(ev.owner);
+      return;
+    }
+    // (b) Block-fill spark — fire when a 'block' event credits the
+    // block meter (damage absorbed by the meter).
+    if (ev.type === 'block' && ev.cardId) {
+      const card = document.querySelector(`[data-card-id="${ev.cardId}"]`);
+      const side = card && card.classList.contains('ally-card') ? 'player' : 'ai';
+      this.spawnBlockSpark(side);
+      // One-time teaching — the first time YOUR meter credits, explain the
+      // mechanic (a tutorial-skipper otherwise just sees a gold circle fill).
+      if (side === 'player') this._maybeTeachBlockMeter();
+    }
+    if (ev.type === 'blocked') {
+      // VIEWER-RELATIVE SIDE. ev.owner is the ABSOLUTE side whose meter fired
+      // (Team A = 'player', Team B = 'ai'); every side-anchored effect below
+      // has to land on the bar the VIEWER sees it on, or in 2v2 the whole
+      // block animation played on the wrong half of the screen (a guest on
+      // Team B saw their own block flash the enemy bar). hpHit already routes
+      // through _fxDomSide for exactly this; the block FX never did.
+      const bside = this._fxDomSide ? this._fxDomSide(ev.owner) : ev.owner;
+      // The energy-shield activation cue (audio/block-full.mp3) — the meter
+      // just turned this hit aside. Its own cue so the triple-multikill reuse
+      // of 'blockFull' stays the procedural chord.
+      this.sfx.play('blockShield');
+      // Haptic for the block trigger — distinctive punch so the
+      // player feels the moment their meter saved them.
+      this._haptic('block');
+      // THE BIG, UNMISSABLE ONE. A hex energy-shield flares up over the bar
+      // that blocked, throws a shockwave ring, and drops a "BLOCKED!" title —
+      // so the moment reads at a glance even across a busy 2v2 board, matching
+      // the shield-activation sound. (User: "make it have an animation too so
+      // people know.")
+      this.fxBlockShield(bside);
+      // Flash the HP bar
+      const fill = document.getElementById(bside === 'player' ? 'player-hp-fill' : 'ai-hp-fill');
+      if (fill) { fill.classList.add('hp-flash'); setTimeout(() => fill.classList.remove('hp-flash'), 500); }
+      // Shield ring on the HP bar — the meter was spent absorbing this.
+      this.fxBlockAbsorb(bside);
+      // Charge burst on the block circle itself — the ring flares and
+      // radiates shock rings as it discharges into the free Trick.
+      this.fxBlockCharge(bside);
+      return;
+    }
+    if (ev.type === 'hpHit') {
+      // 2v2: map the absolute owner ('player'=Team A / 'ai'=Team B) to the
+      // viewer-relative bar so a hit flashes the correct side (no-op in 1v1).
+      const dside = this._fxDomSide(ev.owner);
+      if (ev.amount > 0) this.sfx.play('hpHit');
+      // Face-damage vignette — red pulse from the hurt side's edge.
+      if (ev.amount > 0) this.fxFaceDamage(dside);
+      // Flash the HP bar
+      const fill = document.getElementById(dside === 'player' ? 'player-hp-fill' : 'ai-hp-fill');
+      if (fill) { fill.classList.add('hp-flash'); setTimeout(() => fill.classList.remove('hp-flash'), 500); }
+      // (j) HP depletion shards
+      this.spawnHpShards(dside, ev.amount || 0);
+      // Shake the HP number itself — localized hit feedback
+      const hpText = document.getElementById(dside === 'player' ? 'player-health' : 'ai-health');
+      if (hpText && ev.amount > 0) {
+        hpText.classList.remove('hp-shake');
+        void hpText.offsetWidth; // force reflow so the animation replays
+        hpText.classList.add('hp-shake');
+        setTimeout(() => hpText.classList.remove('hp-shake'), 300);
+      }
+      // Screen shake — magnitude scales with damage. Heavy = ≥30% of
+      // max HP OR ≥10 raw damage (catches both early-game small-bar
+      // chip and late-game massive blasts). Light = ≤2 damage (chip).
+      if (ev.amount > 0) {
+        const maxHp = dside === 'player'
+          ? (Game.state.player && Game.state.player.maxHealth) || 30
+          : (Game.state.ai && Game.state.ai.maxHealth) || 30;
+        const heavy = ev.amount >= 10 || ev.amount >= maxHp * 0.30;
+        const light = ev.amount <= 2;
+        this._screenShake(heavy ? 'heavy' : light ? 'light' : 'medium');
+      }
+      // Floating damage number on the health bar
+      const container = fill ? fill.closest('.health-container') : null;
+      if (container && ev.amount > 0) {
+        container.style.position = 'relative';
+        const float = document.createElement('div');
+        float.className = 'hp-dmg-float';
+        float.textContent = `-${ev.amount}`;
+        container.appendChild(float);
+        setTimeout(() => float.remove(), 1200);
+        // Pro polish: leading-edge brightness pulse on the bar itself
+        // when damage lands. Reads as the bar "registering" the hit
+        // alongside the floater + width drop.
+        this.pulseHpEdge(dside);
+      }
+      return;
+    }
+    // Hero heal — the mirror of hpHit above. Same health-container float,
+    // green and rising, so lifesteal and heal effects are finally legible
+    // instead of the bar quietly growing.
+    if (ev.type === 'heal' && ev.cardId == null) {
+      // ROUTE THROUGH _fxDomSide like hpHit does. Using ev.owner raw put the
+      // heal float on the WRONG bar for any viewer whose own team isn't the
+      // 'player' side (every 2v2 team-B seat, and the 1v1 guest): the caster's
+      // +2 floated over the ENEMY bar while their real health quietly filled on
+      // their own bar — which reads as BOTH teams healing 2. (User: "symbiote
+      // spider-man is healing 2 for both teams — make sure it's only the team
+      // that played him.") Only the caster's team is ever healed; this just
+      // lands the float on the bar that actually changed.
+      const hside = this._fxDomSide ? this._fxDomSide(ev.owner) : ev.owner;
+      const hfill = document.getElementById(hside === 'player' ? 'player-hp-fill' : 'ai-hp-fill');
+      const hcontainer = hfill ? hfill.closest('.health-container') : null;
+      if (hcontainer && ev.amount > 0) {
+        hcontainer.style.position = 'relative';
+        const hf = document.createElement('div');
+        hf.className = 'hp-dmg-float hp-heal-float';
+        hf.textContent = `+${ev.amount}`;
+        hcontainer.appendChild(hf);
+        setTimeout(() => hf.remove(), 1200);
+        if (hfill) {
+          hfill.classList.add('hp-heal-flash');
+          setTimeout(() => hfill.classList.remove('hp-heal-flash'), 500);
         }
-        continue;
       }
-      if (ev.type === 'envReveal') {
-        this.fxEnvReveal(ev.lane, ev.name);
-        continue;
-      }
-      if (ev.type === 'enterAndDie') {
-        this._fxEnterAndDie(ev);
-        continue;
-      }
-      if (ev.type === 'move') {
-        this._fxCardSlide(ev);
-        continue;
-      }
-      if (ev.type === 'laneVoid') {
-        this._fxLaneVoid(ev);
-        continue;
-      }
-      if (ev.type === 'artWeapon') {
-        const wEl = document.querySelector(`[data-card-id="${ev.cardId}"]`);
-        if (wEl) this._fxArtWeapon(ev.weapon, wEl);
-        continue;
-      }
-      if (ev.type === 'blockDrain') {
-        this.fxBlockAbsorb(ev.owner);
-        continue;
-      }
-      // (b) Block-fill spark — fire when a 'block' event credits the
-      // block meter (damage absorbed by the meter).
-      if (ev.type === 'block' && ev.cardId) {
-        const card = document.querySelector(`[data-card-id="${ev.cardId}"]`);
-        const side = card && card.classList.contains('ally-card') ? 'player' : 'ai';
-        this.spawnBlockSpark(side);
-        // One-time teaching — the first time YOUR meter credits, explain the
-        // mechanic (a tutorial-skipper otherwise just sees a gold circle fill).
-        if (side === 'player') this._maybeTeachBlockMeter();
-      }
-      if (ev.type === 'blocked') {
-        // VIEWER-RELATIVE SIDE. ev.owner is the ABSOLUTE side whose meter fired
-        // (Team A = 'player', Team B = 'ai'); every side-anchored effect below
-        // has to land on the bar the VIEWER sees it on, or in 2v2 the whole
-        // block animation played on the wrong half of the screen (a guest on
-        // Team B saw their own block flash the enemy bar). hpHit already routes
-        // through _fxDomSide for exactly this; the block FX never did.
-        const bside = this._fxDomSide ? this._fxDomSide(ev.owner) : ev.owner;
-        // The energy-shield activation cue (audio/block-full.mp3) — the meter
-        // just turned this hit aside. Its own cue so the triple-multikill reuse
-        // of 'blockFull' stays the procedural chord.
-        this.sfx.play('blockShield');
-        // Haptic for the block trigger — distinctive punch so the
-        // player feels the moment their meter saved them.
-        this._haptic('block');
-        // THE BIG, UNMISSABLE ONE. A hex energy-shield flares up over the bar
-        // that blocked, throws a shockwave ring, and drops a "BLOCKED!" title —
-        // so the moment reads at a glance even across a busy 2v2 board, matching
-        // the shield-activation sound. (User: "make it have an animation too so
-        // people know.")
-        this.fxBlockShield(bside);
-        // Flash the HP bar
-        const fill = document.getElementById(bside === 'player' ? 'player-hp-fill' : 'ai-hp-fill');
-        if (fill) { fill.classList.add('hp-flash'); setTimeout(() => fill.classList.remove('hp-flash'), 500); }
-        // Shield ring on the HP bar — the meter was spent absorbing this.
-        this.fxBlockAbsorb(bside);
-        // Charge burst on the block circle itself — the ring flares and
-        // radiates shock rings as it discharges into the free Trick.
-        this.fxBlockCharge(bside);
-        continue;
-      }
-      if (ev.type === 'hpHit') {
-        // 2v2: map the absolute owner ('player'=Team A / 'ai'=Team B) to the
-        // viewer-relative bar so a hit flashes the correct side (no-op in 1v1).
-        const dside = this._fxDomSide(ev.owner);
-        if (ev.amount > 0) this.sfx.play('hpHit');
-        // Face-damage vignette — red pulse from the hurt side's edge.
-        if (ev.amount > 0) this.fxFaceDamage(dside);
-        // Flash the HP bar
-        const fill = document.getElementById(dside === 'player' ? 'player-hp-fill' : 'ai-hp-fill');
-        if (fill) { fill.classList.add('hp-flash'); setTimeout(() => fill.classList.remove('hp-flash'), 500); }
-        // (j) HP depletion shards
-        this.spawnHpShards(dside, ev.amount || 0);
-        // Shake the HP number itself — localized hit feedback
-        const hpText = document.getElementById(dside === 'player' ? 'player-health' : 'ai-health');
-        if (hpText && ev.amount > 0) {
-          hpText.classList.remove('hp-shake');
-          void hpText.offsetWidth; // force reflow so the animation replays
-          hpText.classList.add('hp-shake');
-          setTimeout(() => hpText.classList.remove('hp-shake'), 300);
-        }
-        // Screen shake — magnitude scales with damage. Heavy = ≥30% of
-        // max HP OR ≥10 raw damage (catches both early-game small-bar
-        // chip and late-game massive blasts). Light = ≤2 damage (chip).
-        if (ev.amount > 0) {
-          const maxHp = dside === 'player'
-            ? (Game.state.player && Game.state.player.maxHealth) || 30
-            : (Game.state.ai && Game.state.ai.maxHealth) || 30;
-          const heavy = ev.amount >= 10 || ev.amount >= maxHp * 0.30;
-          const light = ev.amount <= 2;
-          this._screenShake(heavy ? 'heavy' : light ? 'light' : 'medium');
-        }
-        // Floating damage number on the health bar
-        const container = fill ? fill.closest('.health-container') : null;
-        if (container && ev.amount > 0) {
-          container.style.position = 'relative';
-          const float = document.createElement('div');
-          float.className = 'hp-dmg-float';
-          float.textContent = `-${ev.amount}`;
-          container.appendChild(float);
-          setTimeout(() => float.remove(), 1200);
-          // Pro polish: leading-edge brightness pulse on the bar itself
-          // when damage lands. Reads as the bar "registering" the hit
-          // alongside the floater + width drop.
-          this.pulseHpEdge(dside);
-        }
-        continue;
-      }
-      // Hero heal — the mirror of hpHit above. Same health-container float,
-      // green and rising, so lifesteal and heal effects are finally legible
-      // instead of the bar quietly growing.
-      if (ev.type === 'heal' && ev.cardId == null) {
-        // ROUTE THROUGH _fxDomSide like hpHit does. Using ev.owner raw put the
-        // heal float on the WRONG bar for any viewer whose own team isn't the
-        // 'player' side (every 2v2 team-B seat, and the 1v1 guest): the caster's
-        // +2 floated over the ENEMY bar while their real health quietly filled on
-        // their own bar — which reads as BOTH teams healing 2. (User: "symbiote
-        // spider-man is healing 2 for both teams — make sure it's only the team
-        // that played him.") Only the caster's team is ever healed; this just
-        // lands the float on the bar that actually changed.
-        const hside = this._fxDomSide ? this._fxDomSide(ev.owner) : ev.owner;
-        const hfill = document.getElementById(hside === 'player' ? 'player-hp-fill' : 'ai-hp-fill');
-        const hcontainer = hfill ? hfill.closest('.health-container') : null;
-        if (hcontainer && ev.amount > 0) {
-          hcontainer.style.position = 'relative';
-          const hf = document.createElement('div');
-          hf.className = 'hp-dmg-float hp-heal-float';
-          hf.textContent = `+${ev.amount}`;
-          hcontainer.appendChild(hf);
-          setTimeout(() => hf.remove(), 1200);
-          if (hfill) {
-            hfill.classList.add('hp-heal-flash');
-            setTimeout(() => hfill.classList.remove('hp-heal-flash'), 500);
-          }
-        }
-        continue;
-      }
-      // Card-targeted events — find card element on board
-      const cardEl = document.querySelector(`[data-card-id="${ev.cardId}"]`);
-      if (!cardEl) {
-        // The card is already off the board — which is precisely what happens on
-        // a KILLING BLOW: the victim is removed before this runs, so `continue`
-        // silently threw away the whole beat and the most dramatic hit in the
-        // game landed with no flash, no shake, no freeze-frame, no sound. The
-        // node-anchored channels (flash / burst / knockback / chips / float)
-        // genuinely have nothing to attach to, but the BOARD-level ones don't
-        // need a node — fire those so a kill still registers as an event.
-        if (ev.type === 'hit') {
-          const tier = this._damageTier(ev.amount, ev.lethal);
-          const fx = this._TIER_FX[tier] || this._TIER_FX.medium;
-          // ON ITS OWN BEAT, same as the node-anchored branch below. A killing
-          // blow used to take this path IMMEDIATELY while the surviving side's
-          // hit waited for the impact frame, so the two halves of one exchange
-          // were heard 150ms apart in the wrong order — and the louder half was
-          // the kill.
-          const owner = this._attackerOwner(ev.attackerId);
-          const beat = ev.attackerId != null && !(this._reducedMotion && this._reducedMotion())
-            ? this._swingBeatMs(owner) : 0;
-          if (beat) this._bookLaneAudioUntil(beat);
-          const fire = () => {
-            if (fx.shake) this._screenShake(fx.shake);
-            if (fx.hitPause) this._hitPauseFreeze(fx.hitPause);
-            try { this.sfx.play('hit', fx.sfxGain, 0); } catch (e) {}
-            if (ev.amount > 0) this._haptic('hit');
-          };
-          if (beat) setTimeout(fire, beat); else fire();
-        }
-        continue;
-      }
-      // Defer the visual FX + damage number of a contested-lane combat hit
-      // to the lunge impact frame (~190ms) so they land ON contact. Splash /
-      // trick / ability hits (no attackerId, no lunge) and reduced-motion
-      // run inline. The float block below uses the SAME defer so a hit's
-      // number rises exactly when its flash blooms.
-      const _combatHit = ev.type === 'hit' && ev.attackerId != null
-        && !(this._reducedMotion && this._reducedMotion());
-      // …and WHICH beat it lands on is the attacker's side: the opponent's
-      // swing keeps the impact frame, the player's follows a gap behind it, so
-      // the two are heard as two events instead of one smear. See the note on
-      // COMBAT_SWING_GAP_MS — resolution order is untouched, only playback.
-      const _beatMs = _combatHit
-        ? this._swingBeatMs(this._attackerOwner(ev.attackerId))
-        : 0;
-      if (_combatHit) this._bookLaneAudioUntil(_beatMs);
-      const defer = _combatHit ? (fn) => setTimeout(fn, _beatMs) : (fn) => fn();
-      // Hit flash + strike burst ring + card shake — ALL magnitude-
-      // scaled. The tier classifier maps this hit's damage (and
-      // lethality) to a feedback intensity; every channel below reads
-      // its parameter from the shared _TIER_FX table so a 1-chip tap
-      // and a 9-damage lethal feel genuinely different.
+      return;
+    }
+    // Card-targeted events — find card element on board
+    const cardEl = document.querySelector(`[data-card-id="${ev.cardId}"]`);
+    if (!cardEl) {
+      // The card is already off the board — which is precisely what happens on
+      // a KILLING BLOW: the victim is removed before this runs, so `continue`
+      // silently threw away the whole beat and the most dramatic hit in the
+      // game landed with no flash, no shake, no freeze-frame, no sound. The
+      // node-anchored channels (flash / burst / knockback / chips / float)
+      // genuinely have nothing to attach to, but the BOARD-level ones don't
+      // need a node — fire those so a kill still registers as an event.
       if (ev.type === 'hit') {
         const tier = this._damageTier(ev.amount, ev.lethal);
         const fx = this._TIER_FX[tier] || this._TIER_FX.medium;
-        ev._popScale = fx.pop;   // read synchronously by the floating-number block
-        // The reactive bundle below is gated through defer() so a combat hit
-        // fires it at the impact frame, not the instant combat resolves.
-        defer(() => {
-          // Attack beam — laser line from attacker to target. Fires only
-          // when the attacker is known (direct combat hits). Skipped for
-          // splash/chain/trick damage where the attackerId is undefined.
-          if (ev.attackerId != null && ev.amount > 0) {
-            this._spawnAttackBeam(ev.attackerId, ev.cardId);
-          }
-          // Tiered flash — brightness peak + duration scale with tier.
-          cardEl.classList.add('hit-flash');
-          if (fx.flashCls) cardEl.classList.add(fx.flashCls);
-          cardEl.style.setProperty('--flash-ms', fx.flashMs + 'ms');
-          setTimeout(() => cardEl.classList.remove('hit-flash', 'hit-flash-heavy', 'hit-flash-lethal'), fx.flashMs);
-          // Chip-shedding particle burst — count scales with tier.
-          this.spawnHitChips(cardEl, fx.chips);
-          // Card recoil — jolt away from the attacker, distance by tier.
-          this._cardKnockback(cardEl, fx.knockback);
-          // Screen shake — light hits don't shake (fx.shake === null).
+        // ON ITS OWN BEAT, same as the node-anchored branch below. A killing
+        // blow used to take this path IMMEDIATELY while the surviving side's
+        // hit waited for the impact frame, so the two halves of one exchange
+        // were heard 150ms apart in the wrong order — and the louder half was
+        // the kill.
+        const owner = this._attackerOwner(ev.attackerId);
+        const beat = ev.attackerId != null && !(this._reducedMotion && this._reducedMotion())
+          ? this._swingBeatMs(owner) : 0;
+        if (beat) this._bookLaneAudioUntil(beat);
+        const fire = () => {
           if (fx.shake) this._screenShake(fx.shake);
-          // Lethal hit-pause — brief board freeze-frame on a kill.
           if (fx.hitPause) this._hitPauseFreeze(fx.hitPause);
-          // Stereo-pan the impact by the card's horizontal position so a
-          // left-lane and right-lane hit don't sound from the same spot.
-          let pan = 0;
-          const bd = this.board || document.getElementById('board');
-          if (bd && cardEl) {
-            const br = bd.getBoundingClientRect(), cr = cardEl.getBoundingClientRect();
-            if (br.width > 0) pan = Math.max(-0.5, Math.min(0.5, ((cr.left + cr.width / 2 - br.left) / br.width - 0.5)));
-          }
-          this.sfx.play('hit', fx.sfxGain, pan);
-          // (The attacker's own cue is NOT fired here any more — it belongs to
-          // the swing, not to the damage. See the 'swing' event above: hanging
-          // it off 'hit' meant it went silent on every Evade, Invincible,
-          // Damage Immunity and fully-absorbed Armor, which are exactly the
-          // swings a player most wants to hear.)
-          // Haptic — one honest tick per hit, either side.
+          try { this.sfx.play('hit', fx.sfxGain, 0); } catch (e) {}
           if (ev.amount > 0) this._haptic('hit');
-          // Concussive ring burst — size scales with tier via --burst-scale.
-          const burst = document.createElement('div');
-          burst.className = 'strike-burst';
-          burst.style.setProperty('--burst-scale', String(fx.burst));
-          cardEl.style.position = 'relative';
-          cardEl.appendChild(burst);
-          setTimeout(() => burst.remove(), 600);
-        });
+        };
+        if (beat) setTimeout(fire, beat); else fire();
       }
-      // Armor absorb — shield burst animation on the card + a metal
-      // "ting" system SFX so the deflection is audibly distinct from
-      // a normal hit. One cue per armor event; no per-card flavor.
-      if (ev.type === 'armor') {
-        cardEl.classList.add('armor-burst');
-        setTimeout(() => cardEl.classList.remove('armor-burst'), 700);
-        const ring = document.createElement('div');
-        ring.className = 'armor-ring';
-        ring.innerHTML = '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3 L34 8 V19 C34 28 20 36 20 36 C20 36 6 28 6 19 V8 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
-        cardEl.style.position = 'relative';
-        cardEl.appendChild(ring);
-        setTimeout(() => ring.remove(), 700);
-        this.sfx.play('armor');
-      }
-      // Evade whoosh — when a card dodges an incoming attack. System
-      // SFX (not per-card) so it reads consistently as "dodge" across
-      // every card that has Evade charges.
-      if (ev.type === 'evade') {
-        this.sfx.play('evade');
-      }
-      // Floating number — deferred to impact for combat hits (same defer as
-      // the FX bundle) so the "-N" rises as the flash blooms; immediate for
-      // everything else. Randomized horizontal offset + a per-card vertical
-      // stagger so stacked hits (splash + main + chain) stay legible.
+      return;
+    }
+    // Defer the visual FX + damage number of a contested-lane combat hit
+    // to the lunge impact frame (~190ms) so they land ON contact. Splash /
+    // trick / ability hits (no attackerId, no lunge) and reduced-motion
+    // run inline. The float block below uses the SAME defer so a hit's
+    // number rises exactly when its flash blooms.
+    const _combatHit = ev.type === 'hit' && ev.attackerId != null
+      && !(this._reducedMotion && this._reducedMotion());
+    // …and WHICH beat it lands on is the attacker's side: the opponent's
+    // swing keeps the impact frame, the player's follows a gap behind it, so
+    // the two are heard as two events instead of one smear. See the note on
+    // COMBAT_SWING_GAP_MS — resolution order is untouched, only playback.
+    const _beatMs = _combatHit
+      ? this._swingBeatMs(this._attackerOwner(ev.attackerId))
+      : 0;
+    if (_combatHit) this._bookLaneAudioUntil(_beatMs);
+    const defer = _combatHit ? (fn) => setTimeout(fn, _beatMs) : (fn) => fn();
+    // Hit flash + strike burst ring + card shake — ALL magnitude-
+    // scaled. The tier classifier maps this hit's damage (and
+    // lethality) to a feedback intensity; every channel below reads
+    // its parameter from the shared _TIER_FX table so a 1-chip tap
+    // and a 9-damage lethal feel genuinely different.
+    if (ev.type === 'hit') {
+      const tier = this._damageTier(ev.amount, ev.lethal);
+      const fx = this._TIER_FX[tier] || this._TIER_FX.medium;
+      ev._popScale = fx.pop;   // read synchronously by the floating-number block
+      // The reactive bundle below is gated through defer() so a combat hit
+      // fires it at the impact frame, not the instant combat resolves.
       defer(() => {
-        const float = document.createElement('div');
-        float.className = `dmg-float dmg-${ev.type}`;
-        if (ev.type === 'hit') float.textContent = `-${ev.amount}`;
-        else if (ev.type === 'evade') float.textContent = 'EVADE';
-        else if (ev.type === 'block') float.textContent = 'BLOCKED';
-        else if (ev.type === 'armor') float.textContent = 'ARMOR';
-        else if (ev.type === 'heal') float.textContent = `+${ev.amount}`;
-        // Magnitude pop — _popScale was stamped on the event by the hit
-        // handler above (1.0 tap → 1.7 lethal); non-hit events default 1.0.
-        const popScale = ev._popScale || 1.0;
-        float.style.setProperty('--pop-scale', String(popScale));
-        if (popScale >= 1.6) float.classList.add('dmg-float-lethal');
-        else if (popScale >= 1.35) float.classList.add('dmg-float-heavy');
-        const dx = (Math.random() * 26 - 13) | 0;
-        float.style.setProperty('--dx', dx + 'px');
-        // Vertical stagger — per-card float count in a 1.1s rolling window
-        // so multi-hit damage stacks readably instead of overlapping.
-        if (!this._dmgFloatStack) this._dmgFloatStack = new Map();
-        const stack = this._dmgFloatStack;
-        const key = ev.cardId;
-        const now = performance.now();
-        const slot = stack.get(key);
-        let stackIdx = 0;
-        if (slot && now - slot.t < 1100) stackIdx = slot.n + 1;
-        stack.set(key, { n: stackIdx, t: now });
-        float.style.setProperty('--stack-dy', (stackIdx * -14) + 'px');
+        // Attack beam — laser line from attacker to target. Fires only
+        // when the attacker is known (direct combat hits). Skipped for
+        // splash/chain/trick damage where the attackerId is undefined.
+        if (ev.attackerId != null && ev.amount > 0) {
+          this._spawnAttackBeam(ev.attackerId, ev.cardId);
+        }
+        // Tiered flash — brightness peak + duration scale with tier.
+        cardEl.classList.add('hit-flash');
+        if (fx.flashCls) cardEl.classList.add(fx.flashCls);
+        cardEl.style.setProperty('--flash-ms', fx.flashMs + 'ms');
+        setTimeout(() => cardEl.classList.remove('hit-flash', 'hit-flash-heavy', 'hit-flash-lethal'), fx.flashMs);
+        // Chip-shedding particle burst — count scales with tier.
+        this.spawnHitChips(cardEl, fx.chips);
+        // Card recoil — jolt away from the attacker, distance by tier.
+        this._cardKnockback(cardEl, fx.knockback);
+        // Screen shake — light hits don't shake (fx.shake === null).
+        if (fx.shake) this._screenShake(fx.shake);
+        // Lethal hit-pause — brief board freeze-frame on a kill.
+        if (fx.hitPause) this._hitPauseFreeze(fx.hitPause);
+        // Stereo-pan the impact by the card's horizontal position so a
+        // left-lane and right-lane hit don't sound from the same spot.
+        let pan = 0;
+        const bd = this.board || document.getElementById('board');
+        if (bd && cardEl) {
+          const br = bd.getBoundingClientRect(), cr = cardEl.getBoundingClientRect();
+          if (br.width > 0) pan = Math.max(-0.5, Math.min(0.5, ((cr.left + cr.width / 2 - br.left) / br.width - 0.5)));
+        }
+        this.sfx.play('hit', fx.sfxGain, pan);
+        // (The attacker's own cue is NOT fired here any more — it belongs to
+        // the swing, not to the damage. See the 'swing' event above: hanging
+        // it off 'hit' meant it went silent on every Evade, Invincible,
+        // Damage Immunity and fully-absorbed Armor, which are exactly the
+        // swings a player most wants to hear.)
+        // Haptic — one honest tick per hit, either side.
+        if (ev.amount > 0) this._haptic('hit');
+        // Concussive ring burst — size scales with tier via --burst-scale.
+        const burst = document.createElement('div');
+        burst.className = 'strike-burst';
+        burst.style.setProperty('--burst-scale', String(fx.burst));
         cardEl.style.position = 'relative';
-        cardEl.appendChild(float);
-        setTimeout(() => float.remove(), 1200);
+        cardEl.appendChild(burst);
+        setTimeout(() => burst.remove(), 600);
       });
     }
+    // Armor absorb — shield burst animation on the card + a metal
+    // "ting" system SFX so the deflection is audibly distinct from
+    // a normal hit. One cue per armor event; no per-card flavor.
+    if (ev.type === 'armor') {
+      cardEl.classList.add('armor-burst');
+      setTimeout(() => cardEl.classList.remove('armor-burst'), 700);
+      const ring = document.createElement('div');
+      ring.className = 'armor-ring';
+      ring.innerHTML = '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3 L34 8 V19 C34 28 20 36 20 36 C20 36 6 28 6 19 V8 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
+      cardEl.style.position = 'relative';
+      cardEl.appendChild(ring);
+      setTimeout(() => ring.remove(), 700);
+      this.sfx.play('armor');
+    }
+    // Evade whoosh — when a card dodges an incoming attack. System
+    // SFX (not per-card) so it reads consistently as "dodge" across
+    // every card that has Evade charges.
+    if (ev.type === 'evade') {
+      this.sfx.play('evade');
+    }
+    // Floating number — deferred to impact for combat hits (same defer as
+    // the FX bundle) so the "-N" rises as the flash blooms; immediate for
+    // everything else. Randomized horizontal offset + a per-card vertical
+    // stagger so stacked hits (splash + main + chain) stay legible.
+    defer(() => {
+      const float = document.createElement('div');
+      float.className = `dmg-float dmg-${ev.type}`;
+      if (ev.type === 'hit') float.textContent = `-${ev.amount}`;
+      else if (ev.type === 'evade') float.textContent = 'EVADE';
+      else if (ev.type === 'block') float.textContent = 'BLOCKED';
+      else if (ev.type === 'armor') float.textContent = 'ARMOR';
+      else if (ev.type === 'heal') float.textContent = `+${ev.amount}`;
+      // Magnitude pop — _popScale was stamped on the event by the hit
+      // handler above (1.0 tap → 1.7 lethal); non-hit events default 1.0.
+      const popScale = ev._popScale || 1.0;
+      float.style.setProperty('--pop-scale', String(popScale));
+      if (popScale >= 1.6) float.classList.add('dmg-float-lethal');
+      else if (popScale >= 1.35) float.classList.add('dmg-float-heavy');
+      const dx = (Math.random() * 26 - 13) | 0;
+      float.style.setProperty('--dx', dx + 'px');
+      // Vertical stagger — per-card float count in a 1.1s rolling window
+      // so multi-hit damage stacks readably instead of overlapping.
+      if (!this._dmgFloatStack) this._dmgFloatStack = new Map();
+      const stack = this._dmgFloatStack;
+      const key = ev.cardId;
+      const now = performance.now();
+      const slot = stack.get(key);
+      let stackIdx = 0;
+      if (slot && now - slot.t < 1100) stackIdx = slot.n + 1;
+      stack.set(key, { n: stackIdx, t: now });
+      float.style.setProperty('--stack-dy', (stackIdx * -14) + 'px');
+      cardEl.style.position = 'relative';
+      cardEl.appendChild(float);
+      setTimeout(() => float.remove(), 1200);
+    });
   },
 
   renderPromptBanner(s) {
@@ -17036,6 +17180,8 @@ const UI = {
   // grow set-only across a session (slow leak over long rematch / roguelite
   // chains). Called on every match start.
   _pruneMatchState() {
+    // The presentation director's queues belong to the match that filled them.
+    if (this._fxReset) { try { this._fxReset(); } catch (e) {} }
     [this._lastCardStats, this._dmgFloatStack, this._lastBoardCardIds].forEach(m => {
       if (m && typeof m.clear === 'function') m.clear();
     });

@@ -56,8 +56,8 @@ t('AC-1 the swing fires the attacker\'s own cue, on its own beat', function () {
   // REWRITTEN. This used to pin the cue to the 'hit' branch, which is precisely
   // where it did not belong: hanging it off the damage meant an evaded or
   // absorbed swing was silent. It rides the 'swing' event now — see AC-12.
-  var body = decomment(methodBody('showDamageFloats'));
-  eq('found showDamageFloats', body.length > 400, true);
+  var body = decomment(methodBody('_fxPlayOne'));
+  eq('found the effect handler (_fxPlayOne — moved out of showDamageFloats 2026-11-10, unchanged)', body.length > 400, true);
   eq('the drain handles the swing event', /ev\.type === 'swing'/.test(body), true);
   eq('and asks for the attacker cue there', /_playAttackerCue\(ev\.attackerId, ev\.name\)/.test(body), true);
   // Still deferred to its side's beat rather than fired on resolve, so the
@@ -173,8 +173,8 @@ t('AC-7 deaths come after BOTH swings, opponent first', function () {
 });
 
 t('AC-8 the impact beat is the attacker\'s, on both hit paths', function () {
-  var body = decomment(methodBody('showDamageFloats'));
-  eq('found showDamageFloats', body.length > 400, true);
+  var body = decomment(methodBody('_fxPlayOne'));
+  eq('found the effect handler (_fxPlayOne — moved out of showDamageFloats 2026-11-10, unchanged)', body.length > 400, true);
   // The ordinary path: victim still on the board.
   eq('the live-victim hit uses the attacker\'s beat',
      /_swingBeatMs\(this\._attackerOwner\(ev\.attackerId\)\)/.test(body), true);
@@ -219,7 +219,7 @@ t('AC-10 the lane cannot advance out from under its own beats', function () {
   eq('it only ever extends the window', /if \(at > \(this\.sfx\._laneAudioEndsAt \|\| 0\)\)/.test(book), true);
   var door = decomment(methodBody('_playDeathCue'));
   eq('the death books its own wait', /_bookLaneAudioUntil\(delay \+ capMs/.test(door), true);
-  var body = decomment(methodBody('showDamageFloats'));
+  var body = decomment(methodBody('_fxPlayOne'));
   eq('and so does a swing', /_bookLaneAudioUntil\(/.test(body), true);
 });
 
@@ -331,7 +331,7 @@ t('AC-14 the UI reads the swing, and no longer the damage', function () {
   // and the killing-blow one — which is how the same mistake got patched twice
   // and still missed the Evade.
   eq('the cue hangs off the swing event', /ev\.type === 'swing'/.test(src), true);
-  var body = decomment(methodBody('showDamageFloats'));
+  var body = decomment(methodBody('_fxPlayOne'));
   var calls = (body.match(/_playAttackerCue\(/g) || []).length;
   eq('and is fired from exactly one place in the drain', calls, 2);   // deferred + immediate, same branch
   var swingBranch = body.slice(body.indexOf("ev.type === 'swing'"), body.indexOf("ev.type === 'swing'") + 600);

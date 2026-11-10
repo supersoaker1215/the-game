@@ -321,6 +321,9 @@ run_suite sim/max-health-floor.js
 echo "=== art-accent.js (a card's border comes from its own art) ==="
 run_suite sim/art-accent.js
 
+echo "=== fx-director.js (effects paced by track and beat; one voice cue owns the channel) ==="
+run_suite sim/fx-director.js
+
 echo "=== wire-deadpile.js (dead piles sent once and slim mid-match — the late-game online lag) ==="
 run_suite sim/wire-deadpile.js
 

@@ -121,8 +121,24 @@ const Game = {
     if (this._fxCursor === fx.seq) return [];
     const cur = this._fxCursor;
     this._fxCursor = fx.seq;
-    return fx.events.filter(e => e.seq > cur);
+    const out = fx.events.filter(e => e.seq > cur);
+    // DID THE 60-EVENT CAP EAT ANYTHING? Everything numbered between the cursor
+    // and the oldest event still held was deleted before this client drew it.
+    // Measured 2026-11-10: a full round is ~15 events and the largest 2v2
+    // broadcast batch was 10, so this should read 0 — kept so a real session
+    // can prove it (Game.fxStats()).
+    const st = this._fxStat || (this._fxStat = { reads: 0, events: 0, lost: 0, maxBatch: 0 });
+    const first = out.length ? out[0].seq : fx.seq + 1;
+    const lost = Math.max(0, first - (cur + 1));
+    st.reads++; st.events += out.length; st.lost += lost;
+    if (out.length > st.maxBatch) st.maxBatch = out.length;
+    if (lost && typeof console !== 'undefined' && !this._fxLostWarned) {
+      this._fxLostWarned = true;
+      console.warn('[fx] ' + lost + ' effect event(s) were dropped by the 60-event cap before they could play');
+    }
+    return out;
   },
+  fxStats() { return Object.assign({ reads: 0, events: 0, lost: 0, maxBatch: 0 }, this._fxStat || {}); },
 
   // ----- Deterministic RNG (state-based) -----
   // The RNG POSITION lives in state._rngState (a uint32 counter), NOT a
