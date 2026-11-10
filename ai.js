@@ -557,7 +557,7 @@ const AI = {
         if (c.isDiscardEffect) continue;
         const cost = Game.getCardCost(owner, c);
         if (cost > remainingCurrency) continue;
-        const score = this.blockFitScore(c, enemy);
+        const score = this.blockFitScore(this._handBody(c, owner), enemy);
         if (score > bestScore && score >= 1) { best = c; bestScore = score; }
       }
       if (best) {
@@ -930,7 +930,7 @@ const AI = {
     // could still place this turn covers their remaining health.
     const _bestBody = s[owner].hand.reduce((m, c) =>
       (c && !c._neverPlayable && Game.getCardCost(owner, c) <= s[owner].currency)
-        ? Math.max(m, c.attack || 0) : m, 0);
+        ? Math.max(m, this._handBody(c, owner).attack || 0) : m, 0);
     // ONLY WHEN THEY CANNOT ANSWER IT. First cut of this pushed for lethal
     // whenever the arithmetic worked, and measured 1.7pp WORSE (49.2 vs 50.9,
     // 2500 games a side). The reason is turn order: firstPlayer alternates, so
@@ -1037,17 +1037,23 @@ const AI = {
       }
     } else {
       const dir = __ord === 'desc' ? -1 : 1;
+      // Sorted on the cost the card will ACTUALLY take. Identical to `.cost`
+      // for every printed card; for Sung Jin-Woo it is the whole purse, so he
+      // goes first at full size instead of last on the scraps (measured: 9
+      // energy + a 7-drop played the 7-drop, then him as a 2/2 whose shadows
+      // had 0 ATK).
+      const _ec = (c) => this._handBody(c, owner).cost || 0;
       remaining.sort((a, b) => {
         const aHasOnPlay = a.onPlay ? 1 : 0;
         const bHasOnPlay = b.onPlay ? 1 : 0;
-        const tie = dir * ((a.cost || 0) - (b.cost || 0));
+        const tie = dir * (_ec(a) - _ec(b));
         if (defensive) {
           if (aHasOnPlay !== bHasOnPlay) return bHasOnPlay - aHasOnPlay;
           return tie;
         }
         if (behind) {
           if (aHasOnPlay !== bHasOnPlay) return bHasOnPlay - aHasOnPlay;
-          return (b.cost || 0) - (a.cost || 0);
+          return _ec(b) - _ec(a);
         }
         return tie;
       });
@@ -1449,7 +1455,24 @@ const AI = {
   // threat, trade maths, survival, lethal — reads true with no special cases.
   // A face-down card cannot be copied (the ability refuses to read one, so the
   // hidden-card promise holds), so such a lane scores as the fallback.
+  // THE BODY A HAND CARD WILL ACTUALLY HAVE. An energy-scaled card (Sung
+  // Jin-Woo) is an X/X whose X is the purse at the moment he is played — the
+  // hand instance still carries the printed 5/5, so every reader that asked
+  // the card directly scored a 9-energy Sung Jin-Woo as a 5/5. Same proxy shape
+  // as _asPlacedIn: only the cost and stat line change, nothing is mutated.
+  // Game.energyScaledPreview is the one source the tile and the engine use.
+  _handBody(card, owner) {
+    const pv = card && Game.energyScaledPreview ? Game.energyScaledPreview(card) : null;
+    if (!pv) return card;
+    const proxy = Object.create(card);
+    proxy.cost = pv.cost;
+    proxy.attack = pv.attack; proxy.baseAttack = pv.attack;
+    proxy.currentHealth = pv.health; proxy.maxHealth = pv.health; proxy.health = pv.health;
+    return proxy;
+  },
+
   _asPlacedIn(card, laneIdx, owner) {
+    card = this._handBody(card, owner);
     if (!card || !card.copiesOpposite) return card;
     const AB = (typeof CARD_ABILITIES !== 'undefined' && CARD_ABILITIES['Scarlet Witch']) || null;
     const fb = (AB && AB.COPY_FALLBACK) || { atk: 3, hp: 4 };

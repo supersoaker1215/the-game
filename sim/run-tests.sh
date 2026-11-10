@@ -341,6 +341,11 @@ run_suite sim/fx-probe-idle.js
 
 echo "=== idle-loops.js (repainting idle loops paused at Normal / where invisible) ==="
 run_suite sim/idle-loops.js
+echo "=== status-oneshots.js (status cards still lunge/flash/knock back — loops yield to one-shots) ==="
+run_suite sim/status-oneshots.js
+
+echo "=== sjw-ai.js (the AI sees Sung Jin-Woo at his real X/X) ==="
+run_suite sim/sjw-ai.js
 
 echo "=== sung-jin-woo.js (X-cost X/X, shadows bound to their master, odds-based revive) ==="
 run_suite sim/sung-jin-woo.js
