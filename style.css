@@ -7383,7 +7383,7 @@ body.hit-pause .ai-hand * {
 .card.vibe-cosmic:not(.card-enter):not(.card-exit) {
   box-shadow: 0 0 14px rgba(147,112,219,0.38), 0 0 28px rgba(var(--theme-rgb, 79,195,247),0.22) !important;
 }
-.card.vibe-cosmic:not(.card-enter):not(.card-exit):not(:where(body.fx-lean .card-slot > *)) {
+.card.vibe-cosmic:not(.card-enter):not(.card-exit):not(:where(body.fx-lean .card-slot > *)):where(:not(.combat-attacker, .combat-target, .combat-splash-hit, .hit-flash, .card-knockback, .card-landing)) {
   animation: vibeCosmicHue 4.2s ease-in-out infinite,
              vibeCosmicDrift 6.3s ease-in-out infinite;
 }
@@ -7397,7 +7397,7 @@ body.hit-pause .ai-hand * {
 .card.vibe-symbiote:not(.card-enter):not(.card-exit) {
   box-shadow: 0 0 14px rgba(40,0,40,0.75), 0 0 28px rgba(155,0,60,0.38) !important;
 }
-.card.vibe-symbiote:not(.card-enter):not(.card-exit):not(:where(body.fx-lean .card-slot > *)) {
+.card.vibe-symbiote:not(.card-enter):not(.card-exit):not(:where(body.fx-lean .card-slot > *)):where(:not(.combat-attacker, .combat-target, .combat-splash-hit, .hit-flash, .card-knockback, .card-landing)) {
   animation: vibeSymbioteOoze 3.8s ease-in-out infinite;
 }
 
@@ -7406,7 +7406,7 @@ body.hit-pause .ai-hand * {
   0%,100% { box-shadow: 0 0 10px rgba(120,20,20,0.55), 0 0 22px rgba(120,20,20,0.22); }
   50%     { box-shadow: 0 0 20px rgba(200,40,40,0.85), 0 0 38px rgba(200,40,40,0.48); }
 }
-.card.vibe-slasher:not(.card-enter):not(.card-exit) {
+.card.vibe-slasher:not(.card-enter):not(.card-exit):where(:not(.combat-attacker, .combat-target, .combat-splash-hit, .hit-flash, .card-knockback, .card-landing)) {
   animation: vibeSlasherMenace 3.2s ease-in-out infinite !important;
 }
 
@@ -7420,7 +7420,7 @@ body.hit-pause .ai-hand * {
 .card.vibe-titan:not(.card-enter):not(.card-exit) {
   box-shadow: 0 0 16px rgba(110,30,130,0.40), 0 0 32px rgba(0,0,0,0.6) !important;
 }
-.card.vibe-titan:not(.card-enter):not(.card-exit):not(:where(body.fx-lean .card-slot > *)) {
+.card.vibe-titan:not(.card-enter):not(.card-exit):not(:where(body.fx-lean .card-slot > *)):where(:not(.combat-attacker, .combat-target, .combat-splash-hit, .hit-flash, .card-knockback, .card-landing)) {
   animation: vibeTitanBreathe 3.6s ease-in-out infinite;
 }
 
@@ -7431,7 +7431,7 @@ body.hit-pause .ai-hand * {
 }
 .card.vibe-phase:not(.card-enter):not(.card-exit) {
 }
-.card.vibe-phase:not(.card-enter):not(.card-exit):not(:where(body.fx-lean .card-slot > *)) {
+.card.vibe-phase:not(.card-enter):not(.card-exit):not(:where(body.fx-lean .card-slot > *)):where(:not(.combat-attacker, .combat-target, .combat-splash-hit, .hit-flash, .card-knockback, .card-landing)) {
   animation: vibePhaseShimmer 2.8s ease-in-out infinite;
 }
 
@@ -7446,7 +7446,7 @@ body.hit-pause .ai-hand * {
 .card.vibe-speed:not(.card-enter):not(.card-exit) {
   box-shadow: 0 0 14px rgba(var(--gold-rgb),0.52), 0 0 28px rgba(255,255,120,0.28) !important;
 }
-.card.vibe-speed:not(.card-enter):not(.card-exit):not(:where(body.fx-lean .card-slot > *)) {
+.card.vibe-speed:not(.card-enter):not(.card-exit):not(:where(body.fx-lean .card-slot > *)):where(:not(.combat-attacker, .combat-target, .combat-splash-hit, .hit-flash, .card-knockback, .card-landing)) {
   animation: vibeSpeedJitter 0.55s linear infinite;
 }
 
@@ -7459,7 +7459,7 @@ body.hit-pause .ai-hand * {
   0%,100% { box-shadow: 0 0 12px rgba(155,89,182,0.42), 0 0 24px rgba(155,89,182,0.20); }
   50%     { box-shadow: 0 0 20px rgba(120,130,190,0.55), 0 0 34px rgba(120,130,190,0.26); }
 }
-.card.vibe-magnetic:not(.card-enter):not(.card-exit) {
+.card.vibe-magnetic:not(.card-enter):not(.card-exit):where(:not(.combat-attacker, .combat-target, .combat-splash-hit, .hit-flash, .card-knockback, .card-landing)) {
   animation: vibeMagneticShift 4.5s ease-in-out infinite,
              vibeMagneticPulse 3.2s ease-in-out infinite;
 }
@@ -7476,7 +7476,7 @@ body.hit-pause .ai-hand * {
 .card.vibe-alien:not(.card-enter):not(.card-exit) {
   box-shadow: 0 0 14px rgba(40,80,40,0.55), 0 0 30px rgba(80,20,20,0.30) !important;
 }
-.card.vibe-alien:not(.card-enter):not(.card-exit):not(:where(body.fx-lean .card-slot > *)) {
+.card.vibe-alien:not(.card-enter):not(.card-exit):not(:where(body.fx-lean .card-slot > *)):where(:not(.combat-attacker, .combat-target, .combat-splash-hit, .hit-flash, .card-knockback, .card-landing)) {
   animation: vibeAlienTwitch 2.9s ease-in-out infinite;
 }
 
@@ -52729,7 +52729,7 @@ body.low-fx .card-glow-host { filter: none !important; }
    still breathes and a Cosmic still drifts — they just stop repainting. */
 
 /* Cosmic: hue-rotate (repaint) out, the rotate drift stays. */
-body.fx-lean .card.vibe-cosmic:not(.card-enter):not(.card-exit):not(:where(.card-slot > *)) {
+body.fx-lean .card.vibe-cosmic:not(.card-enter):not(.card-exit):not(:where(.card-slot > *)):where(:not(.combat-attacker, .combat-target, .combat-splash-hit, .hit-flash, .card-knockback, .card-landing)) {
   animation: vibeCosmicDrift 6.3s ease-in-out infinite;
 }
 /* Slasher: the menace WAS a box-shadow loop, so it becomes the static high
@@ -52737,7 +52737,7 @@ body.fx-lean .card.vibe-cosmic:not(.card-enter):not(.card-exit):not(:where(.card
    `!important` on the animation because the rule it overrides carries one, and
    an important declaration is not beaten by specificity at any weight. Measured
    without it: the slasher loop was the ONE vibe still running at Normal. */
-body.fx-lean .card.vibe-slasher:not(.card-enter):not(.card-exit) {
+body.fx-lean .card.vibe-slasher:not(.card-enter):not(.card-exit):where(:not(.combat-attacker, .combat-target, .combat-splash-hit, .hit-flash, .card-knockback, .card-landing)) {
   animation: none !important;
   box-shadow: 0 0 15px rgba(160,30,30,0.70), 0 0 30px rgba(160,30,30,0.35) !important;
 }
@@ -52747,7 +52747,7 @@ body.fx-lean .card.vibe-slasher:not(.card-enter):not(.card-exit) {
   0%,100% { transform: scale(1);     }
   50%     { transform: scale(1.018); }
 }
-body.fx-lean .card.vibe-titan:not(.card-enter):not(.card-exit):not(:where(.card-slot > *)) {
+body.fx-lean .card.vibe-titan:not(.card-enter):not(.card-exit):not(:where(.card-slot > *)):where(:not(.combat-attacker, .combat-target, .combat-splash-hit, .hit-flash, .card-knockback, .card-landing)) {
   animation: vibeTitanBreatheLean 3.6s ease-in-out infinite;
 }
 /* Phase: same split. Opacity is compositor-cheap, so the shimmer survives
@@ -52756,12 +52756,12 @@ body.fx-lean .card.vibe-titan:not(.card-enter):not(.card-exit):not(:where(.card-
   0%,100% { opacity: 1;    }
   50%     { opacity: 0.82; }
 }
-body.fx-lean .card.vibe-phase:not(.card-enter):not(.card-exit):not(:where(.card-slot > *)) {
+body.fx-lean .card.vibe-phase:not(.card-enter):not(.card-exit):not(:where(.card-slot > *)):where(:not(.combat-attacker, .combat-target, .combat-splash-hit, .hit-flash, .card-knockback, .card-landing)) {
   animation: vibePhaseShimmerLean 2.8s ease-in-out infinite;
 }
 /* Magnetic: both of its loops repaint (hue filter + box-shadow halo). The
    halo becomes static and the hue cycle stops. */
-body.fx-lean .card.vibe-magnetic:not(.card-enter):not(.card-exit) {
+body.fx-lean .card.vibe-magnetic:not(.card-enter):not(.card-exit):where(:not(.combat-attacker, .combat-target, .combat-splash-hit, .hit-flash, .card-knockback, .card-landing)) {
   animation: none;
   box-shadow: 0 0 16px rgba(138,110,186,0.48), 0 0 29px rgba(138,110,186,0.23) !important;
 }
@@ -53461,3 +53461,28 @@ body:not(.ai-thinking) .ai-thinking-ring circle {
     animation-delay: var(--vibe-delay, 0s);
   }
 }
+
+/* ============================================================
+   ONE-SHOTS OUTRANK IDLE LOOPS — LUNGE + FLASH TOGETHER (2026-11-10)
+   ============================================================
+   Owner: "make the game triple AAA quality like marvel snap" — the trade is
+   the core beat. Measured: a card in a contested lane carries the lunge
+   (combat-attacker/-target, 540ms: wind-up, impact, 70ms HOLD, recoil) and
+   at the impact frame gains .hit-flash. Both set `animation`, and the flash
+   rule out-specifies the lunge, so the computed animation flipped to
+   `hitFlash` at impact — the hold and the recoil never played; the card just
+   flashed in place. Listing BOTH keeps the lunge running (an animation whose
+   name stays in the list continues rather than restarting) and puts the
+   flash LAST so its brightness wins `filter` for its 300-520ms while the
+   lunge keeps `transform`. Tiered flash (--flash-bright heavy/lethal) and
+   --flash-ms still apply.
+   Same family, fixed above: the vibe loops (incl. slasher's !important and
+   magnetic) now step aside for every one-shot via
+   :where(:not(.combat-attacker, …)) — zero added specificity. Slasher cards
+   never lunged or flashed at ANY tier before this. */
+.card.ally-card.combat-attacker.hit-flash:not(.card-enter):not(.card-exit)  { animation: cardLungeAttackerAlly  540ms linear, hitFlash var(--flash-ms, 0.3s) ease-out; }
+.card.enemy-card.combat-attacker.hit-flash:not(.card-enter):not(.card-exit) { animation: cardLungeAttackerEnemy 540ms linear, hitFlash var(--flash-ms, 0.3s) ease-out; }
+.card.ally-card.combat-target.hit-flash:not(.card-enter):not(.card-exit)    { animation: cardLungeTargetAlly    540ms linear, hitFlash var(--flash-ms, 0.3s) ease-out; }
+.card.enemy-card.combat-target.hit-flash:not(.card-enter):not(.card-exit)   { animation: cardLungeTargetEnemy   540ms linear, hitFlash var(--flash-ms, 0.3s) ease-out; }
+.card.ally-card.combat-splash-hit.hit-flash:not(.card-enter):not(.card-exit)  { animation: cardSplashHitAlly  500ms linear, hitFlash var(--flash-ms, 0.3s) ease-out; }
+.card.enemy-card.combat-splash-hit.hit-flash:not(.card-enter):not(.card-exit) { animation: cardSplashHitEnemy 500ms linear, hitFlash var(--flash-ms, 0.3s) ease-out; }

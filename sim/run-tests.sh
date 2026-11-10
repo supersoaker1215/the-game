@@ -347,6 +347,9 @@ run_suite sim/status-oneshots.js
 echo "=== sjw-ai.js (the AI sees Sung Jin-Woo at his real X/X) ==="
 run_suite sim/sjw-ai.js
 
+echo "=== trade-impact.js (lunge + flash together; every vibe yields to one-shots) ==="
+run_suite sim/trade-impact.js
+
 echo "=== sung-jin-woo.js (X-cost X/X, shadows bound to their master, odds-based revive) ==="
 run_suite sim/sung-jin-woo.js
 
