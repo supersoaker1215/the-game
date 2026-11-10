@@ -33693,6 +33693,20 @@ const UI = {
     };
     // A release must judge the card where it IS, so a frame still pending is
     // applied before the drop reads the ghost's box.
+    // BUILD THE GHOST BEFORE IT IS NEEDED. Cloning the card, sizing it and
+    // laying it out cost ~1.5ms, and it all landed in the one frame where the
+    // card leaves the hand — the hitch the eye notices most. A press is at
+    // least a few frames ahead of the lift (the lift needs 8-10px of travel),
+    // so the clone is built in the frame right after the press, off-screen,
+    // and the lift only has to place it. A tap throws it away unseen.
+    const prepGhostSoon = () => {
+      const mine = d;
+      requestAnimationFrame(() => {
+        if (d !== mine || !d || d.moved || d.prep) return;
+        d.prep = this._prepCardDragGhost(d.cardEl);
+      });
+    };
+    const dropPrep = (st) => { if (st && st.prep && st.prep !== st.ghost) st.prep.remove(); };
     const flushDragFrame = () => {
       if (!d) return;
       if (d.raf) { cancelAnimationFrame(d.raf); d.raf = 0; }
@@ -33800,6 +33814,7 @@ const UI = {
       d = { card: hit ? hit.card : null, trick: trickHit ? trickHit.trick : null,
             pickIdx: hit ? hit.pickIdx : null,
             cardEl: (hit || trickHit).cardEl, x0: t.clientX, y0: t.clientY, moved: false, ghost: null };
+      prepGhostSoon();
     }, { passive: true });
 
     document.addEventListener('touchmove', (e) => {
@@ -33842,7 +33857,7 @@ const UI = {
         // renderer re-applies 'card-being-dragged' from, so the dragged card
         // stays dimmed across the render instead of snapping back to full
         // brightness under the cursor.
-        d.ghost = this._makeCardDragGhost(d.cardEl, t.clientX, t.clientY);
+        d.ghost = this._makeCardDragGhost(d.cardEl, t.clientX, t.clientY, d.prep);
         document.body.classList.add('mobile-card-dragging');
         // Tricks already play on any drop ABOVE the tray — that worked, it just
         // never said so. This class is the missing half: it lights the banner as
@@ -33912,6 +33927,7 @@ const UI = {
       }
       const releasedClear = ((clearY != null) && aboveHand(clearY)) || overBoard;
       if (ghost) ghost.remove();
+      dropPrep(d);
       clearHi();
       document.body.classList.remove('mobile-card-dragging');
       document.body.classList.remove('dragging-trick');
@@ -33978,6 +33994,7 @@ const UI = {
       if (!d) return;
       if (d.raf) cancelAnimationFrame(d.raf);
       if (d.ghost) d.ghost.remove();
+      dropPrep(d);
       clearHi();
       document.body.classList.remove('mobile-card-dragging');
       document.body.classList.remove('dragging-trick');
@@ -34021,6 +34038,7 @@ const UI = {
             pickIdx: hit ? hit.pickIdx : null,
             cardEl: (hit || trickHit).cardEl, x0: e.clientX, y0: e.clientY,
             moved: false, ghost: null };
+      prepGhostSoon();
     });
 
     document.addEventListener('mousemove', (e) => {
@@ -34035,7 +34053,7 @@ const UI = {
         // Same ordering as the touch path above, for the same reasons: clone
         // the ghost off the live element before the render replaces it, then
         // select and render so the lane previews actually get built.
-        d.ghost = this._makeCardDragGhost(d.cardEl, e.clientX, e.clientY);
+        d.ghost = this._makeCardDragGhost(d.cardEl, e.clientX, e.clientY, d.prep);
         document.body.classList.add('mobile-card-dragging');
         // Tricks already play on any drop ABOVE the tray — that worked, it just
         // never said so. This class is the missing half: it lights the banner as
@@ -34136,7 +34154,10 @@ const UI = {
     g.style.setProperty('transform-origin', '50% 50%', 'important');
     g.style.setProperty('transform', `translate3d(${tx.toFixed(1)}px, ${ty.toFixed(1)}px, 0) rotate(${(tilt || 0).toFixed(2)}deg) scale(1.06)`, 'important');
   },
-  _makeCardDragGhost(cardEl, px, py) {
+  // The clone, off-screen and laid out, with nothing else changed — safe to
+  // build on a press that turns out to be a tap. _makeCardDragGhost adopts it
+  // on the lift (or builds one itself if the lift beat the prep frame).
+  _prepCardDragGhost(cardEl) {
     const g = cardEl.cloneNode(true);
     g.removeAttribute('data-card-id');
     g.classList.add('card-drag-ghost');
@@ -34189,6 +34210,13 @@ const UI = {
     g.style.cssText = `position:fixed; left:-9999px; top:-9999px; z-index:3000;
       pointer-events:none; width:${w}px; margin:0; opacity:1; will-change:transform;`;
     document.body.appendChild(g);
+    g._dragW = g.offsetWidth || 0; g._dragH = g.offsetHeight || 0;
+    g._dragSrc = cardEl;
+    return g;
+  },
+  _makeCardDragGhost(cardEl, px, py, prepared) {
+    const g = (prepared && prepared.isConnected && prepared._dragSrc === cardEl)
+      ? prepared : this._prepCardDragGhost(cardEl);
     // Place it AT THE POINTER the moment it exists, rather than trusting the
     // caller to do it on the same tick. The caller does — both drag handlers
     // position it a few lines later — but a ghost that can only be correct

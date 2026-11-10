@@ -8490,7 +8490,14 @@ body.hit-pause .ai-hand * {
               inset 0 0 26px rgba(var(--theme-rgb,79,195,247), 0.30) !important;
 }
 /* Lock the page from scrolling/selecting while a card is in-flight. */
-body.mobile-card-dragging { touch-action: none; user-select: none; -webkit-user-select: none; }
+/* (was: body.mobile-card-dragging { touch-action:none; user-select:none })
+   REMOVED — it cost the lift frame ~2.6ms and the drop frame the same again:
+   a style change on <body> itself re-resolves every element in the document.
+   Neither declaration did anything here: touch-action is read once at gesture
+   START, so a class added mid-drag only affects the NEXT gesture (see the
+   pan-x note ~10325), and the playfield is never selectable anyway (see NO TEXT
+   SELECTION ON THE PLAYFIELD). The class itself stays as a state hook — the
+   rules below only reach the two cursor-trail nodes, which is cheap. */
 /* No mouse cursor trail while dragging a card by finger. */
 body.mobile-card-dragging #tron-cursor-trail,
 body.mobile-card-dragging .cursor-trail { display: none !important; }

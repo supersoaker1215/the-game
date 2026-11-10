@@ -60,7 +60,21 @@ check('a drop applies the pending frame before judging the ghost', /const endAt 
   var last = writes.filter(function (w) { return w[0] === 'transform'; }).pop()[1];
   check('later moves are a translate from the anchor', /^translate3d\(110\.0px, -100\.0px, 0\) rotate\(-3\.00deg\) scale\(1\.06\)$/.test(last), last);
 })();
-check('the ghost is promoted to its own layer', /will-change:transform/.test(SRC.slice(SRC.indexOf('_makeCardDragGhost(cardEl'), SRC.indexOf('_makeCardDragGhost(cardEl') + 6000)));
+check('the ghost is promoted to its own layer', /will-change:transform/.test(body('_prepCardDragGhost(cardEl) {')));
+
+// 3. The lift frame (owner: "do 2" — make picking up a card instant).
+// Measured same session, same harness: lift 8.3 → 2.3 ms, drop 5.9 → 1.3 ms;
+// ghost ready before the lift 8/8; a tap leaves 0 ghosts; mouse + touch both
+// play the card with exactly one ghost on screen.
+check('a press schedules the ghost build for a spare frame', (install.match(/prepGhostSoon\(\);/g) || []).length === 2);
+check('the lift adopts the prepared ghost', /_makeCardDragGhost\(d\.cardEl, t\.clientX, t\.clientY, d\.prep\)/.test(install)
+  && /_makeCardDragGhost\(d\.cardEl, e\.clientX, e\.clientY, d\.prep\)/.test(install));
+check('a tap or cancel throws the unused ghost away', (install.match(/dropPrep\(d\);/g) || []).length === 2);
+var make = strip(body('_makeCardDragGhost(cardEl, px, py, prepared) {'));
+check('only a ghost built from THIS card is adopted', /prepared\._dragSrc === cardEl/.test(make) && /prepared\.isConnected/.test(make));
+var CSS = read('style.css').replace(/\/\*[\s\S]*?\*\//g, '');
+check('no style change lands on <body> itself when a drag starts (re-resolved the whole document: ~2.6ms each way)',
+  !/body\.mobile-card-dragging\s*\{/.test(CSS));
 
 print('drag-smooth: ' + pass + ' passed, ' + fails.length + ' failed');
 fails.forEach(function (f) { print('  FAIL  ' + f); });
