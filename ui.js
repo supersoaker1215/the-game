@@ -1338,11 +1338,21 @@ const UI = {
     if (!src) return null;
     let base = String(src).split('/').pop().split('?')[0].replace(/\.[a-z0-9]+$/i, '');
     base = base.replace(/-hover$/i, '');
+    // A track can belong to more than one face (the Cog event heroes share one
+    // theme), so stem → name alone can name the wrong one. When the title
+    // screen handed its hero to the menu (_pinTrackFace) that face wins for
+    // that track.
+    if (this._trackFace && this._trackFace.stem === base) return this._trackFace.name;
     if (!this._menuStemToName) this._menuStemToName = this._buildMenuStemMap();
     return this._menuStemToName[base] || null;
   },
   // Update the top now-playing credit (the hero NAME), its star, and the
   // highlight on the currently-playing row in the picker below.
+  _pinTrackFace(src, name) {
+    if (!src || !name) return;
+    const stem = String(src).split('/').pop().split('?')[0].replace(/\.[a-z0-9]+$/i, '').replace(/-hover$/i, '');
+    this._trackFace = { stem, name };
+  },
   _updateNowPlaying(src) {
     const name = this._menuHoverArtName(src);
     const np = document.querySelector('#main-menu-overlay .mm-nowplaying');
@@ -1498,7 +1508,10 @@ const UI = {
     if (!name) {
       if (hero._artSrc) return;
       const def = this.settings.defaultMenuHero;
-      if (def && !UI._menuDefaultLed && this._isMenuHeroName(def)) { name = def; UI._menuDefaultLed = true; }
+      // Music off: no track to follow, so lead with the title's hero (same
+      // hand-off as _pickMenuTrackForEntry) before falling back to random.
+      if (this._titleHeroName && this._isMenuHeroName(this._titleHeroName)) { name = this._titleHeroName; this._titleHeroName = null; }
+      else if (def && !UI._menuDefaultLed && this._isMenuHeroName(def)) { name = def; UI._menuDefaultLed = true; }
       else name = this._pickRandomMenuHeroName();
     }
     const art = name ? this.getCardArtPathDefault(name) : null;
@@ -3278,6 +3291,24 @@ const UI = {
     // Cold-entry picker: lead with the player's pinned default hero once, then
     // hand off to the random picker ("then it becomes random after that").
     _pickMenuTrackForEntry() {
+      // THE TITLE'S FACE LEADS. The title screen picks its hero first; the
+      // menu shows whoever's theme is playing, and this used to pick a fresh
+      // random track — so PRESS START cut from one character to another
+      // (measured: title Mahoraga → menu Darth Maul). Lead with the title's
+      // hero once; after that the shuffle carries on as before. A pinned
+      // default hero is what the title showed anyway, so it is covered too.
+      const tName = UI._titleHeroName;
+      if (tName) {
+        UI._titleHeroName = null;
+        const tSrc = this._srcForHeroName(tName);
+        if (tSrc) {
+          UI._pinTrackFace(tSrc, tName);
+          UI._menuDefaultLed = true;
+          const srcs = (UI._menuCharHoverSrcs && UI._menuCharHoverSrcs()) || [];
+          this._menuHoverLastIdx = srcs.indexOf(tSrc);   // next random avoids an immediate repeat
+          return tSrc;
+        }
+      }
       const def = UI.settings && UI.settings.defaultMenuHero;
       if (def && !UI._menuDefaultLed) {
         const src = this._srcForHeroName(def);
@@ -17637,7 +17668,34 @@ const UI = {
       bgEl.style.backgroundSize = size;
     }
     // Remember the hero so the menu leads with the same face it just showed.
-    if (name) this._lastMenuHeroName = name;
+    // _titleHeroName is the one-shot hand-off: the first menu track and the
+    // music-off fallback both lead with it (owner: "i want the main menu press
+    // start screen to be the same character as when you load into the game").
+    if (name) { this._lastMenuHeroName = name; this._titleHeroName = name; }
+    // …and the music has usually been LOADED already: startMusic runs at boot
+    // (before this screen picks its hero) and sets a random src that the
+    // browser won't play until the first gesture. That same PRESS START tap
+    // unlocks audio and plays the preloaded track, and startMusic then sees it
+    // playing and keeps it — so the hand-off above never got asked. Retarget a
+    // loaded-but-unstarted track to the title hero's theme now.
+    try {
+      const a = this.sfx && this.sfx._music;
+      const tSrc = name && this.sfx && this.sfx._srcForHeroName ? this.sfx._srcForHeroName(name) : null;
+      if (tSrc) this._pinTrackFace(tSrc, name);
+      // Also when it is ALREADY playing: a browser that allows autoplay (a
+      // repeat visit in Chrome) starts the boot track before this screen even
+      // shows, so the title would show one face over another face's theme.
+      // The title has only just appeared, so restarting on its theme is seamless.
+      if (a && tSrc) {
+        const wasPlaying = !a.paused;
+        a.src = tSrc;
+        if (wasPlaying) { try { const p = a.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
+        UI._menuDefaultLed = true;
+        this._titleHeroName = null;
+        const srcs = (this._menuCharHoverSrcs && this._menuCharHoverSrcs()) || [];
+        this.sfx._menuHoverLastIdx = srcs.indexOf(tSrc);
+      }
+    } catch (e) {}
     this._armTitleDismiss();
   },
   _armTitleDismiss() {

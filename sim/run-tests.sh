@@ -381,6 +381,9 @@ run_suite sim/inspect-no-magnify.js
 echo "=== floating-bars.js (no full-width rules across the board) ==="
 run_suite sim/floating-bars.js
 
+echo "=== title-menu-hero.js (PRESS START keeps the same face) ==="
+run_suite sim/title-menu-hero.js
+
 echo "=== sung-jin-woo.js (X-cost X/X, shadows bound to their master, odds-based revive) ==="
 run_suite sim/sung-jin-woo.js
 
