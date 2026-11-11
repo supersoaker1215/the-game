@@ -18376,7 +18376,7 @@ body.theme-purple .board-section {
   transform-origin: center;
   transition: transform 240ms var(--ease-out-soft);
 }
-.card.enemy-card:hover {
+.card.enemy-card:where(:not(.inspect-card)):hover {
   transform-style: preserve-3d;
   transform: scale(1.4)
              rotateX(calc(var(--tilt-y, 0) * -6deg))
@@ -18391,7 +18391,7 @@ body.theme-purple .board-section {
   -webkit-font-smoothing: antialiased;
   text-rendering: geometricPrecision;
 }
-.card.ally-card:hover {
+.card.ally-card:where(:not(.inspect-card)):hover {
   transform-style: preserve-3d;
   transform: scale(1.4)
              rotateX(calc(var(--tilt-y, 0) * -6deg))
@@ -37548,8 +37548,14 @@ body.low-fx .hand-card-wrapper:hover .card.hand-card {
      the wrapper's plain 2D enlarge (which needs no 3D context) carries it. */
   transform: none !important;
 }
-body.low-fx .card.ally-card:hover,
-body.low-fx .card.enemy-card:hover {
+/* NEVER ON THE INSPECT CARD (owner, 2026-11-10: "if i tap on a card then
+   hover it magnifies it shouldnt magnify its already big"). The inspect view
+   renders the card as .ally-card/.enemy-card, so the board's 1.4x grow reached
+   it; the modal's own kill rule is (0,4,0) and this tier rule is (0,4,1), so at
+   Reduced the inspect card grew 442 -> 618px. All three grow rules skip
+   .inspect-card with zero added specificity, so board cards are unchanged. */
+body.low-fx .card.ally-card:where(:not(.inspect-card)):hover,
+body.low-fx .card.enemy-card:where(:not(.inspect-card)):hover {
   transform: scale(1.4) !important;
 }
 body.low-fx .trick-card:where(:not(.trick-draft)):hover {

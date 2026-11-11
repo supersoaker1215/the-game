@@ -375,6 +375,9 @@ run_suite sim/trade-sequence.js
 echo "=== draft-trick-hover.js (draft tricks never magnify on hover) ==="
 run_suite sim/draft-trick-hover.js
 
+echo "=== inspect-no-magnify.js (the inspect card never grows on hover) ==="
+run_suite sim/inspect-no-magnify.js
+
 echo "=== sung-jin-woo.js (X-cost X/X, shadows bound to their master, odds-based revive) ==="
 run_suite sim/sung-jin-woo.js
 
