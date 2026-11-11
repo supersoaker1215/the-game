@@ -38,6 +38,10 @@ check('picking a scene never dismisses the start screen', /closest\('\.ts-option
 check('the shared backdrop mounts the scene', /if \(typeof MenuScene !== 'undefined'\) \{ MenuScene\.mount\(host\); return; \}/.test(SRC));
 check('the bar is boxless (no border/background box)', /\.main-menu-overlay \.mm-scene-opt \{\s*background: none; border: 0;/.test(CSS));
 
+var MSRC = read('menu-scene.js');
+check('renders at the real device ratio (HD), not 0.8x', /Math\.min\(window\.devicePixelRatio \|\| 1, 2\) \* \(low \? \.6 : 1\)/.test(MSRC));
+check('…and STARTS there (the placeholder 1 used to stick)', /if \(!this\._scaleSet \|\| this\._scale > this\._scale0\)/.test(MSRC));
+check('the start screen has no left-side scrim', /#main-menu-overlay\.ts-menulike \.mm-scrim \{ display: none; \}/.test(CSS));
 print('menu-scene: ' + pass + ' passed, ' + fails.length + ' failed');
 fails.forEach(function (f) { print('  FAIL  ' + f); });
 if (fails.length) throw new Error('menu-scene failed');

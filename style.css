@@ -54123,3 +54123,8 @@ html, body { touch-action: manipulation; }
   box-shadow: 0 0 14px 4px rgba(214,26,26,.6), inset 0 0 0 1px rgba(255,255,255,.35);
 }
 @media (prefers-reduced-motion: reduce) { #signature-fx-layer .fx-jump-flash, .card.fx-jump-snap { animation: none !important; } }
+
+/* START SCREEN: NO SIDE SCRIM (owner, 2026-11-11: "the left side shouldn't
+   have the black overlay"). .mm-scrim darkens the LEFT for the menu's left
+   column; the start screen's text is centred, so it only hid the art. */
+#main-menu-overlay.ts-menulike .mm-scrim { display: none; }

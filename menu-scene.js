@@ -218,7 +218,7 @@ void main(){
   vec3 base = tex(px);
   vec3 col = M < .5 ? holeFx(px, base) : earthFx(px, base);
   vec2 q = gl_FragCoord.xy/R;
-  col *= .55 + .45*pow(16.*q.x*q.y*(1.-q.x)*(1.-q.y), .18);
+  col *= .82 + .18*pow(16.*q.x*q.y*(1.-q.x)*(1.-q.y), .18);   // light vignette — the edges stay lit
   col += (h21(gl_FragCoord.xy + fract(T)*91.) - .5) * .02;
   gl_FragColor = vec4(col, 1.);
 }`;
@@ -344,8 +344,15 @@ const MenuScene = {
   _resize() {
     if (!this.cv) return;
     const low = document.body && document.body.classList.contains('low-fx');
-    this._scale0 = Math.min(window.devicePixelRatio || 1, 1.5) * (low ? .5 : .8);
-    if (!this._scale || this._scale > this._scale0) this._scale = this._scale0;
+    // FULL NATIVE RESOLUTION (owner: "make it hd"). This used to start at
+    // 0.8x of min(DPR, 1.5) — on a 2x screen that drew 1.2 canvas px per CSS
+    // px and the browser stretched it, softening everything. Now it starts at
+    // the real device ratio (capped at 2); the adaptive loop still steps it
+    // down on a device that can't hold the frame rate.
+    this._scale0 = Math.min(window.devicePixelRatio || 1, 2) * (low ? .6 : 1);
+    // Start AT the target the first time (the field's initial 1 is only a
+    // placeholder — "only ever lower it" kept a 2x screen at 1x forever).
+    if (!this._scaleSet || this._scale > this._scale0) { this._scale = this._scale0; this._scaleSet = true; }
     const w = Math.max(1, Math.round(innerWidth*this._scale)), hh = Math.max(1, Math.round(innerHeight*this._scale));
     if (this.cv.width !== w || this.cv.height !== hh) { this.cv.width = w; this.cv.height = hh; if (this.gl) this.gl.viewport(0, 0, w, hh); }
     if (this.fx.width !== innerWidth || this.fx.height !== innerHeight) { this.fx.width = innerWidth; this.fx.height = innerHeight; }
