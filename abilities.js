@@ -5331,6 +5331,7 @@ const CARD_ABILITIES = {
           const reviveCut = self._doomReviveDiscount || 3;
           card.cost = Math.max(0, card.cost - reviveCut);
           G.addToHand(owner, card, self, null, 'Revived by Dr. Doom');
+          if (typeof UI !== 'undefined' && UI._fxDoomRevive) { try { UI._fxDoomRevive(self); } catch (e) {} }
           G.log(`Dr. Doom revives ${card.name} to hand! Cost permanently reduced by ${reviveCut} → ${card.cost}.`);
           summonDoombot();
         },
@@ -6777,6 +6778,7 @@ const CARD_ABILITIES = {
       G.state[opp].batmanBlocked = start;
       G.state[opp].batmanBlockedUntil = Math.max(G.state[opp].batmanBlockedUntil || 0, until);
       G.log(`Batman locks down the opponent's highest cost card for ${lockTurns} turn${lockTurns === 1 ? '' : 's'}!`);
+      if (typeof UI !== 'undefined' && UI._fxBatmanLockdown) { try { UI._fxBatmanLockdown(self); } catch (e) {} }
       const enemies = G.getEnemiesOf(self.owner);
       if (!enemies.length) return;
       // Roguelite Text+ override — _batmanStrikeDamage scales each of
@@ -7027,9 +7029,11 @@ const CARD_ABILITIES = {
       } else {
         const target = G.state.lanes[lane] ? G.state.lanes[lane][opp] : null;
         if (target && target.currentHealth > 0) {
+          if (typeof UI !== 'undefined' && UI._fxSupermanStrike) { try { UI._fxSupermanStrike(self, target); } catch (e) {} }
           G.dealDamage(target, self.attack, self);
           G.log(`Superman bonus attacks ${target.name} for ${self.attack}!`);
         } else {
+          if (typeof UI !== 'undefined' && UI._fxSupermanStrike) { try { UI._fxSupermanStrike(self, null, self.owner); } catch (e) {} }
           G.damagePlayer(opp, self.attack, self.isBullseye);
           G.log(`Superman bonus attacks health bar for ${self.attack}!`);
         }
@@ -7060,11 +7064,13 @@ const CARD_ABILITIES = {
       const unfrozen1 = G.getEnemiesOf(self.owner).filter(e => !e.isFrozen);
       if (!unfrozen1.length) { doBlast(); return; }
       G.promptCardChoice(self.owner, unfrozen1, `Superman — Freeze (1 of 2)`, `Choose the first enemy to Freeze ${freezeN}`, (t1) => {
+        if (typeof UI !== 'undefined' && UI._fxSupermanFreezeBreath) { try { UI._fxSupermanFreezeBreath(self, t1); } catch (e) {} }
         G.freezeCardUnresistible(t1, self, freezeN);
         G.log(`Superman freezes ${t1.name} for ${freezeN}!`);
         const unfrozen2 = G.getEnemiesOf(self.owner).filter(e => !e.isFrozen);
         if (!unfrozen2.length) { doBlast(); return; }
         G.promptCardChoice(self.owner, unfrozen2, `Superman — Freeze (2 of 2)`, `Choose the second enemy to Freeze ${freezeN}`, (t2) => {
+          if (typeof UI !== 'undefined' && UI._fxSupermanFreezeBreath) { try { UI._fxSupermanFreezeBreath(self, t2); } catch (e) {} }
           G.freezeCardUnresistible(t2, self, freezeN);
           G.log(`Superman freezes ${t2.name} for ${freezeN}!`);
           doBlast();

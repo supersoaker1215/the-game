@@ -12719,6 +12719,69 @@ const UI = {
     });
   },
 
+  // ---- Superman / Batman / Dr. Doom: their other big moments (2026-11-11) ----
+  // Superman's entry strike: a white-blue streak dives onto the target (or the
+  // enemy HP bar) and lands with a shockwave. Target captured before damage.
+  _fxSupermanStrike(self, target, owner) {
+    if (this._reducedMotion() || !self) return;
+    let to = target ? this._fxPt(target) : null;
+    if (!to) {
+      const dom = this._fxDomSide ? this._fxDomSide(owner || self.owner) : (owner || self.owner);
+      to = this._fxCenter(document.getElementById(dom === 'player' ? 'ai-hp-fill' : 'player-hp-fill'));
+    }
+    if (!to) return;
+    this._fxWhenPainted(self, (el) => {
+      const from = this._fxCenter(el);
+      if (!from) return;
+      this._fxSonicBoom(from.x, from.y, to.x - from.x, to.y - from.y);
+      setTimeout(() => {
+        this._fxImpact(to, { color: '#cfe6ff', core: '#ffffff', size: 1.8 });
+        this._fxSparks(to, { color: '#ffffff', glow: '#6fb6ff', count: 14, spread: 80, size: 2.6 });
+        this._screenShake('light');
+      }, 160);
+    });
+  },
+  // Superman's freeze: an icy breath cone onto each frozen enemy.
+  _fxSupermanFreezeBreath(self, target) {
+    if (this._reducedMotion() || !self || !target) return;
+    this._fxFreezeRay(self, [target]);
+  },
+  // Batman's lockdown: a dark seal snaps shut over the enemy's hand — rings
+  // contract onto it and cold sparks spit off as the best card is locked.
+  _fxBatmanLockdown(self) {
+    if (this._reducedMotion() || !self) return;
+    const dom = this._fxDomSide ? this._fxDomSide(self.owner) : self.owner;
+    const hand = document.getElementById(dom === 'player' ? 'ai-hand' : 'player-hand');
+    const to = this._fxCenter(hand);
+    if (!to) return;
+    this._fxWhenPainted(self, (el) => {
+      const from = this._fxCenter(el);
+      if (from) this._fxTendril(from, to, { color: '#1b2433' });
+      setTimeout(() => {
+        this._fxRing(hand, { color: '#9fb4d6', contract: true });
+        setTimeout(() => this._fxRing(hand, { color: '#41536f', contract: true }), 120);
+        this._fxSparks(to, { color: '#d6e2f5', glow: '#4f6a93', count: 12, spread: 70, size: 2.2 });
+      }, 260);
+    });
+  },
+  // Dr. Doom's revive: green arcane rings turn on him, then a bolt of that
+  // light carries the fallen ally back to his master's hand.
+  _fxDoomRevive(self) {
+    if (this._reducedMotion() || !self) return;
+    const dom = this._fxDomSide ? this._fxDomSide(self.owner) : self.owner;
+    const hand = document.getElementById(dom === 'player' ? 'player-hand' : 'ai-hand');
+    this._fxWhenPainted(self, (el) => {
+      this._fxRing(el, { color: '#3dff8a' });
+      setTimeout(() => this._fxRing(el, { color: '#9dffc4', contract: true }), 140);
+      const from = this._fxCenter(el), to = this._fxCenter(hand);
+      if (from) this._fxSparks(from, { color: '#c8ffd9', glow: '#2bd66b', count: 14, angle: -Math.PI / 2, cone: 1, spread: 80, size: 2.6 });
+      if (from && to) setTimeout(() => {
+        this._fxDrawBolt(from, to, { color: '#5dff9b' });
+        this._fxImpact(to, { color: '#7dffb0', size: 1.2 });
+      }, 260);
+    });
+  },
+
   _fxEnergyTheft(owner) {
     if (this._reducedMotion()) return;
     const dom = this._fxDomSide ? this._fxDomSide(owner) : owner;
