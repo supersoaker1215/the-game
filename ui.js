@@ -13017,6 +13017,60 @@ const UI = {
     if (p) this._fxSparks(p, { color: '#d6ff9a', glow: '#9b3dff', count: 16, spread: 70, size: 2.6 });
   },
 
+  // ---- Spider-Man / Venom / Captain America extras (2026-11-11) ----
+  // Spider-Man dodges: a pale afterimage streak flicks off sideways and a ring
+  // pulses as he grows; when the extra charge comes back, quick jagged
+  // "tingle" rays radiate from him (abstract — light only).
+  _fxSpiderDodge(self, sense) {
+    if (this._reducedMotion() || !self) return;
+    const el = this._fxCardElById(self.id); if (!el) return;
+    const p = this._fxCenter(el); if (!p) return;
+    if (!sense) {
+      const dir = Math.random() < .5 ? -1 : 1;
+      this._fxSonicBoom(p.x, p.y, dir * 70, -14);
+      this._fxRing(el, { color: '#ff5a5a', contract: true });
+    } else {
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2;
+        this._fxDrawBolt({ x: p.x + Math.cos(a) * 18, y: p.y + Math.sin(a) * 18 }, { x: p.x + Math.cos(a) * 62, y: p.y + Math.sin(a) * 62 }, { color: '#ff8a8a' });
+      }
+      this._fxRing(el, { color: '#ffd0d0' });
+    }
+  },
+  // Venom's heal: dark tendrils carry the life from him into his owner's HP bar,
+  // which pulses as it fills.
+  _fxSymbioteHeal(self) {
+    if (this._reducedMotion() || !self) return;
+    const dom = this._fxDomSide ? this._fxDomSide(self.owner) : self.owner;
+    const bar = document.getElementById(dom === 'player' ? 'player-hp-fill' : 'ai-hp-fill');
+    const to = this._fxCenter(bar);
+    const el = this._fxCardElById(self.id);
+    const from = this._fxCenter(el);
+    if (!to || !from) return;
+    for (let i = 0; i < 3; i++) setTimeout(() => {
+      this._fxTendril(from, { x: to.x + (i - 1) * 40, y: to.y }, { color: '#0a0a0a', glow: '#e6e6e6', bow: 30 + i * 16 });
+    }, i * 90);
+    setTimeout(() => {
+      this._fxImpact(to, { color: '#9dffb5', core: '#ffffff', size: 1.1 });
+      this._fxSparks(to, { color: '#d6ffe0', glow: '#2fd66b', count: 12, angle: -Math.PI / 2, cone: 1.2, spread: 50, size: 2.2 });
+    }, 380);
+  },
+  // Captain America's rally: a bright pulse sweeps along his owner's hand and
+  // each card in it gets a small lift of light (the discount, shown).
+  _fxRallyHand(self) {
+    if (this._reducedMotion() || !self) return;
+    const dom = this._fxDomSide ? this._fxDomSide(self.owner) : self.owner;
+    const hand = document.getElementById(dom === 'player' ? 'player-hand' : 'ai-hand');
+    if (!hand) return;
+    const cards = Array.from(hand.children).filter(c => c.getBoundingClientRect().width);
+    cards.forEach((c, i) => setTimeout(() => {
+      this._fxRing(c, { color: '#9fd0ff', contract: true });
+      const p = this._fxCenter(c);
+      if (p) this._fxSparks(p, { color: '#ffffff', glow: '#3d8bff', count: 8, angle: -Math.PI / 2, cone: .8, spread: 44, size: 2.2 });
+    }, 120 + i * 70));
+    this._fxWhenPainted(self, (el) => this._fxRing(el, { color: '#3d8bff' }));
+  },
+
   _fxEnergyTheft(owner) {
     if (this._reducedMotion()) return;
     const dom = this._fxDomSide ? this._fxDomSide(owner) : owner;

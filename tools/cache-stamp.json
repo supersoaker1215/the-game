@@ -16,8 +16,8 @@
     "hash": "4074e4c3"
   },
   "abilities.js": {
-    "v": 519,
-    "hash": "9b37852e"
+    "v": 520,
+    "hash": "bee6819d"
   },
   "engine/combat.js": {
     "v": 4,
@@ -60,8 +60,8 @@
     "hash": "10d54608"
   },
   "ui.js": {
-    "v": 1724,
-    "hash": "1564854c"
+    "v": 1725,
+    "hash": "164f25d3"
   },
   "board-v2.js": {
     "v": 32,

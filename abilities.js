@@ -4287,6 +4287,7 @@ const CARD_ABILITIES = {
         amount = ct * mul;
       }
       if (amount > 0) {
+        if (typeof UI !== 'undefined' && UI._fxSymbioteHeal) { try { UI._fxSymbioteHeal(self); } catch (e) {} }
         G.healPlayer(self.owner, amount, self);
         G.log(`${G.seatVerb(self.owner, 'heal', 'heals')} for ${amount} — Venom!`);
         self.venomHealed = true;
@@ -4411,6 +4412,7 @@ const CARD_ABILITIES = {
       const disc = G.rarityValue(self, { common: 1, rare: 1, special: 2, legendary: 2 });
       const count = G.state[self.owner].hand.filter(c => c.cost > 0).length;
       G.log(`Captain America rallies the team — ${count} card${count === 1 ? '' : 's'} in hand cost ${disc} less!`);
+      if (typeof UI !== 'undefined' && UI._fxRallyHand) { try { UI._fxRallyHand(self); } catch (e) {} }
       const allies = G.getAlliesOf(self.owner).filter(a => a.id !== self.id);
       const grant = (a) => {
         a.invincibleTurns = Math.max(a.invincibleTurns || 0, 1);
@@ -4746,9 +4748,11 @@ const CARD_ABILITIES = {
       const buff = self._spiderManEvadeBuff || 1;
       const regain = (typeof self._spiderManRegainChance === 'number') ? self._spiderManRegainChance : 0.5;
       G.buffCard(self, buff, buff);
+      if (typeof UI !== 'undefined' && UI._fxSpiderDodge) { try { UI._fxSpiderDodge(self, false); } catch (e) {} }
       G.log(`Spider-Man evades and grows! +${buff}/+${buff}`);
       if (Game.rng() < regain) {
         self.evadeCharges += 1;
+        if (typeof UI !== 'undefined' && UI._fxSpiderDodge) { try { UI._fxSpiderDodge(self, true); } catch (e) {} }
         G.log(`Spider-Man's spider-sense tingles! Extra evade charge!`);
       }
     }
