@@ -53741,3 +53741,167 @@ body:not(.ai-thinking) .ai-thinking-ring circle {
   border-top-color: transparent !important;
   box-shadow: none !important;
 }
+
+/* ============================================================
+   DRAFT RARITY LABELS GLOW IN THEIR OWN COLOUR (2026-11-11)
+   ============================================================
+   Owner: "legendary has a blue glow for some reason the glow should be the
+   same color as the text… also the rare has an orange glow it should be
+   blue." Measured: the label had no glow of its own (Legendary's was
+   orange); what lit it was the CARD's halo — .draft-offer is the card's
+   glow host, and a parent's drop-shadow filter composites its whole
+   subtree, so the label under Dr. Manhattan glowed his blue and the one
+   under Droideka its orange. The card already carries its own glow filter,
+   so the host's copy is dropped on draft offers; each label glows in its
+   own text colour. */
+.draft-offer.card-glow-host { filter: none !important; }
+.draft-foot-rarity,
+.draft-foot-rarity.rarity-tier-4 { text-shadow: 0 0 8px currentColor; }
+
+/* ============================================================
+   PHONE DRAFT — ONE SCREEN, SIDE BY SIDE, SHAPE KEPT (2026-11-11)
+   ============================================================
+   Owner: "the draft screen needs to be one non scrollable screen … the aspect
+   ratio for cards doesn't change, they just get bigger or smaller … cards side
+   by side on mobile, with the first 2 letters of the name and cost underneath
+   for your previous picks, and if you tap on the previous picks it will pull
+   up the card."
+   Measured before (393x852): overlay scrolled 1411px; offers stacked; a card
+   squeezed to 142x616. Now: the panel is exactly the screen, the offers sit in
+   a row laid out at ONE design width (--dph-card-w) and are scaled together by
+   `zoom` (UI._fitDraftPhone writes --dph-zoom), and both rails become one
+   strip of small tap-to-inspect tiles. */
+.dpr-abbr, .dpr-mcost { display: none; }
+.draft-rail .dpr-slot.is-card { cursor: pointer; }
+@media (max-width: 640px) {
+  .draft-overlay:has(.draft-stage) {
+    overflow: hidden !important;
+    align-items: stretch !important;
+    padding: 6px !important;
+  }
+  .draft-overlay .draft-panel:has(.draft-stage) {
+    height: calc(100dvh - 12px) !important;
+    max-height: calc(100dvh - 12px) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    padding: 10px 10px 8px !important;
+    margin: 0 !important;
+  }
+  .draft-overlay .draft-panel .draft-stage {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    gap: 8px !important;
+    margin: 0 !important;
+  }
+  .draft-overlay .draft-stage > .draft-choices {
+    /* The DESKTOP design width: the card wraps its text exactly as it does on
+       desktop, so it has the desktop's shape (~0.61), and the phone only
+       scales it. A narrower design width wrapped more text per line-break and
+       produced a tall, thin card (190px → 0.31) — the very squeeze the owner
+       asked to stop. Tap a card (or a past pick) to read it full size. */
+    --dph-card-w: 300px;
+    order: 1 !important;
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important;
+    align-content: center !important;
+    justify-content: center !important;
+    gap: 10px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+  }
+  /* stretch the pair to one height, but centre that pair in the free space */
+  .draft-overlay .draft-stage > .draft-choices > .draft-offer {
+    align-self: center !important;
+  }
+  .draft-overlay .draft-stage > .draft-choices > .draft-offer > .draft-card,
+  .draft-overlay .draft-stage > .draft-choices > .draft-offer > .trick-draft {
+    min-height: var(--dph-pair-h, 0) !important;
+  }
+  .draft-overlay .draft-stage > .draft-choices > .draft-offer {
+    flex: 0 0 auto !important;
+    width: var(--dph-card-w) !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    zoom: var(--dph-zoom, 0.7);
+  }
+  .draft-overlay .draft-stage > .draft-choices > .draft-offer > .draft-card,
+  .draft-overlay .draft-stage > .draft-choices > .draft-offer > .trick-draft {
+    width: var(--dph-card-w) !important;
+    min-width: var(--dph-card-w) !important;
+    max-width: var(--dph-card-w) !important;
+    flex: 0 0 auto !important;
+    /* The pair stands the same height (the row stretches them, as on
+       desktop): a card's natural height follows its rules text, and a hard
+       aspect-ratio clipped that text, so the shape is the design's own —
+       never squeezed, only scaled. */
+    height: auto !important;
+    min-height: 0 !important;
+  }
+  /* The two rails become one strip under the offers: picks, then tricks. */
+  .draft-overlay .draft-stage > .draft-rail {
+    order: 2 !important;
+    flex: 0 0 auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .draft-overlay .draft-stage > .draft-rail-right { order: 3 !important; }
+  .draft-overlay .draft-stage > .draft-rail .mp-rule { margin: 0 0 4px !important; }
+  .draft-overlay .draft-stage > .draft-rail .dpr-list {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    justify-content: center !important;
+    gap: 8px !important;
+  }
+  .draft-overlay .draft-stage > .draft-rail .dpr-slot {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 2px !important;
+    width: auto !important;
+    min-width: 0 !important;
+    height: auto !important;
+    padding: 0 !important;
+  }
+  .draft-overlay .draft-stage > .draft-rail .dpr-slot .dpr-tile {
+    position: relative !important;
+    width: 38px !important;
+    height: 38px !important;
+    flex: 0 0 38px !important;
+    display: grid !important;
+    place-items: center !important;
+  }
+  .draft-overlay .draft-stage > .draft-rail .dpr-slot .dpr-art,
+  .draft-overlay .draft-stage > .draft-rail .dpr-slot .dpr-cost,
+  .draft-overlay .draft-stage > .draft-rail .dpr-slot .dpr-name,
+  .draft-overlay .draft-stage > .draft-rail .dpr-meta { display: none !important; }
+  .draft-overlay .draft-stage > .draft-rail .dpr-slot .dpr-abbr {
+    display: block !important;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 0.04em;
+    color: #fff;
+  }
+  .draft-overlay .draft-stage > .draft-rail .dpr-slot .dpr-mcost {
+    display: block !important;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1;
+    color: rgb(var(--theme-rgb, 79,195,247));
+  }
+  .draft-overlay .draft-stage > .draft-rail .dpr-slot.is-current .dpr-tile::after {
+    content: '?';
+    font-size: 15px;
+    color: rgb(var(--theme-rgb, 79,195,247));
+  }
+}

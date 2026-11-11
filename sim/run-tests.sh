@@ -387,6 +387,9 @@ run_suite sim/title-menu-hero.js
 echo "=== sjw-x-display.js (Sung Jin-Woo prints X until he has an X) ==="
 run_suite sim/sjw-x-display.js
 
+echo "=== draft-phone.js (phone draft one screen; desktop rail + rarity glow) ==="
+run_suite sim/draft-phone.js
+
 echo "=== sung-jin-woo.js (X-cost X/X, shadows bound to their master, odds-based revive) ==="
 run_suite sim/sung-jin-woo.js
 

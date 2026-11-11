@@ -851,8 +851,13 @@ const UI = {
     if (c) {
       const art = this.getCardArtPath ? this.getCardArtPath(c.name) : '';
       const bg = art ? `--portrait-bg:url('${art.replace(/'/g, '%27')}')${this._artFocalCard ? this._artFocalCard(c.name) : ''}` : '';
+      // .dpr-abbr / .dpr-mcost are the PHONE tile (owner: "the first 2 letters
+      // of the name and cost underneath for your previous picks"); desktop
+      // hides them and keeps the art thumb.
+      const abbr = String(c.name || '').replace(/^the\s+/i, '').replace(/[^A-Za-z0-9]/g, '').slice(0, 2);
       face = `<span class="dpr-cost">${c.baseCost != null ? c.baseCost : (c.cost || 0)}</span>
               <span class="dpr-art" style="${bg}"></span>
+              <span class="dpr-abbr">${esc(abbr.charAt(0).toUpperCase() + abbr.slice(1).toLowerCase())}</span>
               <span class="dpr-name">${esc(c.name)}</span>`;
     } else if (state === 'is-current') {
       face = `<span class="dpr-q">?</span>`;
@@ -867,8 +872,13 @@ const UI = {
     // outlined box reads as a container waiting to be filled. Filled picks keep
     // their art; unfilled ones are a small chip and a dim word.
     // (Owner's mock, change 5 of 6.)
-    return `<div class="dpr-slot ${state}${kind ? ' dpr-' + kind : ''}${c ? ' is-card' : ''}">
+    // TAP A PAST PICK TO SEE IT — the same name-based inspect every other
+    // surface uses (showCardInspect resolves cards and tricks by data-*).
+    const pickAttrs = c ? ` data-${kind === 'trick' ? 'trick' : 'card'}-name="${esc(c.name)}" role="button" tabindex="0" onclick="UI.showCardInspect(this)"` : '';
+    const mcost = c ? `<span class="dpr-mcost">${c.baseCost != null ? c.baseCost : (c.cost || 0)}</span>` : '';
+    return `<div class="dpr-slot ${state}${kind ? ' dpr-' + kind : ''}${c ? ' is-card' : ''}"${pickAttrs}>
       <div class="dpr-tile">${face}</div>
+      ${mcost}
       <div class="dpr-meta">
         <span class="dpr-label">${esc(label)}</span>
         ${c ? stats : (state === 'is-current' ? '<span class="dpr-choosing">Choosing</span>' : '')}
@@ -958,18 +968,14 @@ const UI = {
           return this._draftSlotHTML(c, 'Trick ' + (i + 1), state, 'trick');
         }).join('')
       }</div>` : '';
+    // DECK-SO-FAR STATS REMOVED (owner struck them through, 2026-11-11): the
+    // card/avg-cost/total-ATK row, the cost curve and "Keywords held" were
+    // reading back numbers about five picks you can see on the left. The rail
+    // now carries only what it is for — the tricks you have drafted.
+    // (n / avg / totalAtk / bars / kwHtml above are left computed: callers and
+    // tests read the helper's inputs, and they cost nothing.)
+    void n; void avg; void totalAtk; void bars; void kwHtml; void oppHtml;
     return `<aside class="draft-rail draft-rail-right">
-      <div class="mp-rule"><span class="mp-rule-label">${esc(o.title || 'Deck so far')}</span><span class="mp-rule-line"></span></div>
-      <div class="dcr-stats">
-        <div class="dcr-stat"><b class="dcr-num">${n}</b><span class="dcr-cap">Cards</span></div>
-        <div class="dcr-stat"><b class="dcr-num">${n ? avg.toFixed(1) : '—'}</b><span class="dcr-cap">Avg cost</span></div>
-        <div class="dcr-stat"><b class="dcr-num dcr-atk">${totalAtk}</b><span class="dcr-cap">Total ATK</span></div>
-      </div>
-      <div class="dcr-sub">Cost curve</div>
-      <div class="dcr-curve">${bars}</div>
-      <div class="dcr-sub">Keywords held</div>
-      <div class="dcr-kws">${kwHtml}</div>
-      ${oppHtml}
       ${trickHtml}
     </aside>`;
   },
@@ -25357,6 +25363,11 @@ const UI = {
   _fitDraftToViewport() {
     const panel = document.querySelector('.draft-panel');
     if (!panel || !panel.querySelector('.draft-card')) return;
+    if (this._isPhoneDraft()) {
+      panel.style.transform = ''; panel.dataset.draftScale = '1';
+      this._fitDraftPhone();
+      return;
+    }
     // NEVER clear the transform to take the measurement. The first version did
     // (`panel.style.transform = ''` then measure), which meant every early
     // return below left the panel UNSCALED — and one of them fires routinely:
@@ -25379,6 +25390,56 @@ const UI = {
     panel.style.transformOrigin = 'center center';
     panel.dataset.draftScale = String(scale);
     panel.style.transform = scale > 1.001 ? `scale(${scale.toFixed(3)})` : '';
+  },
+
+  // PHONE DRAFT: ONE SCREEN, CARDS SIDE BY SIDE, SHAPE NEVER CHANGES.
+  // Owner: "the draft screen needs to be one non scrollable screen … the
+  // aspect ratio for cards doesn't change, they don't get thicker or slimmer
+  // to fit, they just get bigger or smaller … cards side by side on mobile."
+  // Measured before (393x852): the overlay scrolled 1411px, the offers stacked,
+  // and a card was squeezed to 142x616 — its rules text reflowing into a strip.
+  // Each offer is laid out at ONE fixed design width (CSS, --dph-card-w), so
+  // its contents wrap exactly as designed every time; then the pair is scaled
+  // uniformly with `zoom` (layout + hit-testing scale with it) to fill the
+  // space left between the HUD and the picks strip.
+  _isPhoneDraft() {
+    return typeof window !== 'undefined' && window.innerWidth <= 640;
+  },
+  _fitDraftPhone() {
+    const box = document.querySelector('.draft-stage > .draft-choices');
+    if (!box) return;
+    const offers = [...box.querySelectorAll(':scope > .draft-offer')];
+    if (!offers.length) return;
+    const apply = () => {
+      // The box can be laid out wider than the screen (its row of zoomed
+      // offers pushes it), so the screen is the real limit on width.
+      const avW = Math.min(box.clientWidth, window.innerWidth - 28), avH = box.clientHeight;
+      if (!avW || !avH) return;
+      const z = parseFloat(getComputedStyle(offers[0]).zoom) || 1;
+      // Natural (zoom 1) size of the pair: rects are post-zoom, so divide out.
+      let sumW = 0, maxH = 0;
+      // Pair height: the taller card's NATURAL height sets both (cleared first
+      // so a previous pair's height never props the next one up).
+      box.style.setProperty('--dph-pair-h', '0px');
+      let cardH = 0;
+      offers.forEach(o => {
+        const c = o.querySelector('.draft-card, .trick-draft');
+        if (c) cardH = Math.max(cardH, c.getBoundingClientRect().height / z);
+      });
+      if (cardH) box.style.setProperty('--dph-pair-h', Math.ceil(cardH) + 'px');
+      offers.forEach(o => { const r = o.getBoundingClientRect(); sumW += r.width / z; maxH = Math.max(maxH, r.height / z); });
+      const gap = parseFloat(getComputedStyle(box).columnGap) || 10;
+      const k = Math.min((avW - gap * (offers.length - 1) - 4) / sumW, (avH - 4) / maxH);
+      const kk = Math.max(0.35, Math.min(1.6, k));
+      if (Math.abs(kk - z) > 0.005) box.style.setProperty('--dph-zoom', kk.toFixed(3));
+    };
+    // Fonts + layout settle first (fit-loop rule: double rAF, then fonts).
+    requestAnimationFrame(() => requestAnimationFrame(apply));
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(apply);
+    if (!this._draftPhoneResizeHooked) {
+      this._draftPhoneResizeHooked = true;
+      window.addEventListener('resize', () => { if (document.querySelector('.draft-stage')) this._fitDraftToViewport(); }, { passive: true });
+    }
   },
 
   // THE BOARD TAKES WHATEVER HEIGHT IS STILL FREE.
