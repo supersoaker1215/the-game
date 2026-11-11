@@ -384,6 +384,9 @@ run_suite sim/floating-bars.js
 echo "=== menu-video.js (title + menu share one looping video) ==="
 run_suite sim/menu-video.js
 
+echo "=== menu-score.js (the menu plays the generative score, not card tracks) ==="
+run_suite sim/menu-score.js
+
 echo "=== sjw-x-display.js (Sung Jin-Woo prints X until he has an X) ==="
 run_suite sim/sjw-x-display.js
 

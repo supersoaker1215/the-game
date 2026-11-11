@@ -1408,6 +1408,15 @@ const UI = {
     this._trackFace = { stem, name };
   },
   _updateNowPlaying(src) {
+    if (this.MENU_SCORE_ON) {
+      const np0 = document.querySelector('#main-menu-overlay .mm-nowplaying');
+      if (np0) np0.textContent = this.menuScore.playing() ? ('♪ ' + this.menuScore.name()) : '';
+      const pin0 = document.querySelector('#main-menu-overlay .mm-pin-hero');
+      if (pin0) pin0.style.display = 'none';
+      const pk = document.querySelector('#main-menu-overlay .mm-heropick');
+      if (pk) pk.querySelectorAll('.mm-heropick-row').forEach(r => r.classList.toggle('is-active', r.dataset.score === String(this.menuScore._idx)));
+      return;
+    }
     const name = this._menuHoverArtName(src);
     const np = document.querySelector('#main-menu-overlay .mm-nowplaying');
     if (np) np.textContent = name ? ('♪ ' + name) : '';
@@ -1442,6 +1451,10 @@ const UI = {
   // (.is-default); the currently-playing hero is highlighted (.is-active, set
   // by _updateNowPlaying). Clicking a row plays that hero.
   _menuHeroPickerRowsHTML() {
+    if (this.MENU_SCORE_ON) {
+      return this.menuScore.SCORES.map((sc, i) =>
+        `<button type="button" class="mm-heropick-row" data-score="${i}" role="option" onclick="UI.menuScore.start(${i});UI._updateNowPlaying(null)">${sc.name}</button>`).join('');
+    }
     const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const cur = this.settings.defaultMenuHero || '';
     return this._menuHeroNames().map(n =>
@@ -1559,6 +1572,125 @@ const UI = {
     const name = this._menuHoverArtName(src);
     if (name) this._lastMenuHeroName = name;
   },
+  // ===================== MENU SCORE =====================
+  // The menu bed is generative music synthesised live in Web Audio — no files,
+  // nothing from the cards (owner, 2026-11-11: "the music needs to be not from
+  // the cards but the music you made"). Three ORIGINAL pieces, each a chord
+  // loop with its own voicing; a scheduler keeps ~1.5s of notes queued ahead.
+  // Output goes through the mixer's MUSIC bus, so the Music slider, the master
+  // mute and the hover-duck all apply exactly as they did to the old tracks.
+  menuScore: {
+    _live: null, _idx: -1, _out: null, _ducked: false,
+    SCORES: [
+      { name: 'Horizon', bar: 10,   // slow organ-like chords, a soft high arpeggio
+        chords: [[33,45,52,57,60,64],[29,41,48,53,57,60],[36,48,55,60,64,67],[31,43,50,55,59,62]],
+        play(A, bus, t, ch) { const L = this.bar;
+          A.pad(bus, ch[0], t, L, { type: 'sine', vol: .13, cut: 240, det: 1 });
+          ch.slice(1).forEach(m => { A.pad(bus, m, t, L, { type: 'sine', vol: .03, cut: 3000, det: 3 });
+            A.pad(bus, m + 12, t + .2, L, { type: 'triangle', vol: .012, cut: 1800, det: 5 }); });
+          const arp = [ch[3]+12, ch[4]+12, ch[5]+12, ch[4]+24, ch[5]+12, ch[4]+12];
+          for (let i = 0; i < 10; i++) A.pluck(bus, arp[i % arp.length], t + 1 + i*L/10, .016); } },
+      { name: 'Orbit', bar: 8,      // wide synth pads, a patient arpeggio, a deep sub
+        chords: [[38,50,53,57,62,64],[34,46,50,53,57,60],[31,43,46,50,55,57],[33,45,49,52,57,59]],
+        play(A, bus, t, ch) { const L = this.bar;
+          A.pad(bus, ch[0], t, L, { type: 'sine', vol: .12, cut: 300, det: 2 });
+          ch.slice(1).forEach(m => A.pad(bus, m, t, L, { cut: 1100, vol: .028 }));
+          const arp = [ch[2]+12, ch[3]+12, ch[4]+12, ch[5]+12, ch[4]+12, ch[3]+12];
+          for (let i = 0; i < 16; i++) A.pluck(bus, arp[i % arp.length], t + i*L/16, .022 + (i % 4 === 0 ? .012 : 0)); } },
+      { name: 'Derelict', bar: 12,  // tense dark drone: low clusters, air, distant metal
+        chords: [[26,38,45,51],[27,39,46,50],[24,36,43,49],[26,38,44,51]],
+        ambient(A, bus) { const c = A.ctx, s = A.noise(), f = c.createBiquadFilter(), g = c.createGain(), l = c.createOscillator(), lg = c.createGain();
+          f.type = 'bandpass'; f.frequency.value = 500; f.Q.value = .6; g.gain.value = .035;
+          l.frequency.value = .05; lg.gain.value = 300; l.connect(lg); lg.connect(f.frequency);
+          s.connect(f); f.connect(g); g.connect(bus); s.start(); l.start();
+          return () => { try { s.stop(); l.stop(); } catch (e) {} }; },
+        play(A, bus, t, ch, n) { const L = this.bar;
+          A.pad(bus, ch[0], t, L, { vol: .07, cut: 200, det: 4 });
+          ch.slice(1).forEach((m, i) => A.pad(bus, m + 12, t + i*.7, L, { type: 'sine', vol: .022, cut: 1400, det: 12 }));
+          A.bell(bus, 74 + (n % 3)*3, t + 3 + (n % 2)*4, .018);
+          if (n % 2 === 0) A.boom(bus, t + .1, .22); } },
+    ],
+    // --- tiny synth kit (all oscillators + filters + a noise-impulse reverb)
+    hz(m) { return 440*Math.pow(2, (m - 69)/12); },
+    noise() { const s = this.ctx.createBufferSource(); s.buffer = this._noise; s.loop = true; return s; },
+    pad(bus, midi, t, dur, { cut = 900, vol = .05, type = 'sawtooth', det = 9 } = {}) {
+      const c = this.ctx, g = c.createGain(), f = c.createBiquadFilter();
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + dur*.35); g.gain.setTargetAtTime(0, t + dur*.75, dur*.18);
+      f.type = 'lowpass'; f.Q.value = .7;
+      f.frequency.setValueAtTime(cut*.5, t); f.frequency.linearRampToValueAtTime(cut, t + dur*.5); f.frequency.linearRampToValueAtTime(cut*.6, t + dur);
+      f.connect(g); g.connect(bus);
+      [-det, 0, det].forEach((d, i) => { const o = c.createOscillator(); o.type = type; o.frequency.value = this.hz(midi); o.detune.value = d;
+        if (c.createStereoPanner) { const pn = c.createStereoPanner(); pn.pan.value = (i - 1)*.6; o.connect(pn); pn.connect(f); } else o.connect(f);
+        o.start(t); o.stop(t + dur*1.6); });
+    },
+    pluck(bus, midi, t, vol = .05) {
+      const c = this.ctx, o = c.createOscillator(), g = c.createGain(), f = c.createBiquadFilter();
+      o.type = 'triangle'; o.frequency.value = this.hz(midi); f.type = 'lowpass'; f.frequency.value = 2400;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + 2.2);
+      o.connect(f); f.connect(g); g.connect(bus); o.start(t); o.stop(t + 2.4);
+    },
+    bell(bus, midi, t, vol = .05) {
+      const c = this.ctx; [1, 2.76, 5.4, 8.93].forEach((r, i) => { const o = c.createOscillator(), g = c.createGain();
+        o.frequency.value = this.hz(midi)*r; g.gain.setValueAtTime(vol/(i + 1), t); g.gain.exponentialRampToValueAtTime(.0001, t + 7/(i + 1));
+        o.connect(g); g.connect(bus); o.start(t); o.stop(t + 7); });
+    },
+    boom(bus, t, vol = .3) {
+      const c = this.ctx, o = c.createOscillator(), g = c.createGain();
+      o.frequency.setValueAtTime(80, t); o.frequency.exponentialRampToValueAtTime(38, t + .6);
+      g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + 2.6);
+      o.connect(g); g.connect(bus); o.start(t); o.stop(t + 2.7);
+    },
+    _setup() {
+      if (this._out) return true;
+      const sfx = UI.sfx; if (!sfx || !sfx._init || !sfx._init() || !sfx._ctx) return false;
+      const c = this.ctx = sfx._ctx;
+      const comp = c.createDynamicsCompressor(); comp.threshold.value = -18; comp.ratio.value = 3;
+      comp.connect(sfx._mixBus('music'));
+      this._out = c.createGain(); this._out.gain.value = 0; this._out.connect(comp);
+      const len = Math.floor(c.sampleRate*5), ir = c.createBuffer(2, len, c.sampleRate);
+      for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random()*2 - 1)*Math.pow(1 - i/len, 2.6); }
+      const rev = c.createConvolver(); rev.buffer = ir; const wet = c.createGain(); wet.gain.value = .55; rev.connect(wet); wet.connect(this._out);
+      this._dry = c.createGain(); this._dry.gain.value = .5; this._dry.connect(this._out); this._dry.connect(rev);
+      const nb = c.createBuffer(1, c.sampleRate*2, c.sampleRate), nd = nb.getChannelData(0);
+      for (let i = 0; i < nd.length; i++) nd[i] = Math.random()*2 - 1; this._noise = nb;
+      return true;
+    },
+    // Loudness: the synth voices sum ~12 dB under a mastered track (measured
+    // RMS .0097 at 2.4x vs ~.04 for the old card bed), so the score sits at 6x
+    // the old bed target; the compressor after it catches the peaks.
+    _target() { const s = UI.sfx; const v = s && s._musicTargetVol ? s._musicTargetVol() : .2; return v*6*(this._ducked ? (s._MUSIC_DUCK_FACTOR || .18) : 1); },
+    setLevel(fadeS) { if (!this._out || !this._live) return; this._out.gain.setTargetAtTime(this._target(), this.ctx.currentTime, (fadeS == null ? .3 : fadeS)/3); },
+    duck(on) { this._ducked = !!on; this.setLevel(.25); },
+    playing() { return !!this._live; },
+    // start(): keep whatever is playing (menu screen changes re-call it);
+    // start(i): switch piece with a crossfade.
+    start(idx) {
+      if (!this._setup()) return false;
+      if (idx == null && this._live) { this.setLevel(.6); return true; }
+      if (idx == null) idx = Math.floor(Math.random()*this.SCORES.length);
+      if (this._live && idx === this._idx) { this.setLevel(.6); return true; }
+      this._stopLive(2.5);
+      const c = this.ctx, sc = this.SCORES[idx], bus = c.createGain();
+      bus.gain.setValueAtTime(0, c.currentTime); bus.gain.linearRampToValueAtTime(1, c.currentTime + 3); bus.connect(this._dry);
+      const stopAmb = sc.ambient ? sc.ambient(this, bus) : null;
+      let n = 0, next = c.currentTime + .1;
+      const tick = () => { while (next < c.currentTime + 1.5) { sc.play(this, bus, next, sc.chords[n % sc.chords.length], n); next += sc.bar; n++; } };
+      tick();
+      this._idx = idx; this._live = { bus, iv: setInterval(tick, 400), stopAmb };
+      this._out.gain.setTargetAtTime(this._target(), c.currentTime, .4);
+      try { UI._updateNowPlaying(null); } catch (e) {}
+      return true;
+    },
+    next() { return this.start((this._idx + 1) % this.SCORES.length); },
+    _stopLive(fadeS) {
+      const L = this._live; if (!L) return; this._live = null;
+      clearInterval(L.iv); L.bus.gain.setTargetAtTime(0, this.ctx.currentTime, fadeS/4);
+      setTimeout(() => { if (L.stopAmb) L.stopAmb(); try { L.bus.disconnect(); } catch (e) {} }, fadeS*1000 + 600);
+    },
+    stop(fadeS) { this._stopLive(fadeS == null ? 1.2 : fadeS); },
+    name() { return this._live ? this.SCORES[this._idx].name : ''; },
+  },
+  MENU_SCORE_ON: true,
   // Hand-audio privacy quick toggle — the small ♪ at the head of the hand row.
   // Exactly the same state as the "Hide hand sounds" settings checkbox, just
   // surfaced where it matters: every card has its own hover cue, so anyone next
@@ -3512,6 +3644,9 @@ const UI = {
           const p = sil.play();
           if (p) p.then(() => { sil.pause(); sil.src = ''; }).catch(() => {});
         } catch (_) {}
+        if (UI.MENU_SCORE_ON && this._musicWantPlay && UI.settings && UI.settings.menuMusic !== false && UI.settings.sfxVolume !== 0) {
+          try { UI.menuScore.start(); } catch (e) {}
+        }
         if (this._musicWantPlay && this._music && this._music.paused) {
           // If the track already ended while waiting for a gesture, pick a
           // new one rather than replaying the same clip from the start.
@@ -3881,6 +4016,7 @@ const UI = {
       // Menu-music toggle: when off, remember intent (so toggling back on
       // mid-menu can auto-resume) but skip actual playback.
       if (UI.settings.menuMusic === false) { this._musicWantPlay = true; return; }
+      if (UI.MENU_SCORE_ON) { this._musicWantPlay = true; UI.menuScore.start(); return; }
       const a = this._ensureMusic();
       this._route(a, 'music');   // into the mixer's music bus (no-op before the first gesture)
       // Already playing a menu track? Keep it going. Navigating between menu
@@ -3926,6 +4062,7 @@ const UI = {
     // the duck inaudible-but-responsive.
     _MUSIC_DUCK_FADE_MS: 220,
     duckMusic() {
+      if (UI.MENU_SCORE_ON) { UI.menuScore.duck(true); return; }
       if (!this._music || this._music.paused) return;
       if (this._musicDucked) return;
       this._musicDucked = true;
@@ -3936,6 +4073,7 @@ const UI = {
       this._fadeVolume(this._music, duckTarget, this._MUSIC_DUCK_FADE_MS, '_musicFadeInterval');
     },
     restoreMusic() {
+      if (UI.MENU_SCORE_ON) { UI.menuScore.duck(false); return; }
       if (!this._music || this._music.paused) { this._musicDucked = false; return; }
       if (!this._musicDucked) return;
       this._musicDucked = false;
@@ -3949,6 +4087,7 @@ const UI = {
     // cycle until they hear something they like. Fades out in 250ms, then
     // fades the next track in. No-op if music isn't currently playing.
     skipMenuTrack() {
+      if (UI.MENU_SCORE_ON) { if (this._musicWantPlay) UI.menuScore.next(); return; }
       if (!this._musicWantPlay) return;
       const a = this._music;
       if (!a) { this.startMusic(); return; }
@@ -3972,6 +4111,10 @@ const UI = {
     // re-syncs the hero art + the '♪ Name' label automatically, so art, music,
     // and label all move together.
     nextMenuTrack() {
+      if (UI.MENU_SCORE_ON) {
+        if (UI.settings && (UI.settings.sfxVolume === 0 || UI.settings.menuMusic === false)) { this._musicWantPlay = true; return; }
+        this._musicWantPlay = true; UI.menuScore.next(); return;
+      }
       const target = this._musicTargetVol();
       const a = this._music;
       // Not currently playing (first interaction, or stopped) — start fresh on
@@ -4001,6 +4144,7 @@ const UI = {
     // Smoothly switch the menu loop to a specific hover track — used by the
     // 3-card hover preview and the trio re-roll. No-op if already playing it.
     crossfadeTo(src) {
+      if (UI.MENU_SCORE_ON) return;   // the menu plays the score, never a card's track
       if (!UI.settings || UI.settings.sfxVolume === 0) { this._musicWantPlay = true; return; }
       if (UI.settings.menuMusic === false) { this._musicWantPlay = true; return; }
       if (!src) return;
@@ -4021,6 +4165,7 @@ const UI = {
 
     stopMusic() {
       this._musicWantPlay = false;
+      try { UI.menuScore.stop(1.2); } catch (e) {}
       // Leaving the menu (→ match). Re-arm the default-hero lead so the next
       // cold menu entry greets the player with their pinned hero again.
       UI._menuDefaultLed = false;
@@ -4047,6 +4192,7 @@ const UI = {
       return Math.max(0, Math.min(1, mv * 0.35));
     },
     setMusicVolume() {
+      try { UI.menuScore.setLevel(.15); } catch (e) {}
       if (!this._music) return;
       this._music.volume = this._musicTargetVol();
     },
