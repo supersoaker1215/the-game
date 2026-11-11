@@ -14068,8 +14068,57 @@ const UI = {
   _TIER_FX: {
     light:  { flashMs: 230, flashCls: '',             shake: null,     knockback: 0,  burst: 0.62, pop: 1.00, chips: 2, hitPause: 0,   sfxGain: 0.78 },
     medium: { flashMs: 330, flashCls: '',             shake: 'light',  knockback: 5,  burst: 1.00, pop: 1.16, chips: 4, hitPause: 0,   sfxGain: 1.00 },
-    heavy:  { flashMs: 430, flashCls: 'hit-flash-heavy',  shake: 'medium', knockback: 10, burst: 1.45, pop: 1.42, chips: 6, hitPause: 0,   sfxGain: 1.22 },
-    lethal: { flashMs: 520, flashCls: 'hit-flash-lethal', shake: 'heavy',  knockback: 15, burst: 1.90, pop: 1.70, chips: 8, hitPause: 220, sfxGain: 1.40 },
+    // AAA PASS (2026-11-11, owner: "triple AAA animation" -> combat feel).
+    // HIT-STOP LADDER: heavy hits now freeze too (70ms), and a kill's freeze
+    // drops 220 -> 150ms — fighting-game hit-stop is a few frames; 220 read as
+    // a stall. kick = the directional camera jolt (px) toward the blow; the
+    // random shake drops a step where the kick now carries the weight.
+    heavy:  { flashMs: 430, flashCls: 'hit-flash-heavy',  shake: 'light',  knockback: 10, burst: 1.45, pop: 1.42, chips: 6, hitPause: 70,  sfxGain: 1.22, kick: 6,  impact: 1.5 },
+    lethal: { flashMs: 520, flashCls: 'hit-flash-lethal', shake: 'medium', knockback: 15, burst: 1.90, pop: 1.70, chips: 8, hitPause: 150, sfxGain: 1.40, kick: 10, impact: 2.1, zoom: 1.012 },
+  },
+
+  // ===================== AAA IMPACT LAYER =====================
+  // What a heavy hit / kill adds on top of the card's own flash + chips:
+  //   · a CONTACT FLASH where the blow lands — the target's edge facing the
+  //     attacker, not its centre (that is where the eye expects it);
+  //   · SPARKS sprayed AWAY from the attacker, so the hit has a direction;
+  //   · a CAMERA KICK — the whole view jolts a few px along the blow and
+  //     springs back (the `translate` property, so it never fights the
+  //     shake's transform animation), plus a tiny zoom punch on a kill.
+  // Low-fx / reduced-motion: no kick, no zoom; the flash still reads.
+  _impactLayer(targetEl, attackerId, fx, deadId) {
+    if (this._reducedMotion && this._reducedMotion()) return;
+    let tr = targetEl ? targetEl.getBoundingClientRect() : null;
+    if ((!tr || !tr.width) && deadId != null && this._deathRects) {
+      const d = this._deathRects.get ? this._deathRects.get(String(deadId)) : null;
+      if (d) tr = d;
+    }
+    const aEl = attackerId != null ? document.querySelector('.board [data-card-id="' + attackerId + '"]') : null;
+    const ar = aEl ? aEl.getBoundingClientRect() : null;
+    let dir = 0;   // +1 = blow travels DOWN the screen, -1 = UP
+    if (tr && ar && ar.width) dir = (tr.top + tr.height / 2) > (ar.top + ar.height / 2) ? 1 : -1;
+    else if (targetEl) dir = targetEl.classList.contains('ally-card') ? 1 : -1;
+    if (tr && tr.width) {
+      const p = { x: tr.left + tr.width / 2, y: dir > 0 ? tr.top + tr.height * .12 : (dir < 0 ? tr.top + tr.height * .88 : tr.top + tr.height / 2) };
+      this._fxImpact(p, { color: fx.kick >= 10 ? '#ffd2b0' : '#ffe8d6', core: '#ffffff', size: fx.impact || 1.4 });
+      this._fxSparks(p, { color: '#fff4e6', glow: fx.kick >= 10 ? '#ff5a3d' : '#ffb35a', count: fx.kick >= 10 ? 22 : 14,
+        angle: dir >= 0 ? Math.PI / 2 : -Math.PI / 2, cone: 1.3, spread: fx.kick >= 10 ? 110 : 80, size: 2.6 });
+    }
+    const low = document.body && document.body.classList.contains('low-fx');
+    const area = document.getElementById('game-area');
+    if (!area || low || !dir) return;
+    const k = fx.kick * dir;
+    area.style.transition = 'none';
+    area.style.translate = '0 ' + k + 'px';
+    if (fx.zoom) area.style.scale = String(fx.zoom);
+    void area.offsetWidth;
+    requestAnimationFrame(() => {
+      area.style.transition = 'translate 220ms cubic-bezier(.2,1.6,.4,1), scale 260ms cubic-bezier(.2,1.2,.4,1)';
+      area.style.translate = '0 0';
+      area.style.scale = '1';
+      clearTimeout(this._kickT);
+      this._kickT = setTimeout(() => { area.style.transition = ''; area.style.translate = ''; area.style.scale = ''; }, 320);
+    });
   },
   // Brief board-wide freeze-frame on lethal hits — the cel-animation
   // "hit-pause" that makes a kill register as an EVENT, not a blip.
@@ -14903,6 +14952,7 @@ const UI = {
         const fire = () => {
           if (fx.shake) this._screenShake(fx.shake);
           if (fx.hitPause) this._hitPauseFreeze(fx.hitPause);
+          if (fx.kick) this._impactLayer(null, ev.attackerId, fx, ev.cardId);
           try { this.sfx.play('hit', fx.sfxGain, 0); } catch (e) {}
           if (ev.amount > 0) this._haptic('hit');
           // THE KILLING NUMBER. Every other hit pops its "-N"; the one that
@@ -14962,6 +15012,8 @@ const UI = {
         this.spawnHitChips(cardEl, fx.chips);
         // Card recoil — jolt away from the attacker, distance by tier.
         this._cardKnockback(cardEl, fx.knockback);
+        // AAA impact layer — contact flash + directional sparks + camera kick.
+        if (fx.kick) this._impactLayer(cardEl, ev.attackerId, fx);
         // Screen shake — light hits don't shake (fx.shake === null).
         if (fx.shake) this._screenShake(fx.shake);
         // Lethal hit-pause — brief board freeze-frame on a kill.

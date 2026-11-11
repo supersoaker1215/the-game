@@ -399,6 +399,9 @@ run_suite sim/dissolve-owner.js
 echo "=== habitat-pair.js (a two-room event never splits its pair) ==="
 run_suite sim/habitat-pair.js
 
+echo "=== impact-layer.js (heavy hits: hit-stop, contact flash, camera kick) ==="
+run_suite sim/impact-layer.js
+
 echo "=== sjw-x-display.js (Sung Jin-Woo prints X until he has an X) ==="
 run_suite sim/sjw-x-display.js
 
