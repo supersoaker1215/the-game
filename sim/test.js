@@ -11184,6 +11184,50 @@ test('before-tricks: completion runs AFTER the hooks, never before', function ()
   assertEq(seq.join(','), 'hook,done', 'the callback is a completion, not a return');
 });
 
+// The pass's queue is a SNAPSHOT: a card listed with a live hook can lose it
+// before its turn comes. Art the Clown's last weapon resolving runs _exhaust,
+// which nulls onBeforeTricks — and it can resolve while an earlier card in the
+// same pass is still mid-hook / parked on a prompt. The runner then called the
+// stale entry and threw "c.onBeforeTricks is not a function ('…' is null)",
+// swallowed by its try/catch but logged — seen once in run-tests.sh. Here the
+// earlier hook drives Art's real 4th-weapon resolution, deterministically.
+test('before-tricks: a card that loses its hook mid-pass is skipped, not called', function () {
+  var G = freshGame();
+  var AB = CARD_ABILITIES['Art the Clown'];
+  var art = artOnBoard(G, 1);
+  art._artWeaponsUsed = ['scissors', 'sledgehammer', 'scythe'];
+  art.beforeTricksFired = false;
+  place(G, 'Sabertooth', 'ai', 2);                 // the one Hacksaw target → auto-resolves
+  assert(typeof art.onBeforeTricks === 'function', 'precondition: Art is queued with a live hook');
+  var first = G.createCardInstance(__findDef('Gremlin'), 'player');
+  G.applyAbilities(first);
+  first.beforeTricksFired = false;
+  first.onBeforeTricks = function () { AB._resolve(G, art, 'hacksaw'); };   // lane 0 fires first
+  G.state.lanes[0].player = first;
+  var errs = [], realErr = console.error, done = 0;
+  console.error = function () { errs.push(Array.prototype.slice.call(arguments).map(String).join(' ')); };
+  try { G.runBeforeTricks(function () { done++; }); } finally { console.error = realErr; }
+  assertEq(!!art._artExhausted, true, 'the earlier hook really did exhaust Art mid-pass');
+  assertEq(art.onBeforeTricks, null, 'so his hook is gone by the time his turn comes');
+  assertEq(errs.filter(function (e) { return /onBeforeTricks/.test(e); }).length, 0,
+    'the runner never calls a dropped hook (got: ' + errs.join(' | ') + ')');
+  assertEq(done, 1, 'and the pass still completes');
+});
+
+test('before-tricks: only a real function is ever queued', function () {
+  var G = freshGame();
+  var c = G.createCardInstance(__findDef('Gremlin'), 'player');
+  G.applyAbilities(c);
+  c.beforeTricksFired = false;
+  c.onBeforeTricks = true;                           // truthy, not callable
+  G.state.lanes[0].player = c;
+  var errs = [], realErr = console.error, done = 0;
+  console.error = function () { errs.push(Array.prototype.slice.call(arguments).map(String).join(' ')); };
+  try { G.runBeforeTricks(function () { done++; }); } finally { console.error = realErr; }
+  assertEq(errs.length, 0, 'no TypeError from a non-function hook (got: ' + errs.join(' | ') + ')');
+  assertEq(done, 1, 'pass completes');
+});
+
 // And the same class of silent loss on the other side of the board: a hook
 // nulled on the way face-DOWN and not restored on the way up is total, silent
 // ability loss — the shape that used to kill Dormammu's drain in the dead-pile

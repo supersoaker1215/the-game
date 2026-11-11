@@ -5740,7 +5740,7 @@ const Game = {
       const l = this.state.lanes[i];
       if (!l) continue;
       const inLane = [];
-      const consider = (c) => { if (c && c.currentHealth > 0 && c.onBeforeTricks && !c.beforeTricksFired) inLane.push(c); };
+      const consider = (c) => { if (c && c.currentHealth > 0 && typeof c.onBeforeTricks === 'function' && !c.beforeTricksFired) inLane.push(c); };
       consider(l.player); consider(l.ai);
       if (l._env) { consider(l._env.player); consider(l._env.ai); }
       inLane.sort((a, b) => _btCost(b) - _btCost(a));
@@ -5780,6 +5780,16 @@ const Game = {
       // health check also skips kill-pending cards awaiting cleanupDead.
       const laneNow = this.findCardLane(c);
       if (laneNow < 0 || c.currentHealth <= 0 || c.beforeTricksFired) { step(); return; }
+      // …and re-verify the HOOK at fire time too. The queue is a snapshot, and
+      // a card can legitimately lose its before-tricks ability between the
+      // snapshot and its turn: Art the Clown's last weapon resolving (his
+      // _exhaust nulls onBeforeTricks), Moder's strip, a face-down play — any
+      // of which can land while an earlier card in this same pass is parked on
+      // a prompt. Calling the stale entry threw "c.onBeforeTricks is not a
+      // function" (null). A card with no hook has nothing to fire: skip it,
+      // without stamping beforeTricksFired, so a hook restored later (a
+      // face-down reveal, an unstrip) still fires on its own terms.
+      if (typeof c.onBeforeTricks !== 'function') { step(); return; }
       c.beforeTricksFired = true;
       // 2v2: a before-tricks hook that prompts (Galactus devour, Man-Bat move)
       // must offer the choice to the seat that PLAYED the card — stamp it as
