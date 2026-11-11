@@ -54029,3 +54029,42 @@ html, body { touch-action: manipulation; }
   .main-menu-overlay .mm-scene-opt { font-size: 10.5px; letter-spacing: 0.2em; }
 }
 @media (prefers-reduced-motion: reduce) { .mm-scene { transition: none; } }
+
+/* ============================================================
+   MOVE STYLES + ENERGY THEFT (2026-11-11). Per-card travel for moveCard's
+   'move' FX (UI.MOVE_STYLES): moth wing dust, Omni-Man's sonic streak, and
+   Catwoman's stolen-energy orb. All on #signature-fx-layer (body-level, so
+   no board render can delete them).
+   ============================================================ */
+#signature-fx-layer .fx-moth-dust {
+  position: fixed; width: var(--dust-s, 3px); height: var(--dust-s, 3px); margin: -1.5px 0 0 -1.5px;
+  border-radius: 50%; pointer-events: none; background: var(--dust-c, #c08cff);
+  box-shadow: 0 0 6px 1px var(--dust-c, #c08cff);
+  animation: fxMothDust 1.05s ease-out forwards;
+}
+@keyframes fxMothDust {
+  0%   { opacity: 0; transform: translate(0, 0) scale(.6); }
+  15%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dust-dx, 0), 34px) scale(.3); }
+}
+#signature-fx-layer .fx-sonic-streak {
+  position: fixed; height: 6px; margin-top: -3px; transform-origin: 0 50%; pointer-events: none;
+  background: linear-gradient(90deg, rgba(255,80,60,0) 0%, rgba(255,120,90,.55) 35%, #fff 92%, rgba(255,255,255,0) 100%);
+  box-shadow: 0 0 14px 3px rgba(255,255,255,.55), 0 0 30px 8px rgba(255,90,60,.35);
+  border-radius: 6px; animation: fxSonicStreak .62s cubic-bezier(.2,.7,.2,1) forwards;
+}
+@keyframes fxSonicStreak {
+  0%   { opacity: 0; clip-path: inset(0 100% 0 0); }
+  18%  { opacity: 1; clip-path: inset(0 0 0 0); }
+  100% { opacity: 0; clip-path: inset(0 0 0 0); height: 1px; }
+}
+#signature-fx-layer .fx-energy-orb {
+  position: fixed; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, #fff 0 22%, #ffd36b 45%, rgba(255,157,46,.0) 72%);
+  box-shadow: 0 0 16px 6px rgba(255,190,80,.6), 0 0 34px 12px rgba(255,140,40,.3);
+  opacity: 0;
+}
+#signature-fx-layer .fx-energy-rake { position: fixed; }
+@media (prefers-reduced-motion: reduce) {
+  #signature-fx-layer .fx-moth-dust, #signature-fx-layer .fx-sonic-streak { animation: none; opacity: 0; }
+}

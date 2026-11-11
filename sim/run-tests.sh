@@ -390,6 +390,9 @@ run_suite sim/menu-score.js
 echo "=== menu-scene.js (random backdrop each visit, names along the bottom) ==="
 run_suite sim/menu-scene.js
 
+echo "=== move-styles.js (per-card move animations + Catwoman energy theft) ==="
+run_suite sim/move-styles.js
+
 echo "=== sjw-x-display.js (Sung Jin-Woo prints X until he has an X) ==="
 run_suite sim/sjw-x-display.js
 

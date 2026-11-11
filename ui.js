@@ -9358,6 +9358,13 @@ const UI = {
   // crossing the board rather than being played onto it; and it runs for BOTH
   // sides, because an enemy repositioning is exactly the move you most need to
   // follow.
+  // MOVE STYLES (owner, 2026-11-11: "more animations for cards like catwoman,
+  // killer moth move, omni man"). Every move in the game funnels through
+  // moveCard -> emitFX('move') -> _fxCardSlide, so a card's travel gets its
+  // own personality by adding ONE entry here — no per-ability FX calls.
+  //   moth  — flutters along a wavy arc, shedding glowing wing dust
+  //   boom  — crosses in a blink: white-hot streak, shockwave at both ends
+  MOVE_STYLES: { 'Killer Moth': 'moth', 'Man-Bat': 'moth', 'Omni-Man': 'boom' },
   _fxCardSlide(ev) {
     if (!ev || ev.from == null || ev.to == null || ev.from === ev.to) return;
     if (this._reducedMotion && this._reducedMotion()) return;
@@ -9393,9 +9400,37 @@ const UI = {
     ghost.style.setProperty('--slide-dy', dy + 'px');
     // Lean into the direction of travel — a body moving sideways banks.
     ghost.style.setProperty('--slide-tilt', (dx >= 0 ? 5 : -5) + 'deg');
-    const DUR = 420;
-    ghost.style.animation = `cardSlideAcross ${DUR}ms cubic-bezier(0.4, 0, 0.2, 1) forwards`;
-    document.body.appendChild(ghost);
+    const style = (this.MOVE_STYLES && this.MOVE_STYLES[ev.name]) || '';
+    const DUR = style === 'moth' ? 900 : style === 'boom' ? 240 : 420;
+    const cx0 = fromRect.left + fromRect.width / 2, cy0 = fromRect.top + fromRect.height / 2;
+    let anim = null;
+    if (style && ghost.animate) {
+      // Driven by the Web Animations API so the path can be more than a line.
+      const N = 16, frames = [];
+      for (let i = 0; i <= N; i++) {
+        const t = i / N;
+        let x = dx * t, y = dy * t, rot = 0, extra = '';
+        if (style === 'moth') {
+          const e = t < .5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2)/2;     // ease in-out
+          x = dx * e; y = dy * e - Math.sin(t * Math.PI) * 46 + Math.sin(t * Math.PI * 4) * 9;
+          rot = Math.sin(t * Math.PI * 6) * 9;
+          extra = ' scale(' + (1 - Math.sin(t * Math.PI) * .12).toFixed(3) + ')';
+        } else {
+          const e = 1 - Math.pow(1 - t, 4);                             // snap out, hard stop
+          x = dx * e; y = dy * e; rot = (dx >= 0 ? 4 : -4) * Math.sin(t * Math.PI);
+        }
+        const f = { transform: 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px) rotate(' + rot.toFixed(2) + 'deg)' + extra };
+        if (style === 'boom') f.filter = t > .05 && t < .9 ? 'blur(1.5px) brightness(1.5)' : 'none';
+        frames.push(f);
+      }
+      document.body.appendChild(ghost);
+      anim = ghost.animate(frames, { duration: DUR, easing: 'linear', fill: 'forwards' });
+      if (style === 'moth') this._fxMothDust(cx0, cy0, dx, dy, DUR);
+      if (style === 'boom') this._fxSonicBoom(cx0, cy0, dx, dy);
+    } else {
+      ghost.style.animation = `cardSlideAcross ${DUR}ms cubic-bezier(0.4, 0, 0.2, 1) forwards`;
+      document.body.appendChild(ghost);
+    }
 
     // The wake it leaves behind — a streak along the path, drawn on the same
     // fixed layer so no render can delete it.
@@ -9406,7 +9441,7 @@ const UI = {
     trail.style.width = Math.hypot(dx, dy) + 'px';
     trail.style.transform = `rotate(${Math.atan2(dy, dx)}rad)`;
     trail.classList.add(dom === 'player' ? 'slide-ally' : 'slide-enemy');
-    document.body.appendChild(trail);
+    if (style !== 'moth') document.body.appendChild(trail);   // the moth leaves dust, not a line
 
     realEl.classList.add('card-flying');
     let done = false;
@@ -9419,9 +9454,49 @@ const UI = {
       const lane = realEl.closest('.lane');
       try { this._spawnPlayerLandFx(realEl, lane, slot, true, { thump: false }); } catch (e) {}
     };
-    ghost.addEventListener('animationend', land, { once: true });
+    if (anim) anim.onfinish = () => {
+      land();
+      if (style === 'boom') { try { this._fxRing(realEl, { color: '#ffffff' }); this._screenShake('land-m'); } catch (e) {} }
+      if (style === 'moth') { try { this._fxRing(realEl, { color: '#c08cff', contract: true }); } catch (e) {} }
+    };
+    else ghost.addEventListener('animationend', land, { once: true });
     setTimeout(land, DUR + 90);   // the card can never stay hidden
     try { this.sfx && this.sfx.play && this.sfx.play('cardMove'); } catch (e) {}
+  },
+  // Wing dust shed along a moth's flutter path: small glowing motes, released
+  // in step with the card as it travels, each drifting down and fading.
+  _fxMothDust(x0, y0, dx, dy, dur) {
+    const layer = this._fxLayer();
+    const N = 26;
+    for (let i = 0; i < N; i++) {
+      const t = i / (N - 1);
+      setTimeout(() => {
+        const e = t < .5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2)/2;
+        const m = document.createElement('i');
+        m.className = 'fx-moth-dust';
+        const x = x0 + dx * e + (Math.random() - .5) * 46;
+        const y = y0 + dy * e - Math.sin(t * Math.PI) * 46 + (Math.random() - .5) * 30;
+        const hue = Math.random() < .55 ? '#c08cff' : '#ffd37a';
+        m.style.cssText = 'left:' + x + 'px;top:' + y + 'px;--dust-c:' + hue + ';--dust-dx:' + ((Math.random() - .5) * 30) + 'px;--dust-s:' + (2 + Math.random() * 3) + 'px;';
+        layer.appendChild(m);
+        setTimeout(() => m.remove(), 1100);
+      }, t * dur);
+    }
+  },
+  // Sonic boom: a white-hot streak the length of the jump that snaps in and
+  // bleeds out, plus a shock ring left hanging at the take-off point.
+  _fxSonicBoom(x0, y0, dx, dy) {
+    const layer = this._fxLayer();
+    const st = document.createElement('div');
+    st.className = 'fx-sonic-streak';
+    st.style.cssText = 'left:' + x0 + 'px;top:' + y0 + 'px;width:' + Math.hypot(dx, dy) + 'px;transform:rotate(' + Math.atan2(dy, dx) + 'rad);';
+    layer.appendChild(st);
+    setTimeout(() => st.remove(), 700);
+    const ring = document.createElement('div');
+    ring.className = 'sig-ring';
+    ring.style.cssText = 'left:' + x0 + 'px;top:' + y0 + 'px;--sig-c:#ffffff;';
+    layer.appendChild(ring);
+    setTimeout(() => ring.remove(), 540);
   },
 
   // ============================================================
@@ -12518,7 +12593,46 @@ const UI = {
       setTimeout(() => slash.remove(), 520);
       const c = this._fxCenter(el);
       if (c) this._fxSparks({ x: c.x, y: c.y }, { color: '#ffcf6b', glow: '#ff9d2e', count: 10, angle: -Math.PI / 2, cone: 1.6, spread: 66, size: 2.8 });
+      // THE STEAL, SHOWN: an energy orb is clawed out of the enemy's energy
+      // counter and arcs across the board into hers (it lands next turn —
+      // the orb says where it is going).
+      this._fxEnergyTheft(self.owner);
     });
+  },
+  _fxEnergyTheft(owner) {
+    if (this._reducedMotion()) return;
+    const dom = this._fxDomSide ? this._fxDomSide(owner) : owner;
+    const fromEl = document.getElementById(dom === 'player' ? 'ai-energy-display' : 'player-energy-display');
+    const toEl = document.getElementById(dom === 'player' ? 'player-energy-display' : 'ai-energy-display');
+    const a = this._fxCenter(fromEl), b = this._fxCenter(toEl);
+    if (!a || !b) return;
+    const layer = this._fxLayer();
+    // three claw marks rake the enemy counter first
+    const rake = document.createElement('div');
+    rake.className = 'fx-catwoman-swipe fx-energy-rake';
+    rake.style.cssText = 'left:' + (a.x - 34) + 'px;top:' + (a.y - 24) + 'px;width:68px;height:48px;';
+    rake.innerHTML = '<i></i><i></i><i></i>';
+    layer.appendChild(rake);
+    setTimeout(() => rake.remove(), 520);
+    const orb = document.createElement('div');
+    orb.className = 'fx-energy-orb';
+    orb.style.cssText = 'left:' + a.x + 'px;top:' + a.y + 'px;';
+    layer.appendChild(orb);
+    const dx = b.x - a.x, dy = b.y - a.y, lift = Math.max(60, Math.abs(dy) * .35);
+    const frames = [];
+    for (let i = 0; i <= 12; i++) {
+      const t = i / 12, e = t < .5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2)/2;
+      frames.push({ transform: 'translate(' + (dx*e).toFixed(1) + 'px,' + (dy*e - Math.sin(t*Math.PI)*lift).toFixed(1) + 'px) scale(' + (1 + Math.sin(t*Math.PI)*.35).toFixed(2) + ')',
+                    opacity: t < .08 ? t/.08 : 1 });
+    }
+    const go = () => {
+      const an = orb.animate ? orb.animate(frames, { duration: 760, easing: 'linear', fill: 'forwards' }) : null;
+      const end = () => { orb.remove(); try { this._fxRing(toEl, { color: '#ffcf6b', contract: true }); } catch (e) {}
+        if (b) this._fxSparks({ x: b.x, y: b.y }, { color: '#ffe3a0', glow: '#ff9d2e', count: 8, spread: 40, size: 2.4 }); };
+      if (an) an.onfinish = end; else setTimeout(end, 760);
+    };
+    setTimeout(go, 180);
+    setTimeout(() => { if (orb.isConnected) orb.remove(); }, 1400);
   },
   // Invisible Woman: a force-field bubble snaps around the shielded ally, and
   // Sue herself shimmers half-invisible as she casts.
