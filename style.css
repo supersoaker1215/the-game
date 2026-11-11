@@ -53915,3 +53915,33 @@ body:not(.ai-thinking) .ai-thinking-ring circle {
    root it applies down the whole tree (touch-action intersects with every
    ancestor's). Pinch is stopped in JS — UI.installNoPageZoom. */
 html, body { touch-action: manipulation; }
+
+/* ============================================================
+   MENU VIDEO (2026-11-11) — owner: "the video replaces the hero art entirely".
+   One <video> (UI._menuVideoEl) is moved between the title's .ts-bg and the
+   menu's .mm-bgvideo, so it fills whichever host it sits in. The menu host is
+   full-bleed (the planet's dark limb sits under the left text column; the
+   existing .mm-scrim keeps the list legible) and rides the parallax's deepest
+   plane, oversized by 2% so the translate never shows an edge.
+   ============================================================ */
+.mm-video {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; object-position: 50% 50%;
+  display: block; pointer-events: none; background: #000;
+}
+.main-menu-overlay .mm-bgvideo {
+  position: absolute; inset: -2%; z-index: 0;
+  overflow: hidden; pointer-events: none; background: #000;
+}
+.mm-mw3 .mm-bgvideo {
+  translate: calc(var(--mm-par-x, 0) * 10px) calc(var(--mm-par-y, 0) * 6px);
+  transition: translate 420ms cubic-bezier(.2, .7, .2, 1);
+  /* No rez-in: the same shot continues from the title, so fading it up from
+     black would read as a cut. */
+}
+/* The title's drift + dim were tuned for a still painting; the video moves on
+   its own, and needs less darkening to read. */
+#main-menu-overlay.is-title .ts-bg { animation: none; inset: 0; filter: brightness(0.85); }
+@media (prefers-reduced-motion: reduce) {
+  .mm-mw3 .mm-bgvideo { translate: none; transition: none; }
+}

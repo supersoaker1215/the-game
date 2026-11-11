@@ -87,32 +87,6 @@ const UI = {
       && window.CARD_ART_OVERRIDES[kind === 'menu' ? 'focalMenu' : 'focalCard']) || {};
     return ov[key] || this.PORTRAIT_POSITION[name] || '';
   },
-  // FULL-SCREEN HERO FRAMING — title screen and main-menu hero. Owner: "a lot of
-  // the cards need to be recropped to fit the entire heads and some room on top
-  // of the characters' art". A portrait painting shown wide is cropped to a
-  // horizontal band (~60% of its height on a 16:10 screen); framing that band
-  // from the middle (the title's default, and most hand crops at 50%) cut the
-  // top ~20% off — where heads are. Anchored to the TOP, the band always holds
-  // the whole head plus whatever headroom the painting has. Measured with a
-  // face detector across the 67 menu heroes: every face it found sits in the
-  // top 45% of its image, inside a top-anchored band. The hand-set HORIZONTAL
-  // position is kept (which side of the art to show); only the vertical goes.
-  // Exceptions — judged side by side on docs/hero-crops-before-after.png: art
-  // whose subject sits LOW in the frame (Ghostface, Paul), or whose composition
-  // is the point (Joker's lettering, Obi-Wan's saber), loses the character when
-  // top-anchored. These keep their original framing (hand crop, else centre).
-  // A crop set in Gallery Audit (localStorage draft) always wins outright.
-  _HERO_KEEP_FOCAL: new Set(['MC Ballyhoo', 'Stripe', 'Shadow Man', 'Mahoraga',
-    'The V.P.', 'The C.F.O.', 'Ghostface', 'Joker', 'Optimus Prime',
-    'Paul Atreides', 'Obi-Wan', 'Superman', 'Pennywise', 'Loki']),
-  _heroFocal(name, file, defaultX, keepDefault) {
-    const local = this._artFocalMap ? this._artFocalMap('menu')[name + '|' + file] : '';
-    if (local) return local;
-    const f = (this._artFocalFor ? this._artFocalFor(name, file, 'menu') : '') || '';
-    if (this._HERO_KEEP_FOCAL.has(name)) return f || keepDefault || ((defaultX || '50%') + ' 50%');
-    const x = String(f).trim().split(/\s+/)[0];
-    return ((x && /%$/.test(x)) ? x : (defaultX || '50%')) + ' 0%';
-  },
   _artFocalCard(name) {
     // The inline CSS fragment for the card's current variant: --portrait-pos
     // (manual crop focal) + --portrait-size (zoom). Empty when both are default.
@@ -1316,11 +1290,59 @@ const UI = {
   // the grid. hero + reflect carry two cross-fade buffers each. Order matters:
   // grid (back) → reflect → hero → seam (front line).
   _menuSceneHTML() {
-    // Right zone = ONE full-bleed hero (the currently-playing card), with the
-    // grid behind and the neon seam at the left edge. Two cross-fade buffers.
+    // Full-bleed looping video (owner, 2026-11-11: "the video replaces the hero
+    // art entirely"). The host is empty; _mountMenuVideo moves the one shared
+    // <video> into it after the HTML lands.
     return `
       <div class="mm-tron-grid" aria-hidden="true"></div>
-      <div class="mm-hero" aria-hidden="true"><div class="mm-hero-img"></div><div class="mm-hero-img"></div></div>`;
+      <div class="mm-bgvideo" aria-hidden="true"></div>`;
+  },
+  // MENU VIDEO — ONE element for the title AND the menu. It is created once and
+  // MOVED between hosts, so PRESS START carries on the same shot instead of
+  // cutting back to frame 0 (the menu re-renders with innerHTML, which would
+  // throw a per-screen <video> away and restart it). Muted + playsinline is
+  // what lets iOS/Chrome autoplay it without a gesture; the file carries no
+  // audio track at all, so the menu music is the only sound.
+  MENU_VIDEO_SRC: 'video/menu-loop.mp4',
+  MENU_VIDEO_POSTER: 'video/menu-loop.jpg',
+  _menuVideoEl() {
+    if (this._menuVideo) return this._menuVideo;
+    const v = document.createElement('video');
+    v.className = 'mm-video';
+    v.muted = true; v.defaultMuted = true; v.loop = true; v.playsInline = true; v.autoplay = true;
+    v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); v.setAttribute('loop', '');
+    v.setAttribute('aria-hidden', 'true'); v.setAttribute('disablepictureinpicture', '');
+    v.preload = 'auto';
+    v.poster = this.MENU_VIDEO_POSTER;
+    v.src = this.MENU_VIDEO_SRC;
+    this._menuVideo = v;
+    // A hidden overlay (in a match) still DECODES a playing video — 1080p for
+    // nothing, on battery. Play only while it is actually on screen.
+    try {
+      if (typeof IntersectionObserver !== 'undefined') {
+        new IntersectionObserver((es) => {
+          this._menuVideoOnScreen = es.some(e => e.isIntersecting);
+          this._syncMenuVideo();
+        }).observe(v);
+      }
+      document.addEventListener('visibilitychange', () => this._syncMenuVideo());
+    } catch (e) {}
+    return v;
+  },
+  _mountMenuVideo(host) {
+    if (!host) return;
+    const v = this._menuVideoEl();
+    if (v.parentNode !== host) host.appendChild(v);
+    this._syncMenuVideo();
+  },
+  _syncMenuVideo() {
+    const v = this._menuVideo;
+    if (!v) return;
+    let reduce = false;
+    try { reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) {}
+    const want = v.isConnected && !document.hidden && !reduce && this._menuVideoOnScreen !== false;
+    if (want && v.paused) { try { const p = v.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
+    else if (!want && !v.paused) { try { v.pause(); } catch (e) {} }
   },
   // Live-sync the menu-atmosphere scene to current settings without a full menu
   // re-render — lets the Settings toggle/slider preview in real time over the
@@ -1330,15 +1352,15 @@ const UI = {
     if (!el) return;
     const on = this.settings.menuFlow !== false;
     el.style.setProperty('--menu-flow-intensity', String(this.settings.menuFlowIntensity ?? 0.18));
-    const sceneSel = ':scope > .mm-tron-grid, :scope > .mm-hero-reflect, :scope > .mm-hero, :scope > .mm-seam';
-    if (!on) { el.querySelectorAll(sceneSel).forEach(n => n.remove()); return; }
-    if (!el.querySelector(':scope > .mm-hero')) {
+    const sceneSel = ':scope > .mm-tron-grid, :scope > .mm-hero-reflect, :scope > .mm-bgvideo, :scope > .mm-seam';
+    if (!on) { el.querySelectorAll(sceneSel).forEach(n => n.remove()); this._syncMenuVideo(); return; }
+    if (!el.querySelector(':scope > .mm-bgvideo')) {
       const tmp = document.createElement('div');
       tmp.innerHTML = this._menuSceneHTML();
       const ref = el.firstChild;   // insert the scene before scrim/panel
       while (tmp.firstChild) el.insertBefore(tmp.firstChild, ref);
     }
-    try { this._updateMenuSideArt(this.sfx && this.sfx._music && this.sfx._music.currentSrc); } catch (e) {}
+    this._mountMenuVideo(el.querySelector(':scope > .mm-bgvideo'));
   },
 
   // Map a menu hover-music filename (e.g. "black-panther-hover.mp3") back to
@@ -1529,54 +1551,13 @@ const UI = {
   },
   // Single full-bleed hero — cross-fade the right-side art to the portrait of
   // the card whose hover theme is currently playing, and update the credit.
+  // Was: swap the full-bleed hero to the playing track's card. The menu is a
+  // video now (no per-hero art), so a track change only updates the
+  // now-playing credit and remembers the face for the in-match avatar fallback.
   _updateMenuSideArt(src) {
     this._updateNowPlaying(src);
-    const hero = document.querySelector('#main-menu-overlay .mm-hero');
-    if (!hero) return;
-    let name = this._menuHoverArtName(src);
-    // Music off / between tracks (no src) → still show a hero so the menu is
-    // never blank. Keep whatever's already up; else lead with the pinned
-    // default hero once, then fall back to a random menu-hero character.
-    if (!name) {
-      if (hero._artSrc) return;
-      const def = this.settings.defaultMenuHero;
-      // Music off: no track to follow, so lead with the title's hero (same
-      // hand-off as _pickMenuTrackForEntry) before falling back to random.
-      if (this._titleHeroName && this._isMenuHeroName(this._titleHeroName)) { name = this._titleHeroName; this._titleHeroName = null; }
-      else if (def && !UI._menuDefaultLed && this._isMenuHeroName(def)) { name = def; UI._menuDefaultLed = true; }
-      else name = this._pickRandomMenuHeroName();
-    }
-    const art = name ? this.getCardArtPathDefault(name) : null;
-    if (!art) {
-      hero.querySelectorAll('.mm-hero-img.is-visible').forEach(n => n.classList.remove('is-visible'));
-      hero._artSrc = null;
-      return;
-    }
-    if (hero._artSrc === art) return;   // already showing this card
-    // Remember who is on screen — the in-match avatar falls back to this when
-    // no hero is starred, so your chip shows the face the menu just showed you.
-    this._lastMenuHeroName = name || this._lastMenuHeroName;
-    const pre = new Image();
-    pre.onload = () => {
-      hero._artSrc = art;
-      const bufs = hero.querySelectorAll('.mm-hero-img');
-      if (bufs.length < 2) return;
-      const active = hero.querySelector('.mm-hero-img.is-visible');
-      const next = (active === bufs[0]) ? bufs[1] : bufs[0];
-      next.style.backgroundImage = `url("${art}")`;
-      // Manual crop (Gallery Audit) — focal background-position for this art.
-      // Empty string falls back to the CSS default framing.
-      const file = decodeURIComponent(String(art).split('/').pop().split('?')[0]);
-      next.style.backgroundPosition = this._heroFocal(name, file, '72%', '72% 26%');
-      next.style.backgroundSize = this._artSizeFor(name, file, 'menu');
-      if (active) active.classList.remove('is-visible');
-      next.classList.add('is-visible');
-      // Remember the live hero so other menu-style screens (e.g. the in-shell
-      // 2v2 online lobby, which sits on its own overlay) can show the same art.
-      this._menuHeroInfo = { art, focal: next.style.backgroundPosition || 'center', size: next.style.backgroundSize || 'cover' };
-    };
-    pre.onerror = () => {};   // keep whatever's showing if the art 404s
-    pre.src = art;
+    const name = this._menuHoverArtName(src);
+    if (name) this._lastMenuHeroName = name;
   },
   // Hand-audio privacy quick toggle — the small ♪ at the head of the hand row.
   // Exactly the same state as the "Hide hand sounds" settings checkbox, just
@@ -3323,24 +3304,6 @@ const UI = {
     // Cold-entry picker: lead with the player's pinned default hero once, then
     // hand off to the random picker ("then it becomes random after that").
     _pickMenuTrackForEntry() {
-      // THE TITLE'S FACE LEADS. The title screen picks its hero first; the
-      // menu shows whoever's theme is playing, and this used to pick a fresh
-      // random track — so PRESS START cut from one character to another
-      // (measured: title Mahoraga → menu Darth Maul). Lead with the title's
-      // hero once; after that the shuffle carries on as before. A pinned
-      // default hero is what the title showed anyway, so it is covered too.
-      const tName = UI._titleHeroName;
-      if (tName) {
-        UI._titleHeroName = null;
-        const tSrc = this._srcForHeroName(tName);
-        if (tSrc) {
-          UI._pinTrackFace(tSrc, tName);
-          UI._menuDefaultLed = true;
-          const srcs = (UI._menuCharHoverSrcs && UI._menuCharHoverSrcs()) || [];
-          this._menuHoverLastIdx = srcs.indexOf(tSrc);   // next random avoids an immediate repeat
-          return tSrc;
-        }
-      }
       const def = UI.settings && UI.settings.defaultMenuHero;
       if (def && !UI._menuDefaultLed) {
         const src = this._srcForHeroName(def);
@@ -16919,12 +16882,9 @@ const UI = {
     const errorHtml = this._2v2OnlineError
       ? `<div class="setup2v2-error">${this._2v2OnlineError}</div>` : '';
 
-    // Reuse the live main-menu hero so this screen has the same art on the
-    // right (it lives on its own overlay, so the menu's .mm-hero isn't visible).
-    const hero = this._menuHeroInfo;
-    const heroHtml = (hero && hero.art)
-      ? `<div class="twov2-mm-hero" style="background-image:url('${String(hero.art).replace(/'/g, '%27')}');background-position:${hero.focal || 'center'};background-size:${hero.size || 'cover'};"></div>`
-      : '';
+    // The menu's backdrop, as a still: this lobby re-renders on every state
+    // tick, and moving the one menu <video> in and out would stutter it.
+    const heroHtml = `<div class="twov2-mm-hero" style="background-image:url('${this.MENU_VIDEO_POSTER}');background-position:30% 50%;background-size:cover;"></div>`;
 
     if (!tt || !tt.you) {
       // Pre-join — enter name + create/join, in the main-menu style
@@ -17675,13 +17635,6 @@ const UI = {
     if (!el) return;
     el.classList.remove('mm-four');
     el.classList.add('is-title');
-    const name = (this.settings && this.settings.defaultMenuHero && this._isMenuHeroName && this._isMenuHeroName(this.settings.defaultMenuHero))
-      ? this.settings.defaultMenuHero
-      : (this._pickRandomMenuHeroName ? this._pickRandomMenuHeroName() : null);
-    const art = name ? this.getCardArtPathDefault(name) : null;
-    const file = art ? decodeURIComponent(String(art).split('/').pop().split('?')[0]) : '';
-    const focal = art ? this._heroFocal(name, file, '50%', '50% 50%') : '50% 0%';
-    const size  = (art && this._artSizeFor)  ? (this._artSizeFor(name, file, 'menu') || 'cover') : 'cover';
     el.innerHTML = `
       <div class="ts-bg" aria-hidden="true"></div>
       <div class="ts-scrim" aria-hidden="true"></div>
@@ -17691,44 +17644,8 @@ const UI = {
         <div class="ts-tagline">Card Lane Battle</div>
       </div>
       <button type="button" class="ts-prompt" id="ts-prompt">Press Start</button>`;
-    // Set through the style object, never a style="" attribute: url("…")
-    // inside a double-quoted attribute ends the attribute at its first inner
-    // quote, and the hero silently became url("") — a black title screen.
-    const bgEl = el.querySelector('.ts-bg');
-    if (bgEl && art) {
-      bgEl.style.backgroundImage = `url("${art}")`;
-      bgEl.style.backgroundPosition = focal;
-      bgEl.style.backgroundSize = size;
-    }
-    // Remember the hero so the menu leads with the same face it just showed.
-    // _titleHeroName is the one-shot hand-off: the first menu track and the
-    // music-off fallback both lead with it (owner: "i want the main menu press
-    // start screen to be the same character as when you load into the game").
-    if (name) { this._lastMenuHeroName = name; this._titleHeroName = name; }
-    // …and the music has usually been LOADED already: startMusic runs at boot
-    // (before this screen picks its hero) and sets a random src that the
-    // browser won't play until the first gesture. That same PRESS START tap
-    // unlocks audio and plays the preloaded track, and startMusic then sees it
-    // playing and keeps it — so the hand-off above never got asked. Retarget a
-    // loaded-but-unstarted track to the title hero's theme now.
-    try {
-      const a = this.sfx && this.sfx._music;
-      const tSrc = name && this.sfx && this.sfx._srcForHeroName ? this.sfx._srcForHeroName(name) : null;
-      if (tSrc) this._pinTrackFace(tSrc, name);
-      // Also when it is ALREADY playing: a browser that allows autoplay (a
-      // repeat visit in Chrome) starts the boot track before this screen even
-      // shows, so the title would show one face over another face's theme.
-      // The title has only just appeared, so restarting on its theme is seamless.
-      if (a && tSrc) {
-        const wasPlaying = !a.paused;
-        a.src = tSrc;
-        if (wasPlaying) { try { const p = a.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
-        UI._menuDefaultLed = true;
-        this._titleHeroName = null;
-        const srcs = (this._menuCharHoverSrcs && this._menuCharHoverSrcs()) || [];
-        this.sfx._menuHoverLastIdx = srcs.indexOf(tSrc);
-      }
-    } catch (e) {}
+    // The same looping video the menu uses — PRESS START carries it straight on.
+    this._mountMenuVideo(el.querySelector('.ts-bg'));
     this._armTitleDismiss();
   },
   _armTitleDismiss() {
@@ -18100,10 +18017,10 @@ const UI = {
     // buildPanel for the same reason botbarHTML is.
     try { this._renderMenuLeaderboard(); } catch (e) {}
     try { if (typeof Leaderboard !== 'undefined') Leaderboard.connect(); } catch (e) {}
-    // Sync the full-bleed hero to whatever hover theme is already playing.
-    if (_flowOn) {
-      try { this._updateMenuSideArt(this.sfx && this.sfx._music && this.sfx._music.currentSrc); } catch (e) {}
-    }
+    // The backdrop video (moved here from the title, still playing), and the
+    // now-playing credit for whatever theme is already on.
+    if (_flowOn) this._mountMenuVideo(el.querySelector(':scope > .mm-bgvideo'));
+    try { this._updateMenuSideArt(this.sfx && this.sfx._music && this.sfx._music.currentSrc); } catch (e) {}
     // Depth. Installed after the scene exists so it can find its planes.
     if (_flowOn) { try { this._installMenuParallax(el); } catch (e) {} }
     // Scroll the picker so the starred default (if any) is visible on load.

@@ -278,7 +278,7 @@ test('the title screen gates the menu once, and a press dismisses it into the me
   ok(!!el.querySelector('.ts-prompt'), 'with a PRESS START prompt');
   eq(el.querySelectorAll('.mm-panel .mm-option').length, 0, 'and no menu rows yet');
   var tbg = el.querySelector('.ts-bg');
-  ok(tbg && /audio\/cards\/art\//.test(String(tbg.style.backgroundImage || '')), 'the hero art is set on the title background (was url("") via a quote-terminated style attribute)');
+  ok(tbg && tbg.querySelector('video.mm-video'), 'the looping menu video plays behind the title (replaced the hero art 2026-11-11)');
   var realSetTimeout = globalThis.setTimeout;
   globalThis.setTimeout = function (fn) { fn(); return 0; };   // land the crossfade now
   try { UI.dismissTitle(); } finally { globalThis.setTimeout = realSetTimeout; }

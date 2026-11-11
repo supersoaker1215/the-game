@@ -13,7 +13,7 @@
 // refreshes code and leaves the assets alone.
 //   CODE_CACHE  — bumped on every deploy (that's the point: fresh code).
 //   ASSET_CACHE — bumped ONLY when the art/audio themselves change.
-const CACHE_VERSION = 'clb-v998-green-gate';
+const CACHE_VERSION = 'clb-v999-green-gate';
 const CODE_CACHE  = CACHE_VERSION;
 const ASSET_CACHE = 'clb-assets-v1';
 const APP_SHELL = [
@@ -80,6 +80,10 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+  // VIDEO BYPASSES THE WORKER. Browsers fetch <video> with Range requests and
+  // Safari will not play one answered with a whole-file 200 from the cache
+  // (and Cache.put refuses a 206). The HTTP cache handles ranges properly.
+  if (/\.(mp4|webm|m4v)$/i.test(url.pathname)) return;
 
   // Network-first for HTML + versioned JS/CSS — these are the files
   // that change with every deploy. We try the network first so a
