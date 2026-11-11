@@ -87,6 +87,32 @@ const UI = {
       && window.CARD_ART_OVERRIDES[kind === 'menu' ? 'focalMenu' : 'focalCard']) || {};
     return ov[key] || this.PORTRAIT_POSITION[name] || '';
   },
+  // FULL-SCREEN HERO FRAMING — title screen and main-menu hero. Owner: "a lot of
+  // the cards need to be recropped to fit the entire heads and some room on top
+  // of the characters' art". A portrait painting shown wide is cropped to a
+  // horizontal band (~60% of its height on a 16:10 screen); framing that band
+  // from the middle (the title's default, and most hand crops at 50%) cut the
+  // top ~20% off — where heads are. Anchored to the TOP, the band always holds
+  // the whole head plus whatever headroom the painting has. Measured with a
+  // face detector across the 67 menu heroes: every face it found sits in the
+  // top 45% of its image, inside a top-anchored band. The hand-set HORIZONTAL
+  // position is kept (which side of the art to show); only the vertical goes.
+  // Exceptions — judged side by side on docs/hero-crops-before-after.png: art
+  // whose subject sits LOW in the frame (Ghostface, Paul), or whose composition
+  // is the point (Joker's lettering, Obi-Wan's saber), loses the character when
+  // top-anchored. These keep their original framing (hand crop, else centre).
+  // A crop set in Gallery Audit (localStorage draft) always wins outright.
+  _HERO_KEEP_FOCAL: new Set(['MC Ballyhoo', 'Stripe', 'Shadow Man', 'Mahoraga',
+    'The V.P.', 'The C.F.O.', 'Ghostface', 'Joker', 'Optimus Prime',
+    'Paul Atreides', 'Obi-Wan', 'Superman', 'Pennywise', 'Loki']),
+  _heroFocal(name, file, defaultX, keepDefault) {
+    const local = this._artFocalMap ? this._artFocalMap('menu')[name + '|' + file] : '';
+    if (local) return local;
+    const f = (this._artFocalFor ? this._artFocalFor(name, file, 'menu') : '') || '';
+    if (this._HERO_KEEP_FOCAL.has(name)) return f || keepDefault || ((defaultX || '50%') + ' 50%');
+    const x = String(f).trim().split(/\s+/)[0];
+    return ((x && /%$/.test(x)) ? x : (defaultX || '50%')) + ' 0%';
+  },
   _artFocalCard(name) {
     // The inline CSS fragment for the card's current variant: --portrait-pos
     // (manual crop focal) + --portrait-size (zoom). Empty when both are default.
@@ -1541,7 +1567,7 @@ const UI = {
       // Manual crop (Gallery Audit) — focal background-position for this art.
       // Empty string falls back to the CSS default framing.
       const file = decodeURIComponent(String(art).split('/').pop().split('?')[0]);
-      next.style.backgroundPosition = this._artFocalFor(name, file, 'menu') || '';
+      next.style.backgroundPosition = this._heroFocal(name, file, '72%', '72% 26%');
       next.style.backgroundSize = this._artSizeFor(name, file, 'menu');
       if (active) active.classList.remove('is-visible');
       next.classList.add('is-visible');
@@ -17654,7 +17680,7 @@ const UI = {
       : (this._pickRandomMenuHeroName ? this._pickRandomMenuHeroName() : null);
     const art = name ? this.getCardArtPathDefault(name) : null;
     const file = art ? decodeURIComponent(String(art).split('/').pop().split('?')[0]) : '';
-    const focal = (art && this._artFocalFor) ? (this._artFocalFor(name, file, 'menu') || 'center') : 'center';
+    const focal = art ? this._heroFocal(name, file, '50%', '50% 50%') : '50% 0%';
     const size  = (art && this._artSizeFor)  ? (this._artSizeFor(name, file, 'menu') || 'cover') : 'cover';
     el.innerHTML = `
       <div class="ts-bg" aria-hidden="true"></div>

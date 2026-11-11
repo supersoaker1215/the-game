@@ -384,6 +384,9 @@ run_suite sim/floating-bars.js
 echo "=== title-menu-hero.js (PRESS START keeps the same face) ==="
 run_suite sim/title-menu-hero.js
 
+echo "=== hero-crop.js (title/menu hero crops keep the whole head) ==="
+run_suite sim/hero-crop.js
+
 echo "=== sjw-x-display.js (Sung Jin-Woo prints X until he has an X) ==="
 run_suite sim/sjw-x-display.js
 
