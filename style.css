@@ -54141,3 +54141,25 @@ html, body { touch-action: manipulation; }
 }
 @keyframes fxSnapWave { from { background-position: 100% 0; opacity: 1; } to { background-position: 0% 0; opacity: .2; } }
 @media (prefers-reduced-motion: reduce) { #signature-fx-layer .fx-snap-wave { animation: none; opacity: 0; } }
+
+/* MENU NEON IS WHITE, WHATEVER THE THEME (owner, 2026-11-11: "should be white
+   neon" — the start screen glowed in the green theme). Every glow in the menu
+   reads the theme vars, and the derived ones (--theme-glow-*, -accent-*,
+   -wash-*) are computed where they are DECLARED (body), so overriding
+   --theme-r/g/b alone would not reach them: each is redeclared here so it
+   recomputes from white inside the overlay. --theme-rgb is also inline on
+   body; this declaration on the overlay wins for everything inside it. */
+#main-menu-overlay {
+  --theme-r: 255; --theme-g: 255; --theme-b: 255;
+  --theme-accent:       rgb(var(--theme-r), var(--theme-g), var(--theme-b));
+  --theme-accent-dim:   rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.28);
+  --theme-accent-edge:  rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.55);
+  --theme-accent-ring:  rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.70);
+  --theme-accent-bright:rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.95);
+  --theme-glow-inner:   rgba(var(--theme-r), var(--theme-g), var(--theme-b), calc(0.22 + (1 - 0.22) * var(--neon-lift)));
+  --theme-glow-outer:   rgba(var(--theme-r), var(--theme-g), var(--theme-b), calc(0.45 + (1 - 0.45) * var(--neon-lift)));
+  --theme-wash-08:      rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.08);
+  --theme-wash-05:      rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.05);
+  --theme-wash-15:      rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.15);
+  --theme-rgb: var(--theme-r), var(--theme-g), var(--theme-b);
+}
