@@ -4370,6 +4370,23 @@ const UI = {
         if (!UI.settings || UI.settings.sfxVolume === 0) return;
         if (UI.settings.menuMusic === false) return;
         this.stopMatchIntro();   // never stack (e.g. fast rematch)
+        // THE SCORE CARRIES INTO THE MATCH (owner, 2026-11-11: "use the score
+        // music for the match intro too"). The piece the menu was playing comes
+        // back for the intro window, then fades — no card track. startRound has
+        // just called stopMusic, so this crossfades the same piece back in.
+        if (UI.MENU_SCORE_ON && UI.menuScore) {
+          const ms = UI.menuScore;
+          if (!ms.start(ms._idx >= 0 ? ms._idx : null)) return;
+          this._matchIntroScore = true;
+          const total = this.MATCH_INTRO_MS || 20000, fadeOutS = 2.5;
+          this._matchIntroTimer = setTimeout(() => {
+            this._matchIntroTimer = null;
+            if (!this._matchIntroScore) return;
+            this._matchIntroScore = false;
+            if (!this._musicWantPlay) ms.stop(fadeOutS);   // never cut a menu that is back on
+          }, Math.max(0, total - fadeOutS*1000));
+          return;
+        }
         const a = new Audio(this.MATCH_INTRO_SRC);
         a.loop = false;
         a.preload = 'auto';
@@ -4396,6 +4413,10 @@ const UI = {
     },
     stopMatchIntro() {
       if (this._matchIntroTimer) { clearTimeout(this._matchIntroTimer); this._matchIntroTimer = null; }
+      if (this._matchIntroScore) {
+        this._matchIntroScore = false;
+        if (!this._musicWantPlay) { try { UI.menuScore.stop(.8); } catch (e) {} }
+      }
       const a = this._matchIntro;
       if (!a) return;
       this._matchIntro = null;
