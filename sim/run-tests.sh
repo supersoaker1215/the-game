@@ -396,6 +396,9 @@ run_suite sim/move-styles.js
 echo "=== dissolve-owner.js (a death never throws; kill flash credits the right side) ==="
 run_suite sim/dissolve-owner.js
 
+echo "=== habitat-pair.js (a two-room event never splits its pair) ==="
+run_suite sim/habitat-pair.js
+
 echo "=== sjw-x-display.js (Sung Jin-Woo prints X until he has an X) ==="
 run_suite sim/sjw-x-display.js
 

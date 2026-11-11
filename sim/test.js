@@ -9111,22 +9111,24 @@ test("A habitat's two rooms match: both on a card, or both on empty ground", fun
   });
 });
 
-test("…and when it cannot match, it still lands and says so", function () {
-  // Only the PLAYER has a body anywhere, and the player's room is steered onto
-  // it — so no lane exists where the AI also has one, and the pair cannot be
-  // made even. A habitat that refuses to land is a round with nothing in it, so
-  // it falls back and LOGS, because uneven is the exception now.
+test("…and when the first lane cannot match, the pair moves — it never splits", function () {
+  // Only the PLAYER has a body anywhere, and the shuffle offers that lane
+  // first. It used to seat our room there anyway and drop theirs on empty
+  // ground — a split pair, which the owner ruled out entirely (2026-11-11:
+  // "why did sewers spawn in a contested and open lane that should never
+  // happen"). Now the next lane in the SAME shuffled order gets its turn, and
+  // two empty lanes make a matched pair.
   var G = freshGame();
   G.state.round = 6;
   place(G, 'Spider-Man', 'player', 0);          // the only body on the board
-  var pair = _habitatPair(G, [0, 1, 2, 3, 4, 5]);  // steer ours onto it
-  assertEq(pair.player, 0, 'our room opened on our own card');
-  assertEq(pair.ai >= 0, true, 'it still seated both rooms rather than skipping the round');
-  assertEq(!!G.state.lanes[pair.ai].ai, false, 'and theirs could only open on empty ground');
-  var said = (G.state.log || []).some(function (l) {
+  var pair = _habitatPair(G, [0, 1, 2, 3, 4, 5]);  // lane 0 offered first
+  assert(pair.player !== 0, 'our room did not take the lone card (took lane ' + pair.player + ')');
+  var A = G.state.lanes[pair.player], B = G.state.lanes[pair.ai];
+  assertEq(!!(A.player || A.ai), !!(B.player || B.ai), 'the two rooms stand on the same ground');
+  var split = (G.state.log || []).some(function (l) {
     return /could not match its two lanes/.test(G.logLineText ? G.logLineText(l) : l);
   });
-  assertEq(said, true, 'and the log says the pair is uneven');
+  assertEq(split, false, 'and nothing was ever seated as an uneven pair');
 });
 
 test("A room on top of my card is on a card, whichever side's room it is", function () {

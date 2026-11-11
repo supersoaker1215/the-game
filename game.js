@@ -19067,17 +19067,27 @@ const Game = {
     // what "the other one needs to as well" asks for. One shuffle, as before:
     // drawing from extra shuffled pools would consume a different number of
     // seeded rng steps and move every downstream roll in a replay.
-    const _first = pick[0];
+    let _first = pick[0];
     let _second = null;
     if (need > 1) {
-      _second = this._habitatMatchingLane(_first, pick.slice(1));
+      // EVERY FIRST LANE GETS A TURN (2026-11-11). Only pick[0] used to be
+      // tried as the player's room: with one body on the board and that draw
+      // landing on it, no empty lane could match, and the pair split — one room
+      // on a card, the other on empty ground — while two empty lanes sat right
+      // there (measured: 19 of 120 seeds on the owner's board). Walk the same
+      // shuffled order; the first lane that HAS a partner wins, so the choice
+      // stays random and no extra rng is consumed.
+      for (const f of pick) {
+        const partner = this._habitatMatchingLane(f, pick.filter(x => x !== f));
+        if (partner != null) { _first = f; _second = partner; break; }
+      }
       if (_second == null) {
-        // No lane of the matching kind is free. Fall back to the old behaviour
-        // rather than refusing the event — a habitat that cannot land is a round
-        // with nothing in it — and say so, because an uneven pair is now the
-        // exception rather than the rule.
-        _second = pick[1];
-        this.log(`[EVENT] ${name} could not match its two lanes — one opens on a card, the other on empty ground.`);
+        // NO SPLIT PAIRS, EVER (owner: "that should never happen"). The old
+        // fallback seated a mismatched pair; now the habitat WAITS — h.fired
+        // stays false, it retries next round inside its window, exactly like
+        // waiting for two clear lanes above.
+        this.log(`[EVENT] ${name} is waiting — no two clear lanes match (both on a card, or both empty).`);
+        return;
       }
     }
     h.fired = true;
