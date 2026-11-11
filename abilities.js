@@ -229,6 +229,7 @@ function _cogPowerTrip(G, self) {
   if (self._cogPowerTripRound === (G.state.round || 1)) return;
   self._cogPowerTripRound = (G.state.round || 1);
   const enemies = G.getEnemiesOf(self.owner).filter(c => c && c.currentHealth > 0);
+  if (typeof UI !== 'undefined' && UI._fxPowerTrip) { try { UI._fxPowerTrip(self, enemies); } catch (e) {} }
   enemies.forEach(c => G.dealDamage(c, 2, self));
   if (enemies.length) G.log(`  [POWER TRIP] ${self.name} shocks all enemies for 2!`);
 }
@@ -982,6 +983,7 @@ const CARD_ABILITIES = {
       // Roguelite Text+ override — _sabertoothRageSize scales the buff.
       const n = self._sabertoothRageSize || 1;
       G.buffCard(self, n, n);
+      if (typeof UI !== 'undefined' && UI._fxSabertoothRage) { try { UI._fxSabertoothRage(self); } catch (e) {} }
       G.log(`Sabertooth grows! +${n}/+${n}`);
     }
   },
@@ -1464,6 +1466,7 @@ const CARD_ABILITIES = {
       // Text+ raises to 2 so a 2-ally trade gives Ahsoka 4 free swings.
       const grant = self._ahsokaBonusAttacksPerKill || 1;
       self.bonusAttack = (typeof self.bonusAttack === 'number' ? self.bonusAttack : 0) + grant;
+      if (typeof UI !== 'undefined' && UI._fxAhsokaReady) { try { UI._fxAhsokaReady(self); } catch (e) {} }
     }
   },
   "Carnage": {
@@ -1550,6 +1553,7 @@ const CARD_ABILITIES = {
       if (self._gizmoTriggered) return;
       self._gizmoTriggered = true;
       G.log(`[GIZMO] Bright light! Something's multiplying — a Gremlin appears, and Stripe is coming!`);
+      if (typeof UI !== 'undefined' && UI._fxGizmoFlash) { try { UI._fxGizmoFlash(self); } catch (e) {} }
       const gremDef = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(d => d.name === 'Gremlin') : null;
       G.summonCardChoice(self.owner, 'Gremlin', 2, 2, 3, [], null, null, gremDef);
       const stripeDef = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(d => d.name === 'Stripe') : null;
@@ -1895,6 +1899,7 @@ const CARD_ABILITIES = {
       const t = _cogTarget(G, self);
       if (!t) return;
       G.log(`  [BEGUILE] Mr. Hollywood dazzles ${t.name} — 3 damage and Stun.`);
+      if (typeof UI !== 'undefined' && UI._fxCogStrike) { try { UI._fxCogStrike(self, t, 'beguile'); } catch (e) {} }
       G.dealDamage(t, 3, self);
       if (t.currentHealth > 0) G.freezeCard(t, self, 1);   // Stun == freeze in this engine
     },
@@ -1908,6 +1913,7 @@ const CARD_ABILITIES = {
       const t = _cogTarget(G, self);
       if (!t) return;
       G.log(`  [EMBEZZLE] Robber Baron shakes down ${t.name} — 3 damage, steals 1 Energy.`);
+      if (typeof UI !== 'undefined' && UI._fxCogStrike) { try { UI._fxCogStrike(self, t, 'embezzle'); } catch (e) {} }
       G.dealDamage(t, 3, self);
       // Steal 1 Energy. In 2v2 a side is two people with separate energy pools,
       // so the theft lands on ONE RANDOM player on the victim's team and is
@@ -1946,6 +1952,7 @@ const CARD_ABILITIES = {
       const t = _cogTarget(G, self);
       if (!t) return;
       G.log(`  [FIRED!] Big Wig fires ${t.name} — 3 damage, then a transfer.`);
+      if (typeof UI !== 'undefined' && UI._fxCogStrike) { try { UI._fxCogStrike(self, t, 'fired'); } catch (e) {} }
       G.dealDamage(t, 3, self);
       if (t.currentHealth > 0 && !t.isFaceDown) {
         const from = G.findCardLane(t);
@@ -1967,6 +1974,7 @@ const CARD_ABILITIES = {
       const t = _cogTarget(G, self);
       if (!t) return;
       G.log(`  [GLOWER POWER] The Big Cheese glares at ${t.name} — 5 damage and a knock-down.`);
+      if (typeof UI !== 'undefined' && UI._fxCogStrike) { try { UI._fxCogStrike(self, t, 'glower'); } catch (e) {} }
       G.dealDamage(t, 5, self);
       if (t.currentHealth > 0) G.freezeCard(t, self, 1);
     }
@@ -4703,6 +4711,7 @@ const CARD_ABILITIES = {
       const bonus = self._redHulkRetaliateBonus || 0;
       dmg += bonus;
       G.addBlockMeter(self.owner, dmg);
+      if (typeof UI !== 'undefined' && UI._fxRedHulkRage) { try { UI._fxRedHulkRage(self); } catch (e) {} }
       G.log(`Red Hulk adds ${dmg} to Block Meter!`);
       const lane = G.findCardLane(self);
       if (lane >= 0) {
@@ -6592,7 +6601,17 @@ const CARD_ABILITIES = {
           return;
         }
         G.summonCardChoice(owner, d.name, d.cost, d.attack, d.health, d.abilities || [], open,
-          () => { bind(name); G.reconcileShadows(); next(); }, d);
+          () => {
+            bind(name); G.reconcileShadows();
+            // The shadow climbs out of the ground — find the one just bound.
+            try {
+              for (let i = 0; i < G.LANE_COUNT; i++) {
+                const c = G.state.lanes[i] && G.state.lanes[i][owner];
+                if (c && c.name === name) { if (typeof UI !== 'undefined' && UI._fxShadowRise) { try { UI._fxShadowRise(c); } catch (e) {} } break; }
+              }
+            } catch (e) {}
+            next();
+          }, d);
       };
       raise('Igris', () => raise('Beru', () => revive()));
       // (called once Igris and Beru are both placed)
@@ -6636,6 +6655,7 @@ const CARD_ABILITIES = {
     isShadow: true,
     shadowAtkOffset: 3,
     onPlay(G, self) {
+      if (typeof UI !== 'undefined' && UI._fxShadowRise) { try { UI._fxShadowRise(self); } catch (e) {} }
       const foes = G.getEnemiesOf(self.owner)
         .filter(e => e && e.currentHealth > 0 && !e.isFaceDown);
       if (!foes.length) { G.log('  [BERU] No enemy to freeze.'); return; }
@@ -7952,6 +7972,7 @@ const CARD_ABILITIES = {
   },
   "Padme Amidala": {
     onEndOfTurn(G, self) {
+      if (typeof UI !== 'undefined' && UI._fxPadmeBlessing) { try { UI._fxPadmeBlessing(G.getAlliesOf(self.owner).filter(c => c !== self)); } catch (e) {} }
       G.getAlliesOf(self.owner).filter(c => c !== self).forEach(c => {
         c.attack = (c.attack || 0) + 1;
         c.maxHealth = (c.maxHealth || 0) + 1;
@@ -8070,6 +8091,7 @@ const CARD_ABILITIES = {
     onKill(G, self) {
       self.maxHealth += 1;
       self.currentHealth = self.maxHealth;
+      if (typeof UI !== 'undefined' && UI._fxJawsFeed) { try { UI._fxJawsFeed(self); } catch (e) {} }
       G.log(`[JAWS] Jaws grows stronger — now ${self.attack}/${self.maxHealth}!`);
     },
     onDeath(G, self, laneIdx) {

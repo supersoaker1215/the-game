@@ -9364,7 +9364,9 @@ const UI = {
   // own personality by adding ONE entry here — no per-ability FX calls.
   //   moth  — flutters along a wavy arc, shedding glowing wing dust
   //   boom  — crosses in a blink: white-hot streak, shockwave at both ends
-  MOVE_STYLES: { 'Killer Moth': 'moth', 'Man-Bat': 'moth', 'Omni-Man': 'boom' },
+  //   jet   — Jango Fett: a jetpack burn, flame streak, sparks at take-off
+  //   stomp — T-Rex: three heavy strides, a hard landing that shakes the board
+  MOVE_STYLES: { 'Killer Moth': 'moth', 'Man-Bat': 'moth', 'Omni-Man': 'boom', 'Jango Fett': 'jet', 'T-Rex': 'stomp' },
   _fxCardSlide(ev) {
     if (!ev || ev.from == null || ev.to == null || ev.from === ev.to) return;
     if (this._reducedMotion && this._reducedMotion()) return;
@@ -9401,7 +9403,7 @@ const UI = {
     // Lean into the direction of travel — a body moving sideways banks.
     ghost.style.setProperty('--slide-tilt', (dx >= 0 ? 5 : -5) + 'deg');
     const style = (this.MOVE_STYLES && this.MOVE_STYLES[ev.name]) || '';
-    const DUR = style === 'moth' ? 900 : style === 'boom' ? 240 : 420;
+    const DUR = style === 'moth' ? 900 : style === 'boom' ? 240 : style === 'jet' ? 380 : style === 'stomp' ? 640 : 420;
     const cx0 = fromRect.left + fromRect.width / 2, cy0 = fromRect.top + fromRect.height / 2;
     let anim = null;
     if (style && ghost.animate) {
@@ -9415,6 +9417,12 @@ const UI = {
           x = dx * e; y = dy * e - Math.sin(t * Math.PI) * 46 + Math.sin(t * Math.PI * 4) * 9;
           rot = Math.sin(t * Math.PI * 6) * 9;
           extra = ' scale(' + (1 - Math.sin(t * Math.PI) * .12).toFixed(3) + ')';
+        } else if (style === 'stomp') {
+          const e = t;                                                  // three strides: hop, hop, hop
+          x = dx * e; y = dy * e - Math.abs(Math.sin(t * Math.PI * 3)) * 18; rot = Math.sin(t * Math.PI * 3) * 3;
+        } else if (style === 'jet') {
+          const e = t < .5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2)/2;        // lift, cruise, settle
+          x = dx * e; y = dy * e - Math.sin(t * Math.PI) * 30; rot = (dx >= 0 ? 6 : -6) * Math.sin(t * Math.PI);
         } else {
           const e = 1 - Math.pow(1 - t, 4);                             // snap out, hard stop
           x = dx * e; y = dy * e; rot = (dx >= 0 ? 4 : -4) * Math.sin(t * Math.PI);
@@ -9427,6 +9435,7 @@ const UI = {
       anim = ghost.animate(frames, { duration: DUR, easing: 'linear', fill: 'forwards' });
       if (style === 'moth') this._fxMothDust(cx0, cy0, dx, dy, DUR);
       if (style === 'boom') this._fxSonicBoom(cx0, cy0, dx, dy);
+      if (style === 'jet') this._fxSonicBoom(cx0, cy0, dx, dy, 'jet');
     } else {
       ghost.style.animation = `cardSlideAcross ${DUR}ms cubic-bezier(0.4, 0, 0.2, 1) forwards`;
       document.body.appendChild(ghost);
@@ -9458,6 +9467,8 @@ const UI = {
       land();
       if (style === 'boom') { try { this._fxRing(realEl, { color: '#ffffff' }); this._screenShake('land-m'); } catch (e) {} }
       if (style === 'moth') { try { this._fxRing(realEl, { color: '#c08cff', contract: true }); } catch (e) {} }
+      if (style === 'jet') { try { const p = this._fxCenter(realEl); if (p) this._fxSparks(p, { color: '#ffd38a', glow: '#ff7a1a', count: 12, angle: Math.PI / 2, cone: 1.2, spread: 50, size: 2.6 }); } catch (e) {} }
+      if (style === 'stomp') { try { this._fxRing(realEl, { color: '#c9a36a' }); this._screenShake('land-l'); } catch (e) {} }
     };
     else ghost.addEventListener('animationend', land, { once: true });
     setTimeout(land, DUR + 90);   // the card can never stay hidden
@@ -9485,10 +9496,10 @@ const UI = {
   },
   // Sonic boom: a white-hot streak the length of the jump that snaps in and
   // bleeds out, plus a shock ring left hanging at the take-off point.
-  _fxSonicBoom(x0, y0, dx, dy) {
+  _fxSonicBoom(x0, y0, dx, dy, kind) {
     const layer = this._fxLayer();
     const st = document.createElement('div');
-    st.className = 'fx-sonic-streak';
+    st.className = 'fx-sonic-streak' + (kind === 'jet' ? ' fx-jet-streak' : '');
     st.style.cssText = 'left:' + x0 + 'px;top:' + y0 + 'px;width:' + Math.hypot(dx, dy) + 'px;transform:rotate(' + Math.atan2(dy, dx) + 'rad);';
     layer.appendChild(st);
     setTimeout(() => st.remove(), 700);
@@ -12599,6 +12610,115 @@ const UI = {
       this._fxEnergyTheft(self.owner);
     });
   },
+
+  // =============== WAVE 4: cards that had no animation (2026-11-11) ===============
+  // Owner: "i want more animation like the cards i listed for other cards".
+  // Every entry is abstract light/particle work built from the shared
+  // primitives above — beams, bolts, rings, sparks, slashes, gas — so each
+  // card's moment reads at a glance without drawing anyone. Targets are
+  // captured BEFORE the caller deals damage (a lethal hit sweeps the element
+  // on the next render); casters wait for paint via _fxWhenPainted.
+  _fxPt(card) { return card ? this._fxCenter(this._fxCardElById(card.id)) : null; },
+  // The four Cogs' signature openers.
+  _fxCogStrike(self, target, kind) {
+    if (this._reducedMotion() || !self || !target) return;
+    const to = this._fxPt(target), tEl = this._fxCardElById(target.id);
+    if (!to) return;
+    this._fxWhenPainted(self, (el) => {
+      const from = this._fxCenter(el);
+      if (!from) return;
+      if (kind === 'beguile') {            // Mr. Hollywood: a dazzling spotlight flash
+        this._fxDrawBeam(from, to, { color: '#ff7ad9', core: '#fff' });
+        this._fxImpact(to, { color: '#ffd6f3', core: '#ffffff', size: 1.3 });
+        this._fxSparks(to, { color: '#fff3a8', glow: '#ff7ad9', count: 14, spread: 70, size: 3 });
+      } else if (kind === 'embezzle') {    // Robber Baron: a green-gold siphon + the energy he takes
+        this._fxDrawBeam(from, to, { color: '#7dffb0', core: '#fff6c8' });
+        this._fxSparks(to, { color: '#ffe08a', glow: '#3dff9a', count: 12, angle: Math.atan2(from.y - to.y, from.x - to.x), cone: .9, spread: 80, size: 2.6 });
+        this._fxEnergyTheft(self.owner);
+      } else if (kind === 'fired') {       // Big Wig: a spinning pink slip, then the shove
+        this._fxProjectile(self, target, { color: '#ff5252' });
+        setTimeout(() => this._fxImpact(to, { color: '#ff8a8a', size: 1.1 }), 260);
+      } else {                             // The Big Cheese: a heavy red glare that knocks down
+        this._fxDrawBeam(from, to, { color: '#ff2a2a', core: '#ffd0a0', width: 9 });
+        this._fxImpact(to, { color: '#ff6a3d', core: '#fff2c8', size: 1.7 });
+        if (tEl) this._fxRing(tEl, { color: '#ff3b2f' });
+        this._screenShake('light');
+      }
+    });
+  },
+  // Power Trip: arcs of current leap from the Cog to every enemy at once.
+  _fxPowerTrip(self, enemies) {
+    if (this._reducedMotion() || !self || !enemies || !enemies.length) return;
+    const pts = enemies.map(c => this._fxPt(c)).filter(Boolean);
+    const from = this._fxPt(self);
+    if (!from || !pts.length) return;
+    pts.forEach((p, i) => setTimeout(() => {
+      this._fxDrawBolt(from, p, { color: '#ffe066' });
+      this._fxSparks(p, { color: '#fff6b0', glow: '#ffcf33', count: 8, spread: 46, size: 2.4 });
+    }, i * 70));
+    this._screenShake('light');
+  },
+  // Padme: a gold blessing settles over every other ally each turn.
+  _fxPadmeBlessing(allies) {
+    if (this._reducedMotion() || !allies || !allies.length) return;
+    allies.forEach((c, i) => {
+      const el = this._fxCardElById(c.id); if (!el) return;
+      setTimeout(() => {
+        this._fxRing(el, { color: '#ffd76b', contract: true });
+        const p = this._fxCenter(el);
+        if (p) this._fxSparks(p, { color: '#fff1bd', glow: '#ffc94a', count: 9, angle: -Math.PI / 2, cone: .8, spread: 60, size: 2.4 });
+      }, i * 90);
+    });
+  },
+  // Red Hulk: the hit he takes boils over — a flame column, then the splash.
+  _fxRedHulkRage(self) {
+    if (this._reducedMotion() || !self) return;
+    const el = this._fxCardElById(self.id); if (!el) return;
+    this._fxFlameColumn(el);
+    const p = this._fxCenter(el);
+    if (p) this._fxImpact(p, { color: '#ff3b1f', core: '#ffd27a', size: 1.6 });
+    this._screenShake('light');
+  },
+  // Ahsoka: an ally falls and twin blades flash ready for the extra swing.
+  _fxAhsokaReady(self) {
+    if (this._reducedMotion() || !self) return;
+    const el = this._fxCardElById(self.id); if (!el) return;
+    this._fxSlash(el, { count: 2, color: '#eaf6ff', angle: -32 });
+    this._fxRing(el, { color: '#bfe6ff', contract: true });
+  },
+  // Gizmo: the bright light that starts the multiplying.
+  _fxGizmoFlash(self) {
+    if (this._reducedMotion() || !self) return;
+    const p = this._fxPt(self); if (!p) return;
+    this._fxImpact(p, { color: '#ffffff', core: '#ffffff', size: 2 });
+    this._fxSparks(p, { color: '#d8ff9a', glow: '#7dff4e', count: 16, spread: 90, size: 2.6 });
+  },
+  // Sabertooth: three claw rakes and a growth pulse when he draws hero blood.
+  _fxSabertoothRage(self) {
+    if (this._reducedMotion() || !self) return;
+    const el = this._fxCardElById(self.id); if (!el) return;
+    this._fxSlash(el, { count: 3, color: '#ffb347', angle: 24 });
+    this._fxRing(el, { color: '#ff9d2e' });
+  },
+  // Jaws: the kill feeds him — a churn of water and a healing surge.
+  _fxJawsFeed(self) {
+    if (this._reducedMotion() || !self) return;
+    const el = this._fxCardElById(self.id); if (!el) return;
+    this._fxRing(el, { color: '#4fc3ff' });
+    const p = this._fxCenter(el);
+    if (p) this._fxSparks(p, { color: '#bfeaff', glow: '#2fa8ff', count: 14, angle: -Math.PI / 2, cone: 1.4, spread: 70, size: 2.8 });
+  },
+  // Shadows rising (Igris, Beru): black-violet smoke boils up out of the slot.
+  _fxShadowRise(card) {
+    if (this._reducedMotion() || !card) return;
+    this._fxWhenPainted(card, (el) => {
+      this._fxGasBurst(el, { color: '#5b2bd6' });
+      this._fxRing(el, { color: '#8a5cff', contract: true });
+      const p = this._fxCenter(el);
+      if (p) this._fxSparks(p, { color: '#c9b3ff', glow: '#6a3dff', count: 12, angle: -Math.PI / 2, cone: .7, spread: 80, size: 2.4 });
+    });
+  },
+
   _fxEnergyTheft(owner) {
     if (this._reducedMotion()) return;
     const dom = this._fxDomSide ? this._fxDomSide(owner) : owner;
@@ -37940,7 +38060,7 @@ const UI = {
       setTimeout(() => this._releaseDeath(cardId), hold);
       return;
     }
-    this._dissolveCardEl(cardEl);
+    this._dissolveCardEl(cardEl, owner);
   },
   _deathHoldMs(owner) {
     if (!this.sfx || !this.sfx._inCombat) return 0;
@@ -37949,9 +38069,10 @@ const UI = {
   },
   _isDeathHeld(id) { return !!(this._deathHold && this._deathHold.has(String(id))); },
   _releaseDeath(cardId) {
+    const held = this._deathHold && this._deathHold.get(String(cardId));
     if (this._deathHold) this._deathHold.delete(String(cardId));
     const live = document.querySelector(`#board [data-card-id="${cardId}"]`);
-    if (live) { this._dissolveCardEl(live); return; }
+    if (live) { this._dissolveCardEl(live, held ? held.side : null); return; }
     const g = document.querySelector(`[data-ghost-of="${cardId}"]`);
     if (!g) return;
     g.classList.remove('card-death-hold', 'combat-attacker', 'combat-target', 'hit-flash');
@@ -37961,8 +38082,15 @@ const UI = {
   },
   // The death visual proper (unchanged from spawnDestroyParticles' original
   // body): Tron dissolve on the tile + particle burst / shockwave / shards.
-  _dissolveCardEl(cardEl) {
+  // `owner` is the dying card's ABSOLUTE side. It was dropped when this body was
+  // split out of spawnDestroyParticles (b9ea039), so every death that reached
+  // it threw "owner is not defined" — up through handleDeath and the ability
+  // that dealt the damage — and no kill ever flashed or counted a multikill.
+  _dissolveCardEl(cardEl, owner) {
     if (!cardEl) return;
+    if (owner !== 'player' && owner !== 'ai') {
+      owner = (cardEl.classList && cardEl.classList.contains('ally-card')) ? 'player' : 'ai';
+    }
     // Reduced-motion gate (2026-06 accessibility sweep). The 8-particle
     // burst + shockwave + shard spray + Tron-dissolve are all cosmetic;
     // the card still leaves the board via the normal render. Motion-

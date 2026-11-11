@@ -54068,3 +54068,9 @@ html, body { touch-action: manipulation; }
 @media (prefers-reduced-motion: reduce) {
   #signature-fx-layer .fx-moth-dust, #signature-fx-layer .fx-sonic-streak { animation: none; opacity: 0; }
 }
+
+#signature-fx-layer .fx-sonic-streak.fx-jet-streak {
+  height: 8px; margin-top: -4px;
+  background: linear-gradient(90deg, rgba(255,90,20,0) 0%, rgba(255,120,30,.6) 30%, #ffd38a 85%, rgba(255,240,200,0) 100%);
+  box-shadow: 0 0 16px 4px rgba(255,140,40,.55), 0 0 34px 10px rgba(255,80,20,.3);
+}
