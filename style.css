@@ -53046,7 +53046,7 @@ body.fx-lean .card-taunt { box-shadow: 0 0 14px rgba(255,190,60,0.55), 0 0 26px 
 /* !important on the two alignment props because the base `.main-menu-overlay`
    rule pins `align-items: flex-start !important` for the left-column menu, and
    a normal declaration can never outrank it — the lockup sat on the left edge. */
-#main-menu-overlay.is-title { display: flex; align-items: center !important; justify-content: center !important; flex-direction: column; background: #000; }
+#main-menu-overlay.is-title:not(.ts-menulike) { display: flex; align-items: center !important; justify-content: center !important; flex-direction: column; background: #000; }
 #main-menu-overlay.is-title .ts-bg {
   position: absolute; inset: -4%;
   background-repeat: no-repeat; background-size: cover; background-position: center;
@@ -53945,3 +53945,13 @@ html, body { touch-action: manipulation; }
 @media (prefers-reduced-motion: reduce) {
   .mm-mw3 .mm-bgvideo { translate: none; transition: none; }
 }
+
+/* START SCREEN = THE MENU WITHOUT ITS LIST (2026-11-11). The title renders the
+   menu's own scene/scrim/panel/header (UI.renderTitleScreen), so the only rules
+   it needs are for PRESS START, which sits where the first menu row will be:
+   left-aligned on the menu's text axis, no centring indent. */
+#main-menu-overlay.ts-menulike .ts-prompt {
+  margin-top: clamp(28px, 7vh, 72px); padding: 0; text-align: left; text-indent: 0;
+  font-size: clamp(16px, 1.9vw, 26px); letter-spacing: 0.36em;
+}
+#main-menu-overlay.ts-menulike.is-title-leaving .ts-prompt { transition: opacity 360ms var(--ease-exit, ease-in); opacity: 0; }

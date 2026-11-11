@@ -346,7 +346,7 @@ var titleAlign = null;
 var mre3 = /(?:^|\n)([^{}@][^{}]*?)\{([^{}]*)\}/g, mm4;
 while ((mm4 = mre3.exec(BARE))) {
   var sels4 = mm4[1].split(',').map(function (x) { return x.replace(/\s+/g, ' ').trim(); });
-  if (sels4.some(function (x) { return /^#main-menu-overlay\.is-title$/.test(x); }) && /align-items\s*:/.test(mm4[2])) {
+  if (sels4.some(function (x) { return /^#main-menu-overlay\.is-title(:not\(\.ts-menulike\))?$/.test(x); }) && /align-items\s*:/.test(mm4[2])) {
     titleAlign = { important: /align-items\s*:[^;]*!important/.test(mm4[2]), justImportant: /justify-content\s*:[^;]*!important/.test(mm4[2]) };
   }
 }

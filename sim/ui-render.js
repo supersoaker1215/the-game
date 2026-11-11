@@ -277,8 +277,9 @@ test('the title screen gates the menu once, and a press dismisses it into the me
   ok(el.classList.contains('is-title'), 'render() shows the title screen first');
   ok(!!el.querySelector('.ts-prompt'), 'with a PRESS START prompt');
   eq(el.querySelectorAll('.mm-panel .mm-option').length, 0, 'and no menu rows yet');
-  var tbg = el.querySelector('.ts-bg');
+  var tbg = el.querySelector('.mm-bgvideo');
   ok(tbg && tbg.querySelector('video.mm-video'), 'the looping menu video plays behind the title (replaced the hero art 2026-11-11)');
+  ok(!!el.querySelector('.mm-panel .mm-header .mm-title'), 'the start screen uses the menu header, so PRESS START does not move the title');
   var realSetTimeout = globalThis.setTimeout;
   globalThis.setTimeout = function (fn) { fn(); return 0; };   // land the crossfade now
   try { UI.dismissTitle(); } finally { globalThis.setTimeout = realSetTimeout; }
@@ -393,7 +394,8 @@ test('the wordmark carries its subtitle on the menu, every submenu and the title
   UI.mmShowSub('mp');
   ok(!!el.querySelector('.mm-panel .mm-tagline'), 'multiplayer');
   UI._mmSub = null;
-  ok(/class="ts-tagline">Card Lane Battle</.test(read('ui.js')), 'title screen lockup');
+  var tsrc = read('ui.js'); var ti = tsrc.indexOf('  renderTitleScreen(s) {');
+  ok(/class="mm-tagline">Card Lane Battle</.test(tsrc.slice(ti, tsrc.indexOf('  _armTitleDismiss() {', ti))), 'title screen (the menu header itself)');
 });
 
 print('');

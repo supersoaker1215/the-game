@@ -17631,21 +17631,25 @@ const UI = {
   // mid-session, and nothing about it is persisted.
   _titleDone: false,
   renderTitleScreen(s) {
+    // THE START SCREEN IS THE MENU WITHOUT ITS LIST (owner, 2026-11-11: "the
+    // start screen needs to be the same as the menu"). Same overlay classes,
+    // same scene + scrim + panel, the same .mm-header in the same place — only
+    // PRESS START stands where the option list will appear. Pressing it swaps
+    // in the list and nothing else moves.
     const el = document.getElementById('main-menu-overlay');
     if (!el) return;
-    el.classList.remove('mm-four');
-    el.classList.add('is-title');
+    el.classList.add('is-title', 'ts-menulike', 'mm-mw3', 'mm-four');
     el.innerHTML = `
-      <div class="ts-bg" aria-hidden="true"></div>
-      <div class="ts-scrim" aria-hidden="true"></div>
-      <div class="ts-lockup">
-        <h1 class="mm-title ts-title">the game</h1>
-        <div class="ts-rule" aria-hidden="true"></div>
-        <div class="ts-tagline">Card Lane Battle</div>
-      </div>
-      <button type="button" class="ts-prompt" id="ts-prompt">Press Start</button>`;
-    // The same looping video the menu uses — PRESS START carries it straight on.
-    this._mountMenuVideo(el.querySelector('.ts-bg'));
+      <div class="mm-tron-grid" aria-hidden="true"></div>
+      <div class="mm-bgvideo" aria-hidden="true"></div>
+      <div class="mm-scrim" aria-hidden="true"></div>
+      <div class="mm-panel">
+        <div class="mm-header">
+          <h1 class="mm-title">the game</h1><div class="mm-tagline">Card Lane Battle</div>
+        </div>
+        <button type="button" class="ts-prompt" id="ts-prompt">Press Start</button>
+      </div>`;
+    this._mountMenuVideo(el.querySelector('.mm-bgvideo'));
     this._armTitleDismiss();
   },
   _armTitleDismiss() {
@@ -17671,7 +17675,7 @@ const UI = {
     // Music: the intent was set at boot; this gesture is what lets it play.
     try { if (this.sfx && this.sfx.startMusic) this.sfx.startMusic(); } catch (e) {}
     const finish = () => {
-      if (el) el.classList.remove('is-title', 'is-title-leaving');
+      if (el) el.classList.remove('is-title', 'is-title-leaving', 'ts-menulike');
       try { this.render(); } catch (e) {}
       // The first-run nudge waited behind the title; ask again now the menu is up.
       try { this._maybeShowFirstRun(); } catch (e) {}

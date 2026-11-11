@@ -21,7 +21,8 @@ function body(sig, next) { var a = SRC.indexOf(sig); return a < 0 ? '' : SRC.sli
 var scene = UI._menuSceneHTML();
 check('the menu scene hosts the video, not hero buffers', /mm-bgvideo/.test(scene) && !/mm-hero-img/.test(scene), scene);
 var title = body('  renderTitleScreen(s) {', '  _armTitleDismiss() {');
-check('the title mounts the shared video', /this\._mountMenuVideo\(el\.querySelector\('\.ts-bg'\)\)/.test(title));
+check('the title mounts the shared video', /this\._mountMenuVideo\(el\.querySelector\('\.mm-bgvideo'\)\)/.test(title));
+check('the start screen IS the menu scaffold (same header, same panel)', /class="mm-panel"/.test(title) && /<div class="mm-header">\s*<h1 class="mm-title">the game<\/h1><div class="mm-tagline">Card Lane Battle<\/div>/.test(title) && /'ts-menulike', 'mm-mw3', 'mm-four'/.test(title));
 check('…and no longer picks a hero or retargets the music', !/getCardArtPathDefault|_srcForHeroName|_titleHeroName/.test(title));
 check('the menu render mounts the same video', /if \(_flowOn\) this\._mountMenuVideo\(el\.querySelector\(':scope > \.mm-bgvideo'\)\)/.test(SRC));
 var side = body('  _updateMenuSideArt(src) {', '\n  },');
