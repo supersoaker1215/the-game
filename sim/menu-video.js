@@ -23,6 +23,10 @@ check('the menu scene hosts the video, not hero buffers', /mm-bgvideo/.test(scen
 var title = body('  renderTitleScreen(s) {', '  _armTitleDismiss() {');
 check('the title mounts the shared video', /this\._mountMenuVideo\(el\.querySelector\('\.mm-bgvideo'\)\)/.test(title));
 check('the start screen IS the menu scaffold (same header, same panel)', /class="mm-panel"/.test(title) && /<div class="mm-header">\s*<h1 class="mm-title">the game<\/h1><div class="mm-tagline">Card Lane Battle<\/div>/.test(title) && /'ts-menulike', 'mm-mw3', 'mm-four'/.test(title));
+check('the start screen offers Options (Settings) under PRESS START', /class="ts-options" onclick="UI\.openSettings\(\)"/.test(title));
+var arm = body('  _armTitleDismiss() {', '  dismissTitle() {');
+check('…and Options / Settings never dismiss the start screen', /closest\('\.ts-options, \.settings-cog, \.settings-overlay/.test(arm) && /settings-overlay\[style\*="flex"\]/.test(arm));
+check('title top centre, PRESS START dead centre (CSS)', /\.ts-menulike \.ts-prompt \{\s*position: absolute; left: 50%; top: 50%; transform: translate\(-50%, -50%\)/.test(CSS) && /\.ts-menulike \.mm-header \{ align-items: center/.test(CSS));
 check('…and no longer picks a hero or retargets the music', !/getCardArtPathDefault|_srcForHeroName|_titleHeroName/.test(title));
 check('the menu render mounts the same video', /if \(_flowOn\) this\._mountMenuVideo\(el\.querySelector\(':scope > \.mm-bgvideo'\)\)/.test(SRC));
 var side = body('  _updateMenuSideArt(src) {', '\n  },');

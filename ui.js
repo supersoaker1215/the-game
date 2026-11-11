@@ -17648,6 +17648,7 @@ const UI = {
           <h1 class="mm-title">the game</h1><div class="mm-tagline">Card Lane Battle</div>
         </div>
         <button type="button" class="ts-prompt" id="ts-prompt">Press Start</button>
+        <button type="button" class="ts-options" onclick="UI.openSettings()">Options</button>
       </div>`;
     this._mountMenuVideo(el.querySelector('.mm-bgvideo'));
     this._armTitleDismiss();
@@ -17662,6 +17663,11 @@ const UI = {
       if (this._titleDone) return;
       // Ignore modifier-only keys so holding Shift does not skip the screen.
       if (e && e.type === 'keydown' && /^(Shift|Control|Alt|Meta|CapsLock|Tab)$/.test(e.key || '')) return;
+      // OPTIONS (and the settings cog, and anything inside Settings) open over
+      // the start screen instead of dismissing it.
+      const t = e && e.target;
+      if (t && t.closest && t.closest('.ts-options, .settings-cog, .settings-overlay, .settings-modal, [role="dialog"]')) return;
+      if (document.querySelector('.settings-overlay.active, .settings-overlay.open, .settings-overlay[style*="flex"]')) return;
       this.dismissTitle();
     };
     window.addEventListener('pointerdown', go, { passive: true });
