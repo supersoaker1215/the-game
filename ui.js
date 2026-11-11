@@ -28283,13 +28283,22 @@ const UI = {
     // what playing it does. null for every other card.
     const _xNow = (inHand && typeof Game !== 'undefined' && Game.energyScaledPreview)
       ? Game.energyScaledPreview(card) : null;
+    // …and EVERYWHERE ELSE it has no X yet — draft, codex, deck builder,
+    // pickers, dead pile — so it prints the letter X for cost, ATK and HP
+    // instead of the 5/5/5 placeholder its def carries (owner: "for sung jin
+    // woo these should all be X"). A card standing on the board shows its
+    // real body: it was paid for (locked) or arrived with one.
+    const _xLetter = !_xNow && !!card && !(card._energyLocked != null)
+      && !!(card.scalesWithEnergy || (typeof CARD_ABILITIES !== 'undefined'
+            && CARD_ABILITIES[card.name] && CARD_ABILITIES[card.name].scalesWithEnergy))
+      && !(typeof Game !== 'undefined' && Game.findCardLane && Game.findCardLane(card) >= 0);
     // Discounted / inflated cost. This used to recolour the DIGIT, which the
     // corner wedge can no longer carry — the digit is the engraved hole and has
     // to stay dark to read as one. It repaints the WEDGE instead, so a cheapened
     // card lights its whole corner green and an inflated one goes red.
     // An X cost is neither a discount nor a tax — it is the card — so it never
     // lights the wedge green or red against its printed reference number.
-    const costStyle = _xNow ? '' : displayCost < baseCost ? '--cost-neon:46,204,113' : displayCost > baseCost ? '--cost-neon:231,76,60' : '';
+    const costStyle = (_xNow || _xLetter) ? '' : displayCost < baseCost ? '--cost-neon:46,204,113' : displayCost > baseCost ? '--cost-neon:231,76,60' : '';
     const cornerIndicators = '';
 
     // Buff/debuff classes on the stat orbs — compare current to the
@@ -28341,7 +28350,7 @@ const UI = {
     const rawAtk = card.attack;
     const effAtk = this._displayedAtk(card, inHand);
     const atkBoosted = effAtk !== rawAtk && Number.isFinite(effAtk);
-    const atkCell = hideAtk ? '?' : (_xNow ? _xNow.attack : (atkBoosted ? effAtk : rawAtk));
+    const atkCell = hideAtk ? '?' : (_xNow ? _xNow.attack : _xLetter ? 'X' : (atkBoosted ? effAtk : rawAtk));
     // HP fallback: a live card instance carries currentHealth (a number, and
     // legitimately 0 when damaged — which must still print "0"). A raw
     // CARD_DEF has no currentHealth, only `health`. Foresee / Scry pickers
@@ -28358,6 +28367,7 @@ const UI = {
     const hpCell  = hideAllStats
       ? '?'
       : _xNow ? _xNow.health
+      : _xLetter ? 'X'
       : _shadowZero ? 0
       : (card.currentHealth != null ? card.currentHealth
          : (card.health != null ? card.health
@@ -28591,7 +28601,7 @@ const UI = {
     // already exists between the portrait and the desc text. The
     // painting → status → desc → orbs chain reads cleanly without it.
     el.innerHTML = `
-      <span class="card-cost"${costStyle ? ` style="${costStyle}"` : ''}${costTip}>${displayCost}</span>
+      <span class="card-cost"${costStyle ? ` style="${costStyle}"` : ''}${costTip}>${_xLetter ? 'X' : displayCost}</span>
       ${rarityStrip}
       ${xpChip}
       ${mvpStarHtml}
