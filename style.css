@@ -52958,7 +52958,11 @@ body.fx-lean .card-taunt { box-shadow: 0 0 14px rgba(255,190,60,0.55), 0 0 26px 
    label's size and the gold state. Pure #000 stays — the hero is the colour.
    ============================================================ */
 .mm-four {
-  --mm-gold: var(--gold-rgb, 245, 191, 28);
+  /* THE HIGHLIGHT IS WHITE (owner, 2026-11-11: "the neon highlight for the
+     main menu should be white"). Still named --mm-gold so every rule that
+     reads it — the selected row's label, its lit rail, the MP screen — turns
+     white together. */
+  --mm-gold: 255, 255, 255;
   --mm-rail-w: 3px;
   --mm-row-gap: clamp(10px, 1.6vh, 22px);
 }
