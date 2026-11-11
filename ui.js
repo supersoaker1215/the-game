@@ -12907,6 +12907,66 @@ const UI = {
     });
   },
 
+  // ---- Jump entrances, Deadpool's swap, Wolverine's adamantium (2026-11-11) ----
+  // A Jump is a jump-scare: the screen drops dark for a beat, a red flash
+  // cuts, and the card SNAPS into its slot out of nowhere.
+  _fxJumpIn(ev) {
+    if (!ev || this._reducedMotion()) return;
+    const go = () => {
+      const el = document.querySelector('#board [data-card-id="' + ev.cardId + '"]') || this._fxCardElById(ev.cardId);
+      if (!el) return;
+      // A full-screen overlay, not a body class: body's class list is rewritten
+      // by other systems mid-frame, which ate the dim before it ever showed.
+      const flash = document.createElement('div');
+      flash.className = 'fx-jump-flash';
+      this._fxLayer().appendChild(flash);
+      setTimeout(() => flash.remove(), 460);
+      el.classList.remove('fx-jump-snap'); void el.offsetWidth; el.classList.add('fx-jump-snap');
+      setTimeout(() => el.classList.remove('fx-jump-snap'), 520);
+      this._fxSlash(el, { count: 2, color: '#ff2b2b', angle: -24 });
+      this._fxRing(el, { color: '#ff2b2b', contract: true });
+      this._screenShake('light');
+    };
+    // WAIT FOR THE LANDING. A jump plays the card from the hand, so it spends
+    // ~360ms in flight before its tile exists in the slot; firing on the next
+    // frame found nothing and silently skipped. Poll (bounded) for the landed,
+    // non-flying tile.
+    let tries = 0;
+    const poll = () => {
+      const el = document.querySelector('#board [data-card-id="' + ev.cardId + '"]');
+      if (el && !el.classList.contains('card-flying') && !el.classList.contains('card-enter')) { go(); return; }
+      if (++tries < 90) requestAnimationFrame(poll);
+    };
+    requestAnimationFrame(poll);
+  },
+  // Deadpool's trade: a red card-shaped glint arcs between the two hands —
+  // enemy -> his owner on the steal, back the other way on the give.
+  _fxHandSwap(owner, dir) {
+    if (this._reducedMotion()) return;
+    const dom = this._fxDomSide ? this._fxDomSide(owner) : owner;
+    const mine = document.getElementById(dom === 'player' ? 'player-hand' : 'ai-hand');
+    const theirs = document.getElementById(dom === 'player' ? 'ai-hand' : 'player-hand');
+    const a = this._fxCenter(dir === 'give' ? mine : theirs), b = this._fxCenter(dir === 'give' ? theirs : mine);
+    if (!a || !b) return;
+    const g = document.createElement('div');
+    g.className = 'fx-swap-card';
+    g.style.cssText = 'left:' + a.x + 'px;top:' + a.y + 'px;';
+    this._fxLayer().appendChild(g);
+    const dx = b.x - a.x, dy = b.y - a.y, bow = (dir === 'give' ? -1 : 1) * 160;
+    const fr = [];
+    for (let i = 0; i <= 14; i++) { const t = i / 14, e = t < .5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2)/2;
+      fr.push({ transform: 'translate(' + (dx*e + Math.sin(t*Math.PI)*bow).toFixed(1) + 'px,' + (dy*e).toFixed(1) + 'px) rotate(' + (t*540).toFixed(0) + 'deg)', opacity: t < .1 ? t*10 : (t > .9 ? (1 - t)*10 : 1) }); }
+    const an = g.animate ? g.animate(fr, { duration: 720, easing: 'linear', fill: 'forwards' }) : null;
+    const end = () => { g.remove(); this._fxSparks(b, { color: '#ff8a8a', glow: '#d61a1a', count: 10, spread: 50, size: 2.4 }); };
+    if (an) an.onfinish = end; else setTimeout(end, 720);
+  },
+  // Wolverine takes a hit: adamantium turns it — a shower of silver sparks.
+  _fxAdamantium(self) {
+    if (this._reducedMotion() || !self) return;
+    const p = this._fxPt(self); if (!p) return;
+    this._fxSparks(p, { color: '#f2f6fa', glow: '#9fb3c8', count: 12, angle: -Math.PI / 2, cone: 2.2, spread: 64, size: 2.2 });
+  },
+
   _fxEnergyTheft(owner) {
     if (this._reducedMotion()) return;
     const dom = this._fxDomSide ? this._fxDomSide(owner) : owner;
@@ -14574,6 +14634,10 @@ const UI = {
     }
     if (ev.type === 'move') {
       this._fxCardSlide(ev);
+      return;
+    }
+    if (ev.type === 'jump') {
+      this._fxJumpIn(ev);
       return;
     }
     if (ev.type === 'laneVoid') {
@@ -25479,6 +25543,8 @@ const UI = {
   // Do NOT add a class here without finding its removal timer first.
   _FX_TRANSIENT_CLASSES: [
     'combat-attacker', 'combat-target',
+    // Jump entrance snap — removed by _fxJumpIn's own 520ms setTimeout.
+    'fx-jump-snap',
     // THE BASE CLASS, not just the modifiers. The earlier pass exempted only
     // hit-flash-heavy / hit-flash-lethal — but those two do nothing on their
     // own; they just set --flash-bright. The animation itself lives on the

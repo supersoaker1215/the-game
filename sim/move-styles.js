@@ -23,6 +23,13 @@ check('…and each style has its own path + effect', /this\._fxMothDust\(/.test(
 check('the card can never stay hidden (timeout fallback kept)', /setTimeout\(land, DUR \+ 90\)/.test(slide));
 check('Catwoman shows the stolen energy travelling', /this\._fxEnergyTheft\(self\.owner\)/.test(SRC) && /\.fx-energy-orb \{/.test(CSS));
 check('dust + streak styles exist', /\.fx-moth-dust \{/.test(CSS) && /\.fx-sonic-streak \{/.test(CSS));
+var GSRC = read('game.js');
+check('a Jump emits its own FX event from the one door every jumper uses', /emitFX\('jump', \{ cardId: card\.id, owner, name: card\.name, lane \}\)/.test(GSRC));
+check('…which the UI routes to the jump entrance', /if \(ev\.type === 'jump'\) \{\s*this\._fxJumpIn\(ev\);/.test(SRC));
+check('…waiting for the card to LAND before firing (it flies in from the hand)', /if \(\+\+tries < 90\) requestAnimationFrame\(poll\)/.test(SRC));
+check('the snap survives the render diff', UI._FX_TRANSIENT_CLASSES.indexOf('fx-jump-snap') >= 0);
+check('Deadpool shows the swap both ways', (SRC.match(/_fxHandSwap\(/g) || []).length >= 1 && /_fxHandSwap',"self\.owner, 'steal'"|UI\._fxHandSwap\(self\.owner, 'steal'\)/.test(read('abilities.js')) && /UI\._fxHandSwap\(self\.owner, 'give'\)/.test(read('abilities.js')));
+check('Wolverine throws adamantium sparks on every hit', /UI\._fxAdamantium\(self\)/.test(read('abilities.js')));
 print('move-styles: ' + pass + ' passed, ' + fails.length + ' failed');
 fails.forEach(function (f) { print('  FAIL  ' + f); });
 if (fails.length) throw new Error('move-styles failed');

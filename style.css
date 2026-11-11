@@ -54103,3 +54103,23 @@ html, body { touch-action: manipulation; }
 @media (prefers-reduced-motion: reduce) {
   #signature-fx-layer .fx-crack path, #signature-fx-layer .fx-dust-wave, #signature-fx-layer .fx-hud-sweep { animation: none; opacity: 0; }
 }
+
+/* Jump entrance + Deadpool swap card (2026-11-11). */
+#signature-fx-layer .fx-jump-flash {
+  position: fixed; inset: 0; pointer-events: none;
+  animation: fxJumpFlash .44s ease-out forwards;
+}
+@keyframes fxJumpFlash {
+  0%   { background: rgba(0,0,0,0); }
+  16%  { background: rgba(0,0,0,.62); }
+  28%  { background: rgba(160,0,0,.28); }
+  100% { background: rgba(0,0,0,0); }
+}
+.card.fx-jump-snap { animation: fxJumpSnap .5s cubic-bezier(.2,1.6,.4,1) !important; }
+@keyframes fxJumpSnap { 0% { transform: scale(1.35); opacity: 0; filter: brightness(2.2) contrast(1.4); } 40% { opacity: 1; } 100% { transform: none; filter: none; } }
+#signature-fx-layer .fx-swap-card {
+  position: fixed; width: 34px; height: 46px; margin: -23px 0 0 -17px; border-radius: 4px; pointer-events: none;
+  background: linear-gradient(135deg, #2a0006, #d61a1a 55%, #ff8a8a);
+  box-shadow: 0 0 14px 4px rgba(214,26,26,.6), inset 0 0 0 1px rgba(255,255,255,.35);
+}
+@media (prefers-reduced-motion: reduce) { #signature-fx-layer .fx-jump-flash, .card.fx-jump-snap { animation: none !important; } }

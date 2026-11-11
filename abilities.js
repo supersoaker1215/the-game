@@ -3468,7 +3468,7 @@ const CARD_ABILITIES = {
         if (sIdx >= 0) victimHand.splice(sIdx, 1);
         stolen.owner = self.owner;
         G.addToHand(self.owner, stolen, self, null, 'Stolen by Deadpool');
-        G.log(`Deadpool steals ${stolen.name} from the enemy's hand!`);
+        G.log(`Deadpool steals ${stolen.name} from the enemy's hand!`); if (typeof UI !== 'undefined' && UI._fxHandSwap) { try { UI._fxHandSwap(self.owner, 'steal'); } catch (e) {} }
         if (skipGiveBack) { G.log(`Deadpool keeps ${stolen.name} — no trade!`); showVictimToast(stolen.name, null); if (dpIs2v2 && G._2v2OnlineBroadcast) { try { G._2v2OnlineBroadcast(); } catch (e) {} } return; }
         const givePool = ownerHand().filter(c => c.id !== stolen.id);
         if (!givePool.length) { G.log("Deadpool has no cards to give in return."); showVictimToast(stolen.name, null); if (dpIs2v2 && G._2v2OnlineBroadcast) { try { G._2v2OnlineBroadcast(); } catch (e) {} } return; }
@@ -3483,7 +3483,7 @@ const CARD_ABILITIES = {
         // trade to the WRONG teammate. (User: "he stole from my teammate then gave
         // ME a card — whoever he steals from he has to give that player a card.")
         G.addToHand(opp, given, null, victimKey ? { _2v2PlayedBy: victimKey } : null, 'Slipped in by Deadpool');
-        G.log(`Deadpool slips ${given.name} into the enemy's hand!`);
+        G.log(`Deadpool slips ${given.name} into the enemy's hand!`); if (typeof UI !== 'undefined' && UI._fxHandSwap) { try { UI._fxHandSwap(self.owner, 'give'); } catch (e) {} }
         showVictimToast(stolen.name, given.name);
         if (dpIs2v2 && G._2v2OnlineBroadcast) { try { G._2v2OnlineBroadcast(); } catch (e) {} }
         return;
@@ -3495,7 +3495,7 @@ const CARD_ABILITIES = {
           if (idx >= 0) G.state[opp].hand.splice(idx, 1);
           stolen.owner = self.owner;
           G.addToHand(self.owner, stolen, self, null, 'Stolen by Deadpool');
-          G.log(`Deadpool steals ${stolen.name} from the enemy's hand!`);
+          G.log(`Deadpool steals ${stolen.name} from the enemy's hand!`); if (typeof UI !== 'undefined' && UI._fxHandSwap) { try { UI._fxHandSwap(self.owner, 'steal'); } catch (e) {} }
 
           if (skipGiveBack) {
             G.log(`Deadpool keeps ${stolen.name} — no trade!`);
@@ -3522,7 +3522,7 @@ const CARD_ABILITIES = {
               // Same-seat give-back — route to victimKey so the trade returns to
               // the exact player Deadpool stole from, not a random teammate.
               G.addToHand(opp, given, null, victimKey ? { _2v2PlayedBy: victimKey } : null, 'Slipped in by Deadpool');
-              G.log(`Deadpool slips ${given.name} into the enemy's hand!`);
+              G.log(`Deadpool slips ${given.name} into the enemy's hand!`); if (typeof UI !== 'undefined' && UI._fxHandSwap) { try { UI._fxHandSwap(self.owner, 'give'); } catch (e) {} }
               showVictimToast(stolen.name, given.name);
             },
             cards => cards.slice().sort((a, b) => (a.baseCost || a.cost) - (b.baseCost || b.cost))[0],
@@ -4295,6 +4295,7 @@ const CARD_ABILITIES = {
   },
   "Wolverine": {
     onDamaged(G, self, attacker) {
+      if (typeof UI !== 'undefined' && UI._fxAdamantium) { try { UI._fxAdamantium(self); } catch (e) {} }
       // Roguelite Text+ ("Adamantium") can raise the kill ceiling via
       // self._wolverineKillThreshold; classic mode falls back to 7.
       const threshold = (self && self._wolverineKillThreshold) || 7;

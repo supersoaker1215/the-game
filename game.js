@@ -18366,7 +18366,16 @@ const Game = {
     const jSeat = (_tt && _tt.players)
       ? (this._2v2SLOTS.find(pk => _tt.players[pk] && (_tt.players[pk].hand || []).includes(card)) || null)
       : null;
-    const play = (lane) => this._2v2WithSeatBound(jSeat, () => this.playCardFree(owner, card, lane));
+    // THE JUMP IS A MOMENT. It used to land like any other free play; now it
+    // rides the FX stream (so every seat sees it) as its own event — Myers,
+    // Jason, Ghostface, Art the Clown, Stripe all share this one door.
+    const play = (lane) => {
+      const r = this._2v2WithSeatBound(jSeat, () => this.playCardFree(owner, card, lane));
+      if (this.emitFX && !(this.state && this.state._silentSim)) {
+        try { this.emitFX('jump', { cardId: card.id, owner, name: card.name, lane }); } catch (e) {}
+      }
+      return r;
+    };
 
     // If the card has a locked jumpLane (Michael Myers), use it directly — no choice prompt.
     if (card.jumpLane !== undefined) {
