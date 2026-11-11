@@ -54128,3 +54128,12 @@ html, body { touch-action: manipulation; }
    have the black overlay"). .mm-scrim darkens the LEFT for the menu's left
    column; the start screen's text is centred, so it only hid the art. */
 #main-menu-overlay.ts-menulike .mm-scrim { display: none; }
+
+/* Thanos snap shimmer wave (2026-11-11). */
+#signature-fx-layer .fx-snap-wave {
+  position: fixed; pointer-events: none; overflow: hidden;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,215,107,0) 42%, rgba(255,231,160,.45) 50%, rgba(255,215,107,0) 58%, transparent 100%);
+  background-size: 300% 100%; mix-blend-mode: screen; animation: fxSnapWave .86s ease-out forwards;
+}
+@keyframes fxSnapWave { from { background-position: 100% 0; opacity: 1; } to { background-position: 0% 0; opacity: .2; } }
+@media (prefers-reduced-motion: reduce) { #signature-fx-layer .fx-snap-wave { animation: none; opacity: 0; } }

@@ -1,7 +1,7 @@
 {
   "style.css": {
-    "v": 1724,
-    "hash": "6fd95ddf"
+    "v": 1725,
+    "hash": "da88982c"
   },
   "board-v2.css": {
     "v": 108,
@@ -16,8 +16,8 @@
     "hash": "4074e4c3"
   },
   "abilities.js": {
-    "v": 518,
-    "hash": "3e2f3f3f"
+    "v": 519,
+    "hash": "9b37852e"
   },
   "engine/combat.js": {
     "v": 4,
@@ -60,8 +60,8 @@
     "hash": "10d54608"
   },
   "ui.js": {
-    "v": 1723,
-    "hash": "860b023c"
+    "v": 1724,
+    "hash": "1564854c"
   },
   "board-v2.js": {
     "v": 32,

@@ -4564,6 +4564,7 @@ const CARD_ABILITIES = {
         }
       });
       G.applyCrazyToCard(top);
+      if (typeof UI !== 'undefined' && UI._fxJokerCrazy) { try { UI._fxJokerCrazy(top); } catch (e) {} }
       G.log(`Joker's chaos stamps Crazy on ${top.name}!`);
     }
   },
@@ -5869,6 +5870,7 @@ const CARD_ABILITIES = {
           if (Game.isHuman(self.owner)) {
             G.promptLaneChoice(self.owner, openLanes, `Vader — Move ${target.name}`,
               `Choose a lane for ${target.name}`, (toLane) => {
+                if (typeof UI !== 'undefined' && UI._fxForcePull) { try { UI._fxForcePull(self, target); } catch (e) {} }
                 G.moveCard(target, fromLane, toLane);
                 G.log(`Darth Vader moves ${target.name} to lane ${toLane + 1}!`);
                 afterMove();
@@ -5878,6 +5880,7 @@ const CARD_ABILITIES = {
             // displaced — biggest disruption is moving them out of their
             // favorable trade or into a lane we can now chain into.
             const toLane = openLanes[0];
+            if (typeof UI !== 'undefined' && UI._fxForcePull) { try { UI._fxForcePull(self, target); } catch (e) {} }
             G.moveCard(target, fromLane, toLane);
             G.log(`Darth Vader moves ${target.name} to lane ${toLane + 1}!`);
             afterMove();
@@ -7118,6 +7121,7 @@ const CARD_ABILITIES = {
       const rolled = new Set();
       const erased = [];
       let killed = 0;
+      if (typeof UI !== 'undefined' && UI._fxThanosSnap) { try { UI._fxThanosSnap(self); } catch (e) {} }
       const maxLanes = Game.LANE_COUNT;
       while (rolled.size < Math.min(numRolls, maxLanes)) {
         const r = Math.floor(Game.rng() * maxLanes);

@@ -12967,6 +12967,56 @@ const UI = {
     this._fxSparks(p, { color: '#f2f6fa', glow: '#9fb3c8', count: 12, angle: -Math.PI / 2, cone: 2.2, spread: 64, size: 2.2 });
   },
 
+  // ---- Thanos / Darth Vader / Joker extras (2026-11-11) ----
+  // Thanos' snap: a gold pulse bursts off him and a shimmer wave rolls across
+  // the whole board (each erased enemy still gets _fxThanosDust).
+  _fxThanosSnap(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      const c = this._fxCenter(el);
+      this._fxRing(el, { color: '#ffd76b' });
+      setTimeout(() => this._fxRing(el, { color: '#fff1bd', contract: true }), 120);
+      if (c) {
+        this._fxImpact(c, { color: '#ffd76b', core: '#ffffff', size: 2.2 });
+        this._fxSparks(c, { color: '#fff1bd', glow: '#ffb31a', count: 20, spread: 120, size: 2.6 });
+      }
+      const board = document.querySelector('#board') || document.querySelector('.board');
+      const r = board && board.getBoundingClientRect();
+      if (r && r.width) {
+        const wave = document.createElement('div');
+        wave.className = 'fx-snap-wave';
+        wave.style.cssText = 'left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;';
+        this._fxLayer().appendChild(wave);
+        setTimeout(() => wave.remove(), 900);
+      }
+      this._screenShake('light');
+    });
+  },
+  // Vader's Force pull: a dark tendril reaches the target and a red ring
+  // clamps onto it just before it's dragged to its new lane.
+  _fxForcePull(self, target) {
+    if (this._reducedMotion() || !self || !target) return;
+    const to = this._fxPt(target), tEl = this._fxCardElById(target.id);
+    if (!to) return;
+    this._fxWhenPainted(self, (el) => {
+      const from = this._fxCenter(el);
+      if (from) this._fxTendril(from, to, { color: '#120004', glow: '#e01030', bow: 26 });
+      if (tEl) this._fxRing(tEl, { color: '#e01030', contract: true });
+      this._fxSparks(to, { color: '#ff6b6b', glow: '#8a0010', count: 10, spread: 46, size: 2.2 });
+    });
+  },
+  // Joker's Crazy stamp: a burst of green-and-purple gas and spinning sparks
+  // on the enemy that now carries the mark.
+  _fxJokerCrazy(target) {
+    if (this._reducedMotion() || !target) return;
+    const el = this._fxCardElById(target.id); if (!el) return;
+    this._fxGasBurst(el, { color: '#7cff4e' });
+    setTimeout(() => this._fxGasBurst(el, { color: '#9b3dff' }), 140);
+    this._fxRing(el, { color: '#b46bff', contract: true });
+    const p = this._fxCenter(el);
+    if (p) this._fxSparks(p, { color: '#d6ff9a', glow: '#9b3dff', count: 16, spread: 70, size: 2.6 });
+  },
+
   _fxEnergyTheft(owner) {
     if (this._reducedMotion()) return;
     const dom = this._fxDomSide ? this._fxDomSide(owner) : owner;
