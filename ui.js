@@ -5465,6 +5465,7 @@ const UI = {
     this.installSfxBridge();
     this.installKeyboardShortcuts();
     this.installMobileCardDrag();
+    this.installNoPageZoom();
     this.installHandCardFlip();
     this.wireUndoButton();
     this.wireRoundSummary();
@@ -33994,6 +33995,26 @@ const UI = {
   // all validation/feedback (affordability, occupied lane, face-down prompt)
   // is unchanged. A plain tap still selects (the drag only engages on an
   // UPWARD gesture, so horizontal hand-scrolling and taps are untouched).
+  // THE PAGE NEVER ZOOMS. Owner (phone screenshot): "i can't see all 6 lanes".
+  // The layout was right — 6 lanes at ~70pt on a 430pt phone — but the page was
+  // magnified ~2× (three lanes at ~143pt, the cog and HUD scaled the same,
+  // while the draft a minute earlier was at normal scale). iOS ignores the
+  // viewport's user-scalable=no, so a pinch zooms, and a double-tap zooms
+  // anywhere that isn't a button/card/lane (touch-action: manipulation was
+  // only on those — the bars, the gaps and the empty board were zoomable).
+  // CSS now puts manipulation on the root (no double-tap zoom anywhere); this
+  // stops the pinch: Safari's gesture events, plus any 2-finger touchmove.
+  installNoPageZoom() {
+    if (this._noPageZoomInstalled || typeof document === 'undefined') return;
+    this._noPageZoomInstalled = true;
+    const stop = (e) => { try { e.preventDefault(); } catch (_) {} };
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(t =>
+      document.addEventListener(t, stop, { passive: false }));
+    document.addEventListener('touchmove', (e) => {
+      if (e.touches && e.touches.length > 1) stop(e);
+    }, { passive: false });
+  },
+
   installMobileCardDrag() {
     if (this._cardDragInstalled) return;
     this._cardDragInstalled = true;

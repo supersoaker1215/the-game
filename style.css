@@ -53905,3 +53905,13 @@ body:not(.ai-thinking) .ai-thinking-ring circle {
     color: rgb(var(--theme-rgb, 79,195,247));
   }
 }
+
+/* ============================================================
+   NO DOUBLE-TAP ZOOM ANYWHERE (2026-11-11)
+   ============================================================
+   touch-action: manipulation was only on buttons, cards, slots and lanes, so
+   a double-tap on a bar, a gap or the empty board zoomed the whole page on
+   iOS (owner's board screenshot: ~2× magnified, 3 of 6 lanes visible). On the
+   root it applies down the whole tree (touch-action intersects with every
+   ancestor's). Pinch is stopped in JS — UI.installNoPageZoom. */
+html, body { touch-action: manipulation; }

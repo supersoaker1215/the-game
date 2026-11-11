@@ -390,6 +390,9 @@ run_suite sim/sjw-x-display.js
 echo "=== draft-phone.js (phone draft one screen; desktop rail + rarity glow) ==="
 run_suite sim/draft-phone.js
 
+echo "=== no-page-zoom.js (the page never zooms on phones) ==="
+run_suite sim/no-page-zoom.js
+
 echo "=== sung-jin-woo.js (X-cost X/X, shadows bound to their master, odds-based revive) ==="
 run_suite sim/sung-jin-woo.js
 
