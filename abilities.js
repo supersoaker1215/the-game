@@ -682,6 +682,7 @@ const CARD_ABILITIES = {
       // arrival splash. Default 1 (classic); Text+ raises to 2 so
       // moving him hits a wider cone for double the damage.
       const dmg = self._jangoSplashOnMove || 1;
+      if (typeof UI !== 'undefined' && UI._fxJangoRockets) { try { UI._fxJangoRockets(self, toLane); } catch (e) {} }
       G.splashDamage(toLane, self.owner, dmg, self);
       G.log(`Jango Fett splashes lane ${toLane + 1} for ${dmg} on arrival!`);
     },
@@ -4428,10 +4429,11 @@ const CARD_ABILITIES = {
       // Cost gate scales: kills any DAMAGED enemy with cost ≤ N.
       //   common: ≤ 5    rare: ≤ 8    special: ≤ 9    legendary: any cost
       const maxCost = G.rarityValue(self, { common: 5, rare: 8, special: 9, legendary: 99 });
-      G.getEnemiesOf(self.owner)
-        .filter(e => e.currentHealth < e.maxHealth && (e.baseCost || e.cost) <= maxCost)
-        .forEach(t => {
-          if (typeof UI !== 'undefined' && UI._fxIronManRepulsor) { try { UI._fxIronManRepulsor(self, t); } catch (e) {} }
+      const doomed = G.getEnemiesOf(self.owner)
+        .filter(e => e.currentHealth < e.maxHealth && (e.baseCost || e.cost) <= maxCost);
+      if (typeof UI !== 'undefined' && UI._fxIronManScan) { try { UI._fxIronManScan(self, doomed); } catch (e) {} }
+      doomed.forEach((t, i) => {
+          if (typeof UI !== 'undefined' && UI._fxIronManRepulsor) { try { UI._fxIronManRepulsor(self, t, i); } catch (e) {} }
           G.log(`Iron Man finishes off ${t.name}!`); G.killCard(t, self);
         });
     }
@@ -5010,6 +5012,7 @@ const CARD_ABILITIES = {
   },
   "Hulk": {
     onPlay(G, self, lane) {
+      if (typeof UI !== 'undefined' && UI._fxHulkLanding) { try { UI._fxHulkLanding(self); } catch (e) {} }
       // Roguelite Text+ override — _hulkSmashDamage scales the SMASH
       // sweep. Default 2 (classic, hits all enemies for 2); Text+
       // raises to 4 for a board-clearing alpha strike.
@@ -6567,6 +6570,7 @@ const CARD_ABILITIES = {
     reviveChance(cost) { const c = cost | 0; return c <= 6 ? 1 : (c <= 8 ? 2 / 3 : 1 / 3); },
     onPlay(G, self, lane) {
       const owner = self.owner;
+      if (typeof UI !== 'undefined' && UI._fxSungArise) { try { UI._fxSungArise(self, self.attack); } catch (e) {} }
       const here = (lane != null && lane >= 0) ? lane : G.findCardLane(self);
       // 1. ARISE — Igris first, then Beru, each into a lane the PLAYER picks
       //    (owner: "he summons igris 1st in any lane and beru in any lane he
@@ -6643,7 +6647,15 @@ const CARD_ABILITIES = {
             const def = CARD_DEFS.find(d => d.name === picked.name) || picked;
             G.log(`  [ARISE] ${picked.name} rises${p < 1 ? ` (${pct}% chance)` : ''}!`);
             if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.playEffectSfx) { try { UI.sfx.playEffectSfx('Revive', self); } catch (e) {} }
-            G.summonCardChoice(owner, def.name, def.cost, def.attack, def.health, def.abilities || [], null, null, def);
+            G.summonCardChoice(owner, def.name, def.cost, def.attack, def.health, def.abilities || [], null, () => {
+              // The revived card climbs out as a shadow.
+              try {
+                for (let i = 0; i < G.LANE_COUNT; i++) {
+                  const c = G.state.lanes[i] && G.state.lanes[i][owner];
+                  if (c && c.name === def.name) { if (typeof UI !== 'undefined' && UI._fxShadowRise) { try { UI._fxShadowRise(c); } catch (e) {} } break; }
+                }
+              } catch (e) {}
+            }, def);
           },
           // AI: the most cost it can EXPECT to get back.
           cards => cards.slice().sort((a, b) =>

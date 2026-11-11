@@ -12782,6 +12782,131 @@ const UI = {
     });
   },
 
+  // ---- Jango Fett / Sung Jin-Woo / Iron Man / Hulk extras (2026-11-11) ----
+  // Ground crack: jagged fissures race out from a card's slot (SVG strokes
+  // drawn on via dashoffset), with a dust wave sweeping along the row.
+  _fxGroundCrack(el, opts) {
+    if (!el || this._reducedMotion()) return;
+    opts = opts || {};
+    const r = el.getBoundingClientRect(); if (!r || !r.width) return;
+    const cx = r.left + r.width / 2, cy = r.bottom - r.height * .12;
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('class', 'fx-crack');
+    svg.style.cssText = 'left:0;top:0;width:100vw;height:100vh;--crack-c:' + (opts.color || '#b6ff8f') + ';';
+    for (let i = 0; i < 9; i++) {
+      const a = Math.PI + (i / 8) * Math.PI + (Math.random() - .5) * .25;   // fan out sideways + down
+      let x = cx, y = cy, d = 'M' + x.toFixed(1) + ' ' + y.toFixed(1);
+      const len = 70 + Math.random() * 120, steps = 6;
+      for (let k = 1; k <= steps; k++) {
+        const t = k / steps, jitter = (Math.random() - .5) * 18;
+        x = cx + Math.cos(a) * len * t * 1.6 + jitter;
+        y = cy - Math.sin(a) * len * t * .45 + jitter * .4;
+        d += ' L' + x.toFixed(1) + ' ' + y.toFixed(1);
+      }
+      const path = document.createElementNS(NS, 'path');
+      path.setAttribute('d', d);
+      path.style.animationDelay = (i * 18) + 'ms';
+      svg.appendChild(path);
+    }
+    this._fxLayer().appendChild(svg);
+    setTimeout(() => svg.remove(), 1100);
+    const wave = document.createElement('div');
+    wave.className = 'fx-dust-wave';
+    wave.style.cssText = 'left:' + cx + 'px;top:' + cy + 'px;--dust-c:' + (opts.dust || 'rgba(140,220,110,.55)') + ';';
+    this._fxLayer().appendChild(wave);
+    setTimeout(() => wave.remove(), 900);
+  },
+  // Hulk lands: a heavy drop, the floor splits, a gamma dust wave rolls out.
+  _fxHulkLanding(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      this._fxGroundCrack(el, { color: '#c8ff9e', dust: 'rgba(120,230,90,.5)' });
+      this._fxRing(el, { color: '#5ed84a' });
+      this._screenShake('land-l');
+    });
+  },
+  // Iron Man: a targeting sweep crosses the enemy row; each damaged enemy he
+  // can finish gets a lock-on ring before the repulsors fire (staggered).
+  _fxIronManScan(self, targets) {
+    if (this._reducedMotion() || !self) return;
+    const row = Array.from(document.querySelectorAll('.board .card.enemy-card[data-card-id]'));
+    const rects = row.map(e => e.getBoundingClientRect()).filter(r => r.width);
+    if (rects.length) {
+      const top = Math.min(...rects.map(r => r.top)), bot = Math.max(...rects.map(r => r.bottom));
+      const left = Math.min(...rects.map(r => r.left)), right = Math.max(...rects.map(r => r.right));
+      const sweep = document.createElement('div');
+      sweep.className = 'fx-hud-sweep';
+      sweep.style.cssText = 'left:' + left + 'px;top:' + top + 'px;width:' + (right - left) + 'px;height:' + (bot - top) + 'px;';
+      this._fxLayer().appendChild(sweep);
+      setTimeout(() => sweep.remove(), 760);
+    }
+    (targets || []).forEach((t, i) => {
+      const el = this._fxCardElById(t.id); if (!el) return;
+      setTimeout(() => this._fxRing(el, { color: '#ff3b3b', contract: true }), 260 + i * 90);
+    });
+    this._fxWhenPainted(self, (el) => {
+      this._fxRing(el, { color: '#57d6ff', contract: true });
+      const c = this._fxCenter(el);
+      if (c) this._fxSparks(c, { color: '#e6fbff', glow: '#57d6ff', count: 10, spread: 50, size: 2.2 });
+    });
+  },
+  // Jango Fett lands and lets the rockets fly into the lanes his splash hits.
+  _fxJangoRockets(self, toLane) {
+    if (this._reducedMotion() || !self || toLane == null) return;
+    const opp = self.owner === 'player' ? 'ai' : 'player';
+    const lanes = (typeof Game !== 'undefined' && Game.state && Game.state.lanes) || [];
+    const pts = [];
+    for (let i = toLane - 1; i <= toLane + 1; i++) {
+      const c = lanes[i] && lanes[i][opp];
+      if (c && c.currentHealth > 0) { const p = this._fxPt(c); if (p) pts.push(p); }
+    }
+    if (!pts.length) return;
+    setTimeout(() => {                         // after his jet move lands
+      const from = this._fxPt(self);
+      if (!from) return;
+      pts.forEach((p, i) => setTimeout(() => {
+        this._fxSonicBoom(from.x, from.y, p.x - from.x, p.y - from.y, 'jet');
+        setTimeout(() => {
+          this._fxImpact(p, { color: '#ffb35a', core: '#fff2c8', size: 1.2 });
+          this._fxSparks(p, { color: '#ffd38a', glow: '#ff6a1a', count: 10, spread: 50, size: 2.4 });
+        }, 150);
+      }, i * 110));
+    }, 420);
+  },
+  // Sung Jin-Woo enters: every point of energy he cost pours out of his
+  // owner's counter into him, then a violet aura erupts from the slot.
+  _fxSungArise(self, energy) {
+    if (this._reducedMotion() || !self) return;
+    const dom = this._fxDomSide ? this._fxDomSide(self.owner) : self.owner;
+    const src = this._fxCenter(document.getElementById(dom === 'player' ? 'player-energy-display' : 'ai-energy-display'));
+    this._fxWhenPainted(self, (el) => {
+      const to = this._fxCenter(el); if (!to) return;
+      const n = Math.max(1, Math.min(10, energy | 0 || 3));
+      if (src) for (let i = 0; i < n; i++) setTimeout(() => {
+        const orb = document.createElement('div');
+        orb.className = 'fx-energy-orb fx-energy-orb-violet';
+        orb.style.cssText = 'left:' + src.x + 'px;top:' + src.y + 'px;';
+        this._fxLayer().appendChild(orb);
+        const dx = to.x - src.x, dy = to.y - src.y, lift = 40 + Math.random() * 60, side = (Math.random() - .5) * 80;
+        const fr = [];
+        for (let k = 0; k <= 10; k++) { const t = k / 10, e = t*t*(3 - 2*t);
+          fr.push({ transform: 'translate(' + (dx*e + Math.sin(t*Math.PI)*side).toFixed(1) + 'px,' + (dy*e - Math.sin(t*Math.PI)*lift).toFixed(1) + 'px) scale(' + (1 - t*.4).toFixed(2) + ')', opacity: t < .1 ? t*10 : 1 }); }
+        const an = orb.animate ? orb.animate(fr, { duration: 560, easing: 'linear', fill: 'forwards' }) : null;
+        const end = () => orb.remove();
+        if (an) an.onfinish = end; else setTimeout(end, 560);
+      }, i * 70);
+      setTimeout(() => {
+        this._fxGasBurst(el, { color: '#4a1fbf' });
+        this._fxRing(el, { color: '#9b6bff' });
+        setTimeout(() => this._fxRing(el, { color: '#c7a8ff', contract: true }), 130);
+        const c = this._fxCenter(el);
+        if (c) this._fxSparks(c, { color: '#d9c8ff', glow: '#6a3dff', count: 18, angle: -Math.PI / 2, cone: 1.1, spread: 110, size: 2.6 });
+        this._screenShake('light');
+      }, n * 70 + 420);
+    });
+  },
+
   _fxEnergyTheft(owner) {
     if (this._reducedMotion()) return;
     const dom = this._fxDomSide ? this._fxDomSide(owner) : owner;
@@ -13597,14 +13722,15 @@ const UI = {
   },
 
   // Iron Man — a repulsor beam finishes off each damaged enemy in the sweep.
-  _fxIronManRepulsor(self, targetCard) {
+  _fxIronManRepulsor(self, targetCard, seq) {
     if (this._reducedMotion() || !targetCard) return;
     const to = this._fxCenter(this._fxCardElById(targetCard.id));
     if (!to) return;
-    this._fxWhenPainted(self, (srcEl) => {
+    const fire = () => this._fxWhenPainted(self, (srcEl) => {
       const from = this._fxCenter(srcEl);
       if (from) this._fxDrawBeam(from, to, { color: '#57d6ff', core: '#ffffff', thickness: 5, impact: 1.2 });
     });
+    if (seq == null) fire(); else setTimeout(fire, 520 + seq * 140);   // after the scan locks on
   },
 
   // The Batman Who Laughs — a sinister hex coils out: black tendrils and a

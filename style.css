@@ -54074,3 +54074,32 @@ html, body { touch-action: manipulation; }
   background: linear-gradient(90deg, rgba(255,90,20,0) 0%, rgba(255,120,30,.6) 30%, #ffd38a 85%, rgba(255,240,200,0) 100%);
   box-shadow: 0 0 16px 4px rgba(255,140,40,.55), 0 0 34px 10px rgba(255,80,20,.3);
 }
+
+/* Ground crack, dust wave, HUD sweep, violet energy orb (2026-11-11). */
+#signature-fx-layer .fx-crack { position: fixed; pointer-events: none; overflow: visible; }
+#signature-fx-layer .fx-crack path {
+  fill: none; stroke: var(--crack-c, #b6ff8f); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round;
+  filter: drop-shadow(0 0 4px var(--crack-c, #b6ff8f));
+  stroke-dasharray: 400; stroke-dashoffset: 400; animation: fxCrack 1s ease-out forwards;
+}
+@keyframes fxCrack { 0% { stroke-dashoffset: 400; opacity: 1; } 35% { stroke-dashoffset: 0; opacity: 1; } 100% { stroke-dashoffset: 0; opacity: 0; } }
+#signature-fx-layer .fx-dust-wave {
+  position: fixed; width: 40px; height: 14px; margin: -7px 0 0 -20px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(ellipse at center, var(--dust-c, rgba(200,200,200,.5)) 0%, transparent 70%);
+  animation: fxDustWave .85s ease-out forwards;
+}
+@keyframes fxDustWave { 0% { transform: scaleX(1) scaleY(1); opacity: .9; } 100% { transform: scaleX(22) scaleY(3); opacity: 0; } }
+#signature-fx-layer .fx-hud-sweep {
+  position: fixed; pointer-events: none; overflow: hidden;
+  background: linear-gradient(90deg, transparent 0%, rgba(87,214,255,0) 40%, rgba(87,214,255,.35) 49%, #c8f3ff 50%, rgba(87,214,255,.35) 51%, rgba(87,214,255,0) 60%, transparent 100%);
+  background-size: 300% 100%; animation: fxHudSweep .74s linear forwards;
+}
+@keyframes fxHudSweep { from { background-position: 100% 0; } to { background-position: 0% 0; } }
+#signature-fx-layer .fx-energy-orb.fx-energy-orb-violet {
+  width: 14px; height: 14px; margin: -7px 0 0 -7px;
+  background: radial-gradient(circle, #fff 0 22%, #c4a3ff 48%, rgba(106,61,255,0) 72%);
+  box-shadow: 0 0 14px 5px rgba(140,90,255,.6), 0 0 30px 10px rgba(90,40,220,.3);
+}
+@media (prefers-reduced-motion: reduce) {
+  #signature-fx-layer .fx-crack path, #signature-fx-layer .fx-dust-wave, #signature-fx-layer .fx-hud-sweep { animation: none; opacity: 0; }
+}
