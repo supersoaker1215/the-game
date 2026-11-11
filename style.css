@@ -53709,3 +53709,35 @@ body:not(.ai-thinking) .ai-thinking-ring circle {
       rgba(var(--player-r, 0), var(--player-g, 229), var(--player-b, 255), 0) 40%) left top / 100% 1px no-repeat,
     linear-gradient(0deg, #000 0%, #000 55%, rgba(0, 0, 0, 0) 100%) !important;
 }
+
+/* ============================================================
+   FLOATING BARS, PART 2 — lane and tray edges (2026-11-10)
+   ============================================================
+   Owner: "yes soften those too" — the two lines left after the bars went.
+   Measured: every .lane draws 1px light-grey (currentColor) top AND bottom
+   borders, so six lanes side by side read as two more full-width rules; and
+   the trick tray (.tricks-section) drew its top edge twice — a 28% cyan
+   border plus a 74% `0 -1px` shadow. Both horizontal edges go; the lanes'
+   vertical dividers and the hand/tricks divider stay (they organise the
+   columns). Colours only, so nothing moves; :where() keeps the weight of the
+   rules they replace; classic skin only. */
+.lane:where(body:not(.board-v2) .board > *) {
+  /* ALL four: a non-none border-image replaces the border entirely, so the
+     plain (light-grey currentColor) side borders were never visible — turning
+     the image off must not expose them. */
+  border-color: transparent !important;
+  /* The visible pair is actually a border-IMAGE: a red→cyan gradient with
+     border-image-width "1 0", i.e. it paints ONLY the top (red) and bottom
+     (cyan) edges and overrides the colours above. The vertical dividers are
+     the plain right border and are untouched by this. Every lane state
+     (occupied, contested, …) sets its own border-image; !important covers
+     them all — at the weight of the heaviest one, `.board-section .lane`
+     (0,2,0) !important, and later in the sheet. */
+}
+.board-section .lane:where(body:not(.board-v2) *) {
+  border-image: none !important;
+}
+.tricks-section:where(body:not(.board-v2) *) {
+  border-top-color: transparent !important;
+  box-shadow: none !important;
+}
