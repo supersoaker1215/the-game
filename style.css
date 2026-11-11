@@ -53991,3 +53991,41 @@ html, body { touch-action: manipulation; }
   text-shadow: 0 0 6px rgba(0,0,0,.95), 0 0 12px rgba(var(--theme-rgb, 79,195,247), .9);
 }
 #main-menu-overlay.ts-menulike.is-title-leaving .ts-options { transition: opacity 360ms var(--ease-exit, ease-in); opacity: 0; }
+
+/* ============================================================
+   MENU SCENES (2026-11-11) — the live backdrop (menu-scene.js) and the scene
+   names along the bottom. The host fills .mm-bgvideo; the WebGL canvas and the
+   2D effects canvas fill the host; the menu video shows only for Gas Giant.
+   The bar is boxless glow text like every other menu control.
+   ============================================================ */
+.mm-scene { position: absolute; inset: 0; background: #000; transition: opacity 380ms ease; }
+.mm-scene.is-switching { opacity: 0; }
+.mm-scene .mm-scene-gl, .mm-scene .mm-scene-fx {
+  position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none;
+}
+.mm-scene.is-video .mm-scene-gl, .mm-scene.is-video .mm-scene-fx { display: none; }
+.main-menu-overlay .mm-scene-bar {
+  position: absolute; left: 50%; bottom: max(18px, env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%); z-index: 7;
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 22px;
+  width: max-content; max-width: calc(100vw - 32px);
+}
+.main-menu-overlay .mm-scene-opt {
+  background: none; border: 0; padding: 6px 2px; cursor: pointer;
+  font-family: 'Rajdhani', sans-serif; font-weight: 600; text-transform: uppercase;
+  font-size: 12px; letter-spacing: 0.28em;
+  color: rgba(225, 238, 250, 0.5);
+  text-shadow: 0 0 6px rgba(0,0,0,.9), 0 0 14px rgba(0,0,0,.7);
+  transition: color .2s, text-shadow .2s;
+}
+.main-menu-overlay .mm-scene-opt:hover,
+.main-menu-overlay .mm-scene-opt:focus-visible,
+.main-menu-overlay .mm-scene-opt.is-on {
+  color: #fff; outline: none;
+  text-shadow: 0 0 6px rgba(0,0,0,.9), 0 0 12px rgba(var(--theme-rgb, 79,195,247), .9);
+}
+@media (max-width: 640px) {
+  .main-menu-overlay .mm-scene-bar { gap: 2px 14px; bottom: max(10px, env(safe-area-inset-bottom, 0px)); }
+  .main-menu-overlay .mm-scene-opt { font-size: 10.5px; letter-spacing: 0.2em; }
+}
+@media (prefers-reduced-motion: reduce) { .mm-scene { transition: none; } }

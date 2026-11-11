@@ -1331,6 +1331,9 @@ const UI = {
   },
   _mountMenuVideo(host) {
     if (!host) return;
+    // The backdrop is a SCENE now (menu-scene.js): random each visit, switched
+    // from the name bar along the bottom. The video is one of the scenes.
+    if (typeof MenuScene !== 'undefined') { MenuScene.mount(host); return; }
     const v = this._menuVideoEl();
     if (v.parentNode !== host) host.appendChild(v);
     this._syncMenuVideo();
@@ -17795,7 +17798,8 @@ const UI = {
         </div>
         <button type="button" class="ts-prompt" id="ts-prompt">Press Start</button>
         <button type="button" class="ts-options" onclick="UI.openSettings()">Options</button>
-      </div>`;
+      </div>
+      ${typeof MenuScene !== 'undefined' ? MenuScene.barHTML() : ''}`;
     this._mountMenuVideo(el.querySelector('.mm-bgvideo'));
     this._armTitleDismiss();
   },
@@ -17812,7 +17816,7 @@ const UI = {
       // OPTIONS (and the settings cog, and anything inside Settings) open over
       // the start screen instead of dismissing it.
       const t = e && e.target;
-      if (t && t.closest && t.closest('.ts-options, .settings-cog, .settings-overlay, .settings-modal, [role="dialog"]')) return;
+      if (t && t.closest && t.closest('.ts-options, .mm-scene-bar, .settings-cog, .settings-overlay, .settings-modal, [role="dialog"]')) return;
       if (document.querySelector('.settings-overlay.active, .settings-overlay.open, .settings-overlay[style*="flex"]')) return;
       this.dismissTitle();
     };
@@ -18157,7 +18161,8 @@ const UI = {
     el.innerHTML = `
       ${_flowOn ? this._menuSceneHTML() : ''}
       <div class="mm-scrim" aria-hidden="true"></div>
-      <div class="mm-panel">${buildPanel(this._mmSub || null)}</div>`;
+      <div class="mm-panel">${buildPanel(this._mmSub || null)}</div>
+      ${_flowOn && typeof MenuScene !== 'undefined' ? MenuScene.barHTML() : ''}`;
     // No on-screen key legend (owner removed it 2026-11-09). The keys still work.
     this._mmInstallKeys(el);
     this._mmSetActive(0);
