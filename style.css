@@ -53660,3 +53660,52 @@ body:not(.ai-thinking) .ai-thinking-ring circle {
   pointer-events: none;
   margin: 0 !important;
 }
+
+/* ============================================================
+   FLOATING BARS (2026-11-10)
+   ============================================================
+   Owner: "these bars need a little redesign, too much lines across the whole
+   board feels crammed" → chose "floating bars". Measured: FIVE 1px full-width
+   lines at ~95% — the HUD's underline (white 25%), a red pair around the
+   opponent's bar, a cyan pair around yours — slicing the screen into bands.
+   Snap separates chrome from the board with space and shade, not rules.
+
+   Now: no full-width line. Each bar sits on black that fades into the board,
+   with ONE short glow in its side's colour on the board-facing edge, starting
+   under the avatar/HP group and gone by ~40% of the width. Border WIDTHS are
+   kept (only the colour goes transparent), so nothing moves.
+   :where() keeps these at the weight of the rules they replace, so the
+   trick drop-zone highlight (body.dragging-trick …) still wins while you drag.
+   Classic skin only — board-v2 draws its own bars. */
+.turn-hud:where(body:not(.board-v2) *) {
+  border-bottom-color: transparent !important;
+}
+.info-bar.ai-bar:where(body:not(.board-v2) *),
+.info-bar.player-bar:where(body:not(.board-v2) *) {
+  border-top-color: transparent !important;
+  border-bottom-color: transparent !important;
+  /* the same two lines were ALSO drawn as inset shadows (0 ±1px, 74%) */
+  box-shadow: none !important;
+}
+/* …and the hand row's own top rule (cyan 28%) sat 0px under your bar,
+   reading as a sixth full-width line once the bar's went. */
+.player-hand-section:where(body:not(.board-v2) *) {
+  border-top-color: transparent !important;
+  box-shadow: none !important;   /* it also drew it as a 0 -1px shadow (74%) */
+}
+.info-bar.ai-bar:where(body:not(.board-v2) *) {
+  background:
+    linear-gradient(90deg,
+      rgba(var(--enemy-r, 255), var(--enemy-g, 47), var(--enemy-b, 69), 0.9) 0%,
+      rgba(var(--enemy-r, 255), var(--enemy-g, 47), var(--enemy-b, 69), 0.45) 18%,
+      rgba(var(--enemy-r, 255), var(--enemy-g, 47), var(--enemy-b, 69), 0) 40%) left bottom / 100% 1px no-repeat,
+    linear-gradient(180deg, #000 0%, #000 55%, rgba(0, 0, 0, 0) 100%) !important;
+}
+.info-bar.player-bar:where(body:not(.board-v2) *) {
+  background:
+    linear-gradient(90deg,
+      rgba(var(--player-r, 0), var(--player-g, 229), var(--player-b, 255), 0.9) 0%,
+      rgba(var(--player-r, 0), var(--player-g, 229), var(--player-b, 255), 0.45) 18%,
+      rgba(var(--player-r, 0), var(--player-g, 229), var(--player-b, 255), 0) 40%) left top / 100% 1px no-repeat,
+    linear-gradient(0deg, #000 0%, #000 55%, rgba(0, 0, 0, 0) 100%) !important;
+}
