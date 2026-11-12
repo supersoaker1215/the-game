@@ -1,5 +1,5 @@
 // ============================================================
-// fx.js — THE EFFECTS LIBRARY (split out of ui.js, 2026-11-12)
+// fx.js — THE EFFECTS LIBRARY (split out of ui.js)
 // ============================================================
 // Every one-shot visual effect the game draws: the shared primitives
 // (_fxDrawBolt/Beam, _fxSparks, _fxImpact, _fxRing, _fxTendril, …), the
@@ -20,22 +20,15 @@ const UI_FX = {
   // A CARD THAT CHANGES LANE, SEEN CHANGING LANE
   // ============================================================
   // The board is a diff render, so a moved card is simply absent from one slot
-  // and present in another on the next frame — nothing connects the two, and
-  // you have to re-read the board to work out what happened. It is the highest
-  // traffic silent moment in the game: Magneto, Man-Bat, Symbiote Spider-Man,
-  // every Hunt chase and both habitat displacements all move cards.
+  // and present in another on the next frame; this connects the two.
   //
   // Same machinery as the play-from-hand throw (card-flying on the real element
-  // + a fixed ghost + _spawnPlayerLandFx on arrival) so the two moments share a
-  // vocabulary rather than inventing a second one. Two deliberate differences:
-  // the path is a lateral SLIDE rather than a thrown arc, because the card is
-  // crossing the board rather than being played onto it; and it runs for BOTH
-  // sides, because an enemy repositioning is exactly the move you most need to
-  // follow.
-  // MOVE STYLES (owner, 2026-11-11: "more animations for cards like catwoman,
-  // killer moth move, omni man"). Every move in the game funnels through
-  // moveCard -> emitFX('move') -> _fxCardSlide, so a card's travel gets its
-  // own personality by adding ONE entry here — no per-ability FX calls.
+  // + a fixed ghost + _spawnPlayerLandFx on arrival). Two differences: the path
+  // is a lateral SLIDE rather than a thrown arc, and it runs for BOTH sides,
+  // because an enemy repositioning is the move you most need to follow.
+  // MOVE STYLES. Every move funnels through moveCard -> emitFX('move') ->
+  // _fxCardSlide, so a card's travel gets its own personality by adding ONE
+  // entry here — no per-ability FX calls.
   //   moth  — flutters along a wavy arc, shedding glowing wing dust
   //   boom  — crosses in a blink: white-hot streak, shockwave at both ends
   //   jet   — Jango Fett: a jetpack burn, flame streak, sparks at take-off
@@ -189,13 +182,10 @@ const UI_FX = {
   // ============================================================
   // A LANE GOING OUT
   // ============================================================
-  // Darkseid's Anti-Life takes a whole lane away for several rounds and the
-  // only sign was the board quietly looking different on the next render — the
-  // biggest single change that can happen to the board, with no moment at all.
-  // Built the way the block moment is built: layers on one beat. The lane
-  // implodes inward, a shock ring throws outward, the column goes to void, and
-  // the number of rounds it is gone is stated on the collapse rather than left
-  // to be counted off a pip.
+  // Darkseid's Anti-Life takes a whole lane away for several rounds. Layers on
+  // one beat, like the block moment: the lane implodes inward, a shock ring
+  // throws outward, the column goes to void, and the number of rounds it is
+  // gone is stated on the collapse rather than left to be counted off a pip.
   _fxLaneVoid(ev) {
     if (!ev || ev.lane == null) return;
     const stage = this._fxLaneStage(ev.lane, 'lane-void-stage');
@@ -230,8 +220,8 @@ const UI_FX = {
     setTimeout(() => stage.remove(), 900);
   },
 
-  // The swamp drains as Spinosaurus surfaces — the habitat is consumed by the
-  // release now, so this plays on the way in rather than on his death.
+  // The swamp drains as Spinosaurus surfaces — the release consumes the
+  // habitat, so this plays on the way in rather than on his death.
   _fxWetlandsDrain(laneIdx) {
     const stage = this._fxLaneStage(laneIdx, 'wetlands-drain-stage');
     if (!stage) return;
@@ -245,11 +235,9 @@ const UI_FX = {
   //
   // A card killed by the lane it walked into (The Bathroom, Luke's aura, a
   // trap) is seated and swept inside one synchronous engine block, so the board
-  // never renders with it present: the player sees a card leave their hand and
-  // nothing arrive. The engine now says so on the FX stream (Game._settleAndSweep
-  // emits 'enterAndDie'); this paints the moment over a board that has already
-  // moved on, using the canonical card renderer so the face is the same one the
-  // lane would have shown.
+  // never renders with it present. Game._settleAndSweep emits 'enterAndDie';
+  // this paints the moment over a board that has already moved on, using the
+  // canonical card renderer so the face matches what the lane would show.
   //
   // On the body-level lane stage, never parented to the lane: renderBoard
   // deletes every lane child and rewrites the lane's className, and a render is
@@ -287,23 +275,19 @@ const UI_FX = {
 
   // A lane-shaped, lane-CLIPPED stage in the body-level FX layer.
   //
-  // NOT a child of the lane, and that is the whole point. renderBoard's lane
-  // rebuild removes every child except the two slots, the separator and the
-  // env background, and rewrites the lane's className — so an FX node parked
-  // in the lane, and any class put on the lane to drive it, are both deleted
-  // by the very next render. Measured: the sail and the `spino-emerging` hide
-  // were gone before the first screenshot, because summoning Spinosaurus
-  // itself triggers a render. Same failure family as the cancelled combat
-  // lunge; the fix is to stop depending on board-owned DOM.
+  // NOT a child of the lane: renderBoard's lane rebuild removes every child
+  // except the two slots, the separator and the env background, and rewrites
+  // the lane's className — so an FX node in the lane, and any class put on the
+  // lane to drive it, die on the next render (e.g. summoning Spinosaurus itself
+  // triggers one).
   //
   // #signature-fx-layer is position:fixed and untouched by any render, so the
   // stage is placed at the lane's screen rect instead. It also paints ABOVE
-  // the board (z-index 200), which is what lets an opaque water panel cover
-  // the card during the emergence without touching the card element at all.
+  // the board (z-index 200), which lets an opaque water panel cover the card
+  // during the emergence without touching the card element.
   //
-  // Clipping matters too: `.lane` is overflow:visible (several existing FX
-  // rely on that), so an unclipped sail hung 33px below the waterline showing
-  // the body that is supposed to be underwater.
+  // Clipping matters: `.lane` is overflow:visible (several FX rely on that), so
+  // an unclipped sail would show the body below the waterline.
   // OVERDRIVE — "attacks again after a kill". A boxless glow-text callout in the
   // keyword's own colour (--kw-overdrive, the badge's token) over the card that
   // is about to swing again; ×N on the second link onward. On the body-level
@@ -344,19 +328,16 @@ const UI_FX = {
   },
 
   // ===================== SIGNATURE FX TOOLKIT =====================
-  // Reusable one-shot cinematics for marquee comic-book casts — the
-  // super-hero answer to the Freddy/Pennywise/Jaws horror jumpscares
-  // above. THREE primitives any card can fire: an electric BOLT, an
-  // energy BEAM, and a void IMPLODE. Signature moments become a shared
-  // vocabulary, not per-card hacks (fix-the-source: a new card just
-  // calls a primitive). Every one is: reduced-motion-gated, battery-safe
-  // (one setTimeout cleanup each — no infinite loops, per the mobile
-  // battery diet), and tab-hidden-paused (they live under <body>, which
-  // `body.tab-hidden *{animation-play-state:paused}` already freezes).
+  // Reusable one-shot cinematics for marquee casts. Primitives any card can
+  // fire (BOLT, BEAM, IMPLODE, …) so a new card just calls a primitive instead
+  // of adding per-card hacks. Every one is reduced-motion-gated, battery-safe
+  // (one setTimeout cleanup each — no infinite loops), and tab-hidden-paused
+  // (they live under <body>, which `body.tab-hidden *{animation-play-state:paused}`
+  // freezes).
   // Fired from engine/ability code via the guarded
   //   if (typeof UI !== 'undefined' && UI._fxXxx) ...
-  // pattern, exactly like the jumpscares. In headless sim UI is
-  // undefined, so the calls no-op.
+  // pattern, like the jumpscares. In headless sim UI is undefined, so the
+  // calls no-op.
 
   _fxLayer() {
     let layer = document.getElementById('signature-fx-layer');
@@ -377,57 +358,38 @@ const UI_FX = {
     if (!r || (r.width === 0 && r.height === 0)) return null;
     return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
   },
-  // Run cb(el) with a card's DOM element, deferring one frame if the card
-  // was JUST played and isn't painted to .board yet (playCard's normal
-  // branch repaints only AFTER onPlay returns). Prevents source-dependent
-  // signature FX from silently dropping in the synchronous single-target
-  // case — the Superman heat-vision review finding, generalized so every
-  // onPlay-fired cast (Ghost Rider, Venom, Knull) inherits the fix.
+  // Run cb(el) with a card's DOM element, deferring if the card was JUST played
+  // and isn't painted to .board yet (playCard repaints only AFTER onPlay
+  // returns). Every onPlay-fired cast that needs its source element uses this.
   _fxWhenPainted(sourceCard, cb) {
     if (!sourceCard) return;
     const found = this._fxCardElById(sourceCard.id);
     if (found) { cb(found); return; }
-    // Not painted yet. The caller's post-onPlay UI.render() is
-    // requestAnimationFrame-throttled and mutates the DOM inside its OWN
-    // rAF — registered AFTER this one, since onPlay runs before onLaneClick
-    // calls render(). So a setTimeout(0) macrotask, or a SINGLE rAF, both
-    // fire BEFORE that paint and still find nothing. Wait one frame PAST
-    // render's rAF via a DOUBLE rAF: our first rAF runs in the same frame
-    // (before render mutates the DOM), and schedules a second rAF that runs
-    // the frame after — by which point render has inserted the card element.
-    // Falls back to timers where rAF is unavailable (headless never gets here
-    // — UI is undefined in sim).
+    // Not painted yet. The caller's post-onPlay UI.render() mutates the DOM
+    // inside its OWN rAF, registered AFTER this one, so a setTimeout(0) or a
+    // SINGLE rAF both fire before that paint. A DOUBLE rAF waits one frame past
+    // render's rAF, by which point the card element exists. Falls back to timers
+    // where rAF is unavailable (headless never gets here — UI is undefined in sim).
     const raf = (typeof window !== 'undefined' && window.requestAnimationFrame)
       ? window.requestAnimationFrame.bind(window)
       : (f) => setTimeout(f, 16);
-    // rAF STARVATION FALLBACK. A browser stops serving animation frames to a
-    // tab that is not visible, so on a client whose window is backgrounded the
-    // double-rAF above never runs and the cast silently never animates. That is
-    // most of "the animations are hit and miss, especially if you're not the
-    // host": a relayed signature FX lands on a guest that is not being looked
-    // at, waits for a frame that is not coming, and is gone by the time the tab
-    // is fronted again.
-    //
-    // A timer keeps running when rAF does not, so both are armed and whichever
-    // arrives first wins — `done` makes it exactly once either way. 120ms is
-    // comfortably past the render that paints the card, and short enough that a
-    // hidden tab still resolves rather than hanging on the callback.
+    // rAF STARVATION FALLBACK. A backgrounded tab gets no animation frames, so
+    // the double-rAF never runs — a relayed cast on an unwatched guest would
+    // never animate. A timer keeps running, so both are armed and the first to
+    // arrive wins (`done` makes it exactly once). 120ms is past the render that
+    // paints the card, yet short enough that a hidden tab still resolves.
     let done = false;
     const fire = () => {
       if (done) return;
       const e2 = this._fxCardElById(sourceCard.id);
       if (!e2) return;          // still not painted — let the other path retry
       done = true;
-      // DEPTH GUARD ACROSS THE DEFERRAL. This body runs a frame/timeout later,
-      // by which point the relayed top-level _fx* method that scheduled it has
-      // already returned and _sigFxDepth is back to 0. Without re-entering the
-      // guard, every nested _fx* call inside cb whose args serialize (a point,
-      // an options bag) emits its OWN 'sig' — and the guest then plays that
-      // piece TWICE: once from replaying the top-level method (which rebuilds
-      // it) and once from the stray nested sig. That is the "animation fires,
-      // then randomly fires again" double-vision (Godzilla's atomic breath and
-      // every other _fxWhenPainted-based cast). Treat the deferred body as still
-      // inside the top-level call, exactly like the synchronous part.
+      // DEPTH GUARD ACROSS THE DEFERRAL. This body runs later, after the relayed
+      // top-level _fx* method has returned and _sigFxDepth is back to 0. Without
+      // re-entering the guard, every nested _fx* call inside cb with serializable
+      // args emits its OWN 'sig', and the guest plays that piece TWICE (once from
+      // replaying the top-level method, once from the stray sig). Treat the
+      // deferred body as still inside the top-level call.
       this._sigFxDepth++;
       try { cb(e2); }
       finally { this._sigFxDepth--; }
@@ -517,8 +479,8 @@ const UI_FX = {
       'background:linear-gradient(90deg,' + color + '00 0%,' + color + ' 12%,' + core + ' 50%,' + color + ' 88%,' + color + '00 100%);' +
       'box-shadow:0 0 18px 4px ' + color + ', 0 0 40px 9px ' + color + '66;';
     layer.appendChild(beam);
-    // AAA: muzzle flash + forward spark-spit at the origin; a real impact
-    // flash, shockwave, and debris burst at the target (replaces the old dot).
+    // AAA: muzzle flash + forward spark-spit at the origin; an impact flash,
+    // shockwave, and debris burst at the target.
     this._fxImpact(from, { color: color, core: core, size: 0.5 });
     this._fxSparks(from, { color: core, glow: color, count: 5, angle: angRad, cone: 1.0, spread: 38, size: 2.4 });
     this._fxImpact(to, { color: color, core: core, size: opts.impact || 1 });
@@ -587,8 +549,7 @@ const UI_FX = {
   },
 
   // Impact burst: a bright radial flash + an expanding shockwave ring at
-  // `point`. opts: color, core, size (scale multiplier). Replaces the old
-  // 12px dot bursts with something that reads as a real hit.
+  // `point`. opts: color, core, size (scale multiplier).
   _fxImpact(point, opts) {
     if (!point || this._reducedMotion()) return;
     opts = opts || {};
@@ -665,21 +626,15 @@ const UI_FX = {
     this._screenShake('medium');
   },
 
-  // VOLDEMORT — one wand, three curses, three unmistakable colours. The killing
-  // curse is the flat green bolt everyone knows; Crucio is a red ring that
-  // crushes inward on the victim; Imperio is a slow violet beam that takes hold
-  // rather than strikes. Built entirely from the existing FX primitives — a new
-  // card should not need new drawing code — and gated on reduced-motion like
-  // every other signature cast.
+  // VOLDEMORT — one wand, three curses, three colours. Built entirely from the
+  // existing FX primitives and gated on reduced-motion like every other cast.
   _fxVoldemortCurse(self, targetCard, curseId) {
     if (this._reducedMotion() || !targetCard) return;
     const tgtEl = this._fxCardElById(targetCard.id);
     const to = this._fxCenter(tgtEl);
     if (!to) return;
-    // Three curses, three colours of LIGHTNING (owner, 2026-08-11): Avada
-    // Kedavra green, Crucio red, Imperio yellow. Imperio used to be a violet
-    // HELD BEAM; it now strikes as yellow lightning like the other two so the
-    // three read as one family, each told apart by colour alone.
+    // Three curses, three colours of LIGHTNING: Avada Kedavra green, Crucio red,
+    // Imperio yellow — one family, told apart by colour alone.
     const kit = curseId === 'ak'
       ? { bolt: '#39ff5e', glow: '#0b8f2a', core: '#eaffef', shake: 'medium' }
       : curseId === 'cr'
@@ -946,10 +901,9 @@ const UI_FX = {
     this._fxWhenPainted(card, (el) => this._fxRevive(el));
   },
   // ---- Shared TRICK FX ------------------------------------------------------
-  // Tricks had no board FX at all. These four themeable helpers cover the common
-  // shapes; each trick passes its own colour so e.g. Kryptonite reads green and
-  // Power Stone reads purple. All take a card ref, so the FX bridge relays them
-  // to the 1v1 guest (who never runs trick.play locally).
+  // Themeable helpers for the common trick shapes; each trick passes its own
+  // colour (Kryptonite green, Power Stone purple). All take a card ref, so the
+  // FX bridge relays them to the 1v1 guest (who never runs trick.play locally).
   _fxTrickStrike(card, color, glow) {
     if (this._reducedMotion() || !card) return;
     const el = this._fxCardElById(card.id);
@@ -970,10 +924,9 @@ const UI_FX = {
   // drawn as a return stroke rather than just another hit.
   _fxRayGun(targetCard, sideCards, ownCard) {
     if (this._reducedMotion() || !targetCard) return;
-    // WAIT FOR THE CARD TO EXIST. Looking the element up immediately meant that
-    // if the board had not painted yet the effect returned silently — the
-    // reported "animations never fired", and worse online where render timing
-    // is looser. Every older card effect uses this helper; these now do too.
+    // WAIT FOR THE CARD TO EXIST: looking the element up immediately returns
+    // silently when the board has not painted yet (worse online, where render
+    // timing is looser). Every card effect uses this helper.
     this._fxWhenPainted(targetCard, (tEl) => {
     const to = this._fxCenter(tEl);
     if (!to) return;
@@ -1343,8 +1296,8 @@ const UI_FX = {
   },
   // Fired from applyCombatDamage when a swing is EVADED. The card sidesteps —
   // it blurs sideways and snaps back — while a translucent after-image is left
-  // behind at its original spot and fades. Reads as a real dodge instead of a
-  // silent 0. One-shot, reduced-motion / low-fx gated, self-removing.
+  // behind at its original spot and fades. One-shot, reduced-motion / low-fx
+  // gated, self-removing.
   _fxEvadeDodge(card) {
     if (!card || this._reducedMotion()) return;
     const el = this._fxCardElById(card.id);
@@ -1356,11 +1309,9 @@ const UI_FX = {
     const dx = dir * Math.max(30, r.width * 0.55);
     const layer = this._fxLayer();
     // The GHOST carries the whole dodge: a glowing after-image of the card that
-    // slides sideways and fades. It lives on the FX layer, so it survives the
-    // render that combat fires right after — which is why the old version
-    // (which only animated the card element itself) "didn't work": the class
-    // was wiped a frame later. We copy the card art onto the ghost so it reads
-    // as the card itself whooshing out of the way.
+    // slides sideways and fades. It lives on the FX layer so it survives the
+    // render combat fires right after (a class on the card element would be
+    // wiped a frame later). The card art is copied onto the ghost.
     const ghost = document.createElement('div');
     ghost.className = 'fx-evade-afterimage';
     ghost.style.cssText =
@@ -1679,12 +1630,10 @@ const UI_FX = {
   // at the bottom, ai = the face-down backs up top). opts.color tints it:
   // Apocalypse empowers your hand (blue), Mace Windu curses the enemy's (purple).
   // HAND FX NEED THEIR OWN LAYER. #signature-fx-layer is z-index 200, but the
-  // hand sits at z-index 220 (300 on mobile) — so anything drawn into the cast
-  // layer for a hand effect painted BEHIND the cards and was invisible. The
-  // child's own z-index can't rescue it: the fx layer is its stacking context.
-  // This layer sits above the hand and below the emote/taunt popups (900+).
-  // (User: "mace windu and apocalypse hand animations don't work" — they were
-  // firing correctly the whole time, just underneath the hand.)
+  // hand sits at z-index 220 (300 on mobile), so the cast layer paints BEHIND
+  // the cards. The child's own z-index can't rescue it: the fx layer is its
+  // stacking context. This layer sits above the hand and below the emote/taunt
+  // popups (900+).
   _fxHandLayer() {
     let l = document.getElementById('hand-fx-layer');
     if (!l) {
@@ -1957,9 +1906,9 @@ const UI_FX = {
     this._screenShake('medium');
   },
   // Dr. Doom: emerald Latverian doom-magic — a green burst + sigil ring over
-  // Doom. (The summoned Doombot isn't reachable synchronously — summonCardChoice
-  // may defer behind a lane prompt and returns nothing — so the conjure is
-  // anchored on Doom himself rather than a token ring that would never fire.)
+  // Doom. Anchored on Doom himself: the summoned Doombot isn't reachable
+  // synchronously (summonCardChoice may defer behind a lane prompt and returns
+  // nothing).
   _fxDoomConjure(self) {
     if (this._reducedMotion() || !self) return;
     this._fxWhenPainted(self, (el) => {
@@ -2189,14 +2138,12 @@ const UI_FX = {
     layer.appendChild(sweep);
     setTimeout(() => sweep.remove(), 900);
   },
-  // Thanos snap: a doomed card crumbles to ash and blows away. Clones the card
-  // into a detached ghost (so the engine's card removal on the next render
-  // can't cut the dissolve short — same trick _fxImplode uses) that erodes,
-  // desaturates and drifts up, throws off a dense cloud of ash motes, and pops
-  // a soft dust puff so the disintegration reads instantly — distinct from a
-  // normal death fade. Call on each snapped card BEFORE killCard removes it.
-  // If the element can't be located (rare paint-timing race), fall back to a
-  // burst at the card's lane slot so SOMETHING dusts. One-shot, self-removing,
+  // Thanos snap: a doomed card crumbles to ash and blows away. A detached ghost
+  // (so the engine's card removal on the next render can't cut the dissolve
+  // short — same trick _fxImplode uses) erodes, desaturates and drifts up with
+  // a cloud of ash motes and a dust puff. Call on each snapped card BEFORE
+  // killCard removes it. If the element can't be located (paint-timing race),
+  // fall back to a burst at the card's lane slot. One-shot, self-removing,
   // reduced-motion gated.
   _fxThanosDust(card) {
     if (this._reducedMotion() || !card) return;
@@ -2216,11 +2163,9 @@ const UI_FX = {
     if (!r || r.width === 0) return;
     const layer = this._fxLayer();
     // Ghost = a PLAIN div carrying the card's portrait as a background image —
-    // NOT a cloneNode of the whole card. Cloning dragged the card's own CSS
-    // (transforms, z-index, nested overlays) onto the ghost, which mis-sized
-    // and mis-positioned it or left it invisible in the live board — the
-    // reason the dissolve "didn't work". A bare div with transform:none and
-    // the portrait bitmap dissolves cleanly and reliably.
+    // NOT a cloneNode of the whole card, which drags the card's own CSS
+    // (transforms, z-index, nested overlays) along and mis-sizes, mis-positions
+    // or hides the ghost. transform:none + the portrait bitmap dissolves cleanly.
     const portrait = el.querySelector && el.querySelector('.card-portrait');
     if (portrait) {
       const bg = getComputedStyle(portrait).backgroundImage;
@@ -2417,8 +2362,7 @@ const UI_FX = {
     });
   },
 
-  // =============== WAVE 4: cards that had no animation (2026-11-11) ===============
-  // Owner: "i want more animation like the cards i listed for other cards".
+  // =============== WAVE 4: cards that had no animation ===============
   // Every entry is abstract light/particle work built from the shared
   // primitives above — beams, bolts, rings, sparks, slashes, gas — so each
   // card's moment reads at a glance without drawing anyone. Targets are
@@ -2525,7 +2469,7 @@ const UI_FX = {
     });
   },
 
-  // ---- Superman / Batman / Dr. Doom: their other big moments (2026-11-11) ----
+  // ---- Superman / Batman / Dr. Doom: their other big moments ----
   // Superman's entry strike: a white-blue streak dives onto the target (or the
   // enemy HP bar) and lands with a shockwave. Target captured before damage.
   _fxSupermanStrike(self, target, owner) {
@@ -2588,7 +2532,7 @@ const UI_FX = {
     });
   },
 
-  // ---- Jango Fett / Sung Jin-Woo / Iron Man / Hulk extras (2026-11-11) ----
+  // ---- Jango Fett / Sung Jin-Woo / Iron Man / Hulk extras ----
   // Ground crack: jagged fissures race out from a card's slot (SVG strokes
   // drawn on via dashoffset), with a dust wave sweeping along the row.
   _fxGroundCrack(el, opts) {
@@ -2713,7 +2657,7 @@ const UI_FX = {
     });
   },
 
-  // ---- Jump entrances, Deadpool's swap, Wolverine's adamantium (2026-11-11) ----
+  // ---- Jump entrances, Deadpool's swap, Wolverine's adamantium ----
   // A Jump is a jump-scare: the screen drops dark for a beat, a red flash
   // cuts, and the card SNAPS into its slot out of nowhere.
   _fxJumpIn(ev) {
@@ -2722,7 +2666,7 @@ const UI_FX = {
       const el = document.querySelector('#board [data-card-id="' + ev.cardId + '"]') || this._fxCardElById(ev.cardId);
       if (!el) return;
       // A full-screen overlay, not a body class: body's class list is rewritten
-      // by other systems mid-frame, which ate the dim before it ever showed.
+      // by other systems mid-frame, which can eat the dim before it shows.
       const flash = document.createElement('div');
       flash.className = 'fx-jump-flash';
       this._fxLayer().appendChild(flash);
@@ -2735,8 +2679,7 @@ const UI_FX = {
     };
     // WAIT FOR THE LANDING. A jump plays the card from the hand, so it spends
     // ~360ms in flight before its tile exists in the slot; firing on the next
-    // frame found nothing and silently skipped. Poll (bounded) for the landed,
-    // non-flying tile.
+    // frame would find nothing. Poll (bounded) for the landed, non-flying tile.
     let tries = 0;
     const poll = () => {
       const el = document.querySelector('#board [data-card-id="' + ev.cardId + '"]');
@@ -2773,7 +2716,7 @@ const UI_FX = {
     this._fxSparks(p, { color: '#f2f6fa', glow: '#9fb3c8', count: 12, angle: -Math.PI / 2, cone: 2.2, spread: 64, size: 2.2 });
   },
 
-  // ---- Thanos / Darth Vader / Joker extras (2026-11-11) ----
+  // ---- Thanos / Darth Vader / Joker extras ----
   // Thanos' snap: a gold pulse bursts off him and a shimmer wave rolls across
   // the whole board (each erased enemy still gets _fxThanosDust).
   _fxThanosSnap(self) {
@@ -2823,7 +2766,7 @@ const UI_FX = {
     if (p) this._fxSparks(p, { color: '#d6ff9a', glow: '#9b3dff', count: 16, spread: 70, size: 2.6 });
   },
 
-  // ---- Spider-Man / Venom / Captain America extras (2026-11-11) ----
+  // ---- Spider-Man / Venom / Captain America extras ----
   // Spider-Man dodges: a pale afterimage streak flicks off sideways and a ring
   // pulses as he grows; when the extra charge comes back, quick jagged
   // "tingle" rays radiate from him (abstract — light only).
@@ -3087,8 +3030,7 @@ const UI_FX = {
   },
   // Droideka — shields UP: a blue deflector snaps around him (Damage Immunity).
   // Shields DOWN: the twin blasters overcharge red-hot (triple ATK). The
-  // ability called this for ages but the method never existed, so the shield
-  // toggle was silent — this restores it. `shieldsUp` picks the mode.
+  // ability calls this on the shield toggle; `shieldsUp` picks the mode.
   _fxDroidekaShield(self, shieldsUp) {
     if (this._reducedMotion() || !self) return;
     this._fxWhenPainted(self, (el) => {
@@ -3854,9 +3796,9 @@ const UI_FX = {
     return owner;
   },
 
-  // Which track an event plays on. Anything not listed plays immediately,
-  // exactly as before — sounds, relayed cinematics (they keep their own pacing,
-  // _queueSigFx), and any type added later until someone decides otherwise.
+  // Which track an event plays on. Anything not listed plays immediately —
+  // sounds, relayed cinematics (they keep their own pacing, _queueSigFx), and
+  // any type added later until someone decides otherwise.
   _FX_TRACKS: {
     combat: ['swing', 'hit', 'hpHit', 'block', 'blocked', 'armor', 'evade', 'heal', 'move',
              'enterAndDie', 'blockDrain', 'artWeapon', 'laneVoid', 'overdrive'],
@@ -3912,9 +3854,9 @@ const UI_FX = {
       if (!incoming.length) return;
       const q = D[tr];
       // CALM PATH — an idle track handed one beat plays it this frame, so the
-      // host's normal play (events trickling in one combat step at a time)
-      // looks exactly as it always did. It then HOLDS the track for the beat's
-      // real length, so anything arriving mid-animation waits for it.
+      // host's normal play (events trickling in one combat step at a time) is
+      // unpaced. It then HOLDS the track for the beat's real length, so anything
+      // arriving mid-animation waits for it.
       if (!D.busy[tr] && !q.length && incoming.length === 1) {
         const len = this._fxPlayBeat(incoming[0]);
         D.stat.beats++;
@@ -3981,33 +3923,25 @@ const UI_FX = {
       if (kept.length) q[i] = kept; else q.splice(i, 1);
     }
   },
-  // One failing effect must not take the rest of its batch with it (the old
-  // single loop aborted on the first throw).
+  // One failing effect must not take the rest of its batch with it.
   _fxPlayOneSafe(ev) {
     try { this._fxPlayOne(ev); } catch (e) { if (typeof console !== 'undefined') console.error('[fx]', ev && ev.type, e); }
   },
-  // What each event DOES — the dispatcher body, moved here unchanged (each
-  // `continue` of the old loop is a `return`).
+  // What each event DOES — the dispatcher body (a `return` ends one event).
   _fxPlayOne(ev) {
     // ---- FX-stream board events (System 3/3) — engine-emitted, replayed
     // on every client including the MP guest (they ride state broadcasts).
-    // Signature FX relayed from the host (see installFxBridge). ONLY the
-    // guest replays these — the host already ran the animation live when its
-    // engine called the function, so replaying would double-fire it.
+    // Signature FX relayed from the host (see installFxBridge). ONLY the guest
+    // replays these — the host already ran the animation live.
     if (ev.type === 'sig') {
       // Replay on any non-host online client — 1v1 guest AND the three
       // non-host seats of a 2v2 room. The host already animated live.
-      // PACED, NOT DUMPED. The host resolves combat over several seconds on
-      // async timers but broadcasts ONCE, in _2v2PostCombat, after the whole
-      // battle is over. So the guest receives one snapshot carrying every
-      // queued FX event at once — and firing them all in a single frame is
-      // why combat "just skips" for the guest while the host watches it lane
-      // by lane. Owner: "the host sees the lane by lane attacks fine but it
-      // just skips for me."
-      // Spacing them out here is deliberately the GUEST-SIDE half of the fix:
-      // it changes playback timing only, and cannot touch host combat or any
-      // game state. A single relayed effect still plays instantly — the delay
-      // only appears once a batch arrives, which is exactly the combat case.
+      // PACED, NOT DUMPED. The host resolves combat over several seconds on async
+      // timers but broadcasts ONCE, in _2v2PostCombat, so the guest receives every
+      // queued FX event in one snapshot; firing them all in one frame would skip
+      // the combat. Spacing them here changes guest playback timing only and
+      // cannot touch host combat or game state. A single relayed effect still
+      // plays instantly — the delay only appears once a batch arrives.
       if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') this._queueSigFx(ev);
       return;
     }
@@ -4021,8 +3955,7 @@ const UI_FX = {
         const mine = !!(tt && ev.seat && ev.seat === tt.you);
         try { if (this.sfx && this.sfx.playTrickSfx) this.sfx.playTrickSfx(ev.name, 'play'); } catch (e) {}
         if (ev.name !== 'Time Stone' && this.showTrickReveal) {
-          // The payload has carried `seat` all along; it was only ever used
-          // for the mine/not-mine flip. Resolve it to the caster's name too.
+          // The payload carries `seat`; resolve it to the caster's name too.
           let _who = null;
           try { _who = (ev.seat && Game._2v2SeatName) ? Game._2v2SeatName(ev.seat) : null; } catch (e) {}
           if (mine) _who = 'You';
@@ -4131,12 +4064,10 @@ const UI_FX = {
       return;
     }
     // A SWING HAPPENED — the attacker's own cue, on the beat its side owns.
-    // Emitted by Game.applyCombatDamage, which is the one door every swing
-    // goes through, so this fires whether the hit lands, is dodged, is
-    // absorbed, or kills. It used to hang off the 'hit' event in two separate
-    // branches below, which meant it went silent on exactly the swings a
-    // player most wants to hear. Riding the FX stream also means a guest
-    // hears it — they never run the engine line.
+    // Emitted by Game.applyCombatDamage, the one door every swing goes through,
+    // so it fires whether the hit lands, is dodged, is absorbed, or kills (do not
+    // hang it off 'hit', which misses those). Riding the FX stream also means a
+    // guest hears it — they never run the engine line.
     if (ev.type === 'swing') {
       const beat = (this._reducedMotion && this._reducedMotion()) ? 0 : this._swingBeatMs(ev.owner);
       this._lungeOnBeat(ev.attackerId, beat);
@@ -4154,10 +4085,9 @@ const UI_FX = {
       }
       return;
     }
-    // Effect cue relayed from the host — the event fanfares (Jurassic Park's
-    // welcome, the Saw line, a Cog VP's theme) are fired from engine code, so
-    // a guest, who never runs the engine, heard none of them. Guests ONLY:
-    // the host already played it live inside Game._effectSfx.
+    // Effect cue relayed from the host — the event fanfares are fired from engine
+    // code, which a guest never runs. Guests ONLY: the host already played it
+    // live inside Game._effectSfx.
     if (ev.type === 'effectSfx') {
       if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
         try { if (this.sfx && this.sfx.playEffect && ev.sound) this.sfx.playEffect(ev.sound); } catch (e) {}
@@ -4209,11 +4139,9 @@ const UI_FX = {
     }
     if (ev.type === 'blocked') {
       // VIEWER-RELATIVE SIDE. ev.owner is the ABSOLUTE side whose meter fired
-      // (Team A = 'player', Team B = 'ai'); every side-anchored effect below
-      // has to land on the bar the VIEWER sees it on, or in 2v2 the whole
-      // block animation played on the wrong half of the screen (a guest on
-      // Team B saw their own block flash the enemy bar). hpHit already routes
-      // through _fxDomSide for exactly this; the block FX never did.
+      // (Team A = 'player', Team B = 'ai'); every side-anchored effect below must
+      // land on the bar the VIEWER sees it on, or in 2v2 a Team B guest's block
+      // flashes the enemy bar. Routed through _fxDomSide, like hpHit.
       const bside = this._fxDomSide ? this._fxDomSide(ev.owner) : ev.owner;
       // The energy-shield activation cue (audio/block-full.mp3) — the meter
       // just turned this hit aside. Its own cue so the triple-multikill reuse
@@ -4225,8 +4153,7 @@ const UI_FX = {
       // THE BIG, UNMISSABLE ONE. A hex energy-shield flares up over the bar
       // that blocked, throws a shockwave ring, and drops a "BLOCKED!" title —
       // so the moment reads at a glance even across a busy 2v2 board, matching
-      // the shield-activation sound. (User: "make it have an animation too so
-      // people know.")
+      // the shield-activation sound.
       this.fxBlockShield(bside);
       // Flash the HP bar
       const fill = document.getElementById(bside === 'player' ? 'player-hp-fill' : 'ai-hp-fill');
@@ -4286,17 +4213,12 @@ const UI_FX = {
       return;
     }
     // Hero heal — the mirror of hpHit above. Same health-container float,
-    // green and rising, so lifesteal and heal effects are finally legible
-    // instead of the bar quietly growing.
+    // green and rising, so lifesteal and heal effects are legible.
     if (ev.type === 'heal' && ev.cardId == null) {
-      // ROUTE THROUGH _fxDomSide like hpHit does. Using ev.owner raw put the
-      // heal float on the WRONG bar for any viewer whose own team isn't the
-      // 'player' side (every 2v2 team-B seat, and the 1v1 guest): the caster's
-      // +2 floated over the ENEMY bar while their real health quietly filled on
-      // their own bar — which reads as BOTH teams healing 2. (User: "symbiote
-      // spider-man is healing 2 for both teams — make sure it's only the team
-      // that played him.") Only the caster's team is ever healed; this just
-      // lands the float on the bar that actually changed.
+      // ROUTE THROUGH _fxDomSide like hpHit does: raw ev.owner puts the float on
+      // the WRONG bar for any viewer whose team isn't the 'player' side (2v2 Team B
+      // seats, the 1v1 guest), which reads as both teams healing. Only the caster's
+      // team is ever healed; this lands the float on the bar that changed.
       const hside = this._fxDomSide ? this._fxDomSide(ev.owner) : ev.owner;
       const hfill = document.getElementById(hside === 'player' ? 'player-hp-fill' : 'ai-hp-fill');
       const hcontainer = hfill ? hfill.closest('.health-container') : null;
@@ -4317,21 +4239,16 @@ const UI_FX = {
     // Card-targeted events — find card element on board
     const cardEl = document.querySelector(`[data-card-id="${ev.cardId}"]`);
     if (!cardEl) {
-      // The card is already off the board — which is precisely what happens on
-      // a KILLING BLOW: the victim is removed before this runs, so `continue`
-      // silently threw away the whole beat and the most dramatic hit in the
-      // game landed with no flash, no shake, no freeze-frame, no sound. The
-      // node-anchored channels (flash / burst / knockback / chips / float)
-      // genuinely have nothing to attach to, but the BOARD-level ones don't
-      // need a node — fire those so a kill still registers as an event.
+      // The card is already off the board — exactly what happens on a KILLING
+      // BLOW: the victim is removed before this runs. The node-anchored channels
+      // (flash / burst / knockback / chips / float) have nothing to attach to, but
+      // the BOARD-level ones don't need a node — fire those so a kill still
+      // registers.
       if (ev.type === 'hit') {
         const tier = this._damageTier(ev.amount, ev.lethal);
         const fx = this._TIER_FX[tier] || this._TIER_FX.medium;
-        // ON ITS OWN BEAT, same as the node-anchored branch below. A killing
-        // blow used to take this path IMMEDIATELY while the surviving side's
-        // hit waited for the impact frame, so the two halves of one exchange
-        // were heard 150ms apart in the wrong order — and the louder half was
-        // the kill.
+        // ON ITS OWN BEAT, same as the node-anchored branch below, so both halves of
+        // one exchange are heard in order rather than the kill jumping ahead.
         const owner = this._attackerOwner(ev.attackerId);
         const beat = ev.attackerId != null && !(this._reducedMotion && this._reducedMotion())
           ? this._swingBeatMs(owner) : 0;
@@ -4342,8 +4259,8 @@ const UI_FX = {
           if (fx.kick) this._impactLayer(null, ev.attackerId, fx, ev.cardId);
           try { this.sfx.play('hit', fx.sfxGain, 0); } catch (e) {}
           if (ev.amount > 0) this._haptic('hit');
-          // THE KILLING NUMBER. Every other hit pops its "-N"; the one that
-          // kills used to show none, because its card was already gone.
+          // THE KILLING NUMBER. Every hit pops its "-N", including the one that kills
+          // (whose card is already gone).
           if (ev.amount > 0) this._fxKillFloat(ev, fx);
           const g = document.querySelector(`[data-ghost-of="${ev.cardId}"]`);
           if (g) {
@@ -4372,11 +4289,9 @@ const UI_FX = {
       : 0;
     if (_combatHit) this._bookLaneAudioUntil(_beatMs);
     const defer = _combatHit ? (fn) => setTimeout(fn, _beatMs) : (fn) => fn();
-    // Hit flash + strike burst ring + card shake — ALL magnitude-
-    // scaled. The tier classifier maps this hit's damage (and
-    // lethality) to a feedback intensity; every channel below reads
-    // its parameter from the shared _TIER_FX table so a 1-chip tap
-    // and a 9-damage lethal feel genuinely different.
+    // Hit flash + strike burst ring + card shake — ALL magnitude-scaled. The
+    // tier classifier maps this hit's damage (and lethality) to an intensity;
+    // every channel reads its parameter from the shared _TIER_FX table.
     if (ev.type === 'hit') {
       const tier = this._damageTier(ev.amount, ev.lethal);
       const fx = this._TIER_FX[tier] || this._TIER_FX.medium;
@@ -4414,11 +4329,9 @@ const UI_FX = {
           if (br.width > 0) pan = Math.max(-0.5, Math.min(0.5, ((cr.left + cr.width / 2 - br.left) / br.width - 0.5)));
         }
         this.sfx.play('hit', fx.sfxGain, pan);
-        // (The attacker's own cue is NOT fired here any more — it belongs to
-        // the swing, not to the damage. See the 'swing' event above: hanging
-        // it off 'hit' meant it went silent on every Evade, Invincible,
-        // Damage Immunity and fully-absorbed Armor, which are exactly the
-        // swings a player most wants to hear.)
+        // (The attacker's own cue is NOT fired here — it belongs to the swing, not
+        // the damage; see the 'swing' event above. On 'hit' it would go silent on
+        // every Evade, Invincible, Damage Immunity and fully-absorbed Armor.)
         // Haptic — one honest tick per hit, either side.
         if (ev.amount > 0) this._haptic('hit');
         // Concussive ring burst — size scales with tier via --burst-scale.
@@ -4487,9 +4400,9 @@ const UI_FX = {
     });
   },
   // Immediate reveal when the human discards Brainiac. The small HUD strip is
-  // easy to miss (user: "I didn't see who he drew at all"), so the discard now
-  // throws a prominent center-screen card reveal of the opponent's next draws —
-  // the strip then lingers as the persistent reference for the next 2 rounds.
+  // easy to miss, so the discard throws a prominent center-screen reveal of the
+  // opponent's next draws; the strip then lingers as the persistent reference
+  // for the next 2 rounds.
   _fxBrainiacScan(upcoming, whoName, subLabel, force) {
     const el = document.getElementById('brainiac-scan');
     if (el) {

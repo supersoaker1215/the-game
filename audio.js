@@ -1,5 +1,5 @@
 // ============================================================
-// audio.js — THE SOUND SYSTEM (split out of ui.js, 2026-11-12)
+// audio.js — THE SOUND SYSTEM
 // ============================================================
 // The sound engine (sfx: Web Audio mixer, card cues, music, the generative menu score), the per-card sound registry, the UI/nav/hover sound installers, the audio bridge for online play and the Audio Audit dev tool.
 //
@@ -11,11 +11,9 @@
 const UI_AUDIO = {
   // ===================== MENU SCORE =====================
   // The menu bed is generative music synthesised live in Web Audio — no files,
-  // nothing from the cards (owner, 2026-11-11: "the music needs to be not from
-  // the cards but the music you made"). Three ORIGINAL pieces, each a chord
-  // loop with its own voicing; a scheduler keeps ~1.5s of notes queued ahead.
-  // Output goes through the mixer's MUSIC bus, so the Music slider, the master
-  // mute and the hover-duck all apply exactly as they did to the old tracks.
+  // never card tracks. Three pieces, each a chord loop with its own voicing; a
+  // scheduler keeps ~1.5s of notes queued ahead. Output goes through the
+  // mixer's MUSIC bus, so the Music slider, master mute and hover-duck apply.
   menuScore: {
     _live: null, _idx: -1, _out: null, _ducked: false,
     SCORES: [
@@ -92,9 +90,8 @@ const UI_AUDIO = {
       for (let i = 0; i < nd.length; i++) nd[i] = Math.random()*2 - 1; this._noise = nb;
       return true;
     },
-    // Loudness: the synth voices sum ~12 dB under a mastered track (measured
-    // RMS .0097 at 2.4x vs ~.04 for the old card bed), so the score sits at 6x
-    // the old bed target; the compressor after it catches the peaks.
+    // Loudness: the synth voices sum ~12 dB under a mastered track, so the
+    // score sits at 6x the bed target; the compressor after it catches peaks.
     _target() { const s = UI.sfx; const v = s && s._musicTargetVol ? s._musicTargetVol() : .2; return v*6*(this._ducked ? (s._MUSIC_DUCK_FACTOR || .18) : 1); },
     setLevel(fadeS) { if (!this._out || !this._live) return; this._out.gain.setTargetAtTime(this._target(), this.ctx.currentTime, (fadeS == null ? .3 : fadeS)/3); },
     duck(on) { this._ducked = !!on; this.setLevel(.25); },
@@ -129,10 +126,9 @@ const UI_AUDIO = {
   },
   MENU_SCORE_ON: true,
   // Hand-audio privacy quick toggle — the small ♪ at the head of the hand row.
-  // Exactly the same state as the "Hide hand sounds" settings checkbox, just
-  // surfaced where it matters: every card has its own hover cue, so anyone next
-  // to you (or listening on a call) can hear what you're holding. Flipping
-  // either control updates the other; both write the same persisted key.
+  // Same state as the "Hide hand sounds" settings checkbox (every card has its
+  // own hover cue, so anyone nearby can hear what you hold). Both controls
+  // write the same persisted key and update each other.
   toggleHandAudioPrivacy() {
     if (!this.settings) return;
     this.settings.handAudioPrivacy = !this.settings.handAudioPrivacy;
@@ -150,10 +146,9 @@ const UI_AUDIO = {
   // (so opening Settings after using the quick toggle shows the truth).
   syncHandAudioToggle() {
     const on = !!(this.settings && this.settings.handAudioPrivacy);
-    // Every surface that offers the toggle carries [data-hand-audio-toggle] —
-    // the in-hand glyph AND the draft HUD button (draft cards have per-card
-    // hover cues too, so the control has to be reachable there). Driving them
-    // all from one query keeps them from drifting apart.
+    // Every surface that offers the toggle carries [data-hand-audio-toggle]
+    // (the in-hand glyph AND the draft HUD button); driving them all from one
+    // query keeps them from drifting apart.
     document.querySelectorAll('[data-hand-audio-toggle]').forEach(btn => {
       btn.classList.toggle('is-muted', on);
       btn.setAttribute('aria-pressed', on ? 'true' : 'false');
@@ -168,19 +163,14 @@ const UI_AUDIO = {
     if (box) box.checked = on;
   },
 
-  // Audition a card-select cue the moment it is picked. Picking a sound you
-  // cannot hear until you close the panel and tap a card is not a choice, it
-  // is a guess — so the value is committed to settings first, then the synth's
-  // own 'select' case is fired, which means the preview is BY DEFINITION the
-  // same code path the game will use rather than a second copy of it.
+  // Audition a card-select cue the moment it is picked: the value is committed
+  // to settings first, then the real 'select' path is fired, so the preview is
+  // by definition the same code path the game uses.
   previewSelectSfx(value) {
     this.settings.selectSfx = value;
     // Through _playSelectCue — the SAME entry point a card selection uses —
-    // not straight into one engine. Calling sfx.play('select') directly is
-    // what hid the real bug: the preview sounded correct while the game went
-    // on playing the other engine's 880Hz pip, so the setting appeared to work
-    // everywhere except where it mattered. A preview that does not travel the
-    // production path is not a preview.
+    // not straight into one engine, or the preview can sound right while the
+    // game plays a different engine's cue.
     if (value !== 'off') {
       try { this._playSelectCue(); } catch (e) {}
     }
@@ -197,10 +187,10 @@ const UI_AUDIO = {
   },
 
   // ===================== SFX (procedural Web Audio) =====================
-  // Tiny procedural SFX engine — no asset files. Single shared AudioContext,
-  // lazy-initialized on first user gesture (browsers block autoplay until
-  // then). Each named effect is a handful of oscillator + noise nodes
-  // shaped with short envelopes. Respects UI.settings.sfxVolume (0..1).
+  // Tiny procedural SFX engine. Single shared AudioContext, lazy-initialized on
+  // first user gesture (browsers block autoplay until then). Each named effect
+  // is a few oscillator + noise nodes with short envelopes. Respects
+  // UI.settings.sfxVolume (0..1).
   sfx: {
     _ctx: null,
     _master: null,
@@ -219,18 +209,14 @@ const UI_AUDIO = {
     //   events: hover, play, ability, attack, death
     CARD_SFX: {
       // ── MENU-SHUFFLE EVENT HEROES ──
-      // MC Ballyhoo and the Shadow Man are events, not cards, so they are not
-      // in CARD_DEFS — but _menuCharHoverSrcs reads THIS table to build the
-      // main-menu shuffle, so their themes are registered here to put them in
-      // the rotation. (Owner: "you can add MC Ballyhoo and Shadow man to main
-      // menu shuffle too".) Their codex-hover entries stay in TRICK_SFX, which
-      // is the table the codex's trick chrome routes through — different
-      // lookups, so both are needed.
+      // MC Ballyhoo and the Shadow Man are events, not cards, but
+      // _menuCharHoverSrcs reads THIS table to build the main-menu shuffle, so
+      // their themes are registered here. Their codex-hover entries stay in
+      // TRICK_SFX (the codex's trick lookup) — different lookups, both needed.
       'MC Ballyhoo': { hover: 'audio/ballyhoo-fanfare.mp3' },
       'Shadow Man':  { hover: 'audio/shadow-man-theme.mp3' },
-      // Cog Invasion VPs — added to the main-menu hero shuffle, each playing its
-      // own battle theme on hover. (Owner: "add the 4 vps to the main menu
-      // themes.") getCardArtPathDefault resolves their portraits by name.
+      // Cog Invasion VPs — in the main-menu hero shuffle, each playing its own
+      // battle theme on hover. getCardArtPathDefault resolves their portraits.
       'The V.P.':     { hover: 'audio/cog-theme-vp.mp3' },
       'The C.F.O.':   { hover: 'audio/cog-theme-cfo.mp3' },
       'The C.J.':     { hover: 'audio/cog-theme-cj.mp3' },
@@ -248,107 +234,63 @@ const UI_AUDIO = {
       'Lightning Bow':         { play: { src: 'audio/cards/lightning-bow-play.mp3', noFade: true, fullDuration: true } },
       'Wunderwaffe DG-3 JZ':   { play: { src: 'audio/cards/wunderwaffe-play.mp3', noFade: true, fullDuration: true } },
       'Apothicon Servant':     { play: { src: 'audio/cards/apothicon-servant-play.mp3', noFade: true, fullDuration: true } },
-      // Vader hover = imperial breath; death = injured-breath sting
-      // (3s, longer than the 1.5s default cap — `maxDur: 3.5` lets the
-      // dying breath play out fully rather than getting clipped). Not
-      // LEGO style, intentional — Vader's death is a cinematic moment
-      // and the iconic film sting carries the weight better than a
-      // cartoon yelp.
-      // Darth Vader play: 4s of "The Imperial March" (1:47 → 1:51) — the
-      // brass sting stabs on entrance. 0.05s fade-in / 0.4s fade-out baked.
-      // Vader hover: 68s of John Williams' "Anakin's Betrayal" (0:00 → 1:08) —
-      // the Order 66 elegy. 0.6s fade-in / 2s fade-out baked; ?v=2 busts the old
-      // cached file.
+      // Vader death: 3s injured-breath sting; `maxDur: 3.5` overrides the 1.5s
+      // death cap so it plays out. Play: 4s brass sting. Hover: 68s clip.
+      // ?v=2 busts the old cached file.
       'Darth Vader':      { hover: { src: 'audio/cards/darth-vader-hover.mp3?v=2', maxDur: 68 }, play: { src: 'audio/cards/darth-vader-play.mp3', maxDur: 4.2 }, death: { src: 'audio/cards/darth-vader-death.mp3', maxDur: 3.5 } },
-      // Batman hover: 1:45 of Hans Zimmer & James Newton Howard's "A
-      // Watchful Guardian" (Dark Knight OST), 2:15 → 4:00 of source.
-      // -20 LUFS unified-baseline, 1s fade-in / 2s fade-out. maxDur 106
-      // lets the full phrase play.
+      // Batman hover: 1:45 clip, -20 LUFS; maxDur 106 lets it play in full.
       'Batman':           {
         hover: { src: 'audio/cards/batman-hover.mp3?v=2', maxDur: 106 },
         play:  { src: 'audio/cards/batman-play.mp3', maxDur: 5 },
         death: 'audio/cards/batman-death.mp3',
-        // When Batman deals damage (his "Strike 1" / "Strike 2"
-        // batarang throws after the Fear pick), fire the Batarangs
+        // When Batman deals damage (his batarang strikes), fire the Batarangs
         // trick SFX instead of the generic procedural 'hit' synth.
-        // Two short throws (0.89s each) layer cleanly over the Arkham
-        // theme + ducked hover bed.
         effects: { damage: 'audio/cards/batarangs-play.mp3' },
       },
-      // Mahoraga hover: the full "Sukuna vs Mahoraga" epic version (0:00 → 3:03),
-      // normalised to the −20 LUFS baseline (measured −19.0), 1s fade-in / 2s
-      // fade-out baked in; maxDur 183 lets the whole track run under a long
-      // browse. Play: 0:53 → 0:58 of the same track — the owner's chosen
-      // moment, cut to the ~5s a When Played cue should be — 0.05s / 0.4s
-      // fades, measured −19.2 LUFS. (Owner: "use this song for mahoraga's
-      // hover ... when played use 0:53 ... these should be like 5 seconds and
-      // can be off their hover at specific parts.") attack / death keep their
-      // synth cues in CARD_PROCEDURAL; this row only claims the two file events.
+      // Mahoraga hover: full 3:03 track, −20 LUFS; maxDur 183 lets it run.
+      // Play: a ~5s cut (0:53 → 0:58) of the same track at an owner-chosen
+      // timestamp. attack / death keep their synth cues in CARD_PROCEDURAL;
+      // this row only claims the two file events.
       'Mahoraga':         {
         hover: { src: 'audio/cards/mahoraga-hover.mp3', maxDur: 183 },
         play:  { src: 'audio/cards/mahoraga-play.mp3',  maxDur: 5 },
       },
-      // Sung Jin-Woo — "Dark Aria <LV2>" (Solo Leveling). Hover is the full
-      // 2:22 track, 1s in / 2s out, measured −20.0 LUFS. When Played is the
-      // ARISE hit: the track sits near silence and then jumps +27.6 dB at 0:42.0
-      // (measured — the largest onset in the file), so the cue is 0:42.0–0:47.0
-      // with 0.05s / 0.4s fades, −19.9 LUFS. No owner timestamp was given for
-      // this one; change the 42.0 in the cut if a different moment is wanted.
-      // Igris and Beru carry no rows — their attack/death stay on the defaults.
+      // Sung Jin-Woo hover: full 2:22 track, −20 LUFS. When Played: 0:42.0–0:47.0,
+      // the track's largest onset (the ARISE hit); change the 42.0 in the cut to
+      // pick a different moment. Igris and Beru stay on the defaults.
       'Sung Jin-Woo':     {
         hover: { src: 'audio/cards/sung-jin-woo-hover.mp3', maxDur: 142 },
         play:  { src: 'audio/cards/sung-jin-woo-play.mp3',  maxDur: 5 },
       },
-      // Spider-Man hover: first 1:20 of Danny Elfman's "Main Title"
-      // (Spider-Man 2002). Normalized to -20 LUFS — the unified baseline
-      // for signature cinematic hovers (Spider-Man / Anakin / Superman
-      // all sit at -20). 1s fade-in / 2s fade-out baked in. maxDur 81
-      // lets the full phrase play; ability slot kept for the legacy
-      // Spider-Man swing cue.
+      // Spider-Man hover: 1:20 clip at the -20 LUFS signature-hover baseline;
+      // maxDur 81 lets it play in full. ability slot = the swing cue.
       'Spider-Man':       { hover: { src: 'audio/cards/spider-man-hover.mp3?v=4', maxDur: 81 }, ability: 'audio/cards/spider-man-ability.mp3' },
-      // Human Torch's flame-on cue — fired from his onPlay (abilities.js) when
-      // he ignites, the same way Spider-Man / Predator fire their 'ability'.
+      // Human Torch's flame-on cue — fired from his onPlay (abilities.js).
       'Human Torch':      { ability: { src: 'audio/cards/human-torch-ability.mp3', maxDur: 4.0 } },
-      // Gorr — the All-Black necrosword lashing out as he lands. 'play' fires
-      // automatically from Game.playCard's wrapper (playCardSfx(name, 'play')),
-      // so this is his When Played cue. 2.06s sword-slash swoosh.
+      // Gorr — 2.06s sword-slash; 'play' fires automatically from
+      // Game.playCard's wrapper (playCardSfx(name, 'play')).
       'Gorr':             { play: 'audio/cards/gorr-play.mp3' },
-      // Death — the death-whistle. The full whistle plays on hover; his When
-      // Played cue is the same file capped at a 2s clip (playCardSfx(name,'play')
-      // fires from Game.playCard's wrapper). -20 LUFS baseline.
+      // Death — the full whistle plays on hover; When Played is the same file
+      // capped at a 2s clip.
       'Death':            { hover: { src: 'audio/cards/death-hover.mp3', maxDur: 27 }, play: { src: 'audio/cards/death-hover.mp3', maxDur: 2.0 } },
       'Ant-Man':          { death: { src: 'audio/cards/ant-man-death.m4a', fullDuration: true } },
-      // Ghostface hover: 58s of Nick Cave & The Bad Seeds' "Red Right
-      // Hand" (start → 0:58 of the source — intro through the first
-      // verse). -20 LUFS unified-baseline, 1s fade-in / 2s fade-out
-      // baked in. maxDur 59 lets the full phrase play.
-      // Ghostface play: 2.6s Voicemod-clipped "What's your favorite
-      // scary movie?" stinger. Sits just under the 3s play-cap, with
-      // a 0.2s fade-out baked into the encode so the tail blends out
-      // cleanly. Fires every time Ghostface lands on the board.
+      // Ghostface hover: 58s clip, -20 LUFS; maxDur 59 lets it play in full.
+      // Play: 2.6s stinger, just under the 3s play cap, 0.2s fade baked in.
       'Ghostface':        {
         hover: { src: 'audio/cards/ghostface-hover.mp3?v=2', maxDur: 59 },
         play:  { src: 'audio/cards/ghostface-play.mp3',  maxDur: 5.0 },
       },
-      // Harley deathfall — 0.58s clip, plays whenever Harley is killed.
-      // Already under the 1.5s death-cap so no maxDur needed.
+      // Harley death — 0.58s, under the 1.5s death cap so no maxDur needed.
       'Harley Quinn':     { death: 'audio/cards/harley-death.mp3' },
-      // Joker deathfall — 0.83s clip, plays on every Joker kill.
-      // Joker hover: the source file was mastered ~18 dB under every other
-      // cinematic hover (measured −38.6 dB mean), and `gain` cannot rescue it —
-      // the sample plays through a plain HTMLAudioElement whose volume is capped
-      // at 1.0, and 0.55 (sfxVolume) × 0.85 (hover) × 6.0 already saturates that
-      // ceiling, so raising the number did nothing. Fixed at the source instead:
-      // the mp3 is loudnorm'd to the house −20 LUFS baseline (peak −1.6 dB, no
-      // clip), which is the only lever that actually makes it louder. `?v=2`
-      // busts the old quiet file from the browser + service-worker caches.
-      // (User: "increase the sound of the jokers hover by a lot.")
+      // Joker death — 0.83s clip.
+      // Joker hover: the source was mastered ~18 dB quiet, and `gain` cannot
+      // rescue it — the HTMLAudioElement volume caps at 1.0 and is already
+      // saturated — so the mp3 itself is loudnorm'd to −20 LUFS. `?v=2` busts
+      // the old file from the browser + service-worker caches.
       'Joker':            { hover: { src: 'audio/cards/joker-hover.mp3?v=2', maxDur: 46, gain: 6.0 }, play: 'audio/cards/joker-play.mp3', death: 'audio/cards/joker-death.mp3' },
-      // Poison Ivy death — 0.58s clip, plays on every Ivy kill.
-      // Two takes, cut to 4s each with a 0.3s fade so neither ends on a hard
-      // edge; _resolveSfxEntry picks one at random per play. (Was 3.5s —
-      // owner: "poison ivy voice line should be 4 seconds not 3.5". The play
-      // event's own cap is 5s, so 4 plays whole and needs no maxDur here.)
+      // Poison Ivy death — 0.58s clip.
+      // Two voice-line takes, 4s each with a 0.3s fade; _resolveSfxEntry picks
+      // one at random per play. The play cap is 5s, so no maxDur needed.
       'Poison Ivy':       { death: 'audio/cards/poison-ivy-death.mp3',
                             play: ['audio/cards/poison-ivy-play-02.mp3',
                                    'audio/cards/poison-ivy-play-03.mp3'] },
@@ -357,217 +299,120 @@ const UI_AUDIO = {
       // Bane death — 0.58s clip, plays on every Bane kill.
       'Bane':             { hover: { src: 'audio/cards/bane-hover.mp3', maxDur: 21 }, death: 'audio/cards/bane-death.mp3' },
       'King Shark':       { play: { src: 'audio/cards/king-shark-play.mp3', fullDuration: true } },
-      // Homelander hover: 65s of Christopher Lennertz's "I Can Do Anything"
-      // finale from The Boys — the swelling Homelander hero-theme reprise.
-      // -20 LUFS unified-baseline, 1s fade-in / 2s fade-out baked. maxDur
-      // 66 lets the full phrase play across re-hovers (resume-from-pause).
+      // Homelander hover: 65s clip, -20 LUFS; maxDur 66 lets it play in full
+      // across re-hovers (resume-from-pause).
       'Homelander':       { hover: { src: 'audio/cards/homelander-hover.mp3', maxDur: 66 } },
-      // Omni-Man hover: 81s of Holy Fuck's "Tom Tom" (0:14 → 1:35) —
-      // the percussive synth-driven build that fits Nolan Grayson's
-      // menace-with-momentum. -20 LUFS, 1s fade-in / 2s fade-out
-      // baked. maxDur 81 = full clip plays across re-hovers.
+      // Omni-Man hover: 81s clip, -20 LUFS; maxDur 81 = full clip.
       'Omni-Man':         { hover: { src: 'audio/cards/omni-man-hover.mp3', maxDur: 81 } },
-      // Davy Jones hover: 72s from "Davy Jones" theme (Pirates of
-      // the Caribbean — Hans Zimmer / Klaus Badelt), 0:00 → 1:12 —
-      // the music-box organ intro that establishes the cursed-
-      // captain identity. -20 LUFS, 1s fade-in / 2s fade-out baked.
-      // maxDur 72 lets the full music-box phrase play.
+      // Davy Jones hover: 72s clip, -20 LUFS; maxDur 72 = full clip.
       'Davy Jones':       { hover: { src: 'audio/cards/davy-jones-hover.mp3', maxDur: 72 } },
-      // Emperor Palpatine hover: 65s of John Williams's "The
-      // Emperor" theme, 0:21 → 1:26 — the slow gregorian chant
-      // build that defines Sidious's throne-room menace. -20 LUFS,
-      // 1s fade-in / 2s fade-out baked. maxDur 65 lets the full
-      // sustained-choir phrase play across re-hovers.
+      // Emperor Palpatine hover: 65s clip, -20 LUFS; maxDur 65 = full clip.
       'Emperor Palpatine': { hover: { src: 'audio/cards/emperor-palpatine-hover.mp3', maxDur: 165 }, play: { src: 'audio/cards/emperor-palpatine-play.mp3', maxDur: 5 } },
-      // Wonder Woman hover: 115 s of Hans Zimmer + Junkie XL's "Is
-      // She With You" — Diana's electric-cello entrance theme from
-      // BvS / Wonder Woman. Clipped 0:00 → 1:55 to ride the full
-      // riff build through to the percussive payoff. -20 LUFS,
-      // 1s fade-in / 2s fade-out baked.
+      // Wonder Woman hover: 115s clip, -20 LUFS.
       'Wonder Woman':     { hover: { src: 'audio/cards/wonder-woman-hover.mp3', maxDur: 115 } },
-      // Deadpool hover: 80 s of *NSYNC's "Bye Bye Bye" (the
-      // Deadpool & Wolverine slo-mo intro track), 0:00 → 1:20 —
-      // captures the iconic backing-vocal build through the first
-      // full chorus. -20 LUFS, 1 s fade-in / 2 s fade-out baked.
+      // Deadpool hover: 80s clip, -20 LUFS.
       'Deadpool':         { hover: { src: 'audio/cards/deadpool-hover.mp3', maxDur: 80 }, play: { src: 'audio/cards/deadpool-play.mp3', maxDur: 3 } },
-      // Wolverine hover: 79 s of "Like a Prayer (Choir Version)"
-      // from Deadpool & Wolverine, 1:05 → 2:24 — the sustained
-      // choir build that scores his entrance. Pairs intentionally
-      // with Deadpool's "Bye Bye Bye" cue. -20 LUFS, 1 s fade-in /
-      // 2 s fade-out baked.
+      // Wolverine hover: 79s clip, -20 LUFS.
       'Wolverine':        { hover: { src: 'audio/cards/wolverine-hover.mp3', maxDur: 79 } },
-      // Godzilla hover: ~65s of the King-of-the-Monsters theme — the roar-and-
-      // brass build that scores his arrival. maxDur lets the full phrase play.
-      // Godzilla play: ~10s atomic roar. fullDuration so it isn't clipped by
-      // the 5s on-play cap (he's cost-7, not a 10, so he needs the flag) — the
-      // roar tails off on its own, no hard cut.
+      // Godzilla hover: ~65s; maxDur lets it play in full.
+      // Godzilla play: ~10s roar. fullDuration so the 5s on-play cap doesn't
+      // clip it (he's cost-7, not a 10, so he needs the flag).
       'Godzilla':         { hover: { src: 'audio/cards/godzilla-hover.mp3', maxDur: 65 }, play: { src: 'audio/cards/godzilla-play.mp3', fullDuration: true } },
-      // The Flash hover: 67 s of Junkie XL's "At the Speed of
-      // Force" (Justice League / The Flash motif), 1:35 → 2:42 —
-      // the percussive run sequence that scores Barry's speed-
-      // force traversals. -20 LUFS, 1 s fade-in / 2 s fade-out
-      // baked.
+      // The Flash hover: 67s clip, -20 LUFS.
       'The Flash':        { hover: { src: 'audio/cards/the-flash-hover.mp3', maxDur: 67 } },
-      // Captain America hover: 65s of Harry James's "It's Been a Long, Long
-      // Time" (start → 1:05) — the period-correct cue from CA's WWII era.
-      // -20 LUFS unified-baseline, 1s fade-in / 2s fade-out baked.
+      // Captain America hover: 65s clip, -20 LUFS.
       'Captain America':  { hover: { src: 'audio/cards/captain-america-hover.mp3', maxDur: 66 } },
-      // Optimus Prime hover: 57s of Steve Jablonsky's "Bumblebee Captured"
-      // (0:24 → 1:21) — the Autobot-leader theme reprise from the
-      // Transformers OST. -20 LUFS unified-baseline, 1s fade-in / 2s
-      // fade-out baked.
+      // Optimus Prime hover: 57s clip, -20 LUFS.
       'Optimus Prime':    { hover: { src: 'audio/cards/optimus-prime-hover.mp3?v=2' }, play: { src: 'audio/cards/optimus-prime-play.mp3', maxDur: 5.0 } },
-      // Sabertooth hover: 62s of "Logan Through Time" (0:54 → 1:56 of the
-      // source). 0.4s fade-in / 1.7s fade-out baked into the file; maxDur 62
-      // = full clip.
+      // Sabertooth hover: 62s clip; maxDur 62 = full clip.
       'Sabertooth':       { hover: { src: 'audio/cards/sabertooth-hover.mp3', maxDur: 62 } },
-      // Iron Man hover: 81s of AC/DC's "Shoot to Thrill" (start → 1:21) —
-      // Tony's signature entrance riff. -20 LUFS unified-baseline, 1s
-      // fade-in / 2s fade-out baked.
+      // Iron Man hover: 81s clip, -20 LUFS.
       'Iron Man':         { hover: { src: 'audio/cards/iron-man-hover.mp3', maxDur: 82 }, play: { src: 'audio/cards/iron-man-play.mp3', maxDur: 5 } },
       'Black Panther':    { hover: { src: 'audio/cards/black-panther-hover.mp3?v=2', maxDur: 236 } },
-      // Jigsaw hover: 69s of Charlie Clouser's "Hello Zepp + Overture"
-      // (start → 1:09) — the Saw signature theme intro. -20 LUFS unified-
-      // baseline, 1s fade-in / 2s fade-out baked. maxDur 70 lets the full
-      // phrase play.
+      // Jigsaw hover: 69s clip, -20 LUFS; maxDur 70 lets it play in full.
       'Jigsaw':           { hover: { src: 'audio/cards/jigsaw-hover.mp3?v=1', maxDur: 70 }, play: 'audio/cards/jigsaw-play.mp3' },
-      // Star-Lord hover: 65s of Redbone's "Come And Get Your Love" (start
-      // → 1:05) — the GOTG opening-scene cue. -20 LUFS unified-baseline,
-      // 1s fade-in / 2s fade-out baked. maxDur 66 lets the full phrase
-      // play.
+      // Star-Lord hover: 65s clip, -20 LUFS; maxDur 66 lets it play in full.
       'Star-Lord':        { hover: { src: 'audio/cards/star-lord-hover.mp3?v=1', maxDur: 66 } },
-      // Paul Atreides hover: 1:54 of "Kiss the Ring" (1:05 → 2:59 of the
-      // source). 1s fade-in / 2s fade-out + loudnorm -20 LUFS baked. Full clip.
+      // Paul Atreides hover: 1:54 clip, -20 LUFS. Full clip.
       'Paul Atreides':    { hover: { src: 'audio/cards/paul-atreides-hover.mp3', maxDur: 114 } },
-      // Hulk hover: 42s of Danny Elfman's "End Credits — From Hulk"
-      // (0:27 → 1:09 of the source). -20 LUFS unified-baseline, 1s
-      // fade-in / 2s fade-out baked. maxDur 43 lets the full phrase play.
+      // Hulk hover: 42s clip, -20 LUFS; maxDur 43 lets it play in full.
       'Hulk':             { hover: { src: 'audio/cards/hulk-hover.mp3?v=1', maxDur: 43 }, play: 'audio/cards/hulk-play.mp3' },
       'Groot':            { play: { src: 'audio/cards/groot-play.mp3', maxDur: 5 } },
       'Symbiote Spider-Man': { play: { src: 'audio/cards/symbiote-spider-man-play.mp3', maxDur: 5.0 } },
-      // Jango's WESTAR-34s: 2s of a blaster-pistol volley (0:20 -> 0:22 of the
-      // source the owner supplied). The window is one self-contained burst —
-      // silence from 19.4s, the volley starts exactly on 20.0, decays out by
-      // 21.7, and the next burst does not begin until 22.3 — so neither end
-      // cuts a transient. Two-pass loudnorm (linear, static gain) to -15 LUFS /
-      // -4.6 dB peak, which is where the other short combat cues sit (his own
-      // death is -14.3, Anakin's -14.2, the Battle Droid's -14.6).
+      // Jango's WESTAR-34s: a 2s self-contained volley (no transient cut at
+      // either end), -15 LUFS like the other short combat cues.
       // maxDur 2.0 because the attack slot's DEFAULT is 1.5s (it shares the
       // death branch in playCardSfx) and would clip the tail off the volley.
-      // ?v=2 because the filename did not change — see the note on The Grinch:
-      // without it _bustCache leaves the URL alone, the service worker serves
-      // the old bytes out of ASSET_CACHE, and the new clip never arrives.
+      // ?v=2 because the filename did not change — without it _bustCache leaves
+      // the URL alone and the service worker serves the old bytes from ASSET_CACHE.
       'Jango Fett':       { attack: { src: 'audio/cards/jango-fett-attack.mp3?v=2', maxDur: 2.0 }, death: 'audio/cards/jango-fett-death.mp3' },
       'Jason Voorhees':   { play: { src: 'audio/cards/jason-play.mp3', maxDur: 5.0 } },
       'Art the Clown':    { play: { src: 'audio/cards/art-the-clown-play.mp3', maxDur: 5.0 } },
       'Knull':            { hover: { src: 'audio/cards/knull-hover.mp3' }, play: { src: 'audio/cards/knull-play.mp3', fullDuration: true, gain: 4.5 } },
       'Galactus':         { hover: { src: 'audio/cards/galactus-hover.mp3' }, play: { src: 'audio/cards/galactus-play.mp3', maxDur: 5.0 } },
       'Dormammu':         { hover: { src: 'audio/cards/dormammu-hover.mp3' }, play: { src: 'audio/cards/dormammu-play.mp3', fullDuration: true } },
-      // Michael Myers hover: 55s of John & Cody Carpenter's "The Shape
-      // Returns" (start → 0:55) — the Halloween theme reborn. -20 LUFS
-      // unified-baseline, 1s fade-in / 2s fade-out baked. maxDur 56 lets
-      // the full phrase play; play slot keeps the existing stinger.
+      // Michael Myers hover: 55s clip, -20 LUFS; maxDur 56 lets it play in
+      // full; play slot keeps the existing stinger.
       'Michael Myers':    { hover: { src: 'audio/cards/michael-myers-hover.mp3?v=1', maxDur: 56 }, play: { src: 'audio/cards/michael-myers-play.mp3?v=3', maxDur: 5.3 } },
       'Thanos':           { hover: 'audio/cards/thanos-hover.mp3?v=4', ability: { src: 'audio/cards/thanos-ability.mp3?v=4', maxDur: 5 }, voiceLine: 'audio/cards/thanos-kill.mp3' },
-      // Gojo hover: 59s of Lady Gaga's "Judas" (3:11 → end of source) — the
-      // outro/refrain section. -20 LUFS unified-baseline, 1s fade-in / 2s
-      // fade-out baked. maxDur 60 lets the full phrase play; ability slot
-      // kept for the Hollow Purple cue (fires from inside abilities.js
-      // when Hollow Purple resolves, not on play).
+      // Gojo hover: 59s clip, -20 LUFS; maxDur 60 lets it play in full.
+      // ability slot = the Hollow Purple cue (fired from abilities.js when
+      // Hollow Purple resolves, not on play).
       'Gojo':             { hover: { src: 'audio/cards/gojo-hover.mp3?v=2', maxDur: 60 }, ability: { src: 'audio/cards/gojo-ability.mp3', maxDur: 4.0 } },
-      // Xenomorph hover: 62 s of Jed Kurzel's "The Covenant" theme
-      // (Alien: Covenant OST), 0:48 → 1:50 — the slow dread-build
-      // string section that scores the xenomorph's first hunt
-      // sequences. -20 LUFS, 1 s fade-in / 2 s fade-out baked.
-      // Replaced an earlier shorter cue per user direction "get rid
-      // of the other." Play / attack / death stay on the original
-      // 1.5-3 s SFX clips with their own duration caps baked in.
+      // Xenomorph hover: 62s clip, -20 LUFS. Play / attack / death stay on
+      // 1.5-3s SFX clips with their own duration caps baked in.
       'Xenomorph':        { hover: { src: 'audio/cards/xenomorph-hover.mp3?v=2', maxDur: 62 }, play: 'audio/cards/xenomorph-play.mp3', attack: 'audio/cards/xenomorph-attack.mp3', death: 'audio/cards/xenomorph-death.mp3' },
       'Predator':         { hover: 'audio/cards/predator-hover.mp3', ability: { src: 'audio/cards/predator-ability.mp3', maxDur: 3.0 } },
       'Thor':             { hover: 'audio/cards/thor-hover.mp3', attack: { src: 'audio/cards/thor-attack.mp3', maxDur: 1.5 } },
       // Lightsaber hum — Jedi only (Yoda, Obi-Wan, Ahsoka, Anakin).
-      // Yoda hover: ~51s clip. maxDur 52 lets the full phrase play.
-      // The whole death-cue family follows the LEGO rule: short
-      // (~1–2s native), -14 LUFS, NO baked fades (engine adds 130ms in /
-      // 300ms out), bare-string registry entry. Lane-gating already
-      // ensures only the highest-cost dying card per lane plays its cue,
-      // so a single big combat doesn't stack overlapping LEGO yelps.
+      // Yoda hover: ~51s clip. maxDur 52 lets it play in full.
+      // Death cues follow the LEGO rule: short (~1–2s native), -14 LUFS, NO
+      // baked fades (engine adds 130ms in / 300ms out), bare-string entry.
+      // Lane-gating ensures only the highest-cost dying card per lane plays
+      // its cue, so a big combat doesn't stack overlapping yelps.
       // ---- PER-CARD EFFECT OVERRIDES ----
-      // The `effects` map lets a card's source-of-effect lookup win
-      // over the global EFFECT_SFX entry. Use this when a card has
-      // its own thematic version of an effect (Mr. Freeze's freeze
-      // gun vs a generic ice sting; Spider-Man's web freeze vs Thor's
-      // lightning freeze; etc.). User spec: "the freezes are going to
-      // be all different."
+      // The `effects` map lets a card's own version of an effect win over the
+      // global EFFECT_SFX entry (e.g. each card's freeze sounds different).
       'Mr. Freeze':       { play: { src: 'audio/cards/mr-freeze-play.mp3', maxDur: 4 }, effects: { freeze: 'audio/cards/mr-freeze-freeze.mp3' } },
-      // Luke Skywalker hover: 98s of Samuel Kim's "A Jedi's Fury" (0:31 →
-      // 2:09 of source) — the heroic-build section. -20 LUFS unified-
-      // baseline, 1s fade-in / 2s fade-out baked. maxDur 99 lets the full
-      // phrase play.
+      // Luke Skywalker hover: 98s clip, -20 LUFS; maxDur 99 lets it play in full.
       'Luke Skywalker':   { hover: { src: 'audio/cards/luke-hover.mp3?v=2', maxDur: 99 } },
       'Yoda':             { hover: { src: 'audio/cards/yoda-hover.mp3', maxDur: 52 }, play: 'audio/cards/yoda-play.mp3', death: 'audio/cards/yoda-death.mp3' },
       'Darth Maul':       { hover: { src: 'audio/cards/darth-maul-hover.mp3?v=2', maxDur: 126 } },
-      // Padme's blaster: the Naboo pistol volley at 0:11 -> 0:13 of the source
-      // the owner supplied — trimmed at the FRONT to 11.62. The window they
-      // picked holds the right shot, but a whole second lands 0.63s early:
-      // silencedetect puts the silence at 10.731 -> 11.631, so taken verbatim
-      // the cue would have fired most of a second after the swing that made it.
-      // Starting on the transient gives 1.38s, decaying to -47 dB by the end,
-      // and that is under the attack slot's 1.5s default cap so it needs no
-      // maxDur of its own (unlike Jango's 2.0s volley). Two-pass loudnorm
-      // (linear) to -15.2 LUFS / -5.4 dB peak — the same family as his.
-      // New filename, so the global ?cv= stamp busts the cache and no per-entry
-      // ?v= is needed (see the note on Gamora).
+      // Padme's blaster: 1.38s volley, trimmed at the FRONT to start on the
+      // transient so the cue doesn't lag the swing. Under the attack slot's
+      // 1.5s default cap, so no maxDur needed (unlike Jango's 2.0s). -15.2 LUFS.
+      // New filename, so the global ?cv= stamp busts the cache (no ?v= needed).
       'Padme Amidala':    { hover: { src: 'audio/cards/padme-amidala-hover.mp3', maxDur: 106 }, attack: 'audio/cards/padme-amidala-attack.mp3' },
       'General Grievous': { hover: { src: 'audio/cards/general-grievous-hover.mp3?v=3', maxDur: 50 }, kill: { src: 'audio/cards/general-grievous-kill.mp3', maxDur: 3 } },
       // maxDur 3 — the house cap for a play sting (hover beds run long, casts
-      // do not). If the source runs longer it is trimmed at playback rather
-      // than talking over the turn that follows it.
-      // THE FULL 8.9s LINE, and fullDuration so nothing touches it. Two separate
-      // cuts were stacked here: the import pipeline had trimmed the source to
-      // 3.0s (the standard play-clip cap), and the registry's `maxDur: 3` then
-      // armed the engine's 1s programmatic cap-fade over the last third of what
-      // survived. Re-encoded from the 8.93s original at -20 LUFS with a 0.2s
-      // tail (click guard only, not a fade), and fullDuration keeps the engine
-      // off it. Owner: "his when played is being cut, let it play all the way
-      // through." This is a deliberate exception to the ~3s play-clip rule.
-      // Voldemort hover: 65s. Full clip — the hover rule caps play/attack/death
-      // clips, not hovers.
+      // do not), so a long source is trimmed rather than talking over the turn.
+      // THE FULL 8.9s LINE, with fullDuration so neither the 3s play-clip cap
+      // nor the engine's cap-fade touches it — a deliberate exception to the
+      // ~3s play-clip rule. 0.2s tail is a click guard, not a fade.
+      // Voldemort hover: 65s. Full clip — the caps apply to play/attack/death,
+      // not hovers.
       'Voldemort':        { hover: { src: 'audio/cards/voldemort-hover.mp3', maxDur: 66 }, play: { src: 'audio/cards/voldemort-play.mp3', fullDuration: true, gain: 2.5 } },
-      // Obi-Wan hover: 86s of John Williams' "The Immolation Scene" (0:00 →
-      // 1:26 of the source) — the Mustafar-duel elegy. 0.6s fade-in / 2s
-      // fade-out baked; maxDur 86 = full clip. ?v=2 busts the old cached file.
+      // Obi-Wan hover: 86s clip; maxDur 86 = full clip. ?v=2 busts the old
+      // cached file.
       'Obi-Wan':          { hover: { src: 'audio/cards/obi-wan-hover.mp3?v=2', maxDur: 86 }, play: 'audio/cards/obi-wan-play.mp3', death: 'audio/cards/obi-wan-death.mp3' },
       'Ahsoka':           { hover: { src: 'audio/cards/ahsoka-hover.mp3?v=1', maxDur: 64 } },
-      // Anakin Skywalker hover: 109s of John Williams' "Anakin's Dark Deeds"
-      // (LSO recording) — trimmed from 2:15 to the end of the source so the
-      // hover lands on the final, darker arc of the piece. -20 LUFS (unified
-      // signature-hover baseline), 1s fade-in / 2s fade-out baked in.
-      // maxDur 110 lets the full phrase play across re-hovers.
+      // Anakin Skywalker hover: 109s clip, -20 LUFS; maxDur 110 lets it play
+      // in full across re-hovers.
       'Anakin Skywalker': { hover: { src: 'audio/cards/anakin-hover.mp3?v=4', maxDur: 110 }, play: 'audio/cards/anakin-skywalker-play.mp3', death: 'audio/cards/anakin-death.mp3' },
       'Dr. Manhattan':    { hover: { src: 'audio/cards/dr-manhattan-hover.mp3', maxDur: 101, gain: 1.5 }, play: { src: 'audio/cards/dr-manhattan-play.mp3', maxDur: 5 } },
       'Red Skull':        { play: 'audio/cards/red-skull-play.mp3' },
       'Winter Soldier':   { hover: { src: 'audio/cards/winter-soldier-hover.mp3', maxDur: 338 } },
-      // Superman hover: first 1:14 of Hans Zimmer's "Krypton's Last" — the
-       // opening swell through the first cadence. Normalized to -20 LUFS
-       // (unified signature-hover baseline), 1s fade-in / 2s fade-out baked.
-       // maxDur 75 lets the full phrase play; resume-on-rehover keeps the
-       // position across visits.
-      // Superman play: 5s of John Williams' "Theme from Superman" (0:00 → 0:05)
-      // — the fanfare hits on entrance. 0.03s fade-in / 0.6s fade-out baked.
-      // ?v=3 busts the old cached play file.
+      // Superman hover: 1:14 clip, -20 LUFS; maxDur 75 lets it play in full;
+      // resume-on-rehover keeps the position across visits.
+      // Superman play: 5s fanfare. ?v=3 busts the old cached play file.
       'Superman':         { hover: { src: 'audio/cards/superman-hover.mp3?v=7', maxDur: 75 }, play: { src: 'audio/cards/superman-play.mp3?v=7', fullDuration: true } },
-      // The Grinch hover: 65s clip (2:10-3:15 of the source). maxDur tracks the
-      // FILE — it was 44, sized to the previous 43.4s clip, which would have cut
-      // this one off two thirds of the way through. ?v=2 because the filename
-      // did not change; without it a cached client keeps serving the old audio
-      // and the maxDur bump silently does nothing.
+      // The Grinch hover: 65s clip. maxDur tracks the FILE length. ?v=2 because
+      // the filename did not change; without it a cached client keeps the old
+      // audio and a maxDur change silently does nothing.
       'The Grinch':       { hover: { src: 'audio/cards/the-grinch-hover.mp3?v=2', maxDur: 66, gain: 1.5 } },
-      // Gamora hover: 89s clip (0:42-2:11 of the source). New filename, so the
-      // global ?cv= stamp handles cache-busting and no per-entry ?v= is needed.
-      // No gain override: measured -14.3 dB mean / 0.0 dB peak, already louder
-      // than Green Goblin below, which plays at the default 1.0. Boosting a
-      // clip that peaks at full scale only feeds the master limiter.
+      // Gamora hover: 89s clip. New filename, so the global ?cv= stamp handles
+      // cache-busting (no per-entry ?v=). No gain override: it already peaks
+      // at full scale, so boosting only feeds the master limiter.
       'Gamora':           { hover: { src: 'audio/cards/gamora-hover.mp3', maxDur: 90 } },
       'Green Goblin':     { hover: { src: 'audio/cards/green-goblin-hover.mp3', maxDur: 24 } },
       'Dr. Octopus':      { play: { src: 'audio/cards/dr-octopus-play.mp3?v=2', maxDur: 5 } },
@@ -579,8 +424,8 @@ const UI_AUDIO = {
       'Pennywise':        { hover: { src: 'audio/cards/pennywise-hover.mp3', maxDur: 100 }, spawn: { src: 'audio/cards/pennywise-spawn.mp3', maxDur: 8.5 }, play: { src: 'audio/cards/pennywise-spawn.mp3', maxDur: 8.5 } },
       'Jaws':             { spawn: { src: 'audio/cards/jaws-spawn.mp3?v=2', maxDur: 10 }, play: { src: 'audio/cards/jaws-spawn.mp3?v=2', maxDur: 10 } },
       // Battle Droid's "roger roger" (2.5s) — fires when General Grievous
-      // summons him in (see summonCard's spawn-cue hook). `play` mirrors it so
-      // any future direct play of the token still has audio.
+      // summons him (see summonCard's spawn-cue hook). `play` mirrors it so
+      // any direct play of the token still has audio.
       'Battle Droid':     { spawn: { src: 'audio/cards/battle-droid-spawn.mp3', maxDur: 4 }, play: { src: 'audio/cards/battle-droid-spawn.mp3', maxDur: 4 }, death: { src: 'audio/cards/battle-droid-death.mp3', maxDur: 3 } },
       'Mace Windu':       { play: { src: 'audio/cards/mace-windu-play.mp3', maxDur: 6 } },
       // Droideka's blaster fire — played from his onBeforeAttack (see ability).
@@ -590,9 +435,9 @@ const UI_AUDIO = {
       'Darkseid':         { play: { src: 'audio/cards/darkseid-play.mp3', maxDur: 5 } },
       'Boiler Room':      { hover: { src: 'audio/cards/boiler-room-hover.mp3', maxDur: 25 } },
       'Sewers':           { hover: { src: 'audio/cards/sewers-hover.mp3', maxDur: 15 } },
-      // Wetlands hover: 10.9s of swamp ambience — full clip, hovers are not
-      // capped. Spinosaurus play (2.6s) doubles as his `spawn` cue, since the
-      // only way he reaches the board is Wetlands releasing him.
+      // Wetlands hover: 10.9s ambience — full clip, hovers are not capped.
+      // Spinosaurus play (2.6s) doubles as his `spawn` cue, since the only way
+      // he reaches the board is Wetlands releasing him.
       'Wetlands':         { hover: { src: 'audio/cards/wetlands-hover.mp3', maxDur: 11 } },
       'Spinosaurus':      { spawn: { src: 'audio/cards/spinosaurus-play.mp3', maxDur: 3 }, play: { src: 'audio/cards/spinosaurus-play.mp3', maxDur: 3 } },
       'Open Water':       { hover: { src: 'audio/cards/open-water-hover.mp3' } },
@@ -605,56 +450,36 @@ const UI_AUDIO = {
       // sacrifice sting fires as 'ability' from _ironGiantIntercept's save.
       'Iron Giant':       { hover: { src: 'audio/cards/iron-giant-hover.mp3', maxDur: 45 }, ability: { src: 'audio/cards/iron-giant-sacrifice.mp3', maxDur: 3.5 } },
     },
-    // Default files for the per-card events — used when a card's
-    // CARD_SFX entry doesn't have that event. If neither the card-
-    // specific entry nor this default is set, playCardSfx falls back
-    // to a procedural synth tone (see PROC_EVENT_FALLBACK in
-    // playCardSfx) so every card still has audio feedback.
-    // User spec: "each card has, like, a default" — keeps all events
-    // audible even for cards without a unique registered file.
+    // Default files for the per-card events — used when a card's CARD_SFX
+    // entry lacks that event. If neither is set, playCardSfx falls back to a
+    // procedural synth tone (PROC_EVENT_FALLBACK) so every card has audio.
     // Events: hover (5s), play, ability, death, voiceLine.
     // play XOR ability: only one fires per card play (see Game.playCard
     // hook — 'ability' if card has onPlay, else 'play').
     // voiceLine: gated to ONE per round total across both sides, awarded
     // to the highest-cost card that lands a kill (see _voiceLineDelegate).
     DEFAULT_CARD_SFX: {
-      // hover is INTENTIONALLY null — a generic hover hum on every card
-      // was muddy (a lightsaber-hum default made every non-Jedi card
-      // sound like a Jedi). The Jedi cards still register the hum
-      // explicitly below; everything else stays silent on hover unless
-      // it gets its own file.
+      // hover is INTENTIONALLY null — a generic hover hum on every card is
+      // muddy; cards without their own file stay silent on hover.
       hover:     null,
-      // THE LANDING THUNK. Owner: "when a card lands in a lane sound." This is
-      // the slot for it — playCardSfx resolves `reg[event] ?? DEFAULT_CARD_SFX
-      // [event]`, so every card that has no play cue of its own now makes a
-      // physical sound as it hits the lane instead of falling through to the
-      // procedural cardPlay / cardPlayEnemy triad.
-      //
-      // A DEFAULT RATHER THAN A UNIVERSAL LAYER, and that is the same call this
-      // registry already makes one line up: the hover default is null because
-      // "a generic hover hum on every card was muddy". A card with its own
-      // voice line keeps it alone rather than getting a thunk mixed under it.
-      // Converted from the supplied .WAV — 155K of PCM for 1.8s, against 16K as
-      // mp3, and it is fetched on every first play of most cards in the game.
+      // THE LANDING THUNK: playCardSfx resolves `reg[event] ?? DEFAULT_CARD_SFX
+      // [event]`, so every card without its own play cue makes a physical sound
+      // as it hits the lane. A default rather than a universal layer: a card
+      // with its own voice line keeps it alone. mp3, not WAV — it is fetched on
+      // every first play of most cards.
       play:      'audio/cards/default-play.mp3',
       ability:   null, // procedural defaultAbility
-      // Generic LEGO Luke "argh" — used for any card that doesn't have its
-      // own death entry. Per-card overrides (Yoda, Anakin, Obi-Wan, ...)
-      // win in playCardSfx's lookup. `?v=2` cache-busts past the previous
-      // generic clip. Female-coded cards should eventually override with
-      // their own LEGO clip when the assets are ready.
+      // Generic LEGO "argh" for any card without its own death entry; per-card
+      // overrides win in playCardSfx's lookup. `?v=2` busts the previous clip.
       death:     'audio/cards/default-death.mp3?v=2',
       voiceLine: null  // procedural kill stinger
     },
 
     // ===================== EFFECT SFX =====================
-    // Central effect-based audio with per-source-card overrides. When
-    // ANY card or trick applies one of these effects, the engine
-    // wrapper below fires the corresponding cue at the moment the
-    // effect actually lands. User spec: "the freezes are going to be
-    // all different" — Mr. Freeze's freeze gun ≠ Black Widow's tranq
-    // ≠ Thor's lightning. So each source card can override the global
-    // effect sound.
+    // Central effect-based audio with per-source-card overrides. When ANY card
+    // or trick applies one of these effects, the engine wrapper below fires
+    // the cue at the moment the effect actually lands. Each source card can
+    // override the global effect sound.
     //
     // Lookup order in playEffect(name, source):
     //   1. CARD_SFX[source.name].effects[name]  — per-card override
@@ -670,31 +495,22 @@ const UI_AUDIO = {
       freeze:      null,
       stun:        null,
       fear:        null,
-      // THE ONE GLOBAL THAT IS FILLED IN. Owner: "for any mind control ability
-      // once you select the ability to fire on a card this sound plays." It is
-      // set here rather than on a card because mindControlCard is the single
-      // door every one of them goes through — Gorilla Grodd, Luke Skywalker,
-      // the Mind Stone — so a global default covers all of them, and any card
-      // that later wants its own can still override it through CARD_SFX.effects
-      // without this changing.
-      //
+      // The one filled-in global: mindControlCard is the single door every
+      // mind-control ability goes through (Grodd, Luke, the Mind Stone), so a
+      // global default covers all; a card can still override via CARD_SFX.effects.
       // An OBJECT, not a bare path: the clip is 2.85s and playEffect's default
-      // cap is 1.5s, which would cut a hypnotic sweep in half. See the maxDur
-      // handling in playEffect below.
+      // cap is 1.5s. See the maxDur handling in playEffect below.
       mindControl: { src: 'audio/effects/mind-control.mp3', maxDur: 3 },
-      // Jurassic Park event fanfare — the "Welcome to Jurassic Park" line, fired
-      // once from _announceHabitatEvent when that franchise's event (Wetlands or
-      // Enclosure) appears. maxDur is generous so the whole line plays out; it
-      // is a marquee announcement, not a one-shot tick. (Owner supplied the clip
-      // and asked for it on the Jurassic Park event.)
+      // Jurassic Park event fanfare — fired once from _announceHabitatEvent
+      // when that franchise's event (Wetlands or Enclosure) appears. maxDur is
+      // generous so the whole line plays; it is a marquee announcement.
       jurassicWelcome: { src: 'audio/jurassic-welcome.mp3', maxDur: 12 },
-      // Saw event — Jigsaw's "do you want to play a game" line, fired once from
-      // _announceHabitatEvent when the Saw event appears, as his card pops up.
-      // (Owner supplied the clip and asked for it on the Jigsaw event.)
+      // Saw event line — fired once from _announceHabitatEvent when the Saw
+      // event appears, as his card pops up.
       sawGame: { src: 'audio/saw-play-a-game.mp3', maxDur: 8 },
-      // Cog Invasion — one battle theme per VP, fired when that VP first arrives
-      // ("when they are talking"). maxDur keeps it a strong arrival flourish
-      // rather than hijacking the match music. (Owner supplied the four tracks.)
+      // Cog Invasion — one battle theme per VP, fired when that VP first
+      // arrives. maxDur keeps it an arrival flourish rather than hijacking the
+      // match music.
       cogThemeVp:       { src: 'audio/cog-theme-vp.mp3',       maxDur: 7 },
       cogThemeCfo:      { src: 'audio/cog-theme-cfo.mp3',      maxDur: 7 },
       cogThemeCj:       { src: 'audio/cog-theme-cj.mp3',       maxDur: 7 },
@@ -712,9 +528,8 @@ const UI_AUDIO = {
       heal:   'heal',
       armor:  'armor',
       evade:  'evade',
-      // freeze/stun/fear/mc/buff/debuff/summon stay silent until a
-      // per-card or global file is supplied. Better silent than the
-      // wrong-feeling synth.
+      // freeze/stun/fear/mc/buff/debuff/summon stay silent until a per-card or
+      // global file is supplied — better silent than the wrong-feeling synth.
     },
     // Per-effect cooldown so a chain (e.g. Vader's 7-damage chain →
     // 7 dealDamage calls) doesn't machine-gun the SFX. 80ms gap is
@@ -725,13 +540,9 @@ const UI_AUDIO = {
     playEffect(effectName, source, opts) {
       if (!UI.settings || UI.settings.sfxVolume === 0) return null;
       const now = performance.now();
-      // Per-source cooldown — was just `effectName` which dedupe'd
-      // SAME-effect-from-DIFFERENT-source within 80ms. That made
-      // simultaneous Fears from Batman + a trick suppress one of
-      // them. Source-aware key lets parallel effects layer cleanly.
-      // Same source firing the SAME effect within 80ms is still
-      // suppressed (the original anti-machine-gun guard for chain
-      // damage etc.).
+      // Per-source key: parallel effects from different sources (Batman's Fear
+      // + a trick's Fear) both play; the same source firing the same effect
+      // within 80ms is still suppressed (anti-machine-gun guard).
       const sourceTag = (source && source.name) ? source.name : '_global';
       const cooldownKey = effectName + '|' + sourceTag;
       const last = this._lastEffectTimes[cooldownKey] || 0;
@@ -746,16 +557,12 @@ const UI_AUDIO = {
       // 2. Global default
       if (!file) file = this.EFFECT_SFX[effectName];
       if (file) {
-        // AN ENTRY MAY CARRY ITS OWN CAP. Both registries above already accept
-        // `{ src, maxDur }` for exactly this reason — a clip written as a
-        // sweep or a phrase is ruined by a cap set for a one-shot tick — and
-        // this path only understood a bare path, so a longer effect cue had no
-        // way to say so. Strings still work untouched.
+        // An entry may carry its own cap as `{ src, maxDur }` — a sweep or a
+        // phrase is ruined by a cap set for a one-shot tick. Strings still work.
         let fileMax = null;
         if (file && typeof file === 'object') { fileMax = file.maxDur; file = file.src; }
-        // Effect SFX (fear, freeze, stun, damage, etc.) sit at the
-        // 'effect' tier — 0.7× of base sfxVolume — so they layer
-        // underneath play/voice marquee events.
+        // Effect SFX sit at the 'effect' tier — 0.7× of base sfxVolume — so
+        // they layer underneath play/voice marquee events.
         const base = { maxDur: fileMax != null ? fileMax : 1.5, fadeIn: 100, fadeOut: 200, category: 'effect' };
         const playOpts = Object.assign(base, opts || {});
         return this._playSample(file, playOpts);
@@ -768,8 +575,7 @@ const UI_AUDIO = {
 
     // Per-trick SFX registry. Events: hover, play.
     TRICK_SFX: {
-      // Batarang spin loop — 0.89s clip, fires every time Batarangs
-      // is played. Already under the 1.5s play-cap so no maxDur tweak.
+      // Batarang spin loop — 0.89s clip, under the 1.5s play cap.
       'Batarangs': {
         play: 'audio/cards/batarangs-play.mp3'
       },
@@ -800,44 +606,29 @@ const UI_AUDIO = {
         hover: 'audio/cards/mind-stone-hover.mp3',
         play:  'audio/cards/mind-stone-play.mp3'
       },
-      // MC BALLYHOO HIMSELF — his theme, on hover. He is not a playable trick,
-      // but the codex's Random Event tab renders him with the trick chrome
-      // (a .trick-card carrying data-trick-name), and the hover handler routes
-      // anything without data-card-name through playTrickSfx — so registering
-      // him here is all it takes to let you hold the cursor on his card and
-      // hear the carnival. (Owner: "if you hover over MC ballyhoo in the codex
-      // that main theme plays.")
-      //
-      // `hover` and not `play`: hover cues are deliberately full-length and
-      // resume-from-pause, which is what a 60-second theme wants, while `play`
-      // is capped at 1.5s and would clip it to a stub. Moving the cursor off
-      // stops it through the same _stopHover every other hover cue uses.
+      // MC BALLYHOO HIMSELF — his theme, on hover. Not a playable trick, but the
+      // codex's Random Event tab renders him with trick chrome (.trick-card with
+      // data-trick-name), and hover routes anything without data-card-name
+      // through playTrickSfx — so registering him here is all it takes.
+      // `hover` and not `play`: hover cues are full-length and resume-from-pause,
+      // while `play` is capped at 1.5s and would clip a theme to a stub. Moving
+      // the cursor off stops it through the shared _stopHover.
       'MC Ballyhoo': { hover: 'audio/ballyhoo-fanfare.mp3' },
-      // SHADOW MAN — same deal as Ballyhoo directly above: not a playable card,
-      // rendered with trick chrome in the codex's Random Event tab, so hover
-      // routes here. `hover` (full length, resume-from-pause) and not `play`,
-      // which is capped at 1.5s and would clip a theme to a stub.
+      // SHADOW MAN — same as Ballyhoo above: rendered with trick chrome in the
+      // codex, so hover routes here; `hover`, not the 1.5s-capped `play`.
       'Shadow Man': { hover: 'audio/shadow-man-theme.mp3' },
-      // MC BALLYHOO'S CANDIES — one cue, all four. They are unwrapped the same
-      // way whatever is inside them does, so they share a sound rather than
-      // each getting a near-identical one. Registered per name because the
-      // lookup is by trick name; there is no "family" key to hang it on.
+      // MC BALLYHOO'S CANDIES — one cue for all four. Registered per name
+      // because the lookup is by trick name (no "family" key).
       // Reaches every seat: Game.playTrick fires playTrickSfx on a successful
-      // play, and that is one of the four calls installSfxBridge relays, so the
-      // other three players in a 2v2 room hear it too.
+      // play, which installSfxBridge relays, so all 2v2 players hear it.
       'Twice Candy':   { play: 'audio/cards/candy-play.mp3' },
       'Cashzap Candy': { play: 'audio/cards/candy-play.mp3' },
       'Vampire Candy': { play: 'audio/cards/candy-play.mp3' },
       'Bloway Candy':  { play: 'audio/cards/candy-play.mp3' },
-      // THE WONDER WEAPONS FIRE DOWN THE CANDY PATH. They are cards, so they
-      // were registered in CARD_SFX and played through playCardSfx from the
-      // Game.playCard wrapper — and reported as silent, while the candies
-      // beside them (same author, same folder, playTrickSfx) were audible.
-      // Rather than keep guessing at why one path is quieter than the other in
-      // a hidden test pane I cannot measure volume in, they now use the path
-      // that is known to work. (Owner: "just make the sounds play for the guns
-      // like you make the sound play for the candies".) The CARD_SFX entries
-      // stay for hover and any other card-path lookup.
+      // THE WONDER WEAPONS FIRE DOWN THE CANDY PATH (playTrickSfx), the path
+      // known to be audible; their playCardSfx route from the Game.playCard
+      // wrapper was reported silent. The CARD_SFX entries stay for hover and
+      // any other card-path lookup.
       'Ray Gun':             { play: { src: 'audio/cards/ray-gun-play.mp3', noFade: true, fullDuration: true } },
       'Thundergun':          { play: { src: 'audio/cards/thundergun-play.mp3', noFade: true, fullDuration: true } },
       'Lightning Bow':       { play: { src: 'audio/cards/lightning-bow-play.mp3', noFade: true, fullDuration: true } },
@@ -852,9 +643,7 @@ const UI_AUDIO = {
     //   DEFAULT_CARD_SFX[event]  (file)      — fallback file
     //   generic procedural (cardPlay etc.)   — last-resort category cue
     // Functions are invoked with the sfx object as `this`, so they can
-    // call `this._tone(...)` / `this._noise(...)` / `this.play(...)`
-    // directly. Short, distinctive, "feels like the character" — not
-    // claims to be the franchise audio, just evocative of it.
+    // call `this._tone(...)` / `this._noise(...)` / `this.play(...)` directly.
     CARD_PROCEDURAL: {
       // =============== STAR WARS ===============
       'Darth Vader': {
@@ -1403,19 +1192,16 @@ const UI_AUDIO = {
     _currentHoverEl: null,
     _currentHoverAudio: null,
     // Menu music — random shuffle of card hover themes. One HTMLAudioElement
-    // chains tracks indefinitely: on 'ended', pick a new random hover clip
-    // (never the same one back-to-back) and play it. Stops when startMatch
-    // fires so gameplay audio owns the mix.
+    // chains tracks: on 'ended', pick a new random hover clip (never the same
+    // one back-to-back). Stops when startMatch fires so gameplay audio owns
+    // the mix.
     _music: null,
     _musicWantPlay: false,
     _menuHoverLastIdx: -1,
-    // MUSIC_SRC kept for the settings panel label / legacy path.
+    // MUSIC_SRC is kept for the settings panel label.
     MUSIC_SRC: 'audio/menu_music.mp3?v=6',
-    // NOTE: the old MENU_HOVER_SRCS array lived here — a hand-maintained list
-    // of every hover file, duplicated from CARD_SFX. It drifted five cards
-    // behind the registry before anyone noticed. The rotation is now derived
-    // from CARD_SFX in UI._menuCharHoverSrcs(), so adding a card with a hover
-    // track is all it takes to put it on the menu. Nothing to update here.
+    // The menu rotation is derived from CARD_SFX in UI._menuCharHoverSrcs(),
+    // so adding a card with a hover track puts it on the menu — no list here.
     _pickMenuTrack() {
       // Character cards only — no tricks, Infinity Stones, or environments.
       const srcs = (UI._menuCharHoverSrcs && UI._menuCharHoverSrcs()) || [];
@@ -1426,15 +1212,13 @@ const UI_AUDIO = {
       this._menuHoverLastIdx = idx;
       return srcs[idx];
     },
-    // Now-playing label click → jump to a fresh RANDOM hero (was a sequential
-    // step through the alphabetical list). User direction: "the menu hero
-    // art/music should be random instead of alphabetical." Delegates to the
+    // Now-playing label click → jump to a fresh RANDOM hero. Delegates to the
     // random picker so skip and auto-advance behave identically.
     _nextMenuTrack() {
       return this._pickMenuTrack();
     },
     // Cold-entry picker: lead with the player's pinned default hero once, then
-    // hand off to the random picker ("then it becomes random after that").
+    // hand off to the random picker.
     _pickMenuTrackForEntry() {
       const def = UI.settings && UI.settings.defaultMenuHero;
       if (def && !UI._menuDefaultLed) {
@@ -1454,72 +1238,53 @@ const UI_AUDIO = {
       for (const s of srcs) if (UI._menuHoverArtName(s) === name) return s;
       return null;
     },
-    // Match load-in sting — the former menu track. Played ONCE for ~20s at
-    // the first combat round of a match, then faded out. Not looped; lives
-    // on its own <audio> element independent of the menu loop.
+    // Match load-in sting. Played ONCE for ~20s at the first combat round of a
+    // match, then faded out. Not looped; lives on its own <audio> element
+    // independent of the menu loop.
     MATCH_INTRO_SRC: 'audio/match_intro.mp3?v=2',
     MATCH_INTRO_MS: 20000,   // total on-screen time before it's fully faded
 
     // MC Ballyhoo's fanfare. It starts the moment he arrives and plays UNDER
-    // his card rather than in front of it — the song used to run alone for ten
-    // seconds before the card dropped, which is the wait the owner asked to
-    // lose ("have his art immedialty shoe up").
+    // his card, so the card appears immediately rather than after the song.
     BALLYHOO_SRC: 'audio/ballyhoo-fanfare.mp3?v=1',
     // It only has to outlast the moment his voice cuts it
     // (BALLYHOO_VOICE_LEAD_MS), never to time anything, so this is a ceiling
     // rather than a duration and is deliberately left long.
     BALLYHOO_MS: 16000,
-    // …and his voice. The fanfare is the fairground starting up; this is the
-    // man himself, and it lands on the beat the card drops. The fanfare is cut
-    // at that moment rather than ducked — he is talking over it otherwise, and
-    // two pieces of Mario Party audio fighting each other is worse than
-    // either alone. (Owner: "this sound fires and the other music stops".)
+    // …and his voice, landing on the beat the card drops. The fanfare is cut
+    // at that moment rather than ducked — the two fighting each other is worse
+    // than either alone.
     BALLYHOO_VOICE_SRC: 'audio/ballyhoo-voice.mp3',
-    // Owner: "sound when you win." Supplied as .ogg and converted — nothing
-    // else in the project is ogg, and Safari's support for it is patchy enough
-    // that a PWA installed on an iPhone would simply have played nothing.
+    // Win sound. Converted from .ogg — Safari's ogg support is patchy enough
+    // that an iPhone PWA would play nothing.
     VICTORY_SRC: 'audio/win.mp3',
-    // Owner: "when you click on a card." Converted from the supplied .WAV —
-    // 73K of PCM against 7.5K as mp3, for a sound that fires on every tap.
+    // Card-click sound. mp3, not WAV — it fires on every tap.
     CARD_CLICK_SRC: 'audio/card-click.mp3',
 
     // ===================== FILE-BACKED NAMED CUES =====================
-    // play(name) is otherwise a pure synth switch, so a named cue had no way to
-    // be a real recording. This is the same shape EFFECT_SFX already uses one
-    // tier down: a name in here is played from its file, a name absent from it
-    // falls through to the switch exactly as before.
+    // play(name) is otherwise a pure synth switch. Same shape EFFECT_SFX uses:
+    // a name in here is played from its file, a name absent from it falls
+    // through to the switch.
     //
-    // hpHit is here because the owner asked for a sound "when the health bar
-    // gets hit", and it is registered rather than patched into the two call
-    // sites — the engine fires it from the FX stream and the MULTIPLAYER GUEST
-    // fires it separately off a state diff (the guest runs no local engine, so
-    // it never sees the event). Backing the cue itself means both inherit;
-    // editing the call sites would have given the guest silence.
+    // hpHit is registered here rather than patched into its call sites
+    // because two callers fire it: the engine from the FX stream and the
+    // MULTIPLAYER GUEST off a state diff (the guest runs no local engine).
+    // Backing the cue itself means both inherit it.
     //
-    // cooldownMs guards against the burst: face damage arrives per lane, so up
-    // to six hpHits can land in one tick. The 0.12s synth could stack; a 0.32s
-    // swing six times over cannot. 60ms collapses only what is genuinely
+    // cooldownMs guards the burst: face damage arrives per lane, so up to six
+    // hpHits can land in one tick. 60ms collapses only what is genuinely
     // simultaneous and still lets separately-timed hits read as separate.
     SAMPLE_CUES: {
       hpHit: { src: 'audio/hp-hit.mp3', maxDur: 0.6, fadeIn: 0, fadeOut: 60, cooldownMs: 60 },
-      // The round announcement. There was NO round sound before this — the
-      // banner was purely visual, verified by instrumenting play, _playSample
-      // and HTMLMediaElement.play across a real round rollover and seeing only
-      // a card hover and the combat hpHits. So this adds one rather than
-      // replacing anything.
+      // The round announcement (the round banner has no other sound).
       roundStart: { src: 'audio/new-round.mp3', maxDur: 1.5, fadeIn: 0, fadeOut: 120 },
-      // The Block Meter absorbing a hit — a sci-fi energy-shield activation.
-      // Its OWN cue name, not 'blockFull', on purpose: play('blockFull') is
-      // also reused as a triumphant sting for a TRIPLE multikill (see the
-      // multikill FX), which is not a block — so backing 'blockFull' itself
-      // would leak the shield whoosh onto that. This name is fired only from the
-      // 'blocked' FX event, the one moment a meter caps and turns a hit aside.
-      // cooldown guards the rare double-block in one tick. (User: "add this
-      // sound whenever you block an attack with your block meter.")
-      // category:'play' — a block is a marquee "your meter saved you" beat, not
-      // a supporting layer, so it is exempt from the four-sound concurrency cap
-      // (it fires mid-combat, when that cap is already full) and ducks the combat
-      // noise instead of being buried under it.
+      // The Block Meter absorbing a hit. Its OWN cue name, not 'blockFull', on
+      // purpose: play('blockFull') is also the TRIPLE-multikill sting, so
+      // backing 'blockFull' would leak the shield whoosh onto that. Fired only
+      // from the 'blocked' FX event. cooldown guards a double-block in one tick.
+      // category:'play' — a marquee beat, so it is exempt from the four-sound
+      // concurrency cap (it fires mid-combat, when that cap is already full)
+      // and ducks the combat noise instead of being buried under it.
       blockShield: { src: 'audio/block-full.mp3', maxDur: 2.1, fadeIn: 0, fadeOut: 150, cooldownMs: 300, category: 'play' },
     },
     // His sign-off, on the second text beat.
@@ -1533,10 +1298,9 @@ const UI_AUDIO = {
         this._ctx = new AC();
         this._master = this._ctx.createGain();
         this._master.gain.value = (UI.settings && UI.settings.sfxVolume) ?? 0.55;
-        // Master-bus limiter — catches the "wall of sound" the cue code
-        // itself worries about (multi-death combat, Batman + Fear + two
-        // Strikes summing past 0dBFS) before it hard-clips on destination.
-        // Fast attack, musical release; transparent until things get loud.
+        // Master-bus limiter — catches multi-death combat stacks summing past
+        // 0dBFS before they hard-clip on destination. Fast attack, musical
+        // release; transparent until things get loud.
         const comp = this._ctx.createDynamicsCompressor();
         comp.threshold.value = -10; comp.knee.value = 6; comp.ratio.value = 4;
         comp.attack.value = 0.003; comp.release.value = 0.15;
@@ -1552,21 +1316,20 @@ const UI_AUDIO = {
     },
 
     // ===================== THE MIXER (Web Audio buses) =====================
-    // File sounds used to play straight out of <audio> elements and fade by
-    // writing element.volume on a timer. That cannot be mixed as groups, and on
-    // iOS Safari element.volume is READ-ONLY (always 1) — every fade and duck in
-    // this file silently did nothing on an iPhone. Each element is now routed
-    // element -> its own GainNode -> a bus (music / sfx / voice) -> mix -> out.
+    // Each file element is routed element -> its own GainNode -> a bus
+    // (music / sfx / voice) -> mix -> out, so sounds mix as groups — and
+    // because on iOS Safari element.volume is READ-ONLY (always 1), so fades
+    // and ducks on element.volume do nothing there.
     //
-    // THE TRICK THAT KEEPS EVERY EXISTING FADE WORKING: a routed element's
-    // `volume` property is redefined on that instance to read/write its
-    // GainNode. All the code that already writes `el.volume` (fades, cap fades,
-    // ducks, the voice channel) now drives the mixer unchanged, and the native
-    // element volume is pinned at 1. Routing only happens once the context is
-    // RUNNING (after the first gesture) — a suspended context would play
-    // silence — and any failure leaves that element on the old native path.
-    // Buses are separate from this._master (the synth's master, already at the
-    // SFX volume) so the SFX setting is never applied twice.
+    // THE TRICK THAT KEEPS EVERY FADE WORKING: a routed element's `volume`
+    // property is redefined on that instance to read/write its GainNode, so
+    // all code writing `el.volume` (fades, cap fades, ducks, the voice
+    // channel) drives the mixer unchanged; native volume is pinned at 1.
+    // Routing only happens once the context is RUNNING (after the first
+    // gesture) — a suspended context would play silence — and any failure
+    // leaves that element on the native path. Buses are separate from
+    // this._master (the synth's master, already at the SFX volume) so the
+    // SFX setting is never applied twice.
     _MIX_BUS_OF: { voiceLine: 'voice', play: 'voice', ability: 'voice', hover: 'sfx', effect: 'sfx', death: 'sfx', music: 'music' },
     _mixReady() {
       return !this._mixOff && !!(this._ctx && this._ctx.state === 'running'
@@ -1621,9 +1384,8 @@ const UI_AUDIO = {
 
     // Autoplay policies suspend the AudioContext until a user gesture — arm it
     // on first click or keypress so later engine-triggered play() calls work.
-    // Also the hook that retries menu music start once we have a gesture
-    // (initial page load lands on the main menu, where we want music, but
-    // Chrome/Safari refuse to autoplay MP3s until the user interacts).
+    // Also retries menu music start once we have a gesture (browsers refuse
+    // to autoplay MP3s on the initial menu load until the user interacts).
     arm() {
       if (this._armed) return;
       this._armed = true;
@@ -1676,29 +1438,17 @@ const UI_AUDIO = {
     },
 
     // ===================== PROCEDURAL CUES ARE OFF =====================
-    // Owner: "when i tap a card i hear the sound i imported and a high pitched
-    // sound, almost like a balloon letting air out ... remove all default
-    // sounds that you made and leave all imported sounds."
-    //
-    // The blip on a tap was the hover cue, not the click: `play('cardHover')`
-    // is a 260→390Hz triangle with a 520Hz sine over it, and on desktop you
-    // hover a card immediately before clicking it, so the pair arrived together
-    // and read as one doubled sound. Removing that one cue would have left
-    // several dozen others of the same kind, which is what the instruction is
-    // actually about.
+    // Only imported (file) sounds play; synthesized default cues are disabled.
     //
     // GATED AT THE SYNTH, NOT AT EACH CUE. Every procedural cue in this file
     // ends up in _tone or _noise — the play() switch, the CARD_PROCEDURAL
-    // character cues, the roguelite and transition stingers. One guard here
-    // therefore silences all of them provably, where deleting cases one at a
-    // time would be forty edits and still miss whatever is added next. Files
-    // are untouched: they go through _playSample and never reach these.
+    // character cues, the roguelite and transition stingers — so one guard
+    // here silences all of them, including any added later. Files go through
+    // _playSample and never reach these.
     //
-    // NOT the two ambient beds. arenaHumStart and _dangerHeartbeatStart also
-    // synthesise, but they are drones with their own start/stop lifecycle
-    // rather than cues fired at an action, and they build their oscillators
-    // directly instead of through here. Flip PROCEDURAL_CUES back to true to
-    // restore every blip at once.
+    // NOT the two ambient beds: arenaHumStart and _dangerHeartbeatStart build
+    // their oscillators directly with their own start/stop lifecycle. Flip
+    // PROCEDURAL_CUES back to true to restore every blip at once.
     PROCEDURAL_CUES: false,
 
     _tone({ type = 'sine', freq = 440, freqEnd = null, dur = 0.15, gain = 0.25, attack = 0.005, release = null, delay = 0, pan = 0 }) {
@@ -1771,16 +1521,10 @@ const UI_AUDIO = {
     // Volume is tied to the sfxVolume master, scaled to ~7% peak so
     // it sits well behind every other game sound.
     arenaHumStart() {
-      // RETIRED. Owner: "get rid of the constant hum."
-      // This was a procedural drone running for the entire match — a detuned
-      // 55 Hz sub-pad, a 165 Hz mid, a 4.4 kHz shimmer and a 0.13 Hz LFO — and
-      // unlike every other sound in the game it never stopped. Something always
-      // playing is the one thing you cannot un-hear, and it sat under the card
-      // SFX and the music the whole time.
-      // Killed HERE rather than at the call site so it stays dead no matter who
-      // calls it, and arenaHumStop keeps working for anything already running
-      // when this ships. The generator below is left intact and unreachable —
-      // restoring it is deleting this return.
+      // RETIRED: no constant match drone. Killed HERE rather than at the call
+      // site so it stays dead no matter who calls it; arenaHumStop still works.
+      // The generator below is intact and unreachable — restoring it is
+      // deleting this return.
       const ARENA_HUM_ENABLED = false;   // flip to true to bring the hum back
       if (!ARENA_HUM_ENABLED) return;
       if (!this._init()) return;
@@ -1847,18 +1591,16 @@ const UI_AUDIO = {
       } catch (e) {}
       const stopAt = now + 1.45;
       try { h.subA.stop(stopAt); h.subB.stop(stopAt); h.mid.stop(stopAt); h.sh.stop(stopAt); h.lfo.stop(stopAt); } catch (e) {}
-      // Clear the handle immediately so a re-start can build a fresh
-      // stack while the old one fades. The stop()-scheduled nodes will
-      // GC themselves once the destination releases them.
+      // Clear the handle immediately so a re-start can build a fresh stack
+      // while the old one fades; the stop()-scheduled nodes GC themselves.
       this._arenaHum = null;
     },
 
     // ===================== DANGER HEARTBEAT =====================
     // A slow procedural "lub-dub" that fades in when the PLAYER's HP is
-    // critical (≤30%) so the tensest moment of a match is scored instead of
-    // silent. The game already computes the critical state for the red HP
-    // throb; this hooks the same beat to audio. Idempotent start/stop tied to
-    // the render loop (UI.render). Felt-but-subtle — sits under combat SFX.
+    // critical (≤30%), hooked to the same critical state as the red HP throb.
+    // Idempotent start/stop tied to the render loop (UI.render). Sits under
+    // combat SFX.
     _dangerHeartbeatStart() {
       if (!this._init()) return;
       if (this._dangerHeart) return;                       // already running
@@ -1905,8 +1647,7 @@ const UI_AUDIO = {
 
     // ===================== COMBAT ANTICIPATION THUMP =====================
     // Sub-bass thump fired alongside the .combat-anticipate body class.
-    // 60 Hz exp-decay sine + a soft noise tail. Brief — ~280ms total —
-    // so it lands as a kick, not a drone.
+    // 60 Hz exp-decay sine + a soft noise tail, ~280ms so it lands as a kick.
     combatAnticipateThump() {
       if (!this._init()) return;
       if (!UI.settings || UI.settings.sfxVolume === 0) return;
@@ -1919,21 +1660,16 @@ const UI_AUDIO = {
       this._tone({ type: 'triangle', freq: 1800, freqEnd: 600, dur: 0.06, gain: 0.04, attack: 0.001, release: 0.06, delay: 0 });
     },
 
-    // Boot-sequence audio — fires when the game enters its first
-    // combat phase out of trick-draft. Three layers, all timed to
-    // match the visual boot sequence in style.css:
-    //   - Whoosh (0-1100ms): wide-band noise sweep matching the
-    //     scanline crossing the screen. Two slightly-staggered
-    //     bursts at different freq bands give it a "filter sweep"
-    //     feel without needing a real animated filter.
-    //   - Hum (100-1900ms): low sustained pad — the "computer is
-    //     powered on" baseline drone. Subtle 80→100Hz wobble.
+    // Boot-sequence audio — fires when the game enters its first combat phase
+    // out of trick-draft, timed to the visual boot sequence in style.css:
+    //   - Whoosh (0-1100ms): two staggered noise bursts in different bands
+    //     (a "filter sweep" with the scanline, no animated filter needed).
+    //   - Hum (100-1900ms): low sustained pad, subtle 80→100Hz wobble.
     //   - Power-on bleep (550ms): rising sine pip at the scan peak.
-    //   - Per-card ticks (1100ms+): one short blip per hand card,
-    //     spaced 110ms apart matching the bootCardEnter stagger.
-    // Caller passes cardCount so we generate the right number of
-    // ticks. Respects the master sfx volume; bails clean if audio
-    // is unsupported / muted.
+    //   - Per-card ticks (1100ms+): one blip per hand card, 110ms apart to
+    //     match the bootCardEnter stagger.
+    // Caller passes cardCount for the tick count. Bails clean if audio is
+    // unsupported / muted.
     playBootSequence(cardCount) {
       if (!this._init()) return;
       if (!UI.settings || UI.settings.sfxVolume === 0) return;
@@ -1941,8 +1677,7 @@ const UI_AUDIO = {
       // low-mid, second rises into the high-mid as the scan peaks.
       this._noise({ dur: 0.85, gain: 0.08, highpass: 200,  lowpass: 1800, delay: 0.00 });
       this._noise({ dur: 0.95, gain: 0.10, highpass: 1200, lowpass: 5500, delay: 0.20 });
-      // Power-on hum — long low pad, fades in slow, hangs through
-      // the rest of the boot, then fades naturally.
+      // Power-on hum — long low pad, fades in slow, hangs through the boot.
       this._tone({ type: 'sawtooth', freq: 80,  freqEnd: 100, dur: 1.8, gain: 0.06, attack: 0.30, release: 1.8, delay: 0.10 });
       this._tone({ type: 'sine',     freq: 160, freqEnd: 200, dur: 1.8, gain: 0.04, attack: 0.30, release: 1.8, delay: 0.10 });
       // Power-on bleep — at scan peak. Quick rising sine pip.
@@ -1958,11 +1693,10 @@ const UI_AUDIO = {
       }
     },
 
-    // Menu-nav cue — plays a sampled WAV (separate path from the procedural
-    // engine since file playback is simpler via HTMLAudioElement, and
-    // AudioContext decoding would add async boot cost for a single asset).
-    // Volume tracks UI.settings.sfxVolume so the Settings slider controls
-    // everything. A small pool of clones prevents clipping on fast clicks.
+    // Menu-nav cue — a sampled file via HTMLAudioElement (separate from the
+    // procedural engine; AudioContext decoding would add async boot cost for
+    // a single asset). Volume tracks UI.settings.sfxVolume. A small pool of
+    // clones prevents clipping on fast clicks.
     playNav() {
       if (!UI.settings || UI.settings.sfxVolume === 0) return;
       if (!this._navPool) {
@@ -1973,9 +1707,8 @@ const UI_AUDIO = {
           this._navPool.push(a);
         }
       }
-      // Nav cue (Battlefront-style click) sits at ~50% of sfxVolume — a
-      // little quieter than other UI cues per user feedback ("button press
-      // sound a little quieter"). Was 0.9× before, now 0.5× ≈ -5 dB.
+      // Nav cue sits at 0.5× sfxVolume (≈ -5 dB), a little quieter than other
+      // UI cues.
       const vol = Math.max(0, Math.min(1, (UI.settings.sfxVolume ?? 0.55) * 0.5));
       const a = this._navPool[this._navIdx];
       this._navIdx = (this._navIdx + 1) % this._navPool.length;
@@ -2019,9 +1752,8 @@ const UI_AUDIO = {
       const a = this._ensureMusic();
       this._route(a, 'music');   // into the mixer's music bus (no-op before the first gesture)
       // Already playing a menu track? Keep it going. Navigating between menu
-      // screens (main-menu → mode-select / my-decks / stats, etc.) re-calls
-      // startMusic via wrapMenu — it must NOT re-roll or restart the loop, so
-      // the SAME hero's track keeps playing seamlessly across screen changes.
+      // screens re-calls startMusic via wrapMenu — it must NOT re-roll or
+      // restart, so the same hero's track plays seamlessly across screens.
       // Only (re)pick when nothing is playing: first entry, or returning to the
       // menu after a match (startRound's stopMusic pauses the bed).
       if (this._musicWantPlay && !a.paused && a.currentSrc) return;
@@ -2035,30 +1767,22 @@ const UI_AUDIO = {
         // Start silent, ramp up over 600ms.
         a.volume = 0;
         const p = a.play();
-        // Autoplay blocks trigger a rejected promise — swallow it and rely
-        // on the gesture-armed re-try in arm() to start playback once the
-        // user interacts with the page.
+        // Autoplay blocks reject the promise — swallow it and rely on the
+        // gesture-armed retry in arm() to start playback.
         if (p && p.catch) p.catch(() => {});
       } catch (e) { /* ignore */ }
       this._fadeVolume(a, target, 600, '_musicFadeInterval');
     },
 
-    // Duck the menu music — temporarily lower its volume so a hover
-    // theme can sit on top without the two muddying each other. Stores
-    // the original target on `_musicDuckBase` so restoreMusic can ramp
-    // back to exactly where we were. Idempotent — calling duckMusic
-    // twice is safe; the second call is a no-op while ducking is active.
-    // User spec: "when you hover a card I'd like the main menu music
-    // to be quieter so it isn't muddy."
+    // Duck the menu music so a hover theme can sit on top without muddying.
+    // Stores the original target on `_musicDuckBase` so restoreMusic can ramp
+    // back exactly. Idempotent — a second call is a no-op while ducked.
     _VOICE_PRIORITY: { voiceLine: 3, play: 2, ability: 1 },
     _VOICE_UNDER_GAIN: 0.35,
     voiceStats() { return Object.assign({ cues: 0, replaced: 0, under: 0 }, this._voiceStat || {}); },
     _MUSIC_DUCK_FACTOR: 0.18,  // duck to ~18% of normal level (-15 dB)
-    // 2026-05-19 — dropped 600 → 220 ms so the bed responds at the
-    // same pace as the hover audio's 120 ms fade-in. With a 600 ms
-    // duck the menu music was still loud for half a second after
-    // the hover SFX started playing — felt sluggish. 220 ms keeps
-    // the duck inaudible-but-responsive.
+    // 220ms so the bed responds at the pace of the hover audio's 120ms
+    // fade-in; a slower duck leaves the music loud after the hover starts.
     _MUSIC_DUCK_FADE_MS: 220,
     duckMusic() {
       if (UI.MENU_SCORE_ON) { UI.menuScore.duck(true); return; }
@@ -2081,10 +1805,9 @@ const UI_AUDIO = {
       this._fadeVolume(this._music, fullTarget, this._MUSIC_DUCK_FADE_MS, '_musicFadeInterval');
     },
 
-    // Instantly skip to a new random hover track — called when the player
-    // clicks the refresh/sync button on the main menu so they can quickly
-    // cycle until they hear something they like. Fades out in 250ms, then
-    // fades the next track in. No-op if music isn't currently playing.
+    // Instantly skip to a new random hover track — the main-menu refresh/sync
+    // button. Fades out in 250ms, then fades the next track in. No-op if music
+    // isn't playing.
     skipMenuTrack() {
       if (UI.MENU_SCORE_ON) { if (this._musicWantPlay) UI.menuScore.next(); return; }
       if (!this._musicWantPlay) return;
@@ -2104,11 +1827,10 @@ const UI_AUDIO = {
       });
     },
 
-    // Clicking the now-playing credit advances to the NEXT character track
-    // (sequential). Crossfades when music is already playing; starts cold on
-    // the next track if it isn't. The audio element's 'playing' listener
-    // re-syncs the hero art + the '♪ Name' label automatically, so art, music,
-    // and label all move together.
+    // Clicking the now-playing credit advances to the NEXT character track.
+    // Crossfades when music is playing; starts cold otherwise. The audio
+    // element's 'playing' listener re-syncs the hero art + '♪ Name' label, so
+    // art, music and label move together.
     nextMenuTrack() {
       if (UI.MENU_SCORE_ON) {
         if (UI.settings && (UI.settings.sfxVolume === 0 || UI.settings.menuMusic === false)) { this._musicWantPlay = true; return; }
@@ -2172,8 +1894,8 @@ const UI_AUDIO = {
       if (!this._music) return;
       const a = this._music;
       if (this._musicFadeInterval) { clearInterval(this._musicFadeInterval); this._musicFadeInterval = null; }
-      // Fade the loop out over 400ms before pausing — keeps the menu-to-
-      // round transition feeling cinematic instead of a silence drop.
+      // Fade the loop out over 400ms before pausing, so the menu-to-round
+      // transition isn't a silence drop.
       const restoreVol = this._musicTargetVol();
       this._fadeVolume(a, 0, 600, '_musicFadeInterval', () => {
         try { a.pause(); a.currentTime = 0; a.volume = restoreVol; } catch (e) {}
@@ -2181,10 +1903,9 @@ const UI_AUDIO = {
     },
 
     // Target playback level for the music bed (menu loop + match intro).
-    // Independent of the SFX slider: driven by the dedicated Music slider so
-    // a player can run loud music + quiet effects (or the reverse). The SFX
-    // slider at 0 still acts as the master kill-switch ("0 silences audio
-    // entirely"). 0.35 keeps music under nav/combat cues at full music vol.
+    // Driven by the dedicated Music slider, independent of the SFX slider —
+    // except SFX at 0 is still the master kill-switch. 0.35 keeps music under
+    // nav/combat cues at full music volume.
     _musicTargetVol() {
       if (!UI.settings || UI.settings.sfxVolume === 0) return 0;   // master mute
       const mv = (UI.settings.musicVolume != null) ? UI.settings.musicVolume : 0.55;
@@ -2197,26 +1918,20 @@ const UI_AUDIO = {
     },
 
     // ---- Match load-in cue ------------------------------------------------
-    // Plays the former menu track for ~20s as combat begins (first round of
-    // a match), then fades out. One-shot, non-looping, on its own <audio>
-    // element so it's fully independent of the menu loop (which has just
-    // faded out via stopMusic). Sits at the menu-bed level (0.35×) so combat
-    // SFX still cut through. Respects the same toggles as the menu music.
+    // Plays for ~20s as combat begins (first round of a match), then fades.
+    // One-shot, on its own <audio> element, independent of the menu loop
+    // (just faded out via stopMusic). Sits at the menu-bed level (0.35×) so
+    // combat SFX cut through. Respects the same toggles as the menu music.
     _matchIntro: null,
     _matchIntroTimer: null,
     // Same shape as playMatchIntro: its own Audio element, faded in, faded out
-    // on a timer, and never stacked — two Ballyhoos overlapping would be a mess
-    // and he can only turn up once a match anyway.
+    // on a timer, and never stacked (he can only turn up once a match anyway).
     playBallyhooFanfare() {
       try {
-        // MASTER MUTE ONLY. This used to bail on `menuMusic === false` and fade
-        // to _musicTargetVol(), both inherited from playMatchIntro — and both
-        // wrong here. menuMusic is a preference about background music in the
-        // MENU; MC Ballyhoo's theme is a gameplay event cue, so anyone with that
-        // toggle off got the card and the voice with dead silence where the
-        // 10-second lead-in should be. And _musicTargetVol() is musicVolume x
-        // 0.35 — about 0.19 at defaults — a level chosen to sit UNDER a menu,
-        // not to announce anything. (Owner: "never heard his theme play".)
+        // MASTER MUTE ONLY — not gated on `menuMusic` (a preference about MENU
+        // background music; this is a gameplay event cue) and not faded to
+        // _musicTargetVol() (~0.19 at defaults, a level chosen to sit UNDER a
+        // menu, not to announce anything).
         if (!UI.settings || UI.settings.sfxVolume === 0) return;
         this.stopBallyhooFanfare();
         const a = new Audio(this.BALLYHOO_SRC);
@@ -2227,9 +1942,9 @@ const UI_AUDIO = {
         // can never come in as a whisper.
         const sv = (UI.settings.sfxVolume != null) ? UI.settings.sfxVolume : 0.55;
         const target = Math.max(0.4, Math.min(1, sv * 0.95));
-        // GET THE MENU LOOP OUT OF THE WAY. If it is playing, two pieces of
-        // music fight for the same ten seconds and neither reads. Paused, not
-        // stopped, so it picks up where it left off when he is done.
+        // Get the menu loop out of the way — two pieces of music fighting for
+        // the same seconds and neither reads. Paused, not stopped, so it picks
+        // up where it left off when he is done.
         try {
           if (this._music && !this._music.paused) { this._music.pause(); this._ballyhooDuckedMusic = true; }
         } catch (e) {}
@@ -2250,15 +1965,14 @@ const UI_AUDIO = {
         }, Math.max(0, total - fadeOutMs));
       } catch (e) { /* a fanfare is never worth an exception */ }
     },
-    // SHADOW MAN'S THEME. Plays for as long as he is actually on screen rather
-    // than for a fixed length: the caller passes the duration of his reveals,
-    // because "arrive" is two text beats and "return" is one.
+    // SHADOW MAN'S THEME. Plays for as long as he is on screen rather than a
+    // fixed length: the caller passes the duration of his reveals ("arrive"
+    // is two text beats, "return" is one).
     SHADOW_SRC: 'audio/shadow-man-theme.mp3?v=1',
     playShadowTheme(ms) {
       try {
-        // MASTER MUTE ONLY — deliberately NOT gated on settings.menuMusic. That
-        // toggle is about background music in the MENU; this is a gameplay event
-        // cue, and gating on it is exactly what made Ballyhoo's theme silent.
+        // MASTER MUTE ONLY — deliberately NOT gated on settings.menuMusic, which
+        // is about MENU background music; this is a gameplay event cue.
         if (!UI.settings || UI.settings.sfxVolume === 0) return;
         this.stopShadowTheme();
         const a = new Audio(this.SHADOW_SRC);
@@ -2310,17 +2024,14 @@ const UI_AUDIO = {
         }
       } catch (e) {}
     },
-    // WIN ONLY. There is deliberately no defeat counterpart: the ask was for a
-    // sound when you WIN, and the procedural 'defeat' cue stays exactly as it
-    // was. Uncapped — the standing rule caps play/ability clips at 1.5-3s so
-    // they do not tail over the next action, but this is a 4.5s sting on a
-    // screen where nothing follows, and it is music, which that rule exempts.
+    // WIN ONLY — no defeat counterpart; the procedural 'defeat' cue stays.
+    // Uncapped: the 1.5-3s cap on play/ability clips exists so they don't
+    // tail over the next action, but this is a 4.5s music sting on a screen
+    // where nothing follows.
     playCardClick() {
-      // A COOLDOWN, because this one is fired by the user rather than by the
-      // game. Nothing else in here can be triggered a dozen times a second by
-      // someone clicking quickly, and without a floor those copies stack into
-      // a rattle. 70ms is below the rate anyone clicks deliberately and above
-      // the rate a double-click or a stray second event arrives at.
+      // A COOLDOWN, because this one is fired by the user clicking, which can
+      // stack copies into a rattle. 70ms is below the rate anyone clicks
+      // deliberately and above a double-click or stray second event.
       const now = Date.now();
       if (now - (this._lastCardClickAt || 0) < 70) return null;
       this._lastCardClickAt = now;
@@ -2366,8 +2077,7 @@ const UI_AUDIO = {
         if (!UI.settings || UI.settings.sfxVolume === 0) return;
         if (UI.settings.menuMusic === false) return;
         this.stopMatchIntro();   // never stack (e.g. fast rematch)
-        // THE SCORE CARRIES INTO THE MATCH (owner, 2026-11-11: "use the score
-        // music for the match intro too"). The piece the menu was playing comes
+        // THE SCORE CARRIES INTO THE MATCH: the piece the menu was playing comes
         // back for the intro window, then fades — no card track. startRound has
         // just called stopMusic, so this crossfades the same piece back in.
         if (UI.MENU_SCORE_ON && UI.menuScore) {
@@ -2428,11 +2138,8 @@ const UI_AUDIO = {
     // clone. Called when the clone is re-used for a new play so the old
     // timers don't fight with the new one's volume.
     _clearFadeTimers(a) {
-      // After the 2026-05-19 fade-engine rewrite, these IDs are RAF
-      // handles, not setInterval IDs. Cancel via cancelAnimationFrame
-      // primarily; clearInterval kept as a belt-and-braces fallback
-      // in case a fade from the legacy setInterval path is still in
-      // flight when this helper runs (e.g. mid-deploy, hot-reload).
+      // These IDs are RAF handles; cancel via cancelAnimationFrame, with
+      // clearInterval as a fallback for any interval-based fade in flight.
       const cancel = (id) => {
         if (id == null) return;
         try { cancelAnimationFrame(id); } catch (e) {}
@@ -2451,40 +2158,25 @@ const UI_AUDIO = {
     // each other. Fades DOWN use an ease-out-quad curve so the tail
     // lingers at low volume and the cut to silence doesn't click; fades
     // UP are linear (sharp transients still read as immediate).
-    //
-    // 2026-05-19 — switched from setInterval(20 ms) to
-    // requestAnimationFrame. The 20 ms timer fired 50 Hz unsynced with
-    // the browser's paint schedule, so every fade contended with the
-    // main thread; multiple simultaneous fades (old hover fading out +
-    // new hover fading in + music ducking) compounded into perceived
-    // lag during transitions. User report: "it's kinda lagging, how
-    // can we make the audio smoother transitions?" RAF syncs the
-    // volume writes with the next paint (~16.67 ms at 60 Hz, fewer
-    // ticks total) and auto-pauses when the tab is backgrounded — no
-    // wasted work and smoother per-frame interpolation. We cancel via
-    // `cancelAnimationFrame` instead of `clearInterval`. The `slot`
-    // contract stays the same so all the existing fade-in /
-    // fade-out / stop / duck call sites work unchanged.
+    // requestAnimationFrame, not setInterval: writes sync with paint, many
+    // simultaneous fades (hover out + hover in + music duck) share one tick,
+    // and it auto-pauses in a background tab.
     // How long until every currently-sounding non-hover cue has finished, in ms.
-    // Combat's lane advance uses this to hold a lane open until you have actually
-    // HEARD it resolve.
-    // Why this is needed alongside the existing _laneAudioEndsAt: that field is
-    // only written when a card had a real death SAMPLE that won the lane's single
-    // audio slot. Cards that fall back to a procedural cue return null from
-    // playCardSfx, so `chosen` was null, nothing was recorded, and the lane
-    // advanced on the flat base delay while the sound was still going. Measuring
-    // the live elements covers those, plus anything an onDeath trigger fired
-    // (ability cues, voice lines) that the single-slot bookkeeping never saw.
-    // Reading the ELEMENT rather than trusting a precomputed end-time also fixes
-    // the case where duration was NaN when the estimate was made — a freshly
-    // constructed Audio has readyState 0, so duration is unknown at exactly the
-    // moment the old code needed it.
+    // Combat's lane advance uses this to hold a lane open until you have
+    // actually HEARD it resolve.
+    // Needed alongside _laneAudioEndsAt, which is only written when a real
+    // death SAMPLE won the lane's single audio slot: procedural fallbacks
+    // (null from playCardSfx) and anything onDeath fired (ability cues, voice
+    // lines) are only covered by measuring the live elements. Reading the
+    // ELEMENT also handles a duration that was NaN at estimate time (a fresh
+    // Audio has readyState 0).
     // Bounded by design: the concurrency cap keeps this set small, and CAP_MS
     // stops one long voice line from stalling the whole combat.
     activeTailMs(capMs) {
       const CAP_MS = capMs || 2600;
       // No metadata yet -> assume a typical capped cue rather than 0. Guessing
-      // low here reintroduces the bug; guessing high only costs a short pause.
+      // low advances the lane under a sounding cue; guessing high only costs a
+      // short pause.
       const UNKNOWN_MS = 1100;
       let worst = 0;
       const consider = (a) => {
@@ -2502,9 +2194,8 @@ const UI_AUDIO = {
       const goingDown = toVol < startVol;
       const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
       const key = slot || '_fadeInterval';
-      // Cancel any in-flight RAF in the same slot. Belt-and-braces
-      // clearInterval too in case a fade was queued under the old
-      // setInterval implementation and the engine is mid-transition.
+      // Cancel any in-flight RAF in the same slot (clearInterval too, for any
+      // interval-based fade).
       if (a[key]) {
         try { cancelAnimationFrame(a[key]); } catch (e) {}
         try { clearInterval(a[key]); } catch (e) {}
@@ -2513,10 +2204,9 @@ const UI_AUDIO = {
       const tick = () => {
         const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
         const p = Math.min(1, (now - t0) / durMs);
-        // Ease-out-quad on the way down: amplitude drops more quickly
-        // initially, so we spend the last portion of the fade at quiet
-        // levels where a straight cut would otherwise stand out. Up-
-        // ramps stay linear — they're short and don't benefit from easing.
+        // Ease-out-quad on the way down: the last portion of the fade is spent
+        // at quiet levels where a straight cut would stand out. Up-ramps stay
+        // linear — they're short and don't benefit from easing.
         const eased = goingDown ? 1 - Math.pow(1 - p, 2) : p;
         a.volume = Math.max(0, Math.min(1, startVol + (toVol - startVol) * eased));
         if (p >= 1) {
@@ -2542,26 +2232,19 @@ const UI_AUDIO = {
     },
 
     // Global cache-bust suffix appended to card audio URLs. Bumped whenever
-    // the underlying files are batch-reprocessed (e.g. after a loudnorm
-    // pass) so browsers refetch instead of serving stale cached bytes.
-    // Only applied when the src doesn't already carry its own `?v=...`
-    // override (so individually-bumped entries like Thanos's stay intact).
+    // the files are batch-reprocessed (e.g. a loudnorm pass) so browsers
+    // refetch. Only applied when the src doesn't carry its own `?v=...`
+    // override (so individually-bumped entries stay intact).
     _CARD_AUDIO_VERSION: 13,
     _bustCache(src) {
       if (typeof src !== 'string' || src.indexOf('?') !== -1) return src;
       return src + '?cv=' + this._CARD_AUDIO_VERSION;
     },
     // ===================== AAA AUDIO BUSES =====================
-    // Category-based gain multipliers establish a priority hierarchy
-    // so layered audio reads as intentional rather than chaotic.
-    // Voice/play sit at marquee level (1.0); supporting effects sit
-    // underneath at 0.7 so they don't fight the moment. Pattern from
-    // AAA mixing practice (Wwise HDR / Unity audio mixer): "dialogue
-    // ducks SFX 10-15dB, ambient ducks both." Without this every
-    // category played at flat sfxVolume and a Batman play + Fear +
-    // 2 Strikes all stacked at the same loudness — fine alone, but
-    // collectively a wall of sound. Per-category gain creates space
-    // for each layer to be heard. */
+    // Category-based gain multipliers give layered audio a priority
+    // hierarchy: voice/play at marquee level (1.0), supporting effects at 0.7
+    // so they don't fight the moment ("dialogue ducks SFX, ambient ducks
+    // both"). Without it a play + Fear + 2 Strikes stack into a wall of sound.
     _CATEGORY_GAIN: {
       voiceLine: 1.10,  // dialogue/character voice — highest priority
       play:      1.00,  // marquee play SFX (Arkham theme, HULK SMASH, laughs)
@@ -2578,30 +2261,21 @@ const UI_AUDIO = {
       if (!this._activeNonHover) this._activeNonHover = new Set();
       src = this._bustCache(src);
       const isHover = !!(opts && opts.hover);
-      // SUPPRESSION CHECK MOVED AHEAD OF POOL CREATION. The 3 clones below are
-      // created with preload='auto', i.e. three full downloads, and this used
-      // to happen BEFORE the hover-suppression return further down. So sweeping
-      // the cursor across the board during combat — exactly when the board is
-      // busiest — kicked off megabytes of hover audio that was then never
-      // played. Card hover files average 1.65 MB.
+      // SUPPRESSION CHECK AHEAD OF POOL CREATION. The clones below are created
+      // with preload='auto' (full downloads; hover files average 1.65 MB), so
+      // a suppressed hover must return before they exist — or sweeping the
+      // cursor during combat downloads megabytes that never play.
       if (isHover && this._activeNonHover && this._activeNonHover.size > 0) return null;
-      // CONCURRENCY CAP ON SUPPORTING CUES — same reasoning as the hover check
-      // above, and deliberately in the same place: ahead of pool creation, so a
+      // CONCURRENCY CAP ON SUPPORTING CUES — also ahead of pool creation, so a
       // cue we are not going to play never spawns its clones.
-      // A wiped board fires a death cue per casualty, and _activeNonHover had no
-      // ceiling at all. Measured with a 12-card wipe: 12 Audio elements created
-      // in one tick, 6 playing at once. On a phone each of those is a cold fetch
-      // AND a decode landing in the same frame as the deaths themselves, which
-      // is precisely the moment the board is busiest — and twelve overlapping
-      // death sounds are not readable as twelve deaths anyway, they are noise.
-      // So this is a legibility fix as much as a performance one; the user's two
-      // complaints ("lags like crazy" and "impossible to tell what happens") are
-      // the same event seen from two sides.
+      // A wiped board fires a death cue per casualty; uncapped, that is a
+      // cold fetch + decode per card in the same frame as the deaths, and a
+      // dozen overlapping death sounds read as noise, not deaths. So this is a
+      // legibility fix as much as a performance one.
       // Only SUPPORTING cues are capped. Marquee audio — a card's voice line,
-      // its play cue, its ability — is never dropped, matching the mixing rule
-      // the category-gain table already encodes: voice ducks SFX, SFX never
-      // ducks voice. Four is the point past which additional simultaneous
-      // effects stop being distinguishable.
+      // its play cue, its ability — is never dropped (voice ducks SFX, SFX
+      // never ducks voice). Four is the point past which additional
+      // simultaneous effects stop being distinguishable.
       const _cat = (opts && opts.category) || (isHover ? 'hover' : 'effect');
       if (!isHover
           && (_cat === 'effect' || _cat === 'death')
@@ -2610,9 +2284,8 @@ const UI_AUDIO = {
       if (!clones) {
         clones = [];
         // ONE clone for hover, three for everything else. Only a single hover
-        // may sound at a time (enforced just below), so the other two were
-        // pure resident memory: every distinct card hovered in a match pinned
-        // 3 x 1.65 MB forever — _samplePool has no eviction path anywhere.
+        // may sound at a time (enforced below), and _samplePool has no
+        // eviction path, so extra hover clones would be pure resident memory.
         const n = isHover ? 1 : 3;
         for (let i = 0; i < n; i++) { const a = new Audio(src); a.preload = 'auto'; clones.push(a); }
         this._samplePool.set(src, clones);
@@ -2624,34 +2297,23 @@ const UI_AUDIO = {
         if (this._activeNonHover && this._activeNonHover.size > 0) return null;
         // Enforce ONE hover at a time at the audio layer: quick-fade any hover
         // clone still PLAYING (from this or another card) before starting a new
-        // one. Belt-and-suspenders against a missed mouseout / orphaned clone
-        // stacking into overlapping hovers. Paused-for-resume clones aren't in
-        // _activeHover (removed on 'pause'), so the resume feature is untouched.
+        // one, guarding against a missed mouseout / orphaned clone. Paused-for-
+        // resume clones aren't in _activeHover (removed on 'pause'), so resume
+        // is untouched.
         if (this._activeHover && this._activeHover.size) {
           Array.from(this._activeHover).forEach(h => {
             if (h && !h.paused) this._fadeToPauseAtPosition(h, 120);
           });
         }
-        // Hover resume: if any clone was previously paused mid-play
-        // (currentTime > 0 and < duration), re-use THAT clone and
-        // continue from where we left off. Otherwise start fresh.
-        // User spec: "Darth Vader's breathing doesn't restart when
-        // you press the card again — it just resumes from where you
-        // last had it."
+        // Hover resume: if a clone was paused mid-play (0 < currentTime <
+        // duration), re-use THAT clone and continue where it left off.
+        // Otherwise start fresh.
         const resumable = clones.find(a => a.paused && a.currentTime > 0 && (isNaN(a.duration) || a.currentTime < a.duration - 0.1));
         pick = resumable || clones.find(a => a.paused || a.ended) || clones[0];
       } else {
         pick = clones.find(a => a.paused || a.ended) || clones[0];
-        // HOVER DUCKING — when a non-hover SFX fires (play, ability,
-        // death, etc.), dip any currently-playing hover audio so the
-        // player can hear the new cue cleanly while the hover music
-        // keeps drifting underneath at lower volume. User spec:
-        // "I pressed jigsaw, and I heard the laugh and the hover
-        // music at the same time, which is kinda cool... like, hover
-        // music kind of blends with whatever the wind blade is. Just
-        // would have to be a little bit softer."
-        // Stop any hover audio immediately — board SFX takes priority and
-        // hover is blocked from starting again until _activeNonHover empties.
+        // Board SFX takes priority: stop any hover audio immediately; hover is
+        // blocked from starting again until _activeNonHover empties.
         if (this._activeHover.size > 0) {
           this._stopHover(true);
         }
@@ -2667,8 +2329,7 @@ const UI_AUDIO = {
       // docs/superpowers/specs/2026-11-10-presentation-director-design.md).
       // Priority: voice line 3 > card play / spawn / kill 2 > ability 1.
       //   newer, equal priority  -> takes the channel; the old cue fades out
-      //                             (two play cues used to overlap at 60/100,
-      //                             which is the garble a voice line got lost in)
+      //                             (overlapping play cues garble a voice line)
       //   higher priority        -> takes the channel; the old cue is ducked below
       //   lower priority         -> plays UNDER the current cue at 35%, never cut
       const _VPRI = this._VOICE_PRIORITY;
@@ -2700,11 +2361,10 @@ const UI_AUDIO = {
       // Tag the audio element with its category so other code paths
       // (voice-first ducking below) can decide who-ducks-who.
       pick._sfxCategory = cat;
-      // VOICE-FIRST DUCKING: when a play/voiceLine SFX fires, briefly
-      // duck OTHER active non-hover SFX (effects) so the marquee event
-      // is the focal point. AAA-mix principle: voice ducks SFX, SFX
-      // doesn't duck voice. Implemented per priority — the new SFX
-      // ducks any active SFX of LOWER or EQUAL tier. */
+      // VOICE-FIRST DUCKING: when a play/voiceLine SFX fires, briefly duck
+      // OTHER active non-hover SFX so the marquee event is the focal point.
+      // Voice ducks SFX, SFX doesn't duck voice: the new SFX ducks any active
+      // SFX of LOWER or EQUAL tier. */
       if (!isHover && (cat === 'play' || cat === 'voiceLine' || cat === 'ability')) {
         const restoreMs = (opts && opts.fadeOut) || 600;
         const playLife = (opts && opts.maxDur) ? opts.maxDur * 1000 : 1500;
@@ -2714,10 +2374,8 @@ const UI_AUDIO = {
           if (other._sfxCategory === 'voiceLine') return;
           if (other._sfxPreDuck == null) other._sfxPreDuck = other.volume;
           this._clearFadeTimers(other, '_voiceDuckInterval');
-          // Duck to 60% of current — supporting effects step back so
-          // the play moment lands cleanly.
-          // A voice line pulls everything else down to 35% (was 60%): it is the
-          // one cue the player must not miss.
+          // Duck to 60% of current so supporting effects step back; a voice
+          // line pulls everything to 35% — the one cue the player must not miss.
           const tgt = other._sfxPreDuck * (cat === 'voiceLine' ? this._VOICE_UNDER_GAIN : 0.60);
           this._fadeVolume(other, tgt, 150, '_voiceDuckInterval');
           clearTimeout(other._sfxRestoreTimer);
@@ -2728,28 +2386,20 @@ const UI_AUDIO = {
           }, Math.max(playLife - restoreMs, 200));
         });
       }
-      // Fade IN from silence — prevents a click on sharp-onset files
-      // and makes every cue land softly. For hover samples we resume
-      // at currentTime instead of jumping back to 0; for everything
-      // else we rewind. Per-event fade-in duration via opts.fadeIn
-      // (hover 1000ms, play 500ms; default 130ms for death).
+      // Fade IN from silence — prevents a click on sharp-onset files. Hover
+      // samples resume at currentTime; everything else rewinds. Per-event
+      // fade-in via opts.fadeIn (hover 1000ms, play 500ms; default 130ms).
       // Into the mixer first (no-op until the context is running, or if routing
       // fails for this element) — and a context iOS suspended gets woken.
       if (this._ctx && this._ctx.state === 'suspended') { try { this._ctx.resume().catch(() => {}); } catch (e) {} }
       this._route(pick, this._MIX_BUS_OF[cat] || 'sfx');
       try {
         pick.volume = 0;
-        // `pick.currentTime = 0` used to sit bare inside this same try. On iOS
-        // Safari, setting currentTime on a media element still in HAVE_NOTHING
-        // (readyState 0) throws InvalidStateError — and the clone pool above is
-        // built LAZILY, so the very first play of any given card's sound is
-        // always in exactly that state. The throw aborted this whole block
-        // before pick.play() was ever reached and the `catch { return null }`
-        // swallowed it, so the cue was silently lost on its first use and
-        // worked every time after. That is the reported symptom: "the when
-        // played audio doesnt fire all the time on mobile."
-        // Rewinding is only meaningful once there IS media to rewind, so skip
-        // it when there is none, and never let it take the play() call down.
+        // On iOS Safari, setting currentTime on an element still in HAVE_NOTHING
+        // (readyState 0) throws InvalidStateError — and the pool is built
+        // LAZILY, so the first play of any card's sound is in that state. A
+        // throw here would abort before pick.play() and lose the cue. Rewind
+        // only when there is media, and never let it take play() down.
         if (!isHover && pick.readyState > 0) {
           try { pick.currentTime = 0; } catch (_) {}
         }
@@ -2757,18 +2407,16 @@ const UI_AUDIO = {
         if (p && p.catch) {
           let retried = false;
           p.catch(() => {
-            // ONE retry once the element actually has data. iOS rejects play()
-            // with NotAllowedError / AbortError while a pooled element is still
-            // loading or was interrupted mid-load; the previous empty catch
-            // dropped the cue permanently. Self-removing one-shot listener —
-            // no polling, no new timers, nothing that runs on idle.
+            // ONE retry once the element has data: iOS rejects play() with
+            // NotAllowedError / AbortError while a pooled element is loading or
+            // was interrupted mid-load. Self-removing one-shot listener — no
+            // polling, no timers, nothing that runs on idle.
             if (retried) return;
             retried = true;
             pick.addEventListener('canplay', () => {
-              // Only resume if this cue is still wanted — a card whose sound
-              // was stopped or superseded in the meantime has already been
-              // pulled from the active set by the 'pause'/'ended' handlers
-              // registered just below.
+              // Only resume if this cue is still wanted — a stopped/superseded
+              // sound was already pulled from the active set by the
+              // 'pause'/'ended' handlers below.
               const live = isHover ? this._activeHover : this._activeNonHover;
               if (!live || !live.has(pick) || !pick.paused) return;
               try { pick.play().catch(() => {}); } catch (_) {}
@@ -2776,11 +2424,9 @@ const UI_AUDIO = {
           });
         }
       } catch (e) { return null; }
-      // Track active audio in category-aware sets so the duck logic
-      // can operate on the right group. Hover gets its own set
-      // (the existing 50% bed duck path); everything else goes in
-      // _activeNonHover so the voice-first ducking can step them
-      // back when a play/voiceLine fires.
+      // Track active audio in category-aware sets: hover gets its own set
+      // (the bed duck path); everything else goes in _activeNonHover so
+      // voice-first ducking can step them back.
       if (isHover) {
         this._activeHover.add(pick);
         pick.addEventListener('ended', () => this._activeHover.delete(pick), { once: true });
@@ -2791,22 +2437,20 @@ const UI_AUDIO = {
         pick.addEventListener('pause', () => this._activeNonHover.delete(pick), { once: true });
       }
       // NO FADE, FOR CUES THAT MUST SIMPLY BE HEARD. The ramp is driven by
-      // requestAnimationFrame, so anywhere rAF is throttled — a background tab,
-      // a hidden pane — the volume never leaves 0 and the cue plays silently.
-      // Setting it outright removes both the fade-in and that failure mode.
-      // (Owner: "make sure for all the gun sounds there is no fade out but it
-      // works".) The fade-out is skipped through the same flag below.
+      // requestAnimationFrame, so wherever rAF is throttled (background tab,
+      // hidden pane) the volume never leaves 0 and the cue plays silently.
+      // Setting it outright avoids that; the fade-out is skipped through the
+      // same flag below.
       if (opts && opts.noFade) {
         pick.volume = vol;
       } else {
         const fadeInMs = (opts && opts.fadeIn) ? opts.fadeIn : 130;
         this._fadeVolume(pick, vol, fadeInMs, '_fadeInInterval');
       }
-      // Fade OUT — schedule an ease-out ramp that lands at the clip's
-      // natural end OR at the requested `maxDur` cap, whichever is
-      // shorter. Per-event tail duration via opts.fadeOut (hover 2000ms,
-      // play 1000ms; default 300ms for death so chained deaths don't
-      // trail into each other).
+      // Fade OUT — schedule an ease-out ramp that lands at the clip's natural
+      // end OR the `maxDur` cap, whichever is shorter. Per-event tail via
+      // opts.fadeOut (hover 2000ms, play 1000ms; default 300ms for death so
+      // chained deaths don't trail into each other).
       const fadeMs = (opts && opts.fadeOut) ? opts.fadeOut : (isHover ? 1500 : 300);
       const scheduleCapFade = (durSec) => {
         const fadeStartMs = Math.max(0, durSec * 1000 - fadeMs);
@@ -2814,11 +2458,8 @@ const UI_AUDIO = {
           pick._capTimeout = null;
           const startVol = pick.volume;
           const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
-          // RAF-driven taper — synced to paint, no main-thread 50 Hz
-          // setInterval. Matches the rest of the fade engine (see
-          // _fadeVolume) so multiple simultaneous fades share one
-          // animation tick instead of contending. 2026-05-19
-          // smoother-transitions pass.
+          // RAF-driven taper, like the rest of the fade engine (_fadeVolume),
+          // so simultaneous fades share one animation tick.
           const capTick = () => {
             const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
             const p = Math.min(1, (now - t0) / fadeMs);
@@ -2835,15 +2476,10 @@ const UI_AUDIO = {
         }, fadeStartMs);
       };
       const maxDur = opts && opts.maxDur;
-      // SKIP the programmatic cap-fade when `fullDuration` is set
-      // (hover SFX). User spec: "no max restriction on how long a
-      // hover is. I dictate where to start and stop the song."
-      // Hover MP3s already have their fade-out BAKED IN by the
-      // ffmpeg pipeline at clip-time — stacking the engine's own
-      // 2s ease-out on top of that compounded into a fade that
-      // killed the volume ~2s before the user's intended end. The
-      // audio now plays naturally to its `ended` event with the
-      // baked fade as the only taper.
+      // SKIP the programmatic cap-fade when `fullDuration` is set (hover SFX):
+      // hover length is set by the clip itself, and hover MP3s have their
+      // fade-out BAKED IN — stacking the engine's 2s ease-out on top would
+      // kill the volume ~2s early. The audio plays to its `ended` event.
       if (opts && opts.fullDuration) {
         // intentionally no cap-fade scheduled
       } else if (maxDur && maxDur > 0) {
@@ -2865,19 +2501,17 @@ const UI_AUDIO = {
     // both into `{ src, opts }` for _playSample.
     _resolveSfxEntry(entry) {
       if (!entry) return null;
-      // AN ARRAY IS A SET OF ALTERNATES. Owner: "have it so it's random which
-      // sound plays if there are multiple for a card." Handled here rather than
-      // in playCardSfx because this is the one function every registry entry
-      // passes through — CARD_SFX, DEFAULT_CARD_SFX, TRICK_SFX and the effect
-      // overrides all resolve through it — so every event on every card and
-      // trick (play, hover, death, ability, kill, spawn, attack) gets alternates
-      // at once, and a future registry inherits it without knowing about it.
+      // AN ARRAY IS A SET OF ALTERNATES — one is picked at random per play.
+      // Handled here because every registry entry passes through this function
+      // (CARD_SFX, DEFAULT_CARD_SFX, TRICK_SFX, effect overrides), so every
+      // event on every card and trick gets alternates, including future
+      // registries.
       //
       // Math.random, NOT the engine's seeded rng: which take you hear is
-      // presentation, and drawing from the game's RNG here would advance it by a
-      // different number of steps depending on audio settings, desyncing replays
-      // and multiplayer. Entries stay mixed — a member may be a bare path or a
-      // { src, maxDur } object, because the recursion below re-resolves it.
+      // presentation, and drawing from the game's RNG would advance it by a
+      // settings-dependent number of steps, desyncing replays and multiplayer.
+      // Members may be a bare path or a { src, maxDur } object (the recursion
+      // re-resolves each).
       if (Array.isArray(entry)) {
         if (!entry.length) return null;
         return this._resolveSfxEntry(entry[Math.floor(Math.random() * entry.length)]);
@@ -2900,11 +2534,10 @@ const UI_AUDIO = {
     //     Decision lives in the Game.playCard hook, not here.
     //   • death: capped 1.5s; highest-cost dying card in a lane wins the
     //     lane's audio slot (see combat pacing below).
-    //   • voiceLine: capped 3s. GATED — fires at most ONCE per round across
-    //     BOTH sides. Awarded to the highest-cost card that lands a kill.
+    //   • voiceLine: capped 3s. GATED — at most ONCE per round across BOTH
+    //     sides, awarded to the highest-cost card that lands a kill.
     //     Pre-computed at combat start into `_voiceLineDelegate`; killCard
-    //     hook only fires it for that card. User spec: "one voice line per
-    //     round on kill — too many voices gets crammed fast".
+    //     hook only fires it for that card.
     //   • ability: cost-based priority — if a higher-cost card's ability
     //     fired in the last 600ms, lower-cost abilities are suppressed.
     // Lookup chain per event:
@@ -2938,31 +2571,21 @@ const UI_AUDIO = {
       //     blaster fire). Same cap/fade profile as play.
       const ALLOWED = { hover: 1, play: 1, death: 1, ability: 1, kill: 1, spawn: 1, attack: 1 };
       if (!ALLOWED[event]) return null;
-      // HAND-AUDIO PRIVACY (user, 2026-07-25): every card has its OWN hover cue,
-      // so browsing your hand tells anyone sitting beside you exactly what you
-      // are holding — a real tell when you play online next to your opponent.
-      // With the setting on we return null for the IDENTIFYING hover cue only;
-      // each call site already falls back to the generic `cardHover` blip, so
-      // you keep the tactile feedback and lose the information leak — and the
-      // rest of the game stays at full volume. play/death/kill/spawn are NOT
-      // gated: by then the card is face-up on the board and already public.
-      // A TAUNT is not a hand leak. The privacy setting exists so browsing your
-      // own hand doesn't announce what you hold — but a taunt is a deliberate
-      // broadcast of a character's theme to the opponent, so it must play even
-      // with privacy on. `cardOrCost === 'taunt'` is the opt-out flag passed by
-      // UI._playTauntSound. (User: "the taunt system for play sounds doesn't
-      // work either" — with hand-audio privacy on every taunt returned null.)
+      // HAND-AUDIO PRIVACY: every card has its OWN hover cue, so browsing your
+      // hand tells anyone beside you what you hold. With the setting on, return
+      // null for the IDENTIFYING hover cue only; call sites fall back to the
+      // generic `cardHover` blip. play/death/kill/spawn are NOT gated: by then
+      // the card is face-up on the board and public.
+      // A TAUNT is not a hand leak — it is a deliberate broadcast to the
+      // opponent, so it plays even with privacy on. `cardOrCost === 'taunt'` is
+      // the opt-out flag passed by UI._playTauntSound.
       const _isTaunt = cardOrCost === 'taunt';
       if (event === 'hover' && !_isTaunt && UI.settings && UI.settings.handAudioPrivacy) return null;
       // FACE-DOWN PRIVACY — a card played face-down (Invisible Woman's cloak, a
-      // hidden Deadpool steal, etc.) is NOT public: only a card BACK shows on
-      // the board. But its identifying play/spawn theme would announce exactly
-      // which card it is — a real tell, and online BOTH clients fire the cue.
-      // Swap the card-specific theme for the generic placement blip so the
-      // play still lands with tactile feedback but leaks nothing. death/kill
-      // are unaffected (a face-down card flips face-up before it can die) and
-      // hover is already gated above. User: "when a card is played upside down,
-      // the sounds still fire and gives away the card."
+      // hidden Deadpool steal, etc.) shows only a card BACK, but its play/spawn
+      // theme would identify it (online BOTH clients fire the cue). Swap it for
+      // the generic placement blip. death/kill are unaffected (a face-down card
+      // flips face-up before it can die); hover is already gated above.
       if ((event === 'play' || event === 'spawn')
           && cardOrCost && typeof cardOrCost === 'object' && cardOrCost.isFaceDown) {
         this.play(cardOrCost.owner === 'ai' ? 'cardPlayEnemy' : 'cardPlay');
@@ -2971,31 +2594,21 @@ const UI_AUDIO = {
       // Resolve file: card-specific first, else global default.
       const reg = this.CARD_SFX[name] || {};
 
-      // THE DEFAULT "WHEN PLAYED" CUE IS THE CARD'S OWN HOVER THEME.
-      // Owner: "the default when-played sound for cards is just their specific
-      // hover from wherever it last stopped — so if I play Thanos, there's no
-      // unique when-played sound, the default would be his hover for like 3.5
-      // seconds."
+      // THE DEFAULT "WHEN PLAYED" CUE IS THE CARD'S OWN HOVER THEME, for ~3.5s,
+      // for cards without a bespoke `play` clip — it identifies WHICH card
+      // landed, and the asset is already shipped.
       //
-      // Only a handful of cards have a bespoke `play` clip; everything else
-      // fell through to a procedural blip that says nothing about WHICH card
-      // landed. Its hover theme already does — and every card that has one is
-      // already carrying the asset, so this costs nothing to ship.
-      //
-      // RESUMED, not restarted. `hover: true` puts this on the same clone the
-      // hover system uses, so it picks up from wherever browsing the card left
-      // off and the theme keeps advancing across plays rather than replaying
-      // its first three seconds forever.
+      // RESUMED, not restarted. `hover: true` puts this on the hover system's
+      // clone, so the theme picks up where browsing left off and keeps
+      // advancing across plays.
       //
       // NOT capped with maxDur: that path's cap-fade rewinds currentTime to 0,
-      // which would destroy the very position this is built to preserve. The
-      // 3.5s stop is scheduled here through the hover system's own
-      // pause-preserving fade instead.
+      // destroying the preserved position. The 3.5s stop is scheduled here
+      // through the hover system's pause-preserving fade instead.
       //
-      // Placed AFTER both privacy gates above on purpose. Hover privacy does
-      // not apply — the card is face-up on the board by now, so this leaks
-      // nothing — and a face-down play has already returned with the generic
-      // blip before reaching this line.
+      // Placed AFTER both privacy gates on purpose: hover privacy doesn't
+      // apply (the card is face-up now), and a face-down play has already
+      // returned with the generic blip.
       if ((event === 'play' || event === 'spawn') && !reg[event] && reg.hover) {
         const hoverRes = this._resolveSfxEntry(reg.hover);
         if (hoverRes && hoverRes.src) {
@@ -3007,11 +2620,9 @@ const UI_AUDIO = {
           hOpts.category = 'play';     // marquee gain tier, not hover's
           const el = this._playSample(hoverRes.src, hOpts);
           if (el) {
-            // 2.5s of the card's own hover theme, tail included. (User: "make
-            // sure that when cards dont have when played, a 2.5 sec clip of
-            // their hover if they have any hover, and this is for environments
-            // too.") Environments reach this through the same playCard wrapper
-            // every other card uses, so one rule covers both.
+            // 2.5s of the card's own hover theme, tail included — environments
+            // reach this through the same playCard wrapper, so one rule covers
+            // both.
             const PLAY_HOVER_MS = 2500, TAIL_MS = 700;
             setTimeout(() => { try { this._fadeToPauseAtPosition(el, TAIL_MS); } catch (e) {} },
                        Math.max(0, PLAY_HOVER_MS - TAIL_MS));
@@ -3039,41 +2650,29 @@ const UI_AUDIO = {
       const opts = { ...(resolved.opts || {}) };
       if (event === 'hover') {
         opts.hover = true;
-        // Hover plays the FULL clip with no programmatic taper. User
-        // direction: "no max restriction on how long a hover is. I
-        // dictate where to start and stop the song." The ffmpeg
-        // pipeline already bakes a 1 s fade-in / 2 s fade-out into
-        // every hover MP3 at clip-time — letting the engine schedule
-        // its own cap-fade on top of that produced a compounded
-        // ease-out that audibly killed the clip ~2 s before its
-        // intended end. Strip every registry-side maxDur and set the
-        // fullDuration sentinel so _playSample skips its cap-fade
-        // and lets the file play to natural `ended`.
-        // 2026-05-19 — fade-in dropped 1000 → 120 ms for snappier
-        // hover-to-audible feel. The ffmpeg-baked 1 s fade-in on
-        // every hover MP3 already supplies the gentle ramp the user
-        // hears; layering a 1 s engine fade on top of it was double-
-        // ramping the first second and contributing to "delay
-        // causing the lag." 120 ms is just enough to avoid an
-        // audible click when the engine starts playback.
+        // Hover plays the FULL clip with no programmatic taper: the ffmpeg
+        // pipeline bakes a 1s fade-in / 2s fade-out into every hover MP3, and
+        // an engine cap-fade on top would kill the clip ~2s early. Strip any
+        // registry-side maxDur and set fullDuration so _playSample skips its
+        // cap-fade and the file plays to natural `ended`.
+        // Fade-in is 120ms (the baked 1s fade already supplies the gentle
+        // ramp; doubling it delays the hover) — just enough to avoid a click.
         // fadeOut here is the cap-fade tail — gated off by
         // fullDuration: true below, so the value is dead for hover.
         opts.fadeIn  = opts.fadeIn  ?? 120;
         opts.fadeOut = opts.fadeOut ?? 2000;
         opts.fullDuration = true;
         delete opts.maxDur;
-        // Duck the menu music while a hover theme is live so the two
-        // don't muddy each other. _stopHover restores the music level
-        // when the cursor leaves the card.
+        // Duck the menu music while a hover theme is live; _stopHover restores
+        // it when the cursor leaves the card.
         this.duckMusic();
       } else if (event === 'play' || event === 'ability' || event === 'spawn') {
         // On Play ('play') is normally capped at 5s. Two exceptions play the
-        // clip in FULL (user request — the biggest entrances get their whole
-        // cue): an entry flagged `fullDuration`, OR any 10-cost card. The card
-        // instance is passed as the 3rd arg, so we read its PRINTED cost
-        // (baseCost, so a discount can't drop it under 10). Uncapped clips
-        // skip the programmatic cap-fade in _playSample (opts.fullDuration),
-        // so they should have their own baked tail to avoid a hard cut.
+        // clip in FULL: an entry flagged `fullDuration`, OR any 10-cost card.
+        // The card instance is the 3rd arg, so we read its PRINTED cost
+        // (baseCost, so a discount can't drop it under 10). Uncapped clips skip
+        // the programmatic cap-fade in _playSample, so they need their own baked
+        // tail to avoid a hard cut.
         // 'ability'/'spawn' are code-triggered dramatic entrances (Jaws
         // rising, Pennywise from the Sewers) that DEFAULT to 5 but honor an
         // override.
@@ -3116,24 +2715,13 @@ const UI_AUDIO = {
       return 0;
     },
 
-    // Per-ability sound — use from inside an `onPlay` callback when the
-    // card has multiple distinct moments you want to cue separately.
-    //   CARD_SFX['Darth Vader'] = {
-    //     abilities: { move: 'audio/.../vader-move.mp3', throw: '...' }
-    //   }
-    //   UI.sfx.playCardAbility('Darth Vader', 'move');
-    // Falls back to the single `ability` slot, then the global default, so
-    // a call with an unregistered key still plays something reasonable if
-    // either a card-level or global ability sound is defined.
-    // No-op kept for backwards compatibility with abilities.js call sites
-    // (Darth Vader's chain). The simplified SFX set only emits hover, play,
-    // and death cues — per-ability mid-effect sounds were removed per user
-    // spec ("only sounds for card hover, when played, when killed").
+    // Per-ability sound (CARD_SFX[name].abilities[key]) — a no-op kept for
+    // compatibility with abilities.js call sites (Darth Vader's chain); the
+    // SFX set only emits hover, play and death cues.
     playCardAbility(_name, _key) { return null; },
     // Per-trick SFX playback. Mirrors the hover resume-from-pause and
-    // play-event cap behavior from playCardSfx so a tricky hover like
-    // Time Stone's breathing swell picks up where it left off on re-
-    // hover instead of restarting.
+    // play-event cap behavior from playCardSfx, so a trick's hover picks up
+    // where it left off on re-hover instead of restarting.
     playTrickSfx(name, event) {
       if (!name) return null;
       // Hand-audio privacy — same rule as playCardSfx: the per-trick hover cue
@@ -3149,7 +2737,7 @@ const UI_AUDIO = {
         opts.hover = true;          // enables resume-from-pause in _playSample
         opts.category = 'hover';
         opts.fullDuration = true;   // skip _playSample cap-fade (see playCardSfx note)
-        delete opts.maxDur;         // hover is full-length per user spec
+        delete opts.maxDur;         // hover is full-length
       } else {
         // Non-hover trick events (play) get the same 1.5s cap as cards.
         opts.maxDur = Math.min(1.5, opts.maxDur ?? 1.5);
@@ -3158,17 +2746,12 @@ const UI_AUDIO = {
       return this._playSample(resolved.src, opts);
     },
 
-    // PAUSE the current hover sample (keeping its currentTime) so the
-    // next re-hover resumes exactly where it left off instead of
-    // restarting. Fades out the volume smoothly before pausing so
-    // there's no click. Vader's breathing / Predator's clicking pick
-    // up mid-breath when the user re-hovers the card.
+    // PAUSE the current hover sample (keeping its currentTime) so the next
+    // re-hover resumes exactly where it left off. Fades out smoothly before
+    // pausing so there's no click.
     _stopHover(force) {
-      // Keep hover audio running while the card is SELECTED (clicked
-      // but not yet placed). User spec: "if you click a card, right,
-      // and you're gonna place the card, I think it should be playing
-      // the whole time as you're clicking it, as it's selected."
-      // The mouseout-triggered stop respects this guard; only the
+      // Keep hover audio running while the card is SELECTED (clicked but not
+      // yet placed). The mouseout-triggered stop respects this guard; only the
       // post-play stop (force=true) pushes through it.
       if (!force) {
         const sel = (typeof Game !== 'undefined' && Game.state) ? Game.state.selectedCard : null;
@@ -3187,28 +2770,20 @@ const UI_AUDIO = {
         this._hoverDelayTimer = null;
         this._hoverDelayEl = null;
       }
-      // Clear the mouseout-to-empty delayed stop too. If we're
-      // tearing down hover state right now, there's no point in a
-      // scheduled stop firing later — it'd no-op against a null
-      // audio ref but stays as dead state. Safer to clean it up.
+      // Clear the mouseout-to-empty delayed stop too, so no stale scheduled
+      // stop outlives the hover state being torn down.
       if (this._pendingStopHover) {
         clearTimeout(this._pendingStopHover);
         this._pendingStopHover = null;
       }
       const a = this._currentHoverAudio;
-      // Quick stop fade — 250 ms is short enough to feel SHARP when
-      // the cursor leaves a card (user report 2026-05-19: "it should
-      // be sharp when it start playing and when it ends") but long
-      // enough to avoid an audible click as the volume hits zero.
-      // Was 1000 ms previously — the longer tail kept audio
-      // audibly bleeding into the next hover's start.
+      // Quick stop fade — 250ms feels SHARP when the cursor leaves a card but
+      // avoids an audible click; a longer tail bleeds into the next hover.
       if (a && !a.paused) this._fadeToPauseAtPosition(a, 250);
       // CRITICAL: stop EVERY other hover clone still ringing out, not just
       // _currentHoverAudio. Fast cursor movement can start hover B and
-      // reassign _currentHoverAudio while card A's clone is still playing
-      // and orphaned in _activeHover — stopping only the current ref left
-      // that clone playing for its full length. THAT is the "Deadpool's
-      // hover plays when I'm not hovering / multiple hovers at once" bug.
+      // reassign _currentHoverAudio while card A's clone is still playing,
+      // orphaned in _activeHover — it would play for its full length.
       if (this._activeHover && this._activeHover.size) {
         Array.from(this._activeHover).forEach(h => {
           if (h && h !== a && !h.paused) this._fadeToPauseAtPosition(h, 200);
@@ -3247,17 +2822,11 @@ const UI_AUDIO = {
           this._cueLast[name] = now;
         }
         try {
-          // A cue can name its own mixing category. Default 'effect' keeps every
-          // existing sample (hpHit, roundStart) exactly where it was — a
-          // supporting layer that is ducked and, crucially, DROPPED once four
-          // non-hover sounds are already going (the concurrency cap in
-          // _playSample). That cap is why the block cue went silent in 2v2: a
-          // block fires in the middle of combat, surrounded by hit and death
-          // sounds, so _activeNonHover is almost always already at four and the
-          // block was suppressed. A marquee moment declares a priority category
-          // (see blockShield → 'play'), which the cap exempts and which ducks the
-          // combat noise so it lands cleanly. (User: "i blocked in a 2v2 game and
-          // never heard the sound fire.")
+          // A cue can name its own mixing category. Default 'effect' is a
+          // supporting layer — ducked and DROPPED once four non-hover sounds
+          // are going (the concurrency cap in _playSample). A marquee moment
+          // fired mid-combat (see blockShield → 'play') declares a priority
+          // category, which the cap exempts and which ducks the combat noise.
           return this._playSample(cue.src, {
             maxDur: cue.maxDur, fadeIn: cue.fadeIn, fadeOut: cue.fadeOut,
             gain: cue.gain, category: cue.category || 'effect',
@@ -3293,9 +2862,7 @@ const UI_AUDIO = {
           this._noise({ dur: 0.16, gain: 0.14, highpass: 200, lowpass: 3500 });
           break;
         case 'trick':
-          // Synth-circuit trigger — two-tone sine sweep with delayed
-          // harmonic. Previous version was a three-step triangle arpeggio
-          // that landed arcade-chirpy; this sits cleaner in the mix.
+          // Synth-circuit trigger — two-tone sine sweep with delayed harmonic.
           this._tone({ type: 'sine', freq: 440, freqEnd: 1200, dur: 0.18, gain: 0.13, attack: 0.003, release: 0.22 });
           this._tone({ type: 'sine', freq: 660, freqEnd: 1800, dur: 0.14, gain: 0.08, attack: 0.003, release: 0.18, delay: 0.05 });
           break;
@@ -3308,8 +2875,8 @@ const UI_AUDIO = {
           // Plasma / forcefield impact — sub thump body + mid pitch drop
           // + high-passed digital snap. gainMul (from _TIER_FX.sfxGain,
           // ~0.78 light → 1.40 lethal) scales the whole impact so a chip
-          // tap and a lethal blow sound genuinely different — previously
-          // every hit fired bit-identical. Defaults to 1 for non-tiered callers.
+          // tap and a lethal blow sound different. Defaults to 1 for
+          // non-tiered callers.
           const g = (typeof gainMul === 'number' && gainMul > 0) ? gainMul : 1;
           const pn = (typeof pan === 'number') ? pan : 0;   // lane-positioned stereo
           this._tone({ type: 'sine',     freq: 70,  freqEnd: 35,  dur: 0.14, gain: 0.20 * g, release: 0.18, pan: pn });
@@ -3328,15 +2895,10 @@ const UI_AUDIO = {
           this._noise({ dur: 0.14, gain: 0.15, highpass: 120, lowpass: 1600 });
           break;
         case 'select': {
-          // WAS a bare 880Hz sine pip. 880 is the top of the range the ear is
-          // most sensitive to, it was a pure tone with no harmonics to soften
-          // it, and it fires on EVERY card tap — so it read as a shrill beep
-          // rather than a tick. Owner: "the high pitched sound when you select
-          // a card get rid of and give me new sound options."
-          //
-          // Four alternatives, all pitched well below the old pip and shaped
-          // so repeated taps layer instead of stacking into a whine. Picked in
-          // Settings > Audio; 'soft' is the new default.
+          // Card-select cue: no bare high sine pip (shrill on every tap). Four
+          // alternatives, all pitched low and shaped so repeated taps layer
+          // instead of stacking into a whine. Picked in Settings > Audio;
+          // 'soft' is the default.
           const v = (UI.settings && UI.settings.selectSfx) || 'soft';
           if (v === 'off') break;
           if (v === 'pulse') {
@@ -3604,29 +3166,16 @@ const UI_AUDIO = {
     // card is filtered out by the relatedTarget check.
     const getHoverTarget = (node) =>
       (node && node.closest) ? node.closest('[data-card-name],[data-trick-name]') : null;
-    // Per-card-name cooldown — every UI.render() call wipes the board
-    // via `board.innerHTML = ''`, which fires mouseout on the previous
-    // card element + a fresh mouseover on the rebuilt one. From the
-    // engine's POV that looks like leaving and re-entering the card,
-    // so the hover SFX retriggers on every render. We can't easily
-    // suppress mouseout between renders (the element really IS gone
-    // from the DOM briefly), but we CAN gate the SFX replay by name +
-    // recent timestamp. Same card hovered within COOLDOWN_MS → no
-    // replay. Moving to a DIFFERENT card → different name → plays.
-    // User report: "its highliting the card over and over while the
-    // curser is over it... the sound it keeps playing over and over."
+    // Per-card-name cooldown — every UI.render() call wipes the board via
+    // `board.innerHTML = ''`, firing mouseout on the old card element and a
+    // fresh mouseover on the rebuilt one, which would retrigger the hover SFX
+    // every render. So the replay is gated by name + recent timestamp: same
+    // card within COOLDOWN_MS → no replay; a DIFFERENT card → plays.
     const HOVER_SFX_COOLDOWN_MS = 1000;
-    // Intent delay — user has to dwell on a card for HOVER_SFX_DELAY_MS
-    // before its hover audio fires. Without this gate, sweeping the
-    // cursor across the hand triggers a chain of overlapping hover cues
-    // (each cut by the next), which sounds messy.
-    //
-    // 2026-05-19 — dropped from 1500 → 300 ms. User report: "it should
-    // be sharp when it start playing and when it ends the delay is
-    // causing the lag." 1.5 s dwell + 1 s fade-in = ~2.5 s from hover
-    // to audible, which felt like the app was sluggish to react.
-    // 300 ms is still enough to filter accidental swipe-overs but
-    // makes the hover→audio transition feel immediate.
+    // Intent delay — the user has to dwell on a card for HOVER_SFX_DELAY_MS
+    // before its hover audio fires, so sweeping the cursor across the hand
+    // doesn't chain overlapping cues. 300ms filters accidental swipe-overs
+    // while still feeling immediate.
     const HOVER_SFX_DELAY_MS = 300;
     const lastHoverByName = {};
     // Cancel any scheduled-but-not-yet-fired hover SFX. Called on mouse-
@@ -3647,13 +3196,11 @@ const UI_AUDIO = {
     document.addEventListener('touchstart', () => { this._lastTouchMs = Date.now(); }, { passive: true });
 
     // DID THE USER ACTUALLY POINT AT THIS, OR DID IT SLIDE UNDER THEM?
-    // A mouseover does not mean the cursor moved. Every render rebuilds the
-    // hand, so a card drawn into it lands under a stationary cursor and fires
-    // mouseover all by itself — and 280ms later the card announces its own
-    // identifying theme to the whole room. That is the draw leak: you never
-    // touched the mouse and everyone just heard which card you drew.
-    // Recording the last REAL movement lets the dwell callback tell the two
-    // apart. Passive listener, one timestamp, no work per event.
+    // Every render rebuilds the hand, so a newly drawn card lands under a
+    // stationary cursor and fires mouseover by itself — and would announce
+    // its identifying theme to the room (a draw leak). Recording the last
+    // REAL movement lets the dwell callback tell the two apart. Passive
+    // listener, one timestamp, no work per event.
     document.addEventListener('mousemove', () => { this.sfx._lastPointerMoveAt = Date.now(); }, { passive: true });
     document.addEventListener('mouseover', (e) => {
       const curr = getHoverTarget(e.target);
@@ -3664,12 +3211,9 @@ const UI_AUDIO = {
       // after a finger tap. A real mouse hover arrives without any recent
       // touchstart; a tap-triggered synthetic arrives within ~50 ms of one.
       if (this._lastTouchMs && (Date.now() - this._lastTouchMs) < 500) return;
-      // CANCEL any pending mouseout-to-empty stop — the user came
-      // back onto a hover target before the 3 s delayed-stop fired,
-      // so we want to keep the audio playing without interruption
-      // (or take a clean handoff if they re-hover a different card).
-      // Scoped here because both the same-card return AND the
-      // different-card stopHover paths below need the cancel.
+      // CANCEL any pending mouseout-to-empty stop — the user came back onto a
+      // hover target before the 3s delayed-stop fired. Scoped here because both
+      // the same-card return AND the different-card stopHover paths need it.
       if (this.sfx._pendingStopHover) {
         clearTimeout(this.sfx._pendingStopHover);
         this.sfx._pendingStopHover = null;
@@ -3679,25 +3223,19 @@ const UI_AUDIO = {
       // outside (e.g. brief transform flicker).
       if (this.sfx._currentHoverEl === curr) return;
       const name = curr.getAttribute('data-card-name') || curr.getAttribute('data-trick-name');
-      // Cooldown gate — if we played a hover SFX for THIS card name
-      // very recently, this is almost certainly a render-rebuild
-      // re-entry, not a genuine new hover. Skip the SFX play but
-      // still update _currentHoverEl so the mouseout handler can
-      // tear down cleanly when the cursor really leaves.
+      // Cooldown gate — a hover SFX for THIS card name played very recently
+      // means a render-rebuild re-entry, not a new hover. Skip the SFX but
+      // still update _currentHoverEl so mouseout can tear down cleanly.
       const now = Date.now();
       const recently = name && lastHoverByName[name] && (now - lastHoverByName[name]) < HOVER_SFX_COOLDOWN_MS;
       if (recently) {
         this.sfx._currentHoverEl = curr;
         return;
       }
-      // Moving from one card to another — FORCE stop the previous
-      // card's sample. The selectedCard guard in _stopHover only
-      // protects "mouse left card to non-card area" (keep playing
-      // while selected). Moving to another card means a new hover
-      // is taking over — old must die or it orphans and plays for
-      // its full duration. User report: "sometimes the hover music
-      // gets stuck playing way after the cards played and im not
-      // hovering."
+      // Moving from one card to another — FORCE stop the previous card's
+      // sample. The selectedCard guard in _stopHover only protects "mouse left
+      // card to non-card area"; a new hover taking over must kill the old one
+      // or it orphans and plays for its full duration.
       if (this.sfx._currentHoverEl) this.sfx._stopHover(true);
       cancelPendingHover();
       this.sfx._currentHoverEl = curr;
@@ -3713,17 +3251,12 @@ const UI_AUDIO = {
         // Re-confirm the cursor is still on this element — guards against
         // any race where we missed a mouseout cancel.
         if (this.sfx._currentHoverEl !== curr) return;
-        // POST-PLAY LOCKOUT — block hover audio from re-arming during
-        // the brief window after a card is played. When the user clicks
-        // a lane to place a card, the cursor lands on the freshly-
-        // materialized board card; without this gate, the dwell timer
-        // would fire 280ms later and re-trigger hover audio that the
-        // play hook had just faded out, producing the "hover never
-        // stopped" perception. Two tiers: a global 1.6s lock on ALL
-        // hover, and a 2.4s lock on the SAME card name we just played
-        // (since same-name resume from the pool is the worst offender —
-        // sonically identical to "the audio didn't stop at all"). On
-        // expiry we silently allow the hover to fire normally.
+        // POST-PLAY LOCKOUT — after a card is placed the cursor lands on the
+        // freshly-materialized board card, and the dwell timer would re-trigger
+        // the hover audio the play hook just faded out. Two tiers: a global
+        // 1.6s lock on ALL hover, and a 2.4s lock on the SAME card name just
+        // played (a same-name resume sounds like the audio never stopped). On
+        // expiry the hover fires normally.
         const now = Date.now();
         const sfx = this.sfx;
         if (sfx._postPlayHoverLockUntil && now < sfx._postPlayHoverLockUntil) return;
@@ -3731,12 +3264,10 @@ const UI_AUDIO = {
         // THE CARD CAME TO THE CURSOR, NOT THE OTHER WAY ROUND — say nothing
         // that identifies it. Either the pointer had not moved for a beat when
         // this hover armed (the card reflowed under it), or a card has just
-        // entered this hand (see _handGrewAt, set by renderPlayerHand, which
-        // covers a draw, a redraw, a steal, a Batman Who Laughs keep — every
-        // path that puts a new card in front of you). The generic blip still
-        // fires, so the surface stays tactile; only the tell is withheld.
-        // (User: "make sure sound cues and hover don't fire when cards are
-        // drawn so enemy players cant hear them.")
+        // entered this hand (see _handGrewAt, set by renderPlayerHand: a draw,
+        // a redraw, a steal, a Batman Who Laughs keep). The generic blip still
+        // fires, so the surface stays tactile; only the tell is withheld from
+        // opponents.
         const STILL_CURSOR_MS = 150;
         const armedStill = (sfx._hoverArmedMoveAge == null) || (sfx._hoverArmedMoveAge > STILL_CURSOR_MS);
         const handJustGrew = now < ((this._handGrewAt || 0) + 1400);
@@ -3747,27 +3278,16 @@ const UI_AUDIO = {
                     : this.sfx.playTrickSfx(name, 'hover'));
         if (!audio) this.sfx.play('cardHover');
         this.sfx._currentHoverAudio = audio;
-        // Track the source card NAME so _stopHover can keep the audio
-        // running when the card is selected (mid-placement). User
-        // spec: hover music continues through the click→place flow.
+        // Track the source card NAME so _stopHover can keep the audio running
+        // while the card is selected (through the click→place flow).
         this.sfx._currentHoverName = name;
         if (name) lastHoverByName[name] = Date.now();
-        // NATURAL-END CLEANUP — when the hover audio finishes by
-        // itself (clip reached its baked fade-out, or capFade
-        // wound it down), clear the tracker refs so a subsequent
-        // mouseover on the same card can start a fresh playback.
-        // Without this, _currentHoverEl + _currentHoverName stay
-        // pinned to the now-silent card forever, and the
-        // same-card-re-hover guard at the top of mouseover (line
-        // 2740) would suppress the next hover indefinitely.
-        // Also: a stale _currentHoverAudio = audio that's already
-        // ended means the "is this card's audio still playing?"
-        // check in openCardInspect dedup falls through to "yes"
-        // and skips re-triggering — leaving silence. User report
-        // 2026-05-19: "the audio will keep playing after I'm done
-        // hover over the card creating multiple hovers playing at
-        // once." Stops the pile-up by ensuring each card's audio
-        // has exactly one lifecycle.
+        // NATURAL-END CLEANUP — when the hover audio finishes by itself (baked
+        // fade-out or capFade), clear the tracker refs. Otherwise
+        // _currentHoverEl + _currentHoverName stay pinned to the silent card and
+        // the same-card guard at the top of mouseover suppresses the next hover
+        // forever, and openCardInspect's "still playing?" dedup skips
+        // re-triggering. Each card's audio gets exactly one lifecycle.
         if (audio && typeof audio.addEventListener === 'function') {
           const sfx = this.sfx;
           const cleanup = () => {
@@ -3778,8 +3298,8 @@ const UI_AUDIO = {
             }
           };
           audio.addEventListener('ended', cleanup, { once: true });
-          // Pause may fire from a fade-out (engine cap or
-          // _stopHover) before 'ended' — treat both as terminal.
+          // Pause may fire from a fade-out (engine cap or _stopHover) before
+          // 'ended' — treat both as terminal.
           audio.addEventListener('pause', cleanup, { once: true });
         }
       }, HOVER_SFX_DELAY_MS);
@@ -3790,31 +3310,17 @@ const UI_AUDIO = {
       const to = getHoverTarget(e.relatedTarget);
       if (to === curr) return; // still inside the same card
       if (this.sfx._hoverDelayEl === curr) cancelPendingHover();
-      // Mouseout handling — three cases:
+      // Mouseout handling:
       //
-      //   (a) Moving to ANOTHER hover target (a different card or
-      //       trick): fire _stopHover(true) immediately so the
-      //       new mouseover starts cleanly. The new hover's
-      //       1.5 s dwell timer covers the transition.
+      //   (a) Moving to ANOTHER hover target (a different card or trick):
+      //       fire _stopHover(true) immediately so the new mouseover starts
+      //       cleanly; the new hover's dwell timer covers the transition.
       //
-      //   (b) Moving to EMPTY SPACE (board lanes, body, hand row
-      //       gap, codex panel padding, etc.): SCHEDULE a stop
-      //       3 s out instead of firing immediately. If the user
-      //       returns to the SAME card within that window
-      //       (briefly slid off then back on), the mouseover
-      //       handler cancels the scheduled stop and the audio
-      //       keeps playing — covers the user's earlier
-      //       direction "Can you hover over a card in your hand?
-      //       It doesn't go — so then you get cut off, which is
-      //       not what I want." If they don't return, the
-      //       scheduled stop fires and the clip gracefully fades
-      //       — covers today's direction "the audio will keep
-      //       playing after I'm done hover over the card
-      //       creating multiple hovers playing at once which lags
-      //       the game" (codex Jigsaw → leave → audio
-      //       orphaned). 3 s is generous enough for "I'm
-      //       repositioning my cursor on this card" but short
-      //       enough that abandoned hovers don't tail forever.
+      //   (b) Moving to EMPTY SPACE (board lanes, body, hand row gap, codex
+      //       padding, etc.): SCHEDULE a short delayed stop instead. If the
+      //       user returns to the SAME card within that window, mouseover
+      //       cancels it and the audio keeps playing; otherwise the clip
+      //       fades, so abandoned hovers don't orphan and stack.
       if (to && this.sfx._currentHoverEl === curr) {
         // Different-card transition — stop now.
         if (this.sfx._pendingStopHover) {
@@ -3823,13 +3329,9 @@ const UI_AUDIO = {
         }
         this.sfx._stopHover(true);
       } else if (!to && this.sfx._currentHoverEl === curr) {
-        // Empty-space transition — schedule a delayed stop. 2026-05-19,
-        // dropped from 3000 → 200 ms per user direction: the lingering
-        // 3 s tail was perceived as lag ("the delay is causing the
-        // lag"). 200 ms is enough to absorb a tiny cursor wobble off
-        // the card edge without restarting the audio (re-hover within
-        // this window cancels the pending stop), but quick enough
-        // that "actually moved off" feels immediate.
+        // Empty-space transition — schedule a delayed stop. 200ms absorbs a
+        // tiny cursor wobble off the card edge (a re-hover in the window
+        // cancels it) while "actually moved off" still feels immediate.
         if (this.sfx._pendingStopHover) clearTimeout(this.sfx._pendingStopHover);
         this.sfx._pendingStopHover = setTimeout(() => {
           this.sfx._pendingStopHover = null;
@@ -3842,8 +3344,7 @@ const UI_AUDIO = {
     // Per-card events: hover / play / ability / death / voiceLine.
     //   • play XOR ability — exactly one fires when a card enters play,
     //     chosen by whether the card has an onPlay clause (ability if yes,
-    //     play if no). User spec: "some cards have a win played and some
-    //     cards don't, so it's either one of the two".
+    //     play if no).
     //   • voiceLine — fires AT MOST ONCE per round across both sides. The
     //     highest-cost card that lands a kill gets to speak. See the
     //     combat preamble in Game.resolveCombat (below) for delegate
@@ -3858,13 +3359,9 @@ const UI_AUDIO = {
         const r = orig(owner, card, laneIdx, ...rest);
         if (r && card && card.name) {
           // Per-card placement cue. Effect-themed sounds (freeze, stun,
-          // damage, etc.) fire from the central EFFECT_SFX hooks below
-          // when the effect actually applies — independent of which card
-          // triggered them. So Superman's flow is: placement cue → freeze
-          // SFX (after target 1 picked) → freeze SFX (after target 2) →
-          // damage SFX (after final target).
-          // A Wonder Weapon takes the trick route — the one the candies use and
-          // the owner can actually hear. Everything else is unchanged.
+          // damage, etc.) fire separately from the EFFECT_SFX hooks below
+          // when each effect actually applies.
+          // A Wonder Weapon takes the trick route — the one the candies use.
           const _playSfxEl = (card.type === 'wonder' && this.sfx.playTrickSfx)
             ? this.sfx.playTrickSfx(card.name, 'play')
             : this.sfx.playCardSfx(card.name, 'play', card);
@@ -3886,18 +3383,10 @@ const UI_AUDIO = {
             // keeps playing underneath (ducked); only the next PLAY waits.
             this.sfx._playStaggerUntil = Date.now() + Math.min(_sfxDur, 1.4) * 1000;
           }
-          // POST-PLAY HOVER LOCKOUT — when the user clicks a lane to
-          // place a card, the cursor naturally lands on the freshly-
-          // placed board card (since the card materializes under the
-          // cursor). The mouseenter dwell timer would then fire 280ms
-          // later and RESUME the hover audio from where the post-play
-          // fade left off, making it sound like "the hover never
-          // stopped." User report: "I played Obi Wan. and his hover
-          // was still going on when I was not hovering over him." The
-          // lockout suppresses any new hover firing for ~1.6s after
-          // any play, plus on the same-named card we cap it at 2.4s
-          // since the resume from the played card's own audio is
-          // sonically identical to "still playing."
+          // POST-PLAY HOVER LOCKOUT — the placed card materializes under the
+          // cursor, and the dwell timer would RESUME its hover audio 280ms
+          // later, sounding like the hover never stopped. Suppress any new
+          // hover for ~1.6s after any play, and 2.4s for the same-named card.
           // Extend hover lockout to cover the full when-played SFX duration
           // so hovering during a play sound doesn't start a new hover track
           // on top of it. Floor at 1600ms for cards with no registered SFX.
@@ -3907,33 +3396,22 @@ const UI_AUDIO = {
           this.sfx._postPlayHoverLockUntil = Date.now() + _sfxLockMs;
           this.sfx._postPlayHoverLockName = card.name;
           this.sfx._postPlayHoverLockNameUntil = Date.now() + Math.max(2400, _sfxLockMs);
-          // After the card plays, GRADUALLY fade out the hover audio
-          // over 3 seconds. The hover music has already been ducked to
-          // 50% by the play SFX (see _playSample's duck logic), and
-          // this long fade-out ensures it gracefully blends into
-          // silence as the play SFX runs its course. User spec: "the
-          // hover music plays, but just like at, like, 50% of its
-          // actual decibels, and then the [play SFX] is on top of
-          // that... I think that'd be really, really smooth."
-          // 3s gives the play SFX (max 5s capped) plenty of overlap
-          // before the hover fully fades out.
+          // After the card plays, GRADUALLY fade out the hover audio over 3s.
+          // The play SFX has already ducked it to 50% (see _playSample), so it
+          // blends into silence under the play cue (max 5s).
           //
           // Same-name fast path: fade the tracked _currentHoverAudio.
           // Different name (or null) path: walk _activeHover and fade
-          // ALL active hover clones — covers the case where the user
-          // hovered another card briefly between hovering Obi-Wan and
-          // playing him, leaving an orphan still in the active set.
+          // ALL active hover clones — covers a card hovered briefly between
+          // hovering and playing another, leaving an orphan in the active set.
           const sfx = this.sfx;
           if (owner === 'player') {
             if (sfx._currentHoverName === card.name) {
               const a = sfx._currentHoverAudio;
               if (a && !a.paused) sfx._fadeToPauseAtPosition(a, 3000);
             }
-            // Fade out EVERY active hover clone, not just the tracked
-            // one. Belt-and-suspenders: even if the bookkeeping above
-            // missed an orphan (e.g. a leaked sample from a quick
-            // hover swap), this catches it. Caps the perceived
-            // "hover lingering after play" bug entirely.
+            // Fade out EVERY active hover clone, not just the tracked one,
+            // catching any orphan the bookkeeping above missed.
             if (sfx._activeHover && sfx._activeHover.size > 0) {
               sfx._activeHover.forEach(h => {
                 if (h && !h.paused) sfx._fadeToPauseAtPosition(h, 3000);
@@ -3950,9 +3428,8 @@ const UI_AUDIO = {
     }
 
     // ---- Play cue for summoned real cards (Mother Box, Bat Signal, SSS, etc.) ----
-    // summonCard bypasses the playCard hook, so summoned real cards never
-    // triggered their play SFX. Hook summonCard and fire 'play' for any
-    // summon that has a sourceDef (i.e. a real card, not a token).
+    // summonCard bypasses the playCard hook, so hook summonCard and fire
+    // 'play' for any summon that has a sourceDef (a real card, not a token).
     // Pennywise and Freddy Krueger are excluded — their jumpscare helpers
     // already fire 'spawn' + 'play' 60 ms later via setTimeout.
     if (Game.summonCard) {
@@ -3983,10 +3460,9 @@ const UI_AUDIO = {
       };
     }
     // ---- Time Stone counter — doesn't go through playTrick ----
-    // Game.timeStoneCounter consumes the Time Stone trick directly
-    // (splices hand + pushes to playedTrickPile) to avoid the normal
-    // trick-play flow, so the playTrick hook above never fires for it.
-    // Patch the counter fn to emit the 'play' cue when the intercept
+    // Game.timeStoneCounter consumes the Time Stone trick directly (splices
+    // hand + pushes to playedTrickPile), so the playTrick hook above never
+    // fires for it. Patch the counter fn to emit 'play' when the intercept
     // actually lands.
     if (Game.timeStoneCounter) {
       const origTS = Game.timeStoneCounter.bind(Game);
@@ -4078,24 +3554,22 @@ const UI_AUDIO = {
     //   1. If the killer is the pre-computed voice-line delegate AND no
     //      voice line has fired yet this round → killer's voiceLine.
     //   2. Else the dying card's death SFX — but only if this death is
-    //      the highest-cost death seen in this lane's current window.
-    //      (Prevents stacking two death cues when both cards in a lane
-    //      die the same frame.)
+    //      the highest-cost death seen in this lane's current window
+    //      (no stacked death cues when both cards in a lane die together).
     // The chosen clip's expected end time is recorded on
     // `_laneAudioEndsAt` so Game.resolveCombat's advance() can await it
-    // before moving to the next lane. User spec: "it can't move on
-    // until the audio stops playing".
+    // before moving to the next lane.
     if (Game.killCard) {
       const origK = Game.killCard.bind(Game);
       Game.killCard = (card, source, ...rest) => {
         const isCreature = card && card.name && card.currentHealth !== undefined && typeof card.play !== 'function';
         if (!isCreature) return origK(card, source, ...rest);
         // Iron Giant will intercept this kill (save the ally, or offer the
-        // sacrifice) — don't fire the dying card's death cue or seize the
-        // combat lane-audio slot. A saved ally makes no death sound, and
-        // the sacrifice sting (fired inside the intercept) gets a clean
-        // slot. On decline, doDecline re-enters with _igOffered set → the
-        // predicate returns false → the real death gets its normal cue.
+        // sacrifice) — don't fire the death cue or seize the lane-audio slot.
+        // A saved ally makes no death sound, and the sacrifice sting (fired
+        // inside the intercept) gets a clean slot. On decline, doDecline
+        // re-enters with _igOffered set → the predicate returns false → the
+        // real death gets its normal cue.
         if (Game._willIronGiantIntercept && Game._willIronGiantIntercept(card)) {
           return origK(card, source, ...rest);
         }
@@ -4114,18 +3588,14 @@ const UI_AUDIO = {
           && delegate.owner === source.owner
           && !this.sfx._voiceLineFiredThisRound;
 
-        // Simplified SFX set — only the dying card's `death` cue fires.
-        // The old voiceLine path was retired with the broader SFX cleanup
-        // (user spec: "only sounds for card hover, when played, when
-        // killed"). Lane-gating still applies so chained deaths in the
-        // same combat don't pile up — and outside combat it does not, so an
-        // ability kill (Homelander sacrificing an ally, then destroying an
-        // enemy) still gets its own slot per death.
+        // Only the dying card's `death` cue fires (the voiceLine path is
+        // retired). Lane-gating applies in combat so chained deaths don't pile
+        // up — and outside combat it does not, so an ability kill (Homelander
+        // sacrificing an ally, then destroying an enemy) gets a slot per death.
         //
-        // ONE DOOR (see UI._playDeathCue). This block and the handleDeath
-        // wrapper were two copies of the same gate, and only the OTHER one ever
-        // runs for a combat death — so a fix applied here alone would have
-        // looked right in the diff and changed nothing in a fight.
+        // ONE DOOR (see UI._playDeathCue). Only the handleDeath wrapper's gate
+        // runs for a combat death, so a fix applied in a copy here would change
+        // nothing in a fight.
         this._playDeathCue(card, { capSec: isDelegateKill ? 3.0 : 1.5 });
 
         // Kill sound on the source card (trick/ability kills).
@@ -4139,12 +3609,11 @@ const UI_AUDIO = {
     }
 
     // ---- Round reset + voice-line delegate pre-pass ----
-    // Clears per-round voice-line gating and pre-computes which card
-    // would land a kill this combat so its voice line can fire at the
-    // dramatic moment. Delegate selection uses cost priority with a
-    // best-effort damage prediction (main-swing only — evade / reactive
-    // ability kills are missed, but those are rare and the fallback is
-    // graceful: no voice line fires that round, which is fine).
+    // Clears per-round voice-line gating and pre-computes which card would
+    // land a kill this combat so its voice line can fire at the moment.
+    // Delegate selection uses cost priority with a best-effort damage
+    // prediction (main-swing only — evade / reactive kills are missed, and
+    // the fallback is simply no voice line that round).
     if (Game.startRound) {
       const origSR = Game.startRound.bind(Game);
       Game.startRound = (...rest) => {
@@ -4161,10 +3630,9 @@ const UI_AUDIO = {
     if (Game.resolveCombat) {
       const origRC = Game.resolveCombat.bind(Game);
       Game.resolveCombat = (...rest) => {
-        // Pre-pass: scan all contested lanes, predict main-swing kills,
-        // pick the highest-cost predicted killer as this round's voice-
-        // line delegate. Randomized tie-breaks (user spec: ties "split
-        // randomly so it doesn't get muddy").
+        // Pre-pass: scan all contested lanes, predict main-swing kills, pick
+        // the highest-cost predicted killer as this round's voice-line
+        // delegate. Ties split randomly.
         try {
           if (!this.sfx._voiceLineFiredThisRound) {
             const candidates = [];
@@ -4199,13 +3667,11 @@ const UI_AUDIO = {
       };
     }
     // ---- Audio-aware lane delay ----
-    // Original COMBAT_LANE_DELAY is a flat ms number driven by aiSpeed.
-    // Replace with a getter that adds the remaining lane-audio tail + a
-    // 250ms breathing gap, floored at the original base delay so users
-    // on "fast" mode still get a minimum beat. After a lane advance
-    // consumes the delay, we reset the lane-audio tracking so the NEXT
-    // lane starts with a fresh window.
-    // User spec: "can't move on until the audio stops playing" + "cinematic".
+    // COMBAT_LANE_DELAY is a flat ms number driven by aiSpeed. Replace it
+    // with a getter that adds the remaining lane-audio tail + a 250ms
+    // breathing gap, floored at the base delay so "fast" mode still gets a
+    // minimum beat. After a lane advance consumes the delay, reset the
+    // lane-audio tracking so the NEXT lane starts with a fresh window.
     try {
       const basePropertyDescriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(Game), 'COMBAT_LANE_DELAY')
         || Object.getOwnPropertyDescriptor(Game, 'COMBAT_LANE_DELAY');
@@ -4219,26 +3685,19 @@ const UI_AUDIO = {
           const now = performance.now();
           const remaining = endsAt > now ? (endsAt - now) : 0;
           // TWO SOURCES, take whichever says "still playing" for longer.
-          // `remaining` is the BOOKED estimate, written only when a card had a
-          // real death sample that won the lane's single audio slot. `live` is
-          // measured off the elements that are actually sounding right now, and
-          // it is the one that catches everything the booking misses: cards
-          // whose death falls back to a procedural cue (playCardSfx returns
-          // null, so nothing was ever booked), and any ability or voice cue an
-          // onDeath trigger fired. That gap is why a lane could advance with its
-          // audio still going — user: "audio combat per lane needs to resolve
-          // before moving on to the next".
+          // `remaining` is the BOOKED estimate, written only when a real death
+          // sample won the lane's single audio slot. `live` is measured off the
+          // elements actually sounding, and catches what booking misses:
+          // procedural death fallbacks (playCardSfx returns null, nothing
+          // booked) and any ability or voice cue an onDeath trigger fired.
           const live = this.sfx.activeTailMs ? this.sfx.activeTailMs() : 0;
-          // AND the visuals. Audio alone was not "resolve everything": a lane
-          // could still advance with its damage numbers mid-flight, because the
-          // damage float runs 1.1s against a 900ms base delay. See
-          // UI.activeFxTailMs.
+          // AND the visuals: the damage float runs 1.1s against a 900ms base
+          // delay, so a lane must also wait out its FX. See UI.activeFxTailMs.
           const fx = this.activeFxTailMs ? this.activeFxTailMs() : 0;
           const tail = Math.max(remaining, live, fx);
-          // Floor at the base delay so the aiSpeed setting still sets the pace
-          // when a lane happens to be silent and still, and never go BELOW it —
-          // the user reports combat reading as too fast, so audio and FX can
-          // only ever extend a lane, never shorten it.
+          // Floor at the base delay so aiSpeed still sets the pace when a lane
+          // is silent and still; audio and FX can only ever extend a lane,
+          // never shorten it.
           const computed = tail > 0 ? Math.max(baseMs, tail + this.COMBAT_LANE_BEAT_MS) : baseMs;
           // Reset for next lane (the getter fires once per advance).
           this.sfx._laneAudioEl = null;
@@ -4324,9 +3783,8 @@ const UI_AUDIO = {
         // tutorial prompt after the player has already dived in.
         try { localStorage.setItem('clb-onboarded', '1'); } catch (e) {}
         this._pruneMatchState();
-        // Pick a fresh AI personality for this match (avatar + name
-        // in the ai-bar). Round-robins via localStorage so repeats
-        // feel less common.
+        // Pick a fresh AI personality for this match (avatar + name in the
+        // ai-bar). Round-robins via localStorage so repeats feel less common.
         this._pickAiPersonality();
         return origStart.apply(Game, args);
       };
@@ -4335,9 +3793,8 @@ const UI_AUDIO = {
     if (typeof origRound === 'function') {
       Game.startRound = (...args) => {
         this.sfx.stopMusic();
-        // 20s match load-in cue — the former menu track. Fires once, on the
-        // first combat round of a match (the "loading into the match" beat),
-        // right as the menu loop fades out. The armed flag (set in
+        // 20s match load-in cue. Fires once, on the first combat round of a
+        // match, right as the menu loop fades out. The armed flag (set in
         // startMatch) guarantees it never re-triggers on later rounds.
         if (this._matchIntroArmed) {
           this._matchIntroArmed = false;
@@ -4347,10 +3804,9 @@ const UI_AUDIO = {
             }
           } catch (e) {}
         }
-        // (AAA) Ambient arena hum — kicks in at the FIRST round of a
-        // match (draft is over, gameplay starts). Idempotent:
-        // arenaHumStart bails if already running. Hum fades in over
-        // 1.6s on its own bus so it doesn't pop in jarringly.
+        // Ambient arena hum — starts at the FIRST round of a match.
+        // Idempotent: arenaHumStart bails if already running. Fades in over
+        // 1.6s so it doesn't pop in.
         try {
           if (!Game.state.gameOver && this.sfx && this.sfx.arenaHumStart) {
             this.sfx.arenaHumStart();
@@ -4361,18 +3817,16 @@ const UI_AUDIO = {
     }
   },
   // ---- SOUND RELAY ----
-  // Guests never run the engine, so a sound an ABILITY fires only ever reaches
-  // the host's speakers. Card plays and deaths were already reconstructed on
-  // the guest by diffing the board (_relay2v2CardFx) and status cues ride
-  // their own event, but the distinctive ones — Homelander's laser, Palpatine's
-  // lightning, a trick's own voice — were host-only. (User: "make sure sounds
-  // play for everyone as well.")
+  // Guests never run the engine, so a sound an ABILITY fires would only reach
+  // the host's speakers. Card plays and deaths are reconstructed on the guest
+  // by diffing the board (_relay2v2CardFx) and status cues ride their own
+  // event; this relays the rest (an ability's own cue, a trick's voice).
   // Deliberately NOT the generic sfx.play(): that is the UI's own vocabulary,
-  // button clicks and hovers included, and the host's interface noise is not
-  // something to broadcast into three other rooms. Only the four calls that
-  // mean "a card or trick just did something" are relayed, and 'play'/'death'
-  // are skipped because the board diff already covers them — relaying those
-  // would double every card sound on the guest.
+  // button clicks and hovers included, and the host's interface noise must not
+  // be broadcast. Only the four calls that mean "a card or trick just did
+  // something" are relayed, and 'play'/'death' are skipped because the board
+  // diff already covers them — relaying those would double every card sound
+  // on the guest.
   installSfxBridge() {
     if (this._sfxBridgeInstalled) return;
     if (!this.sfx) return;
@@ -4393,18 +3847,12 @@ const UI_AUDIO = {
           const payload = args.map(a => (a && typeof a === 'object') ? undefined : a);
           try { Game.emitFX('sfx', { fn: key, args: payload }); } catch (e) {}
         }
-        // A SOUND MUST NEVER KILL AN ABILITY. Card code calls these straight —
-        // Darth Vader's onPlay opens each of its three steps with
-        // UI.sfx.playCardAbility(...) before it touches the board — and
-        // _runHookBody catches whatever an onPlay throws into console.error.
-        // So a throw in here does not surface as a broken sound: the card is
-        // placed, the log line is already written, and the entire ability
-        // silently never happens. That is indistinguishable, in play, from the
-        // card having no text on it. (User: "i just played vader and his
-        // ability never fired ... and i lost.")
-        // The audio layer has plenty of ways to fail that have nothing to do
-        // with the game — a suspended AudioContext, a file that never loaded,
-        // an autoplay policy — and none of them are worth an ability for.
+        // A SOUND MUST NEVER KILL AN ABILITY. Card code calls these directly
+        // (Darth Vader's onPlay opens each step with UI.sfx.playCardAbility),
+        // and _runHookBody catches whatever an onPlay throws into
+        // console.error — so a throw here would silently cancel the whole
+        // ability. Audio can fail for reasons unrelated to the game (suspended
+        // AudioContext, unloaded file, autoplay policy); swallow them all.
         try { return fn.apply(self.sfx, args); } catch (e) { console.error('[sfx ' + key + ']', e); }
       };
     });
@@ -4420,11 +3868,10 @@ const UI_AUDIO = {
   },
 
   // THE LANE CANNOT ADVANCE OUT FROM UNDER ITS OWN BEATS. COMBAT_LANE_DELAY is
-  // already audio- and FX-aware, but it is read the instant the engine finishes
-  // the lane — when every beat above is still in the future and so invisible to
-  // both `activeTailMs` (nothing is sounding yet) and `activeFxTailMs` (nothing
-  // is animating yet). Booking the end of the sequence into the same slot the
-  // death cue already uses is what makes the existing wait cover it.
+  // audio- and FX-aware, but it is read the instant the engine finishes the
+  // lane — when every beat above is still in the future and invisible to both
+  // `activeTailMs` and `activeFxTailMs`. Booking the end of the sequence into
+  // the slot the death cue uses makes the existing wait cover it.
   _bookLaneAudioUntil(msFromNow) {
     if (!this.sfx) return;
     const at = performance.now() + msFromNow;
@@ -4432,21 +3879,18 @@ const UI_AUDIO = {
   },
 
   // ===================== AUDIO AUDIT (dev) =====================
-  // Per-card audio coverage table. Surfaces what's wired in CARD_SFX /
-  // TRICK_SFX vs. what falls back to procedural CARD_PROCEDURAL or to
-  // the global DEFAULT_CARD_SFX. User direction: "I can have a checklist
-  // of every card and if they have audio for each specific part. And
-  // then if they do, I can splice it with the fade-in/out already
-  // there." So each cell is one of:
+  // Per-card audio coverage table: what's wired in CARD_SFX / TRICK_SFX vs.
+  // what falls back to procedural CARD_PROCEDURAL or the global
+  // DEFAULT_CARD_SFX. Each cell is one of:
   //   • file path  → registered .mp3 / .wav with optional maxDur
   //   • generic    → procedural synth fallback (CARD_PROCEDURAL or
   //                  DEFAULT_CARD_SFX[event])
   //   • —          → no audio at all (event won't fire anything)
   //
-  // Clicking a registered file opens the inline splicer — re-trim the
-  // existing clip with adjustable IN/OUT and fade durations, export as
-  // WAV. The user runs the standard ffmpeg pipeline on the WAV to get
-  // the final 48k stereo 192k mp3 with -20 LUFS norm.
+  // Clicking a registered file opens the inline splicer — re-trim the clip
+  // with adjustable IN/OUT and fade durations, export as WAV. The standard
+  // ffmpeg pipeline on the WAV gives the final 48k stereo 192k mp3 with
+  // -20 LUFS norm.
   _audioAudit: { query: '', section: 'cards' },
   openAudioAudit() {
     this.renderAudioAudit();
@@ -4495,12 +3939,11 @@ const UI_AUDIO = {
     return { kind: 'none' };
   },
   // ===================== SYSTEM SFX DIRECTORY =====================
-  // A flat catalog of every NON-card / NON-trick sound the engine
-  // can play — UI cues, combat events, status effects, transitions,
-  // match outcomes, and the boot sequence. Lets the audio audit
-  // panel surface them so the user can hear each one in isolation
-  // and decide which to swap. Each entry is { id, category, name,
-  // desc, kind: 'procedural'|'file', src?, play }.
+  // A flat catalog of every NON-card / NON-trick sound the engine can play —
+  // UI cues, combat events, status effects, transitions, match outcomes, the
+  // boot sequence — so the audio audit panel can play each in isolation.
+  // Each entry is { id, category, name, desc, kind: 'procedural'|'file',
+  // src?, play }.
   //
   // `id` matches the literal passed to UI.sfx.play(name) for
   // procedural entries — keeps the directory in lock-step with the
@@ -4637,11 +4080,8 @@ const UI_AUDIO = {
         src: 'audio/heal-hp.mp3',
         play: () => sfx._playSample('audio/heal-hp.mp3', { fadeIn: 0, fadeOut: 200, maxDur: 1.5 }),
       },
-      // THE IMPORTED CUES BELONG IN THE GALLERY TOO. These were added one at a
-      // time and none of them registered here, so the screen that exists to
-      // list every sound in the game was missing five of the handful that can
-      // actually be heard. Each plays through the same path the game uses, so
-      // the ▶ button is a real audition rather than an approximation.
+      // The imported (file) cues are listed here too. Each plays through the
+      // same path the game uses, so the ▶ button is a real audition.
       {
         id: 'card-click', category: 'Interface', kind: 'file',
         name: 'Card click',
@@ -4696,18 +4136,16 @@ const UI_AUDIO = {
     try { entry.play(); } catch (e) { console.warn('[audio-audit] play failed', id, e); }
   },
 
-  // Render the "Game Sounds" tab. Single column of rows grouped by
-  // category (UI / Combat / Status / Tricks / Roguelite / Match /
-  // Transitions / Music & Files). Each row: ▶ play button, name,
-  // ID/source pill, description. Filterable by name + description
-  // via the same search box the cards/tricks tabs use.
+    // Render the "Game Sounds" tab. Single column of rows grouped by
+    // category (UI / Combat / Status / Tricks / Roguelite / Match /
+    // Transitions / Music & Files). Each row: ▶ play button, name,
+    // ID/source pill, description. Filterable by name + description
+    // via the same search box the cards/tricks tabs use.
   _renderAudioAuditSystem(ov, f) {
-    // SILENT ROWS ARE NOT LISTED. Procedural cues are gated off
-    // (sfx.PROCEDURAL_CUES), so every 'synth' entry in this directory now
-    // produces nothing — leaving ~40 of them with a ▶ button that does nothing
-    // is the opposite of an audit. While the gate is off the gallery shows only
-    // what can actually be heard; flip PROCEDURAL_CUES back to true and they
-    // return on their own, no change needed here.
+    // SILENT ROWS ARE NOT LISTED. While procedural cues are gated off
+    // (sfx.PROCEDURAL_CUES), every 'synth' entry produces nothing, so the
+    // gallery shows only what can be heard; flip PROCEDURAL_CUES back to true
+    // and they return on their own.
     const proceduralOn = !!(this.sfx && this.sfx.PROCEDURAL_CUES);
     const all = this._systemSfxDirectory().filter(e => proceduralOn || e.kind === 'file');
     const q = (f.query || '').trim().toLowerCase();
@@ -4874,8 +4312,8 @@ const UI_AUDIO = {
   // In-browser audio editor: load the registered file, decode, render
   // waveform with draggable IN / OUT markers, configurable fade-in /
   // fade-out, preview with the fades applied, and export as a WAV.
-  // Output is intentionally WAV (no MP3 encoder lib) so the user can
-  // run the existing ffmpeg pipeline on it for final encoding:
+  // Output is WAV (no MP3 encoder lib) so the existing ffmpeg pipeline
+  // does the final encoding:
   //   ffmpeg -y -i x.wav -ar 48000 -ac 2 -b:a 192k \
   //     -af "loudnorm=I=-20:TP=-1.5:LRA=11" x.mp3
   _audioAuditSplice(src, name, event) {
@@ -4922,10 +4360,9 @@ const UI_AUDIO = {
     const outRng = splicerEl.querySelector('.aa-splicer-out-rng');
     // Keep the Start/Finish range sliders in sync with the number inputs.
     const syncRanges = () => { if (inRng) inRng.value = inEl.value; if (outRng) outRng.value = outEl.value; };
-    // Per-card+event localStorage key for trim params. Lets the user
-    // save IN/OUT/fade values across page reloads instead of having
-    // to re-find their sweet-spot every time. Same key is checked on
-    // splicer open to auto-restore.
+    // Per-card+event localStorage key for trim params, so saved IN/OUT/fade
+    // values survive reloads. Same key is checked on splicer open to
+    // auto-restore.
     const trimKey = 'aa-trim::' + String(name) + '::' + String(event);
     const setStatus = (msg) => { status.textContent = msg || ''; };
     setStatus('Loading…');
@@ -4939,9 +4376,8 @@ const UI_AUDIO = {
       inEl.max  = b.duration;
       if (inRng)  inRng.max  = b.duration;
       if (outRng) outRng.max = b.duration;
-      // Restore previously saved trim params if the user has hit Save
-      // for this card+event before. Skips if any field would be out
-      // of range (e.g. file got re-encoded shorter since the save).
+      // Restore previously saved trim params for this card+event. Skips if
+      // any field would be out of range (e.g. file re-encoded shorter since).
       try {
         const saved = localStorage.getItem(trimKey);
         if (saved) {
@@ -5081,11 +4517,10 @@ const UI_AUDIO = {
     });
     wireRange(inRng, inEl, true);
     wireRange(outRng, outEl, false);
-    // Preview the slice with WebAudio gain envelope (fade-in / fade-out)
-    // + actual pause/resume semantics. Web Audio BufferSource is
-    // one-shot (stop() can't be undone), so "pause" captures the
-    // current offset and the next Preview click rebuilds a fresh
-    // BufferSource that starts mid-slice from that saved offset.
+    // Preview the slice with a WebAudio gain envelope (fade-in / fade-out)
+    // + real pause/resume. A BufferSource is one-shot (stop() can't be
+    // undone), so "pause" captures the current offset and the next Preview
+    // click builds a fresh BufferSource that starts mid-slice from it.
     //
     // State variables:
     //   previewSrc       — live BufferSource (null when paused/stopped)
@@ -5097,10 +4532,8 @@ const UI_AUDIO = {
     let previewSrc = null;
     let previewPausedAt = null;
     let previewRaf = null;
-    // Editing any of the IN / OUT / fade params invalidates the saved
-    // pause offset — the slice geometry changes and the offset would
-    // mean something different. Clear it so the next Preview rebuilds
-    // fresh from IN.
+    // Editing any IN / OUT / fade param invalidates the saved pause offset
+    // (the slice geometry changed), so the next Preview starts fresh from IN.
     [inEl, outEl, fiEl, foEl].forEach(el => {
       el.addEventListener('input', () => { previewPausedAt = null; });
     });
@@ -5164,11 +4597,9 @@ const UI_AUDIO = {
       src.connect(gain).connect(ctx.destination);
       // BufferSource start: (when, offset_in_buffer, duration)
       src.start(t0, inT + resumeOffset, remainingLen);
-      // Stash the ctx-clock start time and the resume offset on the
-      // source object so the Pause handler can derive "elapsed since
-      // playback started" + "where in the slice we are." Web Audio
-      // doesn't expose a current-position read on BufferSource, so we
-      // track it manually via these two anchors.
+      // Stash the ctx-clock start time and the resume offset on the source so
+      // Pause can derive the position in the slice — BufferSource exposes no
+      // current-position read.
       src._startCtxT = t0;
       src._resumeOffset = resumeOffset;
       previewSrc = src;
@@ -5186,9 +4617,9 @@ const UI_AUDIO = {
       tick();
       src.addEventListener('ended', () => {
         if (previewRaf) { cancelAnimationFrame(previewRaf); previewRaf = null; }
-        // Only clear when the playback finishes naturally — Pause
-        // sets the offset before stop() and we don't want this
-        // listener to wipe it before the next Preview reads it.
+        // Only clear when playback finishes naturally — Pause sets the offset
+        // before stop(), and this listener must not wipe it before the next
+        // Preview reads it.
         if (previewSrc === src) {
           drawWave(-1);
           previewSrc = null;
@@ -5196,25 +4627,16 @@ const UI_AUDIO = {
         }
       });
     });
-    // Pause — capture the current playback position (relative to the
-    // IN marker), stop the BufferSource, and stash the offset so the
-    // next Preview click resumes from here. User direction 2026-05-26:
-    // "the pause restarts the audio file not just pause it." Now it
-    // actually pauses.
+    // Pause — capture the current playback position (relative to the IN
+    // marker), stop the BufferSource, and stash the offset so the next
+    // Preview click resumes from here.
     pauseBtn.addEventListener('click', () => {
       if (!previewSrc) return;
       const inT  = parseFloat(inEl.value);
       const outT = parseFloat(outEl.value);
       const sliceLen = Math.max(0.01, outT - inT);
-      // Figure out how far we've played so far. We need the offset
-      // relative to the IN marker (not to ctx.currentTime), so we
-      // derive it from the playhead animation's elapsed time. The
-      // playhead tick draws at `inT + elapsedSec` — read the canvas
-      // attribute? No: stash the latest elapsed in a variable.
-      // Simpler: compute via ctx.currentTime - source's logical start.
-      // We track that on previewSrc by setting a custom property.
-      // Approach: capture `ctx.currentTime` against a stamp set when
-      // the source started. The Preview handler sets src._startCtxT.
+      // Offset relative to the IN marker: ctx.currentTime minus the source's
+      // logical start (src._startCtxT, set by the Preview handler).
       const startCtxT = previewSrc._startCtxT;
       const resumeFrom = previewSrc._resumeOffset || 0;
       const elapsed = (typeof startCtxT === 'number')
@@ -5228,14 +4650,9 @@ const UI_AUDIO = {
       setStatus(`Paused at ${(inT + previewPausedAt).toFixed(2)}s · click ▶ Preview slice to resume.`);
     });
     // Save button — persists the current IN / OUT / fade values to
-    // localStorage so they survive page reloads, AND auto-copies the
-    // equivalent ffmpeg command to the clipboard. Two-in-one because
-    // saving without an apply-path leaves the changes stranded; the
-    // ffmpeg command is what actually re-encodes the file when run.
-    // User direction 2026-05-26: "and a save button." The persist
-    // path means the user can dial in trim points across multiple
-    // sessions; the auto-copy gives them (or me, on the next chat
-    // message) a one-paste command to apply.
+    // localStorage AND copies the equivalent ffmpeg command to the
+    // clipboard, since the ffmpeg command is what actually re-encodes the
+    // file; saving alone would leave the changes stranded.
     saveBtn.addEventListener('click', () => {
       if (!buf) return;
       const inT  = parseFloat(inEl.value)  || 0;
@@ -5308,10 +4725,9 @@ const UI_AUDIO = {
       console.log('[audio-audit ffmpeg]', cmd);
     });
   },
-  // Tiny WAV encoder — float32 PCM → 16-bit PCM WAV. ~40 lines, no
-  // external dep. Output matches the audio system's expected stereo
-  // 48k formats but inherits whatever sampleRate the source had so
-  // the user's ffmpeg pipeline can resample on the way to MP3.
+  // Tiny WAV encoder — float32 PCM → 16-bit PCM WAV, no external dep.
+  // Keeps the source's sampleRate; the ffmpeg pipeline resamples on the way
+  // to MP3.
   _audioBufferToWav(buffer) {
     const numCh = buffer.numberOfChannels;
     const sr = buffer.sampleRate;
@@ -5347,25 +4763,17 @@ const UI_AUDIO = {
   },
   // MC BALLYHOO'S ARRIVAL — music first, then the man.
   //
-  // The song and the card now arrive TOGETHER — the fanfare plays under the
-  // panel instead of in front of it, and his voice cuts in a beat later. It
-  // used to hold the card back for ten full seconds (owner, originally: "i want
-  // this song to play first ... and then his card appears"; and since: "theres
-  // like 5 seconds before his art pops up ... have his art immedialty shoe
-  // up"). Purely presentational: the candies are already in everyone's
-  // trick hand by the time this runs, so nothing waits on the animation and a
-  // player who clicks straight through misses nothing but the show.
+  // The song and the card arrive TOGETHER — the fanfare plays under the
+  // panel, and his voice cuts in a beat later. Purely presentational: the
+  // candies are already in everyone's trick hand by the time this runs, so
+  // nothing waits on the animation.
   //
   // ONE function for every client. The host calls it from _maybeBallyhoo and
   // the three 2v2 guests call it from the relayed 'ballyhoo' FX event, so the
-  // lead-in, the wording and the music are identical on all four screens
-  // instead of the guests getting a bare card with no fanfare.
-  // HOW LONG THE FANFARE HAS THE ROOM BEFORE HIS VOICE CUTS IN. This used to be
-  // BALLYHOO_LEAD_MS: 10000 and it gated the CARD as well as the voice — ten
-  // seconds of locked table with nothing on screen. (The original ask was
-  // "the first song needs to play for like 10 seconds"; the follow-up was
-  // "have his art immedialty shoe up".) The card no longer waits on it; this is
-  // only the beat between the music starting and him talking over it.
+  // lead-in, the wording and the music are identical on all four screens.
+  // HOW LONG THE FANFARE HAS THE ROOM BEFORE HIS VOICE CUTS IN. The card does
+  // not wait on it; this is only the beat between the music starting and him
+  // talking over it.
   BALLYHOO_VOICE_LEAD_MS: 1200,
   _playTauntSound(name) {
     if (!name || !this.sfx) return;
@@ -5383,19 +4791,13 @@ const UI_AUDIO = {
   // ==================================================================
   // UI.audio — synthesized game-feel audio module
   // ==================================================================
-  // A complete sonic language for game events, all built from Web Audio
-  // synthesis (no sample assets). The point of synthesis here isn't
-  // saving bandwidth (samples would be tiny) — it's CONSISTENCY OF
-  // VOICE. Every cue uses the same oscillator + envelope plumbing,
-  // so the whole soundscape feels like one instrument family. Adding
-  // sample-based audio later would require curating ~50 samples
-  // matched in tone, mix, and timbre — far harder than tuning the
-  // synth params here.
+  // A sonic language for game events, all built from Web Audio synthesis.
+  // The point is CONSISTENCY OF VOICE: every cue uses the same oscillator +
+  // envelope plumbing, so the soundscape feels like one instrument family.
   //
   // Mix philosophy:
   //   • All cues are quiet by default (peak gain 0.04-0.18). Audio
-  //     should READ subliminally; on-the-nose sound effects are the
-  //     hallmark of amateur game audio.
+  //     should READ subliminally.
   //   • Distinct timbres per category: sines/triangles for friendly
   //     events, sawtooths for hostile, squares for UI errors, FM-like
   //     pitch sweeps for status effects. Hit the same FAMILY across
@@ -5410,8 +4812,8 @@ const UI_AUDIO = {
   //     not per-frame.
   //
   // Volume gate: respects this.settings.sfxVolume. 0 = silent.
-  // Auto-gate after page load: AudioContext is created lazily on
-  // FIRST cue to satisfy browser autoplay policy.
+  // AudioContext is created lazily on FIRST cue to satisfy browser
+  // autoplay policy.
   audio: {
     _ctx: null,
     _master: null,
@@ -5441,20 +4843,14 @@ const UI_AUDIO = {
     // is built from.
     voice(opts) {
       // THE SECOND SYNTH SYSTEM, GATED BY THE SAME SWITCH.
-      // Owner: "still a high pitched sound when changing rounds."
-      //
-      // UI.sfx and UI.audio are two independent engines with their own context,
-      // master bus and primitives. Turning off UI.sfx._tone/_noise silenced
-      // every cue I knew about and left this one running — measured, a single
-      // round change still created 36 oscillators here, from _roundCue,
-      // cardDraw and trickSummon. _roundCue is the round-change sound itself.
-      //
-      // voice() is the only createOscillator in this object and its own comment
-      // says why that is enough: "the atomic unit that every cue is built
-      // from". chord() and melody() both call it, so this one guard covers the
-      // whole system. It reads UI.sfx.PROCEDURAL_CUES deliberately rather than
-      // keeping a flag of its own — one switch for all procedural audio, so
-      // turning it back on cannot half-revive the game.
+      // UI.sfx and UI.audio are independent engines with their own context,
+      // master bus and primitives, so gating UI.sfx._tone/_noise alone leaves
+      // this one (round change, cardDraw, trickSummon) audible.
+      // voice() is the only createOscillator in this object; chord() and
+      // melody() both call it, so this one guard covers the whole system. It
+      // reads UI.sfx.PROCEDURAL_CUES rather than keeping its own flag — one
+      // switch for all procedural audio, so turning it back on cannot
+      // half-revive the game.
       try {
         const sfx = this._ui && this._ui.sfx;
         if (sfx && !sfx.PROCEDURAL_CUES) return;
@@ -5504,24 +4900,17 @@ const UI_AUDIO = {
     // ---- UI: clicks, rejection, selection ----
     // (kept minimal volumes — UI audio should support, never lead)
     click()  { this.voice({ freq: 2400, dur: 0.04, type: 'sine',   gain: 0.05 }); },
-    // DELEGATED, NOT DUPLICATED. This project has TWO audio engines, and both
-    // owned a 'select' cue: the sfx synth's switch case, and an 880Hz sine
-    // right here. Card selection goes through _playSelectCue -> audio.select,
-    // i.e. THIS one — so retuning the other engine's case changed nothing
-    // audible and only the settings preview moved. Owner: "the sound when
-    // selecting a card is still the same."
-    //
-    // Rather than paste the four variants here as well (a third place to keep
-    // in sync, and this engine has no noise source so 'glass' and 'lift' could
-    // not be reproduced faithfully anyway), forward to the one implementation.
-    // The picker in Settings then governs the cue wherever it is triggered
-    // from, which is what a setting is supposed to mean.
+    // DELEGATED, NOT DUPLICATED. Card selection goes through _playSelectCue ->
+    // audio.select (THIS one), and the sfx synth also owns a 'select' cue, so
+    // forward to that one implementation instead of keeping a copy here (this
+    // engine has no noise source, so 'glass' and 'lift' couldn't be reproduced
+    // anyway). The picker in Settings then governs the cue wherever it is
+    // triggered from.
     select() {
       const ui = this._ui || (typeof UI !== 'undefined' ? UI : null);
       if (ui && ui.sfx && ui.sfx.play) { try { ui.sfx.play('select'); return; } catch (e) {} }
       // Fallback only if that engine is unavailable — pitched at the 'soft'
-      // default rather than the old 880Hz pip, so the failure mode is quiet
-      // too.
+      // default, so the failure mode is quiet too.
       this.voice({ freq: 300, endFreq: 240, dur: 0.045, type: 'triangle', gain: 0.07 });
     },
     reject() {
@@ -5656,16 +5045,10 @@ const UI_AUDIO = {
 
     // ---- PHASE / ROUND TRANSITIONS ----
     // ---- ROUND CHANGE ----
-    // WAS a 220→440Hz triangle sweep over a full 0.40s (and its mirror on the
-    // way out). It topped out at the most sensitive part of the ear's range and
-    // held long enough to sing rather than tick, so the loudest, whiniest thing
-    // in the match was the one cue that fires every single round. Owner, after
-    // I first went looking in the wrong place: "its the change round audio."
-    //
-    // Four alternatives, all pitched WELL below the old peak and shorter, plus
-    // silent. Picked in Settings > Audio. Start and end share one setting and
-    // one shape — they are the same event heard from two sides — so they can
-    // never drift into sounding like different cards.
+    // The cue fires every round, so no high sustained sweep. Four
+    // alternatives, all low and short, plus silent. Picked in Settings >
+    // Audio. Start and end share one setting and one shape — the same event
+    // heard from two sides — so they can never drift apart.
     _roundCue(dir) {
       const v = (UI.settings && UI.settings.roundSfx) || 'swell';
       if (v === 'off') return;
@@ -5685,7 +5068,7 @@ const UI_AUDIO = {
         const p = pair(82, 110);
         this.voice({ freq: p[0], endFreq: p[1], dur: 0.34, type: 'sine', gain: 0.07, exp: true });
       } else {
-        // 'swell' — the old shape, an octave and a half down and shorter.
+        // 'swell' — a low, short rising sweep.
         const p = pair(110, 165);
         this.voice({ freq: p[0], endFreq: p[1], dur: 0.30, type: 'triangle', gain: 0.05, exp: true });
       }
@@ -5767,12 +5150,10 @@ const UI_AUDIO = {
         // single biggest "weight" addition for combat. Eye locks onto
         // the moment of death instead of the chain blurring past.
         this.hitPause(90);
-        // (AAA) Kill-cam micro-cinema — fires the radial warm flash
-        // anchored on the dying card's screen position, desaturates
-        // the rest of the board for ~320ms, and pops the dying card
-        // briefly. Layered on top of the hit-pause, NOT a replacement.
-        // Keep this AFTER hitPause so the freeze blocks the pop scale
-        // and we read the freeze AS the hold — not a competing motion.
+        // (AAA) Kill-cam micro-cinema — radial warm flash anchored on the
+        // dying card, desaturates the rest of the board for ~320ms, and pops
+        // the dying card briefly. Layered on top of the hit-pause; keep it
+        // AFTER hitPause so the freeze reads AS the hold, not a competing motion.
         if (this.killcamFlash) this.killcamFlash(target);
       } else if (target) {
         A.hit();
@@ -5783,11 +5164,8 @@ const UI_AUDIO = {
     //              Bear Trap, etc.) ----
     wrap('handleDeath', (r, args) => {
       // Skip if combat-related death already cued (kill cue fired in
-      // applyCombatDamage above). Heuristic: if killer arg present,
-      // it was likely combat OR an ability — either way `kill()` cue
-      // is appropriate. For NO-killer deaths (e.g. self-destruct from
-      // an ability), we still fire kill so the death is sonically
-      // marked.
+      // applyCombatDamage above). With or without a killer arg the `kill()`
+      // cue is appropriate, so the death is always sonically marked.
       // To avoid double-firing on combat deaths, debounce within a
       // single animation frame using the timestamp.
       const now = performance.now();
@@ -5828,11 +5206,9 @@ const UI_AUDIO = {
     wrap('mulligan', () => A.mulligan());
 
     // ---- TRICKS — discriminate by category ----
-    // Game.playTrick is wrapped here; we infer category from trick
-    // name keywords. Ideally each trick def carries a `category` field
-    // for unambiguous mapping, but the keyword heuristic is good enough
-    // for v1. Tricks not matching any keyword fall through to the
-    // generic damage cue.
+    // Game.playTrick is wrapped here; category is inferred from trick name
+    // keywords. Tricks not matching any keyword fall through to the generic
+    // damage cue.
     wrap('playTrick', (r, args) => {
       if (r === false) return;
       const trick = args[1];
@@ -5868,14 +5244,11 @@ const UI_AUDIO = {
         this._gameOverCued = true;
         if (s.winner === 'player') A.victory();
         else                       A.defeat();
-        // (AAA) Fade out the ambient arena hum on match end. 1.4s
-        // tail so it doesn't disappear abruptly under the victory
-        // sting.
-        // NOTE: these live on UI.sfx, NOT on UI.audio (which `A` is bound to).
-        // They were called as A.arenaHumStop() behind an `if (A && A.arenaHumStop)`
-        // guard, so the lookup was undefined and the guard swallowed it SILENTLY —
-        // the ambient arena hum and the danger heartbeat just kept playing after
-        // the match ended, with no error to show for it. Call the real owner.
+        // Fade out the ambient arena hum on match end (1.4s tail, so it doesn't
+        // vanish abruptly under the victory sting).
+        // These live on UI.sfx, NOT on UI.audio (which `A` is bound to) —
+        // calling them on `A` behind a guard fails silently and leaves the hum
+        // and heartbeat playing after the match.
         try { if (this.sfx && this.sfx.arenaHumStop) this.sfx.arenaHumStop(); } catch (e) {}
         try { if (this.sfx && this.sfx._dangerHeartbeatStop) this.sfx._dangerHeartbeatStop(); } catch (e) {}
       } else if (s && !s.gameOver) {

@@ -27,7 +27,9 @@ check('death records where the card stood before any early return or dissolve',
   rec > afterEl && afterEl > 0 &&
   (spBody.indexOf('return', afterEl + 20) === -1 || rec < spBody.indexOf('return', afterEl + 20)) &&
   rec < spBody.indexOf('_dissolveCardEl(cardEl'));   // (cardEl) or (cardEl, owner)
-var miss = SRC.indexOf("// The card is already off the board — which is precisely what happens on");
+// Anchored on CODE, not comment wording (comments get rewritten): the branch
+// that runs when the hit card's element is already gone — a killing blow.
+var miss = SRC.search(/const cardEl = document\.querySelector\(`\[data-card-id="\$\{ev\.cardId\}"\]`\);\s*\n\s*if \(!cardEl\) \{/);
 var missBody = SRC.slice(miss, miss + 2600);
 check('the missing-card (killing blow) branch draws the number', /this\._fxKillFloat\(ev, fx\)/.test(missBody));
 

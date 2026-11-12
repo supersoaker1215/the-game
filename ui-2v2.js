@@ -1,5 +1,5 @@
 // ============================================================
-// ui-2v2.js — THE 2v2 SCREENS (split out of ui.js, 2026-11-12)
+// ui-2v2.js — THE 2v2 SCREENS (split out of ui.js)
 // ============================================================
 // Every 2v2 renderer — local + online setup, lobby, draft, pass screens, board, turn tracker — and the 2v2 seat/visibility helpers.
 //
@@ -11,20 +11,15 @@
 const UI_2V2 = {
 
   // 2v2 guest: the three non-host seats never run the engine, so the card-play
-  // and card-death FX the host fires live never reach them. Diff the board
-  // between the old and incoming broadcast by card id and fire the matching cue
+  // and card-death FX the host fires never reach them. Diff the board between
+  // the old and incoming broadcast by card id and fire the matching cue
   // (id-based, so a card that just MOVED lanes stays silent). Mirrors the 1v1
   // guest lane-diff in _mpInit. Called before the state swap on the joiner path.
   //
-  // WHY DEATHS ARE HANDLED HERE AND NOT ON THE FX RELAY. This is the only
-  // moment a guest can animate a death: it runs BEFORE Game.state is swapped,
-  // so the dying card is still on screen. The generic sig relay drains from
-  // showDamageFloats — after the swap and after the re-render — where the
-  // element is already gone and the particle burst would silently find nothing
-  // to burst. So the guests heard the death and never saw it: no dissolve, no
-  // shards, no kill flash, cards just blinked out. (User: "make sure all the
-  // animations ... fire and work ... when 4 people are playing.")
-  // Named ...CardFx, not ...CardSounds, because it is no longer only sound.
+  // Deaths are handled HERE, not on the FX relay: this runs BEFORE Game.state
+  // is swapped, so the dying card is still on screen. The sig relay drains from
+  // showDamageFloats after the swap and re-render, when the element is gone.
+  // Named ...CardFx, not ...CardSounds, because it is not only sound.
   _relay2v2CardFx(oldState, newState) {
     try {
       if (!oldState || !newState || !this.sfx || !this.sfx.playCardSfx) return;
@@ -52,9 +47,8 @@ const UI_2V2 = {
   },
 
   // ===================== 2v2 ONLINE DRAFT RENDERING =====================
-  // Renders the 2v2 online draft using the same polished card-art UI as the
-  // 1v1 draft (portraits, stat orbs, rarity pips, progress pips). Non-active
-  // pickers see a waiting spinner. Reads from tt.draft instead of s.draft.
+  // Renders the 2v2 online draft with the same card-art UI as the 1v1 draft.
+  // Non-active pickers see a waiting spinner. Reads from tt.draft, not s.draft.
   // ===================== 2v2 LOCAL — POLISHED BOARD =====================
   // Wraps _render2v2OnlineBoard for local (same-device) 2v2. Temporarily
   // sets tt.you = activeKey so the shared renderer knows who is acting,
@@ -84,11 +78,9 @@ const UI_2V2 = {
       });
     }
 
-    // Trick clicks → READ, not play. Same fix and same reason as the online
-    // tray (_apply2v2OnlineTrickClicks): pass-and-play had the identical
-    // play-on-first-tap wiring. The inspect view's Play button commits via
-    // twov2PlayTrick, so nothing is lost — it just takes a deliberate second
-    // tap, exactly like a card.
+    // Trick clicks → READ, not play (same as _apply2v2OnlineTrickClicks). The
+    // inspect view's Play button commits via twov2PlayTrick, so playing takes a
+    // deliberate second tap, exactly like a card.
     const tricksEl = document.getElementById('player-tricks');
     if (tricksEl) {
       tricksEl.querySelectorAll('.trick-card').forEach((el) => {
@@ -154,9 +146,8 @@ const UI_2V2 = {
     const round = d.round;
     const total = isCards ? 4 : 2;
 
-    // In simultaneous mode "the picker" is simply me — I'm active until I lock
-    // in this round, then I wait for the others. In sequential (local) mode the
-    // active picker walks the pickerOrder as before.
+    // Simultaneous mode: the picker is me until I lock in this round. Sequential
+    // (local) mode: the active picker walks pickerOrder.
     const iPicked   = sim ? !!(d.picked && d.picked[myKey]) : false;
     const pickerKey = sim ? myKey : d.pickerOrder[d.pickerIdx];
     const picker    = tt.players[pickerKey];
@@ -172,12 +163,10 @@ const UI_2V2 = {
       pips.push(`<span class="draft-pip ${cls}"></span>`);
     }
 
-    // ONE FRAME FOR BOTH PHASES. `draft-tricks` on the panel re-themes the label,
-    // the sub-line, the pips, the counter and both edge glows — 30 rules, and not
-    // one of them styles a trick CARD (those carry their own trick-draft classes
-    // from makeTrickEl). So the class only ever repainted the chrome, which is
-    // precisely the screen-change the owner asked to be rid of. The phase goes
-    // on a data attribute instead, for anything that genuinely needs it.
+    // ONE FRAME FOR BOTH PHASES. A `draft-tricks` class on the panel would only
+    // re-theme the chrome (trick cards carry their own trick-draft classes from
+    // makeTrickEl), which reads as a screen change. The phase goes on a data
+    // attribute instead, for anything that genuinely needs it.
     let html = `<div class="draft-panel draft-cards" data-draft-phase="${isCards ? 'cards' : 'tricks'}">`;
     html += `<div class="draft-hud">`;
     html +=   `<div class="draft-hud-row">`;
@@ -185,20 +174,16 @@ const UI_2V2 = {
     html +=     `<span class="draft-hud-pips">${pips.join('')}</span>`;
     html +=     `<span class="draft-hud-counter">Pick <em>${round}</em> / ${total}</span>`;
     html +=   `</div>`;
-    // NOTHING ON YOUR OWN TURN. "Choose one card for your hand" restated what
-    // the header ("Your Pick"), the counter ("Pick 2 / 4") and two cards with
-    // nothing else to click already say three times over — it was a line of
-    // instructions above a screen that has one possible action. The WAITING
-    // states stay, because those genuinely carry information you cannot get
-    // from anywhere else on the screen: who the table is still waiting on.
+    // NOTHING ON YOUR OWN TURN — the header, counter and two cards already say
+    // what to do. The WAITING states stay: who the table is still waiting on is
+    // information found nowhere else on the screen.
     const subText = isMyPick
       ? ''
       : (sim ? `Waiting for ${stillOut.join(', ')}…` : `Waiting for ${picker.name} to choose…`);
     if (subText) html += `<div class="draft-hud-sub">${subText}</div>`;
-    // WHO LEADS THIS GAME — mirror the 1v1 draft's first-player callout. The
-    // opener is randomized per match (_2v2StartOffset), so surface it here so
-    // everyone knows the turn order before the match starts. (User: "on the
-    // draft screen have it say who is playing first for this game.")
+    // WHO LEADS THIS GAME — mirrors the 1v1 draft's first-player callout. The
+    // opener is randomized per match (_2v2StartOffset), so show the turn order
+    // before the match starts.
     try {
       const firstSeat = (Game._2v2ComputePhaseOrder(1)[0] || '').split('-')[0];
       if (firstSeat && tt.players[firstSeat]) {
@@ -220,23 +205,18 @@ const UI_2V2 = {
     const mulliganAttr     = mulliganUsed ? ' disabled' : '';
     const mulliganLabel    = mulliganUsed ? 'Mulligan Used' : 'Mulligan';
 
-    // SAME CONTROL ROW AS THE 1v1 DRAFT (owner: "copy the draft and make it the
-    // same"). The 2v2 draft is the same activity — read two offers, take one —
-    // so it gets the same controls, in the same order, from the same classes.
+    // SAME CONTROL ROW AS THE 1v1 DRAFT: same controls, same order, same classes.
     //
-    // BACK is deliberately absent: 1v1's draft is sequential and can rewind the
-    // last pick, but 2v2 online is SIMULTANEOUS — three other people are
-    // picking against the same pool at the same time, and un-picking would have
-    // to un-deal their offers too. Adding it would change the game, which is
-    // exactly what was asked not to happen.
+    // BACK is deliberately absent: 2v2 online is SIMULTANEOUS — three other
+    // people pick against the same pool at once, and un-picking would have to
+    // un-deal their offers too.
     html +=   `<div class="draft-hud-actions">`;
     html +=     `<button type="button" class="draft-quit-btn" onclick="twov2OnlineLeave()" title="Leave game">`;
     html +=       `<span class="mulligan-icon">&#8592;</span><span class="mulligan-label">Leave</span>`;
     html +=     `</button>`;
-    // Hand-audio privacy — draft cards have per-card hover cues, so someone
-    // beside you (or on the call) can hear which offers you are weighing. In
-    // 2v2 there are three other people listening, so it matters MORE here than
-    // in 1v1. Same setting, same persisted key, same [data-hand-audio-toggle]
+    // Hand-audio privacy — draft cards have per-card hover cues, so people nearby
+    // (or on the call) can hear which offers you weigh; it matters more with
+    // three listeners. Same setting, persisted key and [data-hand-audio-toggle]
     // hook that keeps every surface in sync.
     const _ha2 = !!(this.settings && this.settings.handAudioPrivacy);
     html +=     `<button type="button" class="draft-audio-btn${_ha2 ? ' is-muted' : ''}"`;
@@ -246,9 +226,8 @@ const UI_2V2 = {
     html +=       `<span class="mulligan-icon">&#9834;</span>`;
     html +=       `<span class="mulligan-label">${_ha2 ? 'Sounds Hidden' : 'Hide Sounds'}</span>`;
     html +=     `</button>`;
-    // The mulligan button is shown whether or not it is still yours to spend —
-    // hiding it once locked in (the old `if (isMyPick)`) meant the row silently
-    // changed shape mid-draft and you could not see that you still had one.
+    // The mulligan button is shown whether or not it is still yours to spend, so
+    // the row never changes shape mid-draft and you can see you still have one.
     html +=     this._draftMulliganHTML(mulliganUsed || !isMyPick, 'twov2OnlineDraftMulligan()');
     html +=   `</div>`;
     html += `</div>`;
@@ -364,16 +343,13 @@ const UI_2V2 = {
   },
 
   // ONE PAINTER FOR BOTH MODES. rows = [{ name, kind, you, isAI, color, team }],
-  // idx = which row is NOW (rows.length means the round is done). Everything
-  // that makes the rail a rail — the drag handle, the resize grip, the collapse
-  // click, the saved geometry — lives here, so 1v1 inherits all of it by
-  // construction rather than by a second copy that drifts.
+  // idx = which row is NOW (rows.length means the round is done). The drag
+  // handle, resize grip, collapse click and saved geometry all live here, so
+  // 1v1 inherits them by construction rather than by a copy that drifts.
   // WHAT THIS TURN LETS YOU DO, in words — "Cards", "Tricks", "Cards + Tricks".
   // Accepts a full sub-phase ('p1-cards-tricks') or a bare kind ('cards'), so
-  // the turn rail and the End button can read the SAME answer off the SAME
-  // authority instead of each spelling the rule out again. (The board header
-  // had its own copy that compared the full sub-phase against 'cards' and so
-  // never matched — every turn read "Turn".)
+  // the turn rail and the End button read the SAME answer off the SAME
+  // authority instead of each spelling the rule out again.
   _2v2PhaseLabel(kind) {
     const k = String(kind || '');
     const c = k.indexOf('cards') >= 0, t = k.indexOf('tricks') >= 0;
@@ -381,12 +357,9 @@ const UI_2V2 = {
   },
 
   // ===================== TURN-ORDER PANEL: MOVE + RESIZE =====================
-  // The rail is pinned to the right edge at a fixed width, which on a narrow
-  // window sits on top of the last lanes — and a player could not move a board
-  // element out of their own way. (User: "make it so that you can move it
-  // wherever you want, and you can adjust the size of it so it's never blocking
-  // a lane for anyone.") Geometry is per-DEVICE (localStorage), never match
-  // state: where your panel sits is not something the other three seats inherit.
+  // The rail can be moved and resized so it never blocks a lane. Geometry is
+  // per-DEVICE (localStorage), never match state: where your panel sits is not
+  // something the other three seats inherit.
   _2v2TrackerGeom() {
     if (this.__tkGeom !== undefined) return this.__tkGeom;
     let g = null;
@@ -413,23 +386,19 @@ const UI_2V2 = {
     const maxT = Math.max(4, (window.innerHeight || 0) - Math.max(h, 40) - 4);
     el.classList.add('is-placed');
     el.style.right = 'auto';
-    // ...and bottom. The default anchor is bottom-right now, so leaving that
-    // set while writing an explicit `top` would over-constrain a fixed box with
-    // auto height — the panel stretches to fill the gap between the two edges
-    // instead of hugging its chips. A placed panel is positioned by its top-left
-    // corner and nothing else.
+    // ...and bottom. The default anchor is bottom-right, so leaving it set while
+    // writing an explicit `top` over-constrains a fixed box with auto height (it
+    // stretches between the two edges). A placed panel is positioned by its
+    // top-left corner and nothing else.
     el.style.bottom = 'auto';
     el.style.transform = 'none';
     el.style.left = Math.min(Math.max(g.left, 4), maxL) + 'px';
     el.style.top  = Math.min(Math.max(g.top, 4), maxT) + 'px';
     if (g.w) el.style.width = g.w + 'px';
-    // SCALE THE TEXT WITH THE BOX. Resizing used to grow only the width, so a
-    // bigger panel just meant wider rows with more empty space and the same tiny
-    // text. Every font-size in the tracker is now multiplied by --tk-scale (see
-    // style.css), derived from the width against the 158px base, so making it
-    // bigger makes the WHOLE thing bigger. Clamped so it stays readable and never
-    // runs away. (Owner: "i want the whole thing to get bigger and not have a ton
-    // of empty space.")
+    // SCALE THE TEXT WITH THE BOX. Every font-size in the tracker is multiplied
+    // by --tk-scale (see style.css), derived from the width against the 158px
+    // base, so making the panel bigger makes the WHOLE thing bigger. Clamped so
+    // it stays readable.
     const TK_BASE_W = 158;
     const tkScale = Math.max(0.85, Math.min(2.4, (g.w ? g.w / TK_BASE_W : 1)));
     el.style.setProperty('--tk-scale', tkScale.toFixed(3));
@@ -446,9 +415,9 @@ const UI_2V2 = {
   _2v2TrackerResetGeom(el) {
     this._2v2TrackerSaveGeom(null);
     el.classList.remove('is-placed');
-    // 'bottom' belongs in this list now that the default anchor uses it — the
-    // placed state sets it to 'auto', and a reset that left that inline would
-    // drop the panel back to wherever `top` last put it instead of the corner.
+    // 'bottom' belongs in this list because the default anchor uses it — the
+    // placed state sets it to 'auto', and leaving that inline would drop the
+    // panel to wherever `top` last put it instead of the corner.
     ['left', 'top', 'right', 'bottom', 'transform', 'width', 'height', 'maxHeight']
       .forEach(k => { el.style[k] = ''; });
   },
@@ -541,11 +510,10 @@ const UI_2V2 = {
     const activeKey = Game._2v2ActivePlayer();
     const isMyTurn  = activeKey === myKey;
     const subPhase  = Game._2v2SubPhase();
-    // LOCKED WHILE THE TABLE IS MID-RESOLUTION. The engine refuses these
-    // actions during the before-tricks boundary and while any prompt is still
-    // outstanding (Game._2v2ActionsLocked); the controls have to agree, or the
-    // player clicks a live-looking card and nothing happens — which reads as
-    // the game being broken rather than as "something is still resolving".
+    // LOCKED WHILE THE TABLE IS MID-RESOLUTION. The engine refuses these actions
+    // during the before-tricks boundary and while any prompt is outstanding
+    // (Game._2v2ActionsLocked); the controls must agree, or a live-looking card
+    // does nothing and the game reads as broken.
     const _locked   = !!(Game._2v2ActionsLocked && Game._2v2ActionsLocked());
     const canCards  = isMyTurn && !_locked && Game._2v2CanPlayCards(subPhase);
     const canTricks = isMyTurn && !_locked && Game._2v2CanPlayTricks(subPhase);
@@ -562,15 +530,11 @@ const UI_2V2 = {
       phase: s.phase, round: s.round,
     };
 
-    // TRY/FINALLY, NOT A BARE RESTORE. Everything below runs with the SIDE
-    // PROXY pointing at the LOCAL VIEWER's hand. If anything in the ~240 lines
-    // between here and the restore throws, the proxy is left aiming at the
-    // viewer's array for the rest of the match — and the very next
-    // _2v2ReadBackActivePlayer writes  tt.players[acting].hand = s[side].hand,
-    // i.e. copies the VIEWER's hand into whichever seat is acting. That is a
-    // second, independent route to two teammates sharing one hand. The restore
-    // is now unconditional. (User: "keep each players card contained to thier
-    // own hand its very simple.")
+    // TRY/FINALLY, NOT A BARE RESTORE. Everything below runs with the SIDE PROXY
+    // pointing at the LOCAL VIEWER's hand. If anything throws before the restore,
+    // the next _2v2ReadBackActivePlayer writes tt.players[acting].hand =
+    // s[side].hand, copying the VIEWER's hand into the acting seat (two seats
+    // sharing one hand). The restore must stay unconditional.
     try {
     s.player.hand      = ap.hand;
     s.player.trickHand = ap.trickHand;
@@ -595,10 +559,9 @@ const UI_2V2 = {
         [lane.player, lane.ai] = [lane.ai, lane.player];
         if (lane._env) [lane._env.player, lane._env.ai] = [lane._env.ai, lane._env.player];
       }
-      // Flip pending choice owner/targetSide so renderBoard highlights the
-      // correct slot row for Team B. Without this, a Team B summon ability
-      // (owner='ai', targetSide='ai') would highlight the opponent's top
-      // row instead of Team B's own bottom row after the lane flip.
+      // Flip pending choice owner/targetSide so renderBoard highlights the correct
+      // slot row for Team B: otherwise a Team B summon (owner='ai',
+      // targetSide='ai') highlights the opponent's top row after the lane flip.
       if (s.pendingLaneChoice) {
         s.pendingLaneChoice.owner      = _flipSeat(s.pendingLaneChoice.owner);
         s.pendingLaneChoice.targetSide = _flipSeat(s.pendingLaneChoice.targetSide);
@@ -619,10 +582,9 @@ const UI_2V2 = {
     // --- HUD: Health (my team always on bottom / player bar) ---
     const myTeamData  = tt.teams[myTeam];
     const oppTeamData = tt.teams[oppTeam];
-    // Guarded. These four are the first DOM writes in the function and they had
-    // no null check, so any layout that does not carry a health bar — or any bug
-    // that removes one — did not degrade, it threw, 200 lines before the modals
-    // this function is also responsible for drawing.
+    // Guarded: these are the first DOM writes in the function, and a layout
+    // without a health bar must degrade rather than throw before the modals
+    // this function also draws.
     const _setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
     const _setW   = (id, v) => { const el = document.getElementById(id); if (el) el.style.width = v; };
     _setTxt('player-health', Math.max(0, myTeamData.health));
@@ -638,14 +600,11 @@ const UI_2V2 = {
     if (_aFrz) _aFrz.classList.toggle('hp-frozen', !!oppTeamData.healthFrozen);
 
     // --- HUD: Block circles ---
-    // Read the LIVE combat-proxy meter, not tt.teams[..].blockMeter. The team
-    // value is only synced back at end-of-phase / postCombat, so a meter that
-    // filled mid-combat (a hit's d3 roll) or mid-turn (Loki, Two-Face Coin,
-    // Trigon's steal) sat at its old value on screen until the round ended. The
-    // proxies (s.player = Team A, s.ai = Team B) hold the live value the instant
-    // it changes — for the host AND, via the state broadcast, for every guest.
-    // (User: "the block meter doesn't load instantly... make it change the
-    // second you take damage or an ability changes it.")
+    // Read the LIVE combat-proxy meter, not tt.teams[..].blockMeter: the team
+    // value only syncs back at end-of-phase / postCombat, so mid-combat or
+    // mid-turn changes would lag until the round ended. The proxies (s.player =
+    // Team A, s.ai = Team B) hold the live value for the host and, via the state
+    // broadcast, every guest.
     const oppSide = Game._2v2TeamSide[oppTeam];
     const myBlockLive  = (s[mySide]  && s[mySide].blockMeter  != null) ? s[mySide].blockMeter  : myTeamData.blockMeter;
     const oppBlockLive = (s[oppSide] && s[oppSide].blockMeter != null) ? s[oppSide].blockMeter : oppTeamData.blockMeter;
@@ -678,17 +637,12 @@ const UI_2V2 = {
     document.getElementById('round-num').textContent = s.round;
     const activeAp = activeKey ? tt.players[activeKey] : null;
     // Always show WHO is acting AND WHAT sub-phase they're in — e.g.
-    // "Ryan — Cards only" / "Max — Tricks only" — so at a glance everyone
-    // knows whose turn it is and whether they're playing cards or tricks.
-    // (User: on my card turn make it say something like "Ryan card only".)
-    // THE SUB-PHASE IS THE AUTHORITY, not the phase STRING. save.phase is only
-    // rewritten by _2v2StartSubPhase, so any render that arrives before it —
-    // a post-combat repaint, an incoming broadcast, an undo restoring the
-    // PREVIOUS turn's value — showed "Combat" while it was plainly someone's
-    // card turn. When combat really is running there is no sub-phase at all,
-    // which is a fact about the round rather than a string someone remembered
-    // to update. (The old comparisons were dead anyway: subPhase is 'p1-cards',
-    // never 'cards', so every turn fell through to "Turn".)
+    // "Ryan — Cards only" — so everyone knows whose turn it is and whether it is
+    // cards or tricks.
+    // THE SUB-PHASE IS THE AUTHORITY, not the phase STRING: save.phase is only
+    // rewritten by _2v2StartSubPhase, so a render arriving before it (post-combat
+    // repaint, broadcast, undo) would read stale. While combat really runs there
+    // is no sub-phase at all. (subPhase is 'p1-cards', never 'cards'.)
     let phaseLabel;
     if (!subPhase) {
       phaseLabel = 'Combat';
@@ -703,9 +657,8 @@ const UI_2V2 = {
     const firstEl = document.getElementById('first-player-text');
     if (firstEl) firstEl.textContent =
       (() => {
-        // Names from the ROSTER, not from the seats — p1 and p2 are only
-        // teammates by default, and this line was the last place still saying
-        // otherwise after teams became pickable.
+        // Names from the ROSTER, not from the seats — p1 and p2 are only teammates by
+        // default, since teams are pickable.
         const r = Game._2v2Roster ? Game._2v2Roster() : { A: ['p1','p2'], B: ['p3','p4'] };
         const nm = (k, f) => (tt.players[k] ? tt.players[k].name : f);
         const side = (arr, f1, f2) => `${nm(arr[0], f1)} & ${nm(arr[1], f2)}`;
@@ -738,16 +691,12 @@ const UI_2V2 = {
     this.renderAIHand(s);
     this.renderPlayerTricks(s);
 
-    // Prompt banner ("Place Man-Bat" / "Choose a lane…"). _renderImpl calls
-    // this on the 1v1 path only — the 2v2 board returns before reaching it,
-    // so every 2v2 seat (online AND local, which wraps this same function)
-    // got glowing target lanes with zero instruction text. Worse for the
-    // three players who AREN'T picking: without the banner's "Waiting for
-    // <name>…" line they stare at a frozen board with no idea whose prompt
-    // is blocking the turn. Safe to call here — Game.isMultiplayer() is
-    // false in 2v2 (that's the 1v1 Game.mp path; 2v2 rides Multiplayer4),
-    // so the banner falls through to the _2v2ActingPlayer annotation, which
-    // is exactly who owns the choice.
+    // Prompt banner ("Place Man-Bat" / "Choose a lane…"). _renderImpl calls this
+    // on the 1v1 path only and the 2v2 board (online AND local) returns before
+    // it, so it is called here — the three non-picking players need the
+    // "Waiting for <name>…" line to know whose prompt blocks the turn. Safe:
+    // Game.isMultiplayer() is false in 2v2 (2v2 rides Multiplayer4), so the
+    // banner falls through to the _2v2ActingPlayer annotation, the choice owner.
     this.renderPromptBanner(s);
 
     // Re-wire hand/trick clicks to 2v2 play path (renderPlayerHand wires
@@ -768,18 +717,14 @@ const UI_2V2 = {
     const btnNew = document.getElementById('btn-new-game');
     const btnU   = document.getElementById('btn-undo');
     if (btnNew) btnNew.style.display = 'none';
-    // ONE UNDO PER SEAT, PER MATCH. This used to be hidden outright in 2v2 —
-    // there was no take-back at all for any of the four players. Shown whenever
-    // it is your turn so the affordance is predictable, and DISABLED (with the
-    // reason as its tooltip) rather than vanishing when it cannot be used, so
-    // "already used it" and "not your turn" read differently.
-    // The engine owns every one of those reasons (undo2v2BlockedReason), so the
+    // ONE UNDO PER SEAT, PER MATCH. Shown whenever it is your turn so the
+    // affordance is predictable, and DISABLED (reason as tooltip) rather than
+    // hidden when unusable, so "already used it" and "not your turn" read
+    // differently. The engine owns every reason (undo2v2BlockedReason), so the
     // button cannot promise something the host would refuse.
     if (btnU) {
-      // `save` is a handful of stashed side-proxy fields — it has no twoVTwo on
-      // it, so this read was undefined every time and the button hid itself on
-      // every render. The live wrapper is `tt`, captured at the top of this
-      // renderer. (User: "the 1 undo per match isnt in 2v2 yet.")
+      // `save` is stashed side-proxy fields with no twoVTwo on it; the live
+      // wrapper is `tt`, captured at the top of this renderer.
       const _uSeat = tt && tt.you;
       const _uWhy = (Game.undo2v2BlockedReason && _uSeat) ? Game.undo2v2BlockedReason(_uSeat) : 'Not now';
       const _uMine = !!(Game._2v2ActivePlayer && _uSeat && Game._2v2ActivePlayer() === _uSeat);
@@ -795,25 +740,15 @@ const UI_2V2 = {
       }
     }
     if (btnA) {
-      // ALWAYS THERE ON YOUR TURN. Passing without playing is a legal move, and
-      // this gated on save.phase !== '2v2-combat' — a stale string (see the
-      // header above), so the button vanished on exactly the turns where you
-      // most wanted it and came back the moment you played a card, because the
-      // play refreshed the string. Gated on the sub-phase now: during real
-      // combat there is no sub-phase, so _2v2ActivePlayer() is null and
-      // isMyTurn is already false — the string was never carrying its weight.
-      // (Owner: "i want to pass and not play a card in 2v2 but the button that
-      // says end cards doesnt pop up, it does once i play a card.")
+      // ALWAYS THERE ON YOUR TURN — passing without playing is legal. Gated on the
+      // sub-phase, not the stale save.phase string: during real combat there is no
+      // sub-phase, so _2v2ActivePlayer() is null and isMyTurn is already false.
       if (isMyTurn && !_locked && subPhase) {
-        // NAMED FOR THE TURN, off the same formatter the rail prints, so
-        // "Cards + Tricks" on the rail and "End Cards + Tricks" on the button
-        // can never disagree.
-        // The verb is dropped on a narrow window. "End Cards + Tricks" measures
-        // 120px of text plus the shared bar button's side padding, against an
-        // actions cell that is 766px at 1400 but 153px at 755 — and the button
-        // carries `overflow: hidden`, so what does not fit is silently sliced
-        // off rather than wrapping. The phase name is the part that carries the
-        // information (it is what was asked for), so the verb is what goes.
+        // NAMED FOR THE TURN, off the same formatter the rail prints, so the rail and
+        // the button can never disagree.
+        // The verb is dropped on a narrow window: the actions cell shrinks to ~153px
+        // and the button has `overflow: hidden`, so text would be sliced off rather
+        // than wrap. The phase name carries the information, so the verb goes.
         const _wide = !(typeof window !== 'undefined' && window.innerWidth && window.innerWidth <= 900);
         btnA.textContent     = (_wide ? 'End ' : '') + this._2v2PhaseLabel(subPhase);
         btnA.className       = 'btn btn-primary twov2-end-btn';
@@ -845,17 +780,13 @@ const UI_2V2 = {
     else { const bt = document.getElementById('block-trick-modal'); if (bt) bt.remove(); }
 
     // Jump offer (Ghostface / Jason / Michael Myers / Art / Stripe) — the 1v1
-    // render owns it elsewhere; the 2v2 board returned first, so a Jason that
-    // armed mid-combat never showed its Play/Skip modal. Surface it here.
+    // render owns it elsewhere, but the 2v2 board returns first. Surface it here.
     if (s.pendingJumpOffer) { this.renderJumpOfferChoice(s); }
     else { const jm = document.getElementById('jump-offer-modal'); if (jm) jm.remove(); }
 
-    // Time Stone intercept — the third floating prompt, and the one that was
-    // still missing. hasPendingPrompt() counts pendingTimeStoneIntercept, so in
-    // 2v2 it parked combat behind a modal that NO 2v2 render path ever drew:
-    // an unanswerable prompt, frozen until a watchdog. The block-trick and jump
-    // offers above were each surfaced here for exactly this reason; this is the
-    // last one of the set.
+    // Time Stone intercept — hasPendingPrompt() counts pendingTimeStoneIntercept,
+    // so in 2v2 combat parks behind this modal; it must be drawn here or the
+    // prompt is unanswerable until a watchdog (same reason as the offers above).
     if (s.pendingTimeStoneIntercept) { this.renderTimeStoneIntercept(s); }
     else { const ts = document.getElementById('time-stone-modal'); if (ts) ts.remove(); }
 
@@ -863,11 +794,9 @@ const UI_2V2 = {
     this._applyMotionEffects();
 
     // Combat FX — the 2v2 board returns before the 1v1 render reaches
-    // showDamageFloats(), so the engine-emitted FX stream (hp-bar hit flash +
-    // shake + shards + floating damage, card hits, screen shake) never drained
-    // and 2v2 combat played silently. Drain it here. _fx2v2MySide tells the
-    // hp-bar branch which absolute side is "my team" so the flash lands on the
-    // right bar for both teams (Team B's board is flipped).
+    // showDamageFloats(), so drain the engine-emitted FX stream here.
+    // _fx2v2MySide tells the hp-bar branch which absolute side is "my team" so
+    // the flash lands on the right bar for both teams (Team B's board is flipped).
     this._fx2v2MySide = mySide;
     this.showDamageFloats();
 
@@ -884,18 +813,13 @@ const UI_2V2 = {
     s.round            = save.round;
     }
 
-    // MATCH END. The 2v2 board returns long before the 1v1 render tail reaches
-    // renderButtons(), and renderButtons is the only place a render opens the
-    // game-over overlay — so this path never showed a summary at all. The host
-    // still got one because damagePlayer called showGameOverScreen directly
-    // inside its own engine; a guest runs no engine, so it got nothing and sat
-    // on a live-looking board. (User, as the guest: "i never got the summary
-    // screen once the game ended.")
+    // MATCH END. The 2v2 board returns before the 1v1 render reaches
+    // renderButtons(), the only place a render opens the game-over overlay — and
+    // a guest runs no engine, so it must be opened here.
     // The winner is translated to the VIEWER's team: the engine records a SIDE
-    // ('player'/'ai'), and both teams see their own side rendered at the
-    // bottom, so an untranslated winner shows one of the two teams the wrong
-    // screen. showGameOverScreen's own re-entry guard keeps repeated renders
-    // from re-opening it.
+    // ('player'/'ai'), and both teams see their own side at the bottom, so an
+    // untranslated winner shows one team the wrong screen.
+    // showGameOverScreen's re-entry guard keeps repeated renders from re-opening it.
     if (s.gameOver && this.showGameOverScreen) {
       this.showGameOverScreen(s.winner === mySide ? 'player' : 'ai');
     }
@@ -911,37 +835,22 @@ const UI_2V2 = {
     const energy = ap.energy - ap.usedEnergy;
     const tt = Game.state.twoVTwo;
     const you = tt ? tt.you : null;
-    // LOCAL pass-and-play: every seat acts on this device, so everyone
-    // uses the select-then-lane-strip flow. The p1-only check routed
-    // players 2-4 into the ONLINE guest branch, whose Multiplayer4.send
-    // no-ops without a connection — their hand clicks silently did
-    // nothing. User report: "tried the 2v2 local and couldn't seem to
-    // play any cards when clicking on them."
+    // LOCAL pass-and-play: every seat acts on this device, so everyone uses the
+    // select-then-lane-strip flow (the online guest branch's Multiplayer4.send
+    // no-ops without a connection).
     // ONLINE (host included) uses the lane-prompt flow: click a card, the open
-    // lanes light up on the board, click one. That's exactly how 1v1 online
-    // plays, and it's the path the guests were already using successfully.
-    // The host used to be lumped in with local via `|| you === 'p1'` and got
-    // the numbered lane-strip instead — and that strip is what broke, leaving
-    // the host able to select a card but with no way to pick a lane. User
-    // report: "in 2v2 online again and i am the host and cant play cards."
-    // Host and guest now share one implementation (Game._2v2RequestLaneChoice);
-    // the strip survives only for LOCAL pass-and-play, where it belongs.
+    // lanes light up on the board, click one — same as 1v1 online. Host and guest
+    // share one implementation (Game._2v2RequestLaneChoice); the strip is for
+    // LOCAL pass-and-play only.
     const isLocalSelect = (tt && !tt.online);
     const selectedId = (isLocalSelect && UI._2v2SelectedCardIdx != null && ap.hand[UI._2v2SelectedCardIdx])
       ? ap.hand[UI._2v2SelectedCardIdx].id : null;
     // A PENDING PROMPT OWNS THE HAND, AND THIS PASS MUST NOT TAKE IT BACK.
-    // renderPlayerHand wires cardChoicePick onto exactly the hand cards a
-    // prompt is asking about; this rewire runs immediately after it and used to
-    // overwrite that handler unconditionally — nulled whenever it wasn't your
-    // sub-phase (or the card cost more than your energy), replaced with the
-    // inspect view when it was. So every "choose a card from your hand" prompt
-    // in 2v2 (Symbiote Spider-Man's shuffle) lit the cards gold and then did
-    // nothing when they were clicked, and because the chain runs one seat at a
-    // time, the whole table sat waiting on an answer that could not physically
-    // be given. It bit hardest on a seat prompted OUTSIDE its own turn, which
-    // is the normal case here: Symbiote cycles all four hands the moment it
-    // lands. (User, playing as the guest: "the game cant continue since i never
-    // got the prompt to reshuffle, also every player must do this.")
+    // renderPlayerHand wires cardChoicePick onto exactly the hand cards a prompt
+    // asks about; this rewire runs right after it and must not overwrite that
+    // handler. Prompts often fire OUTSIDE the seat's own turn (Symbiote
+    // Spider-Man cycles all four hands on landing), and the chain waits on each
+    // seat's answer.
     // Cards the prompt is NOT asking about stay inert while it is open — same
     // rule renderPlayerHand applies in 1v1.
     const _cc = Game.state.pendingCardChoice;
@@ -958,16 +867,11 @@ const UI_2V2 = {
       if (_promptCardIds.has(rawId)) return;              // the prompt's own handler stands
       if (_promptOpen) { cardEl.onclick = null; return; } // hand is inert while a prompt is open
       if (apIdx < 0) { cardEl.onclick = null; return; }
-      // PER CARD, NOT PER SUB-PHASE. `canPlay` is "can I play cards at all this
-      // sub-phase", which is FALSE on a tricks-only turn — so this stripped the
-      // click off every hand card during the trick phase, including the two
-      // whose entire ability is being playable in it. Iron Man and Thanos were
-      // rendered as playable by the hand renderer (which asks per card) and
-      // then had their handler removed one pass later, so they read as dead.
-      // (User: "my buddy was trying to play iron man and thanos during the
-      // trick phase in 2v2 and it wont let him drag and play.")
-      // canPlayThisCardNow is the same authority the renderer uses — it allows
-      // a trickPhasePlayable card, and Red Skull's aura, during a tricks turn.
+      // PER CARD, NOT PER SUB-PHASE. `canPlay` is FALSE on a tricks-only turn,
+      // which would strip trickPhasePlayable cards (Iron Man, Thanos) that the hand
+      // renderer shows as playable. canPlayThisCardNow is the same authority the
+      // renderer uses — it allows a trickPhasePlayable card, and Red Skull's aura,
+      // during a tricks turn.
       const _liveCard = ap.hand[apIdx];
       const _allowed = this.canPlayThisCardNow
         ? this.canPlayThisCardNow(Game.state, _liveCard)
@@ -983,17 +887,9 @@ const UI_2V2 = {
           UI._2v2SelectedCardIdx = UI._2v2SelectedCardIdx === apIdx ? null : apIdx;
           UI.render();
         } else {
-          // TAP READS, IT DOES NOT PLAY. This submitted the play on the very
-          // first tap, so a 2v2 card could never be picked up and read — the
-          // one thing a click does everywhere else in the game. Owner, twice:
-          // "when i tap on a card it automatically plays it in 2v2, that
-          // shouldn't happen" and "i want it how it works in 1v1 where if i tap
-          // it i can read the card and then i have the prompt at the bottom to
-          // play it if i choose."
-          // The inspect view IS that prompt — it carries a Play button gated by
-          // _inspectCardPlayable — so the play still goes through the same door
-          // (submitCommand), just one deliberate step later. Drag still plays
-          // directly, untouched.
+          // TAP READS, IT DOES NOT PLAY — same as 1v1: a tap opens the inspect view,
+          // whose Play button (gated by _inspectCardPlayable) commits through the same
+          // door (submitCommand). Drag still plays directly.
           UI.openCardInspect(ap.hand[apIdx]);
         }
       };
@@ -1008,16 +904,9 @@ const UI_2V2 = {
       if (!canPlay) { el.onclick = null; return; }
       const idx = this._trickIndexFromEl(el, ap && ap.trickHand);
       if (idx < 0) { el.onclick = null; return; }
-      // TAP READS, IT DOES NOT PLAY — the same contract hand cards were given
-      // one function above, and the same one 1v1 tricks already have. This
-      // fired the trick on the very first tap, so a 2v2 trick could never be
-      // turned over and read; stopPropagation then swallowed the click before
-      // the document-level read handler could see it either. (User: "in the
-      // trick if you tap to see the description it will automatically fire,
-      // that shouldnt happen. it will work the same as the cards: either drag
-      // or tap the button below the description to play.")
-      // The inspect view IS that button — _inspectTrickPlayable gates it and it
-      // commits through twov2OnlineTrick, the same door this used to call.
+      // TAP READS, IT DOES NOT PLAY — the same contract as hand cards above and 1v1
+      // tricks. The inspect view's Play button (_inspectTrickPlayable) commits
+      // through twov2OnlineTrick. Drag still plays directly.
       el.onclick = (e) => {
         e.stopPropagation();
         if (UI.showCardInspect) UI.showCardInspect(el);
@@ -1037,26 +926,24 @@ const UI_2V2 = {
       const ga = document.getElementById('game-area');
       if (ga) ga.appendChild(strip);
     }
-    // LOCAL pass-and-play only. Online (host and guests alike) now places via
-    // the highlighted-board-lane prompt, so the strip must never appear there
-    // — leaving it live would give the host two competing placement UIs.
+    // LOCAL pass-and-play only. Online (host and guests) places via the
+    // highlighted-board-lane prompt; a live strip would give two competing
+    // placement UIs.
     const _ttStrip = Game.state.twoVTwo;
     if ((_ttStrip && _ttStrip.online) || UI._2v2SelectedCardIdx == null || !canPlay) {
       strip.style.display = 'none';
       return;
     }
     strip.style.display = 'flex';
-    // MODER LOCKS THE STRIP TOO. This asked only "is my slot free", so a
-    // compelled player got all eight buttons and could aim anywhere while the
-    // engine pulled the card into Moder's lane anyway.
+    // MODER LOCKS THE STRIP TOO: a compelled player must only get Moder's lane,
+    // since the engine pulls the card there anyway.
     const _selCard = (ap && ap.hand && UI._2v2SelectedCardIdx != null)
       ? ap.hand[UI._2v2SelectedCardIdx] : null;
     const _ok = new Set(Game.placeableLanesFor
       ? Game.placeableLanesFor(mySide, _selCard) : s.lanes.map((_, i) => i));
     const _compelled = Game.moderCompulsionLane ? Game.moderCompulsionLane(mySide) : -1;
-    // The Rift compels the same way Moder does, so it has to be able to SAY so
-    // — a board silently narrowed to one lane with no reason given reads as a
-    // bug, which is the whole lesson of the Ballyhoo lock.
+    // The Rift compels the same way Moder does, so it must SAY so — a board
+    // silently narrowed to one lane reads as a bug.
     const _rift = Game.riftCompulsionLane ? Game.riftCompulsionLane(mySide) : -1;
     const _forcedLane = _compelled >= 0 ? _compelled : _rift;
     const _forcedWhy = _compelled >= 0 ? 'Forced into lane ' : 'Pulled into the Rift — lane ';
@@ -1077,16 +964,8 @@ const UI_2V2 = {
     `;
   },
 
-  // Show a "Waiting for [name]…" banner overlaid at the bottom of game-area
-  // when it is not the local player's turn in 2v2 online.
-  // REMOVED. This pinned a full-width gold bar to the bottom of the viewport,
-  // and on a tall board it sat below the fold — so all the player ever saw was
-  // a stray yellow line across the bottom of the screen. Whose turn it is was
-  // already being said twice, better, and in view: the header reads
-  // "<NAME> — TURN" and the turn-order rail marks that seat NOW. A third
-  // notice that cannot be read is not an indicator, it is a rule.
-  // (User: "there is this yellow line indicator on the bottom, get rid of that
-  // — i think its saying whose turn it is but i cant see it so just remove it.")
+  // The bottom "Waiting for [name]…" banner is REMOVED: it sat below the fold,
+  // and the header and turn-order rail already show whose turn it is.
   // Still removes any node left over from a previous build.
   _update2v2WaitingBanner() {
     const banner = document.getElementById('twov2-waiting-banner');
@@ -1103,18 +982,11 @@ const UI_2V2 = {
     const myTeam = tt.players[me] && tt.players[me].team;
     if (!myTeam) return;
     // Mini face-down card-back — the SAME diamond-pattern look as the 1v1
-    // opponent mini-hand (renderAIHand). Owner wants each other player's hand
-    // shown as real card/trick backs (not a bare count), with their name beside
-    // it and their leftover Energy on the same diamond glyph as the main HUD.
-    // THE LATTICE IS CSS NOW, NOT AN SVG PATTERN — see .rc-back in style.css.
-    // It was `<pattern id="rc-cb">` repeated inside every single back, and
-    // `fill="url(#rc-cb)"` resolves against the DOCUMENT, not the local <svg>:
-    // every back in the row painted the FIRST pattern in the DOM, and that
-    // pattern's `currentColor` is the first back's colour. So the whole roster
-    // — your blue seat, the purple trick backs — drew the enemy's red lattice
-    // inside its own correctly-coloured border. The border and the glow used
-    // plain CSS currentColor and were right all along, which is exactly why it
-    // read as "the lines don't match the border".
+    // opponent mini-hand (renderAIHand): each other player's hand as real
+    // card/trick backs, with their name and leftover Energy beside it.
+    // THE LATTICE IS CSS, NOT AN SVG PATTERN — see .rc-back in style.css.
+    // `fill="url(#id)"` resolves against the DOCUMENT, so every back would paint
+    // the FIRST pattern in the DOM (and its currentColor), not its own colour.
     const cardBackSVG = '';
     const chip = (pk, isMe) => {
       const p = tt.players[pk]; if (!p) return '';
@@ -1146,10 +1018,8 @@ const UI_2V2 = {
     const aiMini = document.querySelector('.info-bar.ai-bar #ai-hand');
     if (aiMini) aiMini.style.display = 'none';
     // The standalone voice panel is redundant in 2v2 — the turn rail carries the
-    // same roster with a mic per seat, and two lists of the same four names in
-    // opposite corners is one list too many. Hidden the same way the 1v1 mini-
-    // hand is, rather than by a body class that does not exist. 1v1 online keeps
-    // its panel: there is no seat rail there to fold into.
+    // same roster with a mic per seat. Hidden the same way the 1v1 mini-hand is.
+    // 1v1 online keeps its panel: there is no seat rail there to fold into.
     const vPanel = document.getElementById('voice-panel');
     if (vPanel) vPanel.style.display = 'none';
     this._paint2v2RosterStrip('twov2-roster-top', '.info-bar.ai-bar .bar-center', enemies.map(pk => chip(pk, false)).join(''), 'rc-enemy');
@@ -1352,18 +1222,16 @@ const UI_2V2 = {
     if (!tt || !tt.you) {
       // Pre-join — enter name + create/join, in the main-menu style
       // (boxless glow-text, left-aligned, pure black). Same input IDs +
-      // handlers as before so twov2OnlineCreate/Join keep working.
-      // Pre-fill the name with the last one typed (persisted on create/join) so
-      // it doesn't have to be re-entered every visit.
+      // handlers so twov2OnlineCreate/Join keep working.
+      // Pre-fill the name with the last one typed (persisted on create/join).
       let savedName = '';
       try { savedName = localStorage.getItem('2v2PlayerName') || ''; } catch (e) {}
       // …or the name already typed on the multiplayer screen, so it is never asked twice.
       if (!savedName && this._mpName) { try { savedName = this._mpName() || ''; } catch (e) {} }
       savedName = savedName.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').slice(0, 18);
       const _tq2 = (typeof Tournament !== 'undefined' && Tournament._online && Tournament._online.mode === '2v2') ? Tournament._online : null;
-      // SAME LOOK AS THE MENU (owner: "simple sleek like tron"): the full-size
-      // wordmark, one line of context, an underline name, and the two actions
-      // as rail rows. No icons, no "host" tag, no second smaller title.
+      // SAME LOOK AS THE MENU: the full-size wordmark, one line of context, an
+      // underline name, and the two actions as rail rows.
       el.innerHTML = `
         <div class="twov2-mm twov2-tron">
           ${heroHtml}
@@ -1399,10 +1267,8 @@ const UI_2V2 = {
     // request, and the lobby it gets back is the host's.
     const sel = this._2v2TeamSel;
     const canMove = (pk) => isHost || pk === tt.you;
-    // WHICH TEAM IS MINE. The team label was one flat pale-blue for everybody,
-    // which told you nothing and read as grey — the lobby is the one screen
-    // where "who am I fighting" should be obvious before a card is dealt. Your
-    // side takes the theme neon, theirs takes enemy red, same as the board.
+    // WHICH TEAM IS MINE: your side takes the theme neon, theirs takes enemy
+    // red, same as the board.
     const myTeamLobby = (players[tt.you] && players[tt.you].team) || null;
     const playerRows = ['p1','p2','p3','p4'].map(pk => {
       const hasJoined = joined[pk];
@@ -1441,10 +1307,9 @@ const UI_2V2 = {
               ? `<div class="twov2-mm-sub">Waiting for players…</div>`
               : ''));
 
-    // SIMPLE AND SLEEK, like the pre-join screen and the 1v1 lobby: the code
-    // is the one big thing, each seat is one line in its team's colour, and
-    // the two host actions are rail rows. One status line at most — the seat
-    // list already says how many have joined.
+    // Like the pre-join screen and the 1v1 lobby: the code is the one big thing,
+    // each seat is one line in its team's colour, and the two host actions are
+    // rail rows. One status line at most — the seat list says how many joined.
     const _railRow = (label, onClick) => `
       <button type="button" class="twov2-row" onclick="${onClick}">
         <span class="twov2-seg" aria-hidden="true"></span><span class="twov2-row-label">${label}</span>
@@ -1688,24 +1553,16 @@ const UI_2V2 = {
     if (!seat) return null;
     return (Game._2v2TeamSide && Game._2v2TeamSide[seat.team]) || 'player';
   },
-  // WHAT THIS TRICK COSTS *ME*. Every display and affordability check used to
-  // ask Game.getTrickCost('player', trick) — hardcoded. getTrickCost reads the
-  // OPPONENT of the side it is given to find enemy Sandmen, so for a Team B
-  // player that asked the wrong question in both directions at once: it counted
-  // their OWN team's Sandman against them and ignored the enemy's entirely.
-  // (User: "sandmans is affecting but not showing up in hand to the enemy
-  // players" — the host charged the real price and the hand showed the base
-  // one.) Null outside 2v2, so 1v1 (where the guest's state is
-  // perspective-flipped and 'player' really is them) is unchanged.
-  // WHAT THIS CARD COSTS *ME* — the card twin of _localTrickCost, and the same
-  // bug: getCardCost reads state[owner].discount and finds enemy Silver Surfers
-  // by looking at the OPPONENT of the side it is given, and the UI passed a
-  // hardcoded 'player'. For a Team B player that read Team A's discount and
-  // counted their OWN team's Surfer against them while ignoring the enemy's.
-  // (User: "for silver surfer, any in-hand changes to stats or cost, make sure
-  // they show up in guest and host hands.")
+  // WHAT THIS TRICK COSTS *ME*. getTrickCost reads the OPPONENT of the side it
+  // is given to find enemy Sandmen, so a hardcoded 'player' is wrong for a
+  // Team B player in both directions. Null outside 2v2, so 1v1 (where the
+  // guest's state is perspective-flipped and 'player' really is them) is
+  // unchanged.
+  // WHAT THIS CARD COSTS *ME* — the card twin of _localTrickCost: getCardCost
+  // reads state[owner].discount and finds enemy Silver Surfers on the OPPONENT
+  // of the side it is given, so it needs the viewer's real side too.
   // May the person at this screen see what a face-down card actually is?
-  // Only its own player. Solo/1v1 keeps its old behaviour (there is nobody
+  // Only its own player. Solo/1v1 keeps its behaviour (there is nobody
   // else on your side of the board), and the host is NOT special here — the
   // host running the match is not a licence to read a hidden card.
   _2v2MaySeeHidden(card) {

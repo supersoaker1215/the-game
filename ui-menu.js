@@ -1,5 +1,5 @@
 // ============================================================
-// ui-menu.js — THE MENU + START SCREEN (split out of ui.js, 2026-11-12)
+// ui-menu.js — THE MENU + START SCREEN (split out of ui.js)
 // ============================================================
 // The start screen, the main menu and its in-shell submenus, keyboard nav, the backdrop scene hand-off, the now-playing/hero picker.
 //
@@ -15,19 +15,17 @@ const UI_MENU = {
   // the grid. hero + reflect carry two cross-fade buffers each. Order matters:
   // grid (back) → reflect → hero → seam (front line).
   _menuSceneHTML() {
-    // Full-bleed looping video (owner, 2026-11-11: "the video replaces the hero
-    // art entirely"). The host is empty; _mountMenuVideo moves the one shared
-    // <video> into it after the HTML lands.
+    // Full-bleed looping video that replaces the hero art. The host is empty;
+    // _mountMenuVideo moves the one shared <video> into it after the HTML lands.
     return `
       <div class="mm-tron-grid" aria-hidden="true"></div>
       <div class="mm-bgvideo" aria-hidden="true"></div>`;
   },
-  // MENU VIDEO — ONE element for the title AND the menu. It is created once and
-  // MOVED between hosts, so PRESS START carries on the same shot instead of
-  // cutting back to frame 0 (the menu re-renders with innerHTML, which would
-  // throw a per-screen <video> away and restart it). Muted + playsinline is
-  // what lets iOS/Chrome autoplay it without a gesture; the file carries no
-  // audio track at all, so the menu music is the only sound.
+  // MENU VIDEO — ONE element for the title AND the menu, created once and MOVED
+  // between hosts so PRESS START continues the same shot (the menu re-renders
+  // with innerHTML, which would restart a per-screen <video>). Muted +
+  // playsinline lets iOS/Chrome autoplay without a gesture; the file has no
+  // audio track, so the menu music is the only sound.
   MENU_VIDEO_SRC: 'video/menu-loop.mp4',
   MENU_VIDEO_POSTER: 'video/menu-loop.jpg',
   _menuVideoEl() {
@@ -56,8 +54,8 @@ const UI_MENU = {
   },
   _mountMenuVideo(host) {
     if (!host) return;
-    // The backdrop is a SCENE now (menu-scene.js): random each visit, switched
-    // from the name bar along the bottom. The video is one of the scenes.
+    // The backdrop is a SCENE (menu-scene.js): random each visit, switched from
+    // the name bar along the bottom. The video is one of the scenes.
     if (typeof MenuScene !== 'undefined') { MenuScene.mount(host); return; }
     const v = this._menuVideoEl();
     if (v.parentNode !== host) host.appendChild(v);
@@ -72,9 +70,8 @@ const UI_MENU = {
     if (want && v.paused) { try { const p = v.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
     else if (!want && !v.paused) { try { v.pause(); } catch (e) {} }
   },
-  // Live-sync the menu-atmosphere scene to current settings without a full menu
-  // re-render — lets the Settings toggle/slider preview in real time over the
-  // (still-mounted) menu behind the settings overlay.
+  // Live-sync the menu scene to current settings without a full re-render, so
+  // the Settings controls preview in real time over the menu behind them.
   _applyMenuFlow() {
     const el = document.getElementById('main-menu-overlay');
     if (!el) return;
@@ -95,9 +92,8 @@ const UI_MENU = {
     let base = String(src).split('/').pop().split('?')[0].replace(/\.[a-z0-9]+$/i, '');
     base = base.replace(/-hover$/i, '');
     // A track can belong to more than one face (the Cog event heroes share one
-    // theme), so stem → name alone can name the wrong one. When the title
-    // screen handed its hero to the menu (_pinTrackFace) that face wins for
-    // that track.
+    // theme), so stem → name alone can name the wrong one. A face pinned by the
+    // title screen (_pinTrackFace) wins for that track.
     if (this._trackFace && this._trackFace.stem === base) return this._trackFace.name;
     if (!this._menuStemToName) this._menuStemToName = this._buildMenuStemMap();
     return this._menuStemToName[base] || null;
@@ -149,9 +145,8 @@ const UI_MENU = {
     const names = srcs.map(s => this._menuHoverArtName(s)).filter(Boolean);
     return [...new Set(names)].sort((a, b) => a.localeCompare(b));
   },
-  // Rows for the picker: alphabetical heroes. The saved default gets a ★ prefix
-  // (.is-default); the currently-playing hero is highlighted (.is-active, set
-  // by _updateNowPlaying). Clicking a row plays that hero.
+  // Picker rows: alphabetical heroes. The saved default gets a ★ prefix
+  // (.is-default); the playing hero is .is-active (set by _updateNowPlaying).
   _menuHeroPickerRowsHTML() {
     if (this.MENU_SCORE_ON) {
       return this.menuScore.SCORES.map((sc, i) =>
@@ -204,36 +199,23 @@ const UI_MENU = {
     });
     if (def) picker.scrollTop = Math.max(0, def.offsetTop - (picker.clientHeight - def.offsetHeight) / 2);
   },
-  // The menu-music rotation — DERIVED from CARD_SFX, which is the single
-  // source of truth for hover audio. Any card with a `hover` entry joins the
-  // menu rotation (and the hero picker) automatically; there is no roster to
-  // keep in sync. This used to walk a hand-maintained MENU_HOVER_SRCS array,
-  // which had silently drifted five cards behind the registry — Gizmo,
-  // Predator, Stripe, The Flash and Iron Giant all shipped with hover tracks
-  // that could never play on the menu because nobody added the matching line.
+  // The menu-music rotation is DERIVED from CARD_SFX, the single source of truth
+  // for hover audio: any card with a `hover` entry joins the rotation (and the
+  // hero picker) automatically, so there is no roster to keep in sync.
   //
-  // Exclusion is a DENYLIST, not an allowlist of types. The old filter kept
-  // only type 'hero'/'villain', which is why Iron Giant (type 'scifi') was
-  // dropped despite being a perfectly good character — and why the next new
-  // type would be dropped too. Now a card is excluded only if it:
-  //   • isn't in CARD_DEFS at all (tricks and Infinity Stones live in
-  //     TRICK_DEFS — those have hover audio but no character to show), or
-  //   • is an 'environment' (Boiler Room, Sewers, Open Water, Gargantua —
-  //     these are places, so the hero panel would show scenery), or
+  // Exclusion is a DENYLIST, so new types are in by default. A card is excluded
+  // only if it:
+  //   • isn't in CARD_DEFS (tricks and Infinity Stones live in TRICK_DEFS —
+  //     hover audio but no character to show), or
+  //   • is an 'environment' (a place, so the hero panel would show scenery), or
   //   • resolves to no art path at all.
-  // Everything else — any existing or future type — is in by default.
   //
-  // The art check is a cheap guard, NOT a guarantee the file exists:
-  // getCardArtPathDefault() synthesizes "art/<Name>.png" from the name and
-  // only returns null if the resolver yields nothing. A card whose art is
-  // genuinely missing still gets in and 404s — which is fine, because the
-  // preloader in _updateMenuSideArt has an onerror that keeps the previous
-  // hero on screen rather than blanking the panel.
+  // The art check is cheap, NOT a guarantee the file exists:
+  // getCardArtPathDefault() synthesizes "art/<Name>.png". A missing file 404s,
+  // and _updateMenuSideArt's onerror keeps the previous hero on screen.
   //
   // The src comes from CARD_SFX rather than a copied literal so the menu track
-  // stays byte-identical to the in-game card hover, cache-bust ?v= included.
-  // (Vader's hover swapped to ?v=2; a copied roster kept playing the stale
-  // cached clip while the card itself played the new one.)
+  // stays byte-identical to the in-game hover, cache-bust ?v= included.
   _menuCharHoverSrcs() {
     if (this._charSrcs) return this._charSrcs;
     const out = [];
@@ -265,11 +247,9 @@ const UI_MENU = {
     return this._menuHoverArtName(src);
   },
 
-  // Abandon the current match / draft / deckbuilder session from the
-  // Settings modal and bounce back to the main menu. Confirms first so
-  // an accidental click mid-game doesn't nuke progress. Skips the
-  // confirm if we're already on the main menu (no-op) so the button
-  // still feels responsive in that edge case.
+  // Abandon the current match / draft / deckbuilder session from Settings and
+  // return to the main menu. Confirms first; skips the confirm if already on
+  // the main menu.
   quitToMainMenu() {
     const phase = Game && Game.state ? Game.state.phase : null;
     const inMatch = phase && phase !== 'main-menu' && phase !== 'mode-select'
@@ -284,22 +264,17 @@ const UI_MENU = {
   },
 
   // ===================== MAIN MENU (phase 4a) =====================
-  // Landing screen. Title, five buttons: PLAY, DECK BUILDER, MY DECKS,
-  // STATS, SETTINGS. Clicking a button flips Game.state.phase to the
-  // target screen and re-renders.
+  // Landing screen. Clicking a button flips Game.state.phase to the target
+  // screen and re-renders.
   // ---- TITLE SCREEN -------------------------------------------------------
-  // Owner: "i want a title screen like [the console game]". The pattern, not
-  // the picture: a full-bleed hero (our own art pool, the same picker the menu
-  // uses), the wordmark centred, and a PRESS START that breathes until any key
-  // or tap dismisses it. Session-scoped — it shows once per load, never again
-  // mid-session, and nothing about it is persisted.
+  // A full-bleed hero (same picker as the menu), the wordmark centred, and a
+  // PRESS START that breathes until any key or tap dismisses it.
+  // Session-scoped: shows once per load, nothing persisted.
   _titleDone: false,
   renderTitleScreen(s) {
-    // THE START SCREEN IS THE MENU WITHOUT ITS LIST (owner, 2026-11-11: "the
-    // start screen needs to be the same as the menu"). Same overlay classes,
-    // same scene + scrim + panel, the same .mm-header in the same place — only
-    // PRESS START stands where the option list will appear. Pressing it swaps
-    // in the list and nothing else moves.
+    // THE START SCREEN IS THE MENU WITHOUT ITS LIST. Same overlay classes, scene,
+    // scrim, panel and .mm-header — only PRESS START stands where the option list
+    // will appear, so pressing it swaps in the list and nothing else moves.
     const el = document.getElementById('main-menu-overlay');
     if (!el) return;
     el.classList.add('is-title', 'ts-menulike', 'mm-mw3', 'mm-four');
@@ -359,18 +334,14 @@ const UI_MENU = {
     const el = document.getElementById('main-menu-overlay');
     if (!el) return;
     el.classList.add('mm-mw3');   // MW3-style layout: left list + single right hero
-    // Inline Tron-style SVGs. `stroke: currentColor` + `fill: none` lets
-    // the icon inherit the neon cyan hue from the button's text color,
-    // and hover-state glows fall out for free via the parent's shadows.
-    // All icons drawn on a 24×24 viewBox with 2px strokes so they read
-    // clearly at the 28px icon size used in .mm-option-icon.
+    // Inline Tron-style SVGs. `stroke: currentColor` + `fill: none` lets the icon
+    // inherit the button's text colour and hover glow. Drawn on a 24×24 viewBox
+    // with 2px strokes so they read at the 28px .mm-option-icon size.
     const SVG = {
       play: `<svg class="mm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round">
                <path d="M7 5 L19 12 L7 19 Z"/>
              </svg>`,
-      // Two linked arrows — reads as "two players connected" without
-      // needing literal head silhouettes. Stays on-theme with the rest
-      // of the line-only Tron icon set.
+      // Two linked arrows — "two players connected", line-only like the rest.
       multi: `<svg class="mm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round">
                 <circle cx="7"  cy="8"  r="3"/>
                 <circle cx="17" cy="8"  r="3"/>
@@ -395,13 +366,9 @@ const UI_MENU = {
                 <rect x="11" y="8"  width="3" height="10"/>
                 <rect x="16" y="4"  width="3" height="14"/>
               </svg>`,
-      // ROGUELITE and CODEX were the only two rows wearing another row's icon —
-      // Roguelite took SVG.play, the same triangle as Solo Match, and Codex took
-      // SVG.decks, the same stacked cards as My Decks. In a list this short a
-      // repeated glyph is worse than no glyph: it says "these two are the same
-      // thing" of two rows that are not. Owner supplied the marks.
-      // The diamond is the run: a node on the map, and the shape the roguelite
-      // screens already use for their map nodes and relic slots.
+      // Each row gets its own glyph: a repeated glyph in a short list says two rows
+      // are the same thing. The diamond is the run — the shape the roguelite
+      // screens use for map nodes and relic slots.
       rogue: `<svg class="mm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round">
                 <path d="M12 2.5 L21.5 12 L12 21.5 L2.5 12 Z"/>
                 <path d="M12 8.5 L15.5 12 L12 15.5 L8.5 12 Z" stroke-opacity="0.55"/>
@@ -426,10 +393,9 @@ const UI_MENU = {
                  </svg>`
     };
     let mmIdx = 0;   // running index drives the one-shot entrance stagger
-    // Wrap each label character in a .mm-letter span so the left list can
-    // do a per-letter flip when swapping between the main list and an
-    // in-place submenu (see .mm-flipping CSS). Spaces stay literal so word
-    // spacing is unaffected; at rest .mm-letter is plain inline text.
+    // Wrap each label character in a .mm-letter span for the per-letter flip on
+    // submenu swaps (see .mm-flipping CSS). Spaces stay literal so word spacing
+    // is unaffected; at rest .mm-letter is plain inline text.
     const _letters = (label) => String(label).split('').map((ch, i) =>
       ch === ' ' ? ' ' : `<span class="mm-letter" style="--mm-li:${i}">${ch}</span>`).join('');
     const btn = (id, label, sub, icon, onClick) => `
@@ -441,10 +407,9 @@ const UI_MENU = {
           <div class="mm-option-sub">${sub}</div>
         </div>
       </button>`;
-    // FEATURED ROW — one mode gets pulled out of the list and given a real
-    // panel: chamfered on the two opposite corners, outlined rather than
-    // filled. It is the one boxed thing on the screen, which is what makes it
-    // read as featured; every other row stays boxless glow-text.
+    // FEATURED ROW — one mode gets a real panel: chamfered on two opposite
+    // corners, outlined not filled. It is the one boxed thing on the screen,
+    // which is what makes it read as featured; other rows stay boxless glow-text.
     const feature = (id, label, sub, icon, onClick) => `
       <button type="button" class="mm-feature" id="${id}" onclick="${onClick}">
         <span class="mm-feature-icon">${icon}</span>
@@ -453,9 +418,8 @@ const UI_MENU = {
           <span class="mm-feature-sub">${sub}</span>
         </span>
       </button>`;
-    // Library rows carry a right-aligned counter. REAL numbers, not the
-    // mockup's placeholders — a menu that lies about how many decks you have
-    // is worse than one that says nothing.
+    // Library rows carry a right-aligned counter with REAL numbers — a menu that
+    // lies about how many decks you have is worse than one that says nothing.
     const _deckCount = (() => {
       try { return Object.keys(this._dbGetSavedDecks() || {}).length; } catch (e) { return 0; }
     })();
@@ -478,31 +442,23 @@ const UI_MENU = {
     const _pname = ((this.settings && this.settings.playerName) || 'YOU').trim().slice(0, 12) || 'YOU';
     const _initials = _pname.split(/[\s._-]+/).filter(Boolean).slice(0, 2)
       .map(w => w[0]).join('').toUpperCase() || _pname.slice(0, 2).toUpperCase();
-    // THE LEADERBOARD TAKES THIS SLOT. Owner crossed the YOU / SIGNED IN chip
-    // out and asked for the leaderboard "where the you signed in is".
-    // No loss of function: the chip's only job was opening Settings to change
-    // your name, and the leaderboard's own rename control does exactly that,
-    // in the place where the name actually matters. Settings is still one tap
-    // away on the gear.
+    // The leaderboard takes the signed-in chip's slot; its rename control covers
+    // the chip's only job, and Settings is still on the gear.
     // _pname / _initials are kept — the codex and the share card read them.
     // Simple question-mark SVG for the tutorial option (no other icon
     // slot conveys "how to play"). Matches the other .mm-svg spec.
     const helpSVG = `<svg class="mm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 9a3 3 0 1 1 4.5 2.6c-.9.5-1.5 1-1.5 2"/><line x1="12" y1="17" x2="12" y2="17.2"/></svg>`;
     // Trophy for the Tournament row.
     const trophySVG = `<svg class="mm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v4a5 5 0 0 1-10 0V4Z"/><path d="M7 6H4v1a3 3 0 0 0 3 3"/><path d="M17 6h3v1a3 3 0 0 1-3 3"/><path d="M9.5 13.5 9 17h6l-.5-3.5"/><path d="M8 20h8"/><path d="M10 17v3M14 17v3"/></svg>`;
-    // Panel inner content. buildPanel(sub) returns ONLY the .mm-panel
-    // markup so the SAME shell (hero on the right, scrim, bottom bar) can
-    // host an in-place SUBMENU without a screen change: clicking Solo Match
-    // swaps just this left list to the solo sub-options (with a per-letter
-    // flip) while the hero + music keep playing. Only a real commit (start
-    // a draft / run / match, open My Decks) actually leaves the menu.
+    // Panel inner content. buildPanel(sub) returns ONLY the .mm-panel markup so
+    // the SAME shell (hero, scrim, bottom bar) can host an in-place SUBMENU: a
+    // submenu swaps just this left list (with a per-letter flip) while the hero
+    // + music keep playing. Only a real commit actually leaves the menu.
     //   sub === null  → main list (Play + Library)
     //   sub === 'solo'→ Solo Match sub-options (Solo·vs AI + Two on Two)
-    // Brand bar — sits IN FLOW at the very end of the panel list (below
-    // Sandbox on the main list) so it's only visible once you scroll to
-    // the bottom. User direction: "just below the sandbox mode regardless
-    // and not seen at all until you scroll all the way down." Emitted by
-    // buildPanel (not the shell) so submenu swaps keep it.
+    // Brand bar — IN FLOW at the very end of the panel list, so it is only seen
+    // once you scroll to the bottom. Emitted by buildPanel (not the shell) so
+    // submenu swaps keep it.
     const botbarHTML = `
       <div class="mm-botbar">
         <div class="mm-np-label">Now playing</div>
@@ -567,24 +523,16 @@ const UI_MENU = {
           </div>
         </div>${botbarHTML}`;
       }
-      // Multiplayer — networked play, rendered in-shell (all online modes,
-      // incl. 2v2 Online, live here so Solo Match stays same-device only).
-      // Pass the menu's own btn()/SVG so the MP options are REAL .mm-option
-      // rows — same glow-text, spacing, and letter-flip as the main list.
+      // Multiplayer — networked play, rendered in-shell (all online modes, incl.
+      // 2v2 Online, live here so Solo Match stays same-device only). Pass the
+      // menu's own btn()/SVG so MP options are REAL .mm-option rows.
       if (sub === 'mp') {
         return this._mpSubmenuHTML(btn, SVG) + botbarHTML;
       }
-      // FOUR ROWS (2026-11-06). Owner's reference is a console title menu: a
-      // handful of big all-caps rows hung off a vertical rail, the selected one
-      // gold, a full-bleed hero on the right. Nine rows with icons, sections and
-      // inline counts could never reach that scale — at this viewport nine rows
-      // at the reference's height is 600px of column — so the list is four and
-      // everything else is one level down, through the same in-shell swap Solo
-      // Match and Tools already used. Icons are gone (the rail segment is the
-      // mark now); descriptions stay in the markup for the phone, where mw3
-      // shows them again. The boxed "Multiplayer · beta" callout is gone with
-      // them — it is a row like the others. (Owner: "i like this as the menu
-      // this is the inspiration", then "Four big rows".)
+      // FOUR ROWS, styled on a console title menu: big all-caps rows on a vertical
+      // rail, the selected one gold, a full-bleed hero on the right. Everything else
+      // is one level down through the in-shell swap. No icons (the rail segment is
+      // the mark); descriptions stay in the markup for the phone layout.
       if (sub === 'play') {
         return `
         <div class="mm-header">
@@ -635,38 +583,6 @@ const UI_MENU = {
           </div>
         </div>
         <aside id="mm-lb-rail" class="mm-lb-rail"></aside>${botbarHTML}`;
-      // (the previous nine-row list, kept as dead text for one commit so the
-      // diff reads; delete on the next touch)
-      /* legacy main list:
-        ${feature('mm-multi', 'Multiplayer', 'Play a friend online · beta', SVG.multi, "UI.openMultiplayer()")}
-        <div class="mm-section mm-tier-1">
-          <div class="mm-section-label">Play</div>
-          <div class="mm-grid mm-grid-section">
-            ${btn('mm-play',    'Solo Match',   'Play against the AI',                                    SVG.play,     "UI.mmShowSub('solo')")}
-            ${(() => {
-              // Consolidated Continue Run + Roguelite button — when a save
-              // exists it reads "Continue last run" and resumes in place.
-              const savedInfo = (typeof Roguelite !== 'undefined' && Roguelite.savedRunInfo) ? Roguelite.savedRunInfo() : null;
-              if (savedInfo) {
-                return btn('mm-rogue', 'Roguelite', `${savedInfo.label} · ${savedInfo.fightsWon} fights won`, SVG.rogue, "Roguelite.resumeRun()");
-              }
-              return btn('mm-rogue', 'Roguelite', 'Climb a 6-fight ladder — build your deck as you go · beta', SVG.rogue, "Roguelite.enterRun()");
-            })()}
-            ${btn('mm-tournament','Tournament', 'Best-of series vs AI — rotating modifiers · new', trophySVG, "Tournament.enter()")}
-            ${btn('mm-tutorial','Tutorial',     'Guided walkthrough — play a scripted round',              helpSVG,      "Tutorial.start()")}
-          </div>
-        </div>
-        <div class="mm-section mm-tier-2">
-          <div class="mm-section-label">Library</div>
-          <div class="mm-grid mm-grid-section">
-            ${metaBtn('mm-decks', 'My Decks', 'Build, edit, copy, or play your decks', SVG.decks, "Game.goToMyDecks()", `${_deckCount} built`)}
-            ${metaBtn('mm-encyc', 'Codex',    'Every card and trick in the game',       SVG.codex, "UI.openEncyclopedia()", `${_codexCount} entries`)}
-            ${btn('mm-stats',   'Stats',        'Card win rates and balance trends',                      SVG.stats,    "Game.goToStats()")}
-            ${btn('mm-tools',   'Tools',        'Leaderboard, Sound Gallery, Art Gallery + Sandbox',      SVG.settings, "UI.mmShowSub('tools')")}
-          </div>
-        </div>
-        <aside id="mm-lb-rail" class="mm-lb-rail"></aside>${botbarHTML}
-      */
     };
     this._mmBuildPanel = buildPanel;   // reused by in-place submenu swaps (mmShowSub)
     const _flowOn = this.settings.menuFlow !== false;
@@ -678,19 +594,12 @@ const UI_MENU = {
       <div class="mm-scrim" aria-hidden="true"></div>
       <div class="mm-panel">${buildPanel(this._mmSub || null)}</div>
       ${_flowOn && typeof MenuScene !== 'undefined' ? MenuScene.barHTML() : ''}`;
-    // No on-screen key legend (owner removed it 2026-11-09). The keys still work.
+    // No on-screen key legend. The keys still work.
     this._mmInstallKeys(el);
     this._mmSetActive(0);
-    // THE LEADERBOARD LIVES IN THE MENU COLUMN NOW, under the profile chip.
-    // Owner: "place the leaderboard here in the menu and make it tron themed
-    // and collapsable" — with an arrow drawn from the floating panel to the
-    // YOU / SIGNED IN chip.
-    // It used to be a sibling of .mm-panel, absolutely positioned across the
-    // gap beside the menu, specifically so a submenu swap (which replaces only
-    // .mm-panel) could not destroy it. That reason has since expired: mmShowSub
-    // calls _renderMenuLeaderboard itself after every swap, so the rail can sit
-    // INSIDE the panel and flow with the column like everything else. Emitted by
-    // buildPanel for the same reason botbarHTML is.
+    // The leaderboard lives INSIDE the panel and flows with the column. A submenu
+    // swap replaces only .mm-panel, so mmShowSub re-calls _renderMenuLeaderboard
+    // after every swap; emitted by buildPanel for the same reason as botbarHTML.
     try { this._renderMenuLeaderboard(); } catch (e) {}
     try { if (typeof Leaderboard !== 'undefined') Leaderboard.connect(); } catch (e) {}
     // The backdrop video (moved here from the title, still playing), and the
@@ -704,34 +613,20 @@ const UI_MENU = {
   },
 
   // ===================== MENU PARALLAX =====================
-  // The scene already MOVED — a 34s Ken Burns drift on the hero — but every
-  // layer moved as one, which is why it read as an animated poster rather than
-  // a set. Depth on screen does not come from more motion, it comes from planes
-  // travelling at DIFFERENT rates against each other. This pushes each plane by
-  // a few pixels off the pointer, at its own depth.
+  // Depth comes from planes travelling at DIFFERENT rates, so each plane is
+  // pushed a few pixels off the pointer at its own depth.
   //
-  // WHY THE `translate` PROPERTY AND NOT `transform`. The hero already owns its
-  // transform: mmHeroDrift animates it forever, mmHeroRezIn on entry, and the
-  // shards carry static offsets that create the fracture. Writing transform
-  // here would clobber all three — the drift would stop dead the first time the
-  // pointer moved. `translate` is a separate longhand that composes with
-  // transform instead of replacing it, so every existing animation keeps
-  // running underneath and this only adds to it.
+  // Uses the `translate` property, NOT `transform`: the hero owns its transform
+  // (mmHeroDrift, mmHeroRezIn, the shards' static offsets) and writing it here
+  // would clobber all three. `translate` composes with transform instead.
   //
-  // Scaled by --menu-flow-intensity so the Settings slider that already governs
-  // the rest of the scene governs this too, rather than adding a second knob
-  // for the same idea. Pointer-only: a touch screen has no hover position to
-  // read, so phones simply never arm it.
+  // Scaled by --menu-flow-intensity so the existing Settings slider governs it.
+  // Pointer-only: touch screens never arm it.
   _installMenuParallax(el) {
-    // OFF. The menu used to lean with the cursor — five planes sliding on
-    // pointermove. The owner does not want the art or the screen reacting to
-    // the mouse at all: "i dont like when my mouse moved the art and screen
-    // move, get rid of that." The scene keeps its own slow drift instead (see
-    // mmHeroBreathe), which is motion the player watches rather than motion
-    // they cause.
-    // Left as an early return rather than deleting the body, so the CSS planes,
-    // the @property declarations and the settings knob it reads all stay
-    // internally consistent and this is one line to reverse.
+    // OFF: the art and screen must not react to the mouse; the scene keeps its
+    // own slow drift (mmHeroBreathe) instead. An early return rather than a
+    // deleted body, so the CSS planes, @property declarations and settings knob
+    // stay consistent and this is one line to reverse.
     const MENU_PLANE_PARALLAX = false;   // flip to true to restore
     if (!MENU_PLANE_PARALLAX) return;
     if (!el || el._mmParallaxOn) return;
@@ -742,9 +637,7 @@ const UI_MENU = {
     el._mmParallaxOn = true;
     let raf = 0, tx = 0, ty = 0;
     // Strength is folded in here so CSS receives one finished number instead of
-    // a nested calc. (Checked, not assumed: holding the clamp in an untyped
-    // custom property and multiplying by it computes correctly — that was a
-    // wrong suspicion while debugging. This is for legibility only.)
+    // a nested calc — for legibility only (the untyped-var multiply works too).
     const k = Math.max(0.35, Math.min(1.3, (this.settings.menuFlowIntensity ?? 0.18) * 3.2));
     const apply = () => {
       raf = 0;
@@ -769,9 +662,8 @@ const UI_MENU = {
   },
 
   // In-place main-menu submenu swap. Re-renders ONLY the .mm-panel left list
-  // (not the hero scene), so the music-synced hero + bottom bar stay alive and
-  // continuous — the left letters just flip to the sub-options. `sub` is the
-  // submenu key buildPanel() understands ('solo'), or null for the main list.
+  // (not the hero scene), so the hero + bottom bar stay alive. `sub` is a key
+  // buildPanel() understands ('solo'), or null for the main list.
   mmShowSub(sub) {
     this._mmSub = sub || null;
     const el = document.getElementById('main-menu-overlay');
@@ -783,17 +675,14 @@ const UI_MENU = {
     }
     panel.innerHTML = this._mmBuildPanel(this._mmSub);
     this._mmSetActive(0);
-    // The leaderboard's mount lives INSIDE the Tools panel, and this swap
-    // replaces the panel without re-running renderMainMenu — which is the one
-    // place that paints it. So a submenu that carries a live readout has to
-    // repaint it here, or Tools opens with an empty frame. (The rail is a no-op
-    // on every other submenu: it looks for a mount that is not there.)
+    // The leaderboard's mount lives INSIDE the Tools panel and only
+    // renderMainMenu paints it, so this swap must repaint it or Tools opens with
+    // an empty frame. (No-op on submenus without the mount.)
     try { this._renderMenuLeaderboard(); } catch (e) {}
     try { if (sub === 'tools' && typeof Leaderboard !== 'undefined') Leaderboard.connect(); } catch (e) {}
     // Mark the panel as swapped (persistent) so the row fade-up entrance stays
-    // suppressed — the letter flip is the only entrance on a swap. Without this,
-    // removing .mm-flipping below would restart mmOptionIn and the list would
-    // visibly re-fade-in ~1.1s after the click ("disappears and reloads").
+    // suppressed — otherwise removing .mm-flipping below restarts mmOptionIn and
+    // the list visibly re-fades ~1.1s after the click.
     panel.classList.add('mm-swapped');
     // Retrigger the per-letter flip: remove → force reflow → add the class so
     // the freshly-built letters animate in. Cleared after the cascade ends.
@@ -801,8 +690,8 @@ const UI_MENU = {
     void panel.offsetWidth;
     panel.classList.add('mm-flipping');
     if (this._mmFlipTimer) clearTimeout(this._mmFlipTimer);
-    // Cascade now settles in ~0.6s (capped per-option stagger), so clear the
-    // flip class shortly after rather than lingering to 1.1s.
+    // Cascade settles in ~0.6s (capped per-option stagger), so clear the flip
+    // class shortly after.
     this._mmFlipTimer = setTimeout(() => panel.classList.remove('mm-flipping'), 700);
     try { if (this.sfx && this.sfx.playNav) this.sfx.playNav(); } catch (e) {}
   },
@@ -812,10 +701,9 @@ const UI_MENU = {
   },
 
   // ---- keyboard + the single highlighted row --------------------------------
-  // The reference is a controller menu: one row is lit at a time and the hero
-  // reacts to it. Hover and the arrow keys share that one state (.is-active) so
-  // the mouse never leaves a second row highlighted, and the legend strip is
-  // only honest if the keys actually work.
+  // One row is lit at a time, like a controller menu. Hover and the arrow keys
+  // share that one state (.is-active) so the mouse never leaves a second row
+  // highlighted.
   _mmRows() {
     const el = document.getElementById('main-menu-overlay');
     return el ? [...el.querySelectorAll('.mm-panel .mm-option')]
@@ -886,11 +774,9 @@ const UI_MENU = {
   // #9 — Parallax main menu. Mouse position drives body-level CSS vars
   // that each UI surface (mm-panel, body::before) reads for tiny offsets.
   installParallaxMenu() {
-    // OFF — same reason as _installMenuParallax. This is the SECOND cursor
-    // parallax on this screen: it drives --parallax-x/y on <body>, which moves
-    // .mm-panel (style.css:17195) and body::before (17199). Killing only the
-    // plane parallax would have left the menu still swimming under the pointer,
-    // which is exactly the complaint.
+    // OFF — same reason as _installMenuParallax. This SECOND cursor parallax
+    // drives --parallax-x/y on <body>, which moves .mm-panel and body::before;
+    // both must stay off.
     const MENU_POINTER_PARALLAX = false;   // flip to true to restore
     if (!MENU_POINTER_PARALLAX) return;
     if (!this._hasFinePointer()) return;  // mouse-driven menu parallax; a tap would leave the bg shifted
