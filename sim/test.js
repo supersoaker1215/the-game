@@ -8913,7 +8913,7 @@ test("…and playEffect is NOT in the sound bridge, on purpose", function () {
   // playEffect is not: ui.js fires it for heal, damage, death and mind control
   // from paths that run on EVERY client, so the bridge would relay those too
   // and the guest would hear them twice. This pins the distinction.
-  var ui = read('ui.js');
+  var ui = read('ui.js') + '\n' + read('fx.js');   // fx.js = the effects library split out of ui.js
   var m = /const RELAY = \[([^\]]*)\];/.exec(ui);
   assert(!!m, 'found the bridge list');
   // The QUOTED name, not a substring: 'playEffectSfx' is legitimately in that
@@ -12090,7 +12090,7 @@ test('2v2: the held-action queue does not spin when the lock is not a prompt', f
 // whichever of the two cast it, and a TEAMMATE's read "You play a Trick",
 // which is worse: it credits you with a card you never played.
 test('the trick reveal names the caster, not the side', function () {
-  var ui = read('ui.js');
+  var ui = read('ui.js') + '\n' + read('fx.js');   // fx.js = the effects library split out of ui.js
 
   // The panel takes a caster name and the queue carries it.
   assert(/showTrickReveal\(name, desc, cost, mine, who\)/.test(ui),

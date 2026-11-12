@@ -12,7 +12,7 @@
 // ============================================================
 var __SIM_ROOT_OVERRIDE = '.';
 load('./sim/shim-dom.js');
-var SRC = read('ui.js');
+var SRC = (read('ui.js') + '\n' + read('fx.js'))   /* fx.js = the effects library split out of ui.js */;
 var pass = 0, fails = [];
 function check(name, cond, detail) { if (cond) pass++; else fails.push(name + (detail ? ' — ' + detail : '')); }
 

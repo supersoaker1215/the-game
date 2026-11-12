@@ -31,7 +31,7 @@ function eq(label, actual, expected) {
   }
 }
 
-var UISRC = read('ui.js');
+var UISRC = (read('ui.js') + '\n' + read('fx.js'))   /* fx.js = the effects library split out of ui.js */;
 function decomment(s) {
   return s.replace(/\/\*[\s\S]*?\*\//g, function (c) { return c.replace(/[^\n]/g, ' '); })
           .replace(/\/\/[^\n]*/g, '');

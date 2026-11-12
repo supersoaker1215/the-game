@@ -55,13 +55,17 @@
     "v": 4,
     "hash": "063d487d"
   },
+  "fx.js": {
+    "v": 1,
+    "hash": "b8197acf"
+  },
   "menu-scene.js": {
     "v": 2,
     "hash": "10d54608"
   },
   "ui.js": {
-    "v": 1726,
-    "hash": "71a170e1"
+    "v": 1727,
+    "hash": "f5219cba"
   },
   "board-v2.js": {
     "v": 32,

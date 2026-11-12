@@ -11,7 +11,7 @@
 // ============================================================
 var __SIM_ROOT_OVERRIDE = '.';
 load('./sim/shim-dom.js');
-var SRC = read('ui.js');
+var SRC = (read('ui.js') + '\n' + read('fx.js'))   /* fx.js = the effects library split out of ui.js */;
 var pass = 0, fails = [];
 function check(name, cond, detail) { if (cond) pass++; else fails.push(name + (detail ? ' — ' + detail : '')); }
 var T = UI._TIER_FX;
@@ -21,7 +21,8 @@ check('light/medium stay snappy: no freeze, no kick', !T.light.hitPause && !T.me
 check('heavy + lethal kick the camera, lethal harder and with a zoom punch', T.heavy.kick > 0 && T.lethal.kick > T.heavy.kick && T.lethal.zoom > 1);
 check('the hit bundle runs the impact layer', /if \(fx\.kick\) this\._impactLayer\(cardEl, ev\.attackerId, fx\);/.test(SRC));
 check('…and so does a killing blow whose card is already gone', /if \(fx\.kick\) this\._impactLayer\(null, ev\.attackerId, fx, ev\.cardId\);/.test(SRC));
-var body = SRC.slice(SRC.indexOf('  _impactLayer(targetEl, attackerId, fx, deadId) {'), SRC.indexOf('  // Brief board-wide freeze-frame on lethal hits'));
+var _il = SRC.indexOf('  _impactLayer(targetEl, attackerId, fx, deadId) {');
+var body = SRC.slice(_il, SRC.indexOf('\n  _fxDomSide(owner) {', _il));   // the member after it in fx.js
 check('the kick rides `translate`, never the shake\'s transform', /area\.style\.translate = '0 ' \+ k \+ 'px'/.test(body) && !/area\.style\.transform/.test(body));
 check('the kick is skipped on the low-fx tier and under reduced motion', /classList\.contains\('low-fx'\)/.test(body) && /_reducedMotion/.test(body));
 print('impact-layer: ' + pass + ' passed, ' + fails.length + ' failed');

@@ -168,7 +168,7 @@ check('.lane .card:hover re-authors transition, so it must list transform',
 // one decimal, so the whole centred trick row landed on sub-pixels and its 1px
 // neon borders rasterised soft while the hand row above it was crisp. The
 // repo's own note at ui.js:24690 diagnosed this for the board already.
-var UI = read('ui.js');
+var UI = (read('ui.js') + '\n' + read('fx.js'))   /* fx.js = the effects library split out of ui.js */;
 // STRIPPING JS COMMENTS NEEDS A SCANNER, NOT A REGEX — and getting this wrong
 // silently deletes a tenth of the file. ui.js:10 contains the text `/*.png)`
 // INSIDE a `//` line comment. A naive `/\*[\s\S]*?\*/` strip treats that as a
@@ -370,7 +370,7 @@ check('the title screen centres with !important (the base overlay left-pins with
   var dre = /(?:animation(?:-name)?|--[\w-]+)\s*:\s*([^;{}]+)/g, dm;
   while ((dm = dre.exec(BARE))) (dm[1].match(/[A-Za-z_][\w-]*/g) || []).forEach(function (t) { cssUse[t] = true; });
   var jsText = '';
-  ['ui.js', 'game.js', 'abilities.js', 'tricks.js', 'ai.js', 'roguelite.js', 'multiplayer.js',
+  ['ui.js', 'fx.js', 'menu-scene.js', 'game.js', 'abilities.js', 'tricks.js', 'ai.js', 'roguelite.js', 'multiplayer.js',
    'voice.js', 'tutorial.js', 'tournament.js', 'index.html'].forEach(function (f) {
     try { jsText += '\n' + read(f); } catch (e) {}
   });
