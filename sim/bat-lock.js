@@ -135,7 +135,7 @@ t('BL-7 the mark hangs on the WRAPPER — inside .card the grayscale filter eats
   // ever dropped, this test should be revisited rather than silently kept.
   var css = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join(''));
   eq('.card.unplayable still applies a group filter',
-     /\.card\.unplayable\s*\{[^}]*filter:\s*grayscale/.test(css), true);
+     /\.card\.unplayable[^{]*\{[^}]*filter:[^;]*grayscale/.test(css), true);   // any surviving .card.unplayable rule (the dead duplicate one-liner was merged away 2026-11-12)
 });
 
 // ---- 3. the CSS traps ------------------------------------------------------

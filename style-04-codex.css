@@ -411,14 +411,12 @@ body.colorblind .ai-bar .health-container {
     0 0 28px rgba(var(--theme-rgb, 79,195,247), 0.75),
     0 0 56px rgba(var(--theme-rgb, 79,195,247), 0.35),
     inset 0 0 0 1px rgba(255, 255, 255, 0.15) !important;
-  filter: brightness(1.08);
   transition:
     transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 200ms var(--ease-snap), filter 200ms var(--ease-snap);
 }
 /* Dim other hand cards when one is selected — focus attention. */
 .hand-cards:has(.card.selected) .card.hand-card:not(.selected) {
   opacity: 0.55;
-  filter: brightness(0.85);
   transition: opacity 200ms var(--ease-snap), filter 200ms var(--ease-snap);
 }
 
@@ -2683,11 +2681,6 @@ body.low-fx .tron-derez { display: none !important; }
 /* === T3.2 DROP SHADOW PROJECTION — when a hand card is hovered,
    a faint cyan shadow appears below it on the lane floor.
    Implemented as an extra dropshadow filter triggered on hover. */
-.player-hand-section .hand-cards .card:hover {
-  filter: brightness(1.06)
-          drop-shadow(0 14px 14px rgba(127,208,255,0.30))
-          drop-shadow(0 6px 6px rgba(0,0,0,0.45));
-}
 
 /* === T3.3 FORESEE PREVIEW X-RAY — applied to peek cards via
    JS when a Foresee / Dr. Strange / Eye of Agamotto effect
@@ -3411,7 +3404,6 @@ html {
    drawn to the selected one. The cursor → lane motion then
    reads as "I'm carrying THIS card to THERE." */
 .player-hand-section .hand-cards .card.dimmed-by-selection {
-  filter: brightness(0.55) saturate(0.7);
   transition: filter 200ms var(--ease-out-soft);
 }
 .player-hand-section .hand-cards .card.is-selected {
@@ -3419,7 +3411,6 @@ html {
      a subtle outline so it's unambiguous which card is in play. */
   outline: 1px solid rgba(127, 208, 255, 0.85);
   outline-offset: 2px;
-  filter: brightness(1.10);
   transition: outline-color 150ms var(--ease-out-soft), filter 150ms var(--ease-out-soft);
 }
 

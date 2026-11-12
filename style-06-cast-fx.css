@@ -4720,7 +4720,6 @@ body.hand-text-always .player-hand-section .hand-cards .card.face-flipped .card-
      Dr. Manhattan, Galactus and Trigon at 5 badges / 4 rows). Capping at two
      rows therefore shows every badge on 111 of 117 cards, and those last 6 are
      exactly the legends whose card you were going to hover anyway. */
-  max-height: 28px;
   overflow: hidden;
   gap: 1px;
   font-size: 7px;
@@ -5385,7 +5384,6 @@ body.fx-lean .card-frost::after {
    and the other cards stay where the player expects them. */
 .card.card-being-dragged {
   opacity: 0.22;
-  filter: grayscale(1);
 }
 
 /* ============================================================
@@ -5718,16 +5716,9 @@ body.fx-lean .card-frost::after {
      across cards) while justify-content centres whatever is actually there:
      one badge lands dead centre, two straddle the middle, three fill the row
      left / centre / right. */
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-content: flex-start;
-  --sb-gap: calc(var(--sb-pad) * 1.1);
-  gap: var(--sb-gap);
   /* Two rows, then clip. Rows are content-created so a card with no badges
      reserves nothing, and every badge is the same fixed height, so a 7th is
      dropped as a WHOLE row rather than sliced the way the old wrap did. */
-  max-height: calc(var(--sb-i) * 2.84 + var(--sb-gap));
   overflow: hidden;
 }
 .card.ally-card .status-badge,
@@ -5757,9 +5748,6 @@ body.fx-lean .card-frost::after {
      tile, a two-digit count) the third stops binding, the item keeps its
      content width, and only TWO fit per row. That is the Dormammu 2x2. With
      min-width: 0 the third always wins and the row is always three across. */
-  flex: 0 0 calc((100% - var(--sb-gap) * 2) / 3);
-  min-width: 0;
-  height: calc(var(--sb-i) * 1.42);
   max-width: 100%;
   text-shadow: 0 0 calc(var(--sb-i) * 0.28) currentColor;
 }

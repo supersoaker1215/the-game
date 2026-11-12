@@ -259,9 +259,6 @@
 }
 .rl-deck-grid-bare > .card.hand-card:hover {
   transform: scale(1.07) translateY(-2px);
-  filter:
-    drop-shadow(0 0 10px var(--theme-glow-outer, rgba(79,195,247,0.55)))
-    drop-shadow(0 0 22px var(--theme-glow-inner, rgba(79,195,247,0.22)));
 }
 .rl-card-tile {
   padding: 8px 10px;
@@ -4596,23 +4593,9 @@ body.combat-anticipate::after  { content: none !important; }
   z-index: 1;
 }
 .card-portrait::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  display: block;
   /* Four L-shaped corner brackets — 8 stripes via 8 linear-gradients
      positioned at each corner. Frame color follows the portrait's
      context (rarity/ally/enemy via --portrait-frame-rgb). */
-  background:
-    /* TL horizontal arm */ linear-gradient(rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75), rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75)) top left / 9px 1.5px no-repeat,
-    /* TL vertical arm */   linear-gradient(rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75), rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75)) top left / 1.5px 9px no-repeat,
-    /* TR horizontal arm */ linear-gradient(rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75), rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75)) top right / 9px 1.5px no-repeat,
-    /* TR vertical arm */   linear-gradient(rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75), rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75)) top right / 1.5px 9px no-repeat,
-    /* BL horizontal arm */ linear-gradient(rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75), rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75)) bottom left / 9px 1.5px no-repeat,
-    /* BL vertical arm */   linear-gradient(rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75), rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75)) bottom left / 1.5px 9px no-repeat,
-    /* BR horizontal arm */ linear-gradient(rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75), rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75)) bottom right / 9px 1.5px no-repeat,
-    /* BR vertical arm */   linear-gradient(rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75), rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75)) bottom right / 1.5px 9px no-repeat;
   z-index: 2;
 }
 /* Name overlay (existing child div) sits above the scanlines + brackets. */

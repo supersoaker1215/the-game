@@ -780,7 +780,6 @@
    slow breath so the pause reads as temporary.
    =========================================================================== */
 .card.unplayable.table-waiting {
-  filter: brightness(0.78) saturate(0.9) !important;
   animation: table-waiting-breathe 2.2s ease-in-out infinite;
 }
 /* @keyframes table-waiting-breathe was defined TWICE. Removed here: superseded by the var(--card-tube) version below, which already won.
@@ -828,7 +827,6 @@
    you cannot afford: this one lifts again in a few seconds on its own. */
 .hand-cards .card.ballyhoo-locked {
   cursor: default;
-  filter: grayscale(0.55) brightness(0.62);
   opacity: 0.72;
   transition: filter 220ms ease, opacity 220ms ease;
 }

@@ -1176,18 +1176,11 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
   background: #000000;
   border-radius: 2px;
   border: 1px solid rgba(231,76,60,0.95);
-  color: rgba(231,76,60,0.85);
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 0 8px rgba(231,76,60,0.45), 0 0 16px rgba(231,76,60,0.18);
   flex-shrink: 0;
   overflow: hidden;
 }
-.ai-hand-mini .card-back svg { width: 100%; height: 100%; display: block; }
-.ai-hand-mini .card-back.trick-back {
-  border-color: rgba(155,89,182,0.95);
-  color: rgba(155,89,182,0.85);
-  box-shadow: 0 0 8px rgba(155,89,182,0.45), 0 0 16px rgba(155,89,182,0.18);
-}
+.ai-hand-mini .card-back svg { width: 100%; height: 100%;  }
 
 /* Block Meter — Tron ring matching the energy orb: black core, bright colored
    edge, glowing double-halo. No conic progress dial and no dull grey track —
@@ -5414,10 +5407,8 @@ body.hit-pause .ai-hand * {
 }
 .draft-card .card-name {
   font-family: 'Rajdhani', 'Segoe UI', system-ui, sans-serif;
-  font-size: 18px; font-weight: 700;
-  text-transform: uppercase; letter-spacing: 2.2px;
+  text-transform: uppercase; 
   color: var(--text-hi, #f5fbff);
-  text-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247),0.50), 0 1px 3px rgba(0,0,0,0.95);
 }
 /* Rarity-tiered name color per tier — matches hand-card rarity language. */
 .draft-card.cost-0 .card-name, .draft-card.cost-1 .card-name,
@@ -6077,7 +6068,6 @@ body.hit-pause .ai-hand * {
 
 .card-slot.playable {
   border: 2px dashed rgba(255,255,255,0.18); cursor: pointer;
-  background: transparent;
 }
 .card-slot.playable:hover {
   background: rgba(255,255,255,0.06);
@@ -6103,7 +6093,7 @@ body.hit-pause .ai-hand * {
      show the full 3:4 portrait painting without cropping any figure
      content. Lane width was also bumped 140 → 160 so the card still
      has 10px of side margin for corner-orb clearance. */
-  width: 140px; min-height: 130px; border-radius: 4px; padding: 6px;
+  width: 140px; min-height: 130px;  padding: 6px;
   position: relative;
   background: #000000;
   /* 2px, option E. The frame is the only line on the tile that runs the whole
@@ -6114,7 +6104,6 @@ body.hit-pause .ai-hand * {
      grow, the art insets by one more pixel, and nothing downstream reflows.
      The cost tab follows it — see --cost-radius / --cost-inset below. */
   border: 2px solid rgba(255,255,255,0.40);
-  transition: transform 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap), border-color 0.2s var(--ease-snap);
   /* The fallback for a card rendered with no ally/enemy/hand/cost
      modifier. It was flat white — achromatic and theme-blind — so on
      any surface reaching this rule the card sat under grey fog while
@@ -6165,11 +6154,9 @@ body.hit-pause .ai-hand * {
   /* ONE knob per surface. Every size override downstream sets --cost-size only;
      the tab's height, its padding and the digit all derive from it, so a bigger
      corner can never come with a digit that stayed 12px. */
-  --cost-size: 26px;
   /* The tab colour. Defaults to the card's framing colour, which is already the
      cost tier in hand / codex / draft (green → cyan → silver → gold) and the
      side colour on board. Anything that used to recolour the DIGIT sets this. */
-  --cost-neon: var(--portrait-frame-rgb, var(--gold-rgb));
   --cost-radius: 3px;
   /* ============================================================
      G + H — a HUD READOUT TAB. (Owner: "G and H for the cost corners is the
@@ -6184,21 +6171,11 @@ body.hit-pause .ai-hand * {
      Pure H is this minus the hollow (solid fill, dark digit); pure G is the
      chamfered square instead of the tab — both one line from here.
      ============================================================ */
-  position: absolute; top: 0; left: 0;
-  box-sizing: border-box;
   /* WIDTH FOLLOWS THE NUMBER. A tab is a label, not a square, and "10" needs
      more room than "4" — a fixed box would either clip the two-digit costs or
      leave the single digits swimming. */
-  width: auto; min-width: calc(var(--cost-size) * 0.92);
-  height: calc(var(--cost-size) * 0.66);
-  background: transparent;
-  border: none;
   /* Drawn in light, not cut out of a plate. */
-  color: rgb(var(--cost-neon));
-  font-weight: 700;
-  font-size: calc(var(--cost-size) * 0.42);
-  line-height: 1;
-  display: flex; align-items: center; justify-content: center;
+   align-items: center; justify-content: center;
   /* The cut still earns a right bias, but far less than the first pass gave it.
      The tab is a trapezoid — full width along the top, 78% along the bottom —
      so its own visual centre is the mean of those, ~44.5% of the width, not 50.
@@ -6207,26 +6184,12 @@ body.hit-pause .ai-hand * {
      the shape's centre, which is exactly what reads as "not centred".
      Centred in the content box now, with the padding difference alone carrying
      the bias. (Owner: "i like just a little more centered.") */
-  padding: 0 calc(var(--cost-size) * 0.26) 0 calc(var(--cost-size) * 0.16);
-  z-index: 4;
-  text-shadow:
-    0 0 6px rgba(var(--cost-neon), 0.85),
-    0 0 14px rgba(var(--cost-neon), 0.40),
-    0 1px 2px rgba(0,0,0,0.95);
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
 }
 /* THE FILL — barely there. Just enough to keep a light digit legible over a
    bright patch of painting, never enough to hide the art. This is the half of
    G worth keeping: you can still see what is under the tab. */
 .card-cost::before {
-  content: '';
-  position: absolute; inset: 0;
   border-radius: var(--cost-radius) 0 0 0;
-  background: rgba(2, 6, 12, 0.52);
-  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M0,0 L100,0 L78,100 L0,100 Z'/></svg>") center/100% 100% no-repeat;
-          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M0,0 L100,0 L78,100 L0,100 Z'/></svg>") center/100% 100% no-repeat;
-  z-index: -2;
 }
 /* THE OUTLINE — the tab's INNER edges only: the angled cut and the bottom run.
    The top and left edges are deliberately NOT stroked, because the card's own
@@ -6393,20 +6356,6 @@ body.hit-pause .ai-hand * {
 }
 
 /* --- Board cards — side-color text (Tron blue ally / Tron red enemy) --- */
-.card.ally-card .card-name {
-  color: #ffffff;                       /* see the NAME PLATE note above */
-  text-shadow:
-    0 0 5px rgba(var(--theme-rgb), 0.95),
-    0 0 12px rgba(var(--theme-rgb), 0.45),
-    0 1px 2px rgba(0,0,0,0.95);
-}
-.card.enemy-card .card-name {
-  color: #ffffff;                       /* see the NAME PLATE note above */
-  text-shadow:
-    0 0 5px rgba(var(--own-opponent), 0.95),
-    0 0 12px rgba(var(--own-opponent), 0.45),
-    0 1px 2px rgba(0,0,0,0.95);
-}
 
 /* ===========================================================================
    RARITY PIPS — 1-4 tiny neon squares in the top-right corner.
@@ -6457,20 +6406,6 @@ body.hit-pause .ai-hand * {
      3 pips = white (rare)
      4 pips = gold (legendary)
    In hand / draft, the pip color uses the tier palette set above. */
-.card.ally-card.cost-0 .rpip, .card.ally-card.cost-1 .rpip,
-.card.ally-card.cost-2 .rpip, .card.ally-card.cost-3 .rpip,
-.card.ally-card.cost-4 .rpip, .card.ally-card.cost-5 .rpip,
-.card.ally-card.cost-6 .rpip {
-  background: rgba(var(--theme-rgb, 79,195,247),1);
-  box-shadow: 0 0 4px rgba(var(--theme-rgb, 79,195,247),0.95), 0 0 10px rgba(var(--theme-rgb, 79,195,247),0.55);
-}
-.card.enemy-card.cost-0 .rpip, .card.enemy-card.cost-1 .rpip,
-.card.enemy-card.cost-2 .rpip, .card.enemy-card.cost-3 .rpip,
-.card.enemy-card.cost-4 .rpip, .card.enemy-card.cost-5 .rpip,
-.card.enemy-card.cost-6 .rpip {
-  background: rgba(231,76,60,1);
-  box-shadow: 0 0 4px rgba(231,76,60,0.95), 0 0 10px rgba(231,76,60,0.55);
-}
 .card.ally-card.cost-7 .rpip, .card.ally-card.cost-8 .rpip,
 .card.enemy-card.cost-7 .rpip, .card.enemy-card.cost-8 .rpip {
   background: rgba(235,242,250,1);
@@ -6501,10 +6436,6 @@ body.hit-pause .ai-hand * {
 /* ---- HOVER — blue highlight on the card frame (no name-color change) ---- */
 .card.hand-card:hover,
 .card.ally-card:hover {
-  border-color: #5dade2;
-  box-shadow: 0 0 14px rgba(93,173,226,0.55), 0 0 24px rgba(41,128,185,0.3), 0 4px 10px rgba(0,0,0,0.5);
-}
-.card.enemy-card:hover {
   border-color: #5dade2;
   box-shadow: 0 0 14px rgba(93,173,226,0.55), 0 0 24px rgba(41,128,185,0.3), 0 4px 10px rgba(0,0,0,0.5);
 }

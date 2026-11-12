@@ -850,20 +850,6 @@ body.in-match .cheat-help-toggle { display: flex; }
     0 0 22px color-mix(in srgb, var(--card-edge) 16%, transparent),
     0 4px 14px rgba(0,0,0,0.55);
 }
-.card.ally-card {
-  box-shadow:
-    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247),0.14),
-    0 0 8px rgba(var(--theme-rgb, 79,195,247),0.28),
-    0 0 18px rgba(var(--theme-rgb, 79,195,247),0.10),
-    0 4px 12px rgba(0,0,0,0.55);
-}
-.card.enemy-card {
-  box-shadow:
-    inset 0 0 0 1px rgba(231,76,60,0.14),
-    0 0 8px rgba(231,76,60,0.32),
-    0 0 18px rgba(231,76,60,0.12),
-    0 4px 12px rgba(0,0,0,0.55);
-}
 
 /* ============================================================
    HUD GLOW TONE-DOWN — the previous 12/24px double-halo across
@@ -994,12 +980,6 @@ body.round-first-ai .hud-pill-main {
 }
 /* Mini opponent-hand card backs — were stacking per-card for 7+
    cards which blurred the whole top banner. */
-.ai-hand-mini .card-back {
-  box-shadow: 0 0 5px rgba(231,76,60,0.30), 0 0 10px rgba(231,76,60,0.10);
-}
-.ai-hand-mini .card-back.trick-back {
-  box-shadow: 0 0 5px rgba(155,89,182,0.30), 0 0 10px rgba(155,89,182,0.10);
-}
 /* Hover gives a brighter inner hairline — subtle "activation" cue */
 .card:hover {
   outline-color: color-mix(in srgb, var(--card-edge) 35%, transparent);
@@ -1028,16 +1008,6 @@ body.round-first-ai .hud-pill-main {
    HUD counters) are intentionally NOT touched — those are signal
    surfaces and their glow IS the feature.
    ============================================================ */
-.card.ally-card {
-  box-shadow:
-    0 0 8px rgba(var(--theme-rgb, 79,195,247),0.30),
-    0 0 16px rgba(var(--theme-rgb, 79,195,247),0.10);
-}
-.card.enemy-card {
-  box-shadow:
-    0 0 8px rgba(231,76,60,0.35),
-    0 0 16px rgba(231,76,60,0.12);
-}
 .card.hand-card {
   box-shadow:
     0 0 7px color-mix(in srgb, var(--card-edge) 18%, transparent),
@@ -1103,22 +1073,6 @@ body.round-first-ai .hud-pill-main {
     inset 0 0 0 1px color-mix(in srgb, var(--card-edge) 28%, transparent),
     0 0 14px color-mix(in srgb, var(--card-edge) 55%, transparent),
     0 0 26px color-mix(in srgb, var(--card-edge) 25%, transparent),
-    0 4px 10px rgba(0,0,0,0.5) !important;
-}
-.card.ally-card:hover {
-  border-color: rgba(var(--theme-rgb, 79,195,247),0.95) !important;
-  box-shadow:
-    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247),0.22),
-    0 0 12px rgba(var(--theme-rgb, 79,195,247),0.45),
-    0 0 24px rgba(var(--theme-rgb, 79,195,247),0.20),
-    0 4px 10px rgba(0,0,0,0.5) !important;
-}
-.card.enemy-card:hover {
-  border-color: rgba(231,76,60,0.95) !important;
-  box-shadow:
-    inset 0 0 0 1px rgba(231,76,60,0.22),
-    0 0 12px rgba(231,76,60,0.50),
-    0 0 24px rgba(231,76,60,0.22),
     0 4px 10px rgba(0,0,0,0.5) !important;
 }
 
@@ -1619,11 +1573,6 @@ body, :root {
     inset 0 0 5px rgba(240,245,250,0.08) !important;
   text-shadow: 0 0 6px rgba(240,245,250,0.80), 0 0 10px rgba(240,245,250,0.40) !important;
 }
-.ai-hand-mini .card-back.trick-back {
-  border-color: rgba(240,245,250,0.75) !important;
-  color: rgba(240,245,250,0.80) !important;
-  box-shadow: 0 0 5px rgba(240,245,250,0.30), 0 0 10px rgba(240,245,250,0.10) !important;
-}
 .drafted-list-trick strong { color: var(--text-body, #e8eef6) !important; }
 
 /* ============================================================
@@ -1735,11 +1684,6 @@ body.theme-purple, :root.theme-purple { --theme-r: 176; --theme-g: 97; --theme-b
     0 0 10px rgba(155,89,182,0.18),
     inset 0 0 5px rgba(155,89,182,0.10) !important;
   text-shadow: 0 0 6px rgba(155,89,182,0.85), 0 0 10px rgba(155,89,182,0.45) !important;
-}
-.ai-hand-mini .card-back.trick-back {
-  border-color: rgba(155,89,182,0.95) !important;
-  color: rgba(155,89,182,0.85) !important;
-  box-shadow: 0 0 5px rgba(155,89,182,0.40), 0 0 10px rgba(155,89,182,0.14) !important;
 }
 .drafted-list-trick strong { color: #d7b3e6 !important; }
 
@@ -1896,7 +1840,6 @@ body {
 }
 /* Player ally cards — frame + gradient wash uses player theme. */
 .card.ally-card {
-  --card-edge: var(--player-accent-bright);
   border-color: var(--player-accent-bright) !important;
   background-color: #000 !important;
   background-image: linear-gradient(180deg, var(--player-wash-08) 0%, rgba(0,0,0,0) 55%) !important;
@@ -2657,22 +2600,6 @@ body.round-first-ai .hud-pill-main {
   box-shadow: 0 0 4px var(--theme-accent-bright), 0 0 10px var(--theme-glow-outer) !important;
 }
 /* Board ally cards — 1-pip + 2-pip tiers use player theme. */
-.card.ally-card.cost-0 .rpip, .card.ally-card.cost-1 .rpip,
-.card.ally-card.cost-2 .rpip, .card.ally-card.cost-3 .rpip,
-.card.ally-card.cost-4 .rpip, .card.ally-card.cost-5 .rpip,
-.card.ally-card.cost-6 .rpip {
-  background: var(--player-accent) !important;
-  box-shadow: 0 0 4px var(--player-accent-bright), 0 0 10px var(--player-glow-outer) !important;
-}
-.card.enemy-card.cost-0 .rpip, .card.enemy-card.cost-1 .rpip,
-.card.enemy-card.cost-2 .rpip, .card.enemy-card.cost-3 .rpip,
-.card.enemy-card.cost-4 .rpip, .card.enemy-card.cost-5 .rpip,
-.card.enemy-card.cost-6 .rpip {
-  background: rgb(var(--enemy-r), var(--enemy-g), var(--enemy-b)) !important;
-  box-shadow:
-    0 0 4px var(--enemy-accent-bright),
-    0 0 10px var(--enemy-glow-outer) !important;
-}
 
 /* "Can be played during the Trick Phase" footer — was rarity-colored;
    now follows theme everywhere. */
@@ -4055,11 +3982,10 @@ body.kill-flash-ai::after {
    doesn't exist on phones/tablets.
    ============================================================ */
 .card-inspect-modal {
-  position: fixed; inset: 0;
+   inset: 0;
   z-index: 9990;
-  display: flex; align-items: center; justify-content: center;
+    justify-content: center;
   padding: 24px;
-  pointer-events: auto;
 }
 .ci-backdrop {
   position: absolute; inset: 0;
@@ -4884,7 +4810,6 @@ body.theme-purple .board-section {
      trick still forces the high-quality filter pipeline (free
      belt-and-suspenders against bilinear blur on Webkit). Source:
      Chrome dev blog on re-rastering composited layers. */
-  filter: blur(0);
   /* Sharper edge anti-aliasing while transformed. */
   -webkit-font-smoothing: antialiased;
   text-rendering: geometricPrecision;
@@ -5035,20 +4960,6 @@ body.theme-purple .board-section {
    Only applied within :hover so idle hand cards don't promote N
    compositor layers per card. transition is on transform so the
    pop-out feels mechanical rather than instant. */
-.hand-card-wrapper:hover .card.hand-card .card-desc {
-  transform: translateZ(4px);
-}
-.hand-card-wrapper:hover .card.hand-card .card-name-banner {
-  transform: translateZ(8px);
-}
-.hand-card-wrapper:hover .card.hand-card .status-badges {
-  transform: translateZ(12px);
-}
-.hand-card-wrapper:hover .card.hand-card .stat-circle {
-  /* No lift — corner-anchored, see the note beside the !important rule further
-     down. Kept in the ladder so the depth list still reads as a whole. */
-  transform: none;
-}
 .hand-card-wrapper:hover .card.hand-card .card-cost {
   /* THE CORNER STAYS WELDED. Every other content layer pops forward on
      hover (translateZ under the card's `perspective: 800px`), and for an

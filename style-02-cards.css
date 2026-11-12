@@ -153,17 +153,9 @@
    These overrides just tune the halo intensity per side. */
 .card.ally-card .card-desc {
   color: rgba(var(--portrait-frame-rgb, 79,195,247), 0.95);
-  text-shadow:
-    0 0 5px rgba(var(--portrait-frame-rgb, 79,195,247), 0.50),
-    0 0 10px rgba(var(--portrait-frame-rgb, 79,195,247), 0.20),
-    0 1px 1px rgba(0,0,0,0.85);
 }
 .card.enemy-card .card-desc {
   color: rgba(var(--portrait-frame-rgb, 231,76,60), 0.95);
-  text-shadow:
-    0 0 5px rgba(var(--portrait-frame-rgb, 231,76,60), 0.50),
-    0 0 10px rgba(var(--portrait-frame-rgb, 231,76,60), 0.22),
-    0 1px 1px rgba(0,0,0,0.85);
 }
 /* Trigger labels — same monospace family as body, brightened color +
    a tighter glow so they read as the anchor of each sentence without
@@ -285,9 +277,6 @@
    the body" landed on the read state and nowhere else. */
 
 /* Moder — stripped card visual: greyed core, clear "stripped" text */
-.card.moder-stripped {
-  filter: grayscale(0.55) brightness(0.85);
-}
 .card.moder-stripped .card-name {
   color: var(--text-mute, #aab3bd) !important;
   text-shadow: none !important;
@@ -471,13 +460,9 @@
 
 /* ---- CARDS — BOARD COLORS (black fill, colored edge + unified glow by side) ---- */
 .card.ally-card {
-  border-color: rgba(var(--theme-rgb, 79,195,247),0.95);
-  box-shadow: 0 0 12px rgba(var(--theme-rgb, 79,195,247),0.45), 0 0 24px rgba(var(--theme-rgb, 79,195,247),0.18);
   background: #000000;
 }
 .card.enemy-card {
-  border-color: rgba(231,76,60,0.95);
-  box-shadow: 0 0 12px rgba(231,76,60,0.55), 0 0 24px rgba(231,76,60,0.25);
   background: #000000;
 }
 
@@ -844,7 +829,6 @@
     0 0 10px rgba(120,60,140,0.55),
     0 0 24px rgba(80,30,100,0.30),
     inset 0 0 0 1px rgba(80,30,100,0.10) !important;
-  filter: saturate(0.6) brightness(0.85);
 }
 .card.hand-card.rl-curse .card-name {
   color: rgba(200,160,220,0.95) !important;
@@ -902,7 +886,7 @@
 
 /* Face down */
 .card.face-down { box-shadow: 0 0 10px #3498db; border-color: #3498db; opacity: 0.85; }
-.card.face-down-hidden { background: #1a1a2e; border: 2px solid #555; box-shadow: 0 0 8px #333; }
+.card.face-down-hidden {  border: 2px solid #555; box-shadow: 0 0 8px #333; }
 
 /* Interactive states — playable cards keep their side color (cyan for hand,
    blue for ally board, red for enemy). No green affordance overlay. */
@@ -944,7 +928,6 @@
    solid so the body text and stat circles remain legible. */
 /* Same near-total desaturation as .unafford (see that rule's comment) —
    the old 0.6 grayscale left warm art reading as vivid/playable. */
-.card.unplayable { filter: grayscale(0.95) brightness(0.6) !important; }
 /* DIM ENOUGH TO READ AS UNPLAYABLE, BRIGHT ENOUGH TO READ AT ALL. Owner, on a
    trick in the tray: "i cant see the draw 1 icon."
    A trick is unplayable for the WHOLE cards phase, not just when you cannot
@@ -1280,8 +1263,6 @@
 .card {
   --card-edge: rgba(var(--theme-rgb, 79,195,247),0.70);    /* fallback */
 }
-.card.ally-card           { --card-edge: rgba(var(--theme-rgb, 79,195,247),0.85); }
-.card.enemy-card          { --card-edge: rgba(231,76,60,0.85); }
 .card.hand-card.cost-0,
 .card.hand-card.cost-1,
 .card.hand-card.cost-2,
@@ -1313,23 +1294,6 @@
   filter: drop-shadow(0 0 3px rgba(var(--gold-rgb),0.85)) drop-shadow(0 0 7px rgba(var(--gold-rgb),0.45));
 }
 
-.card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: inherit;
-  /* CORNER BRACKETS REMOVED AT THE SOURCE. Eight solid segments — 10x1 and
-     1x10 at each of the four corners — drew an L-shaped tick on every card.
-     Over the art the top two vanish into the painting; the bottom two sit in
-     the black base, and a pair of bright right-angles down there is what made
-     the base read as a separate panel bolted under the art rather than the
-     same card continuing. Removed tile-scoped first; moved here so every
-     surface matches. The rule is kept, not deleted — it still supplies the
-     positioning and stacking context other rules layer onto. */
-  background: none;
-  z-index: 2;
-}
 
 /* A2 — Ambient Tron sweep REMOVED for GPU cost. Cards are static.
    Kept empty rule block for future use if reintroduced. */
@@ -1542,8 +1506,6 @@
 .card-death-ghost::after {
   content: '';
   position: absolute;
-  left: -4px; right: -4px;
-  height: 2px;
   /* Theme-aware death scan line. Was hardcoded red regardless of
      whose card died or what theme was active — felt incongruent
      when a player-side green card died and the death sweep flashed
@@ -1551,24 +1513,12 @@
      Defaults to enemy-red so any uncategorized death (e.g.
      legacy code paths) still has a visible signal. */
   --derezz-color: rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 1);
-  background: var(--derezz-color);
-  box-shadow:
-    0 0 10px var(--derezz-color),
-    0 0 20px var(--derezz-color);
-  top: 100%;
-  animation: derezzLine 0.7s linear forwards;
   transform: translateY(0);
 }
 /* Player-side death sweep follows --player-r/g/b — silver/red/gold/
    green/purple themes get their actual neon as the dying line. */
-.card-death-ghost.ally-card::after {
-  --derezz-color: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 1);
-}
 /* Enemy death sweep stays in --enemy-r/g/b (which itself flips when
    the player picks red theme — enemy becomes blue). */
-.card-death-ghost.enemy-card::after {
-  --derezz-color: rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 1);
-}
 /* De-rez v2 — the death reads as a SIGNAL failing, not a card shrinking:
    white-hot flash on the kill frame, two horizontal glitch jolts, then the
    vertical collapse chased by the scanline. One-shot 750ms on rare deaths,
@@ -1685,10 +1635,7 @@
 }
 .hover-magnify .card,
 .hover-magnify .trick-card {
-  transform: scale(1.6) !important;
   transform-origin: 0 0;
-  box-shadow: 0 0 16px rgba(0,0,0,0.6), 0 0 32px rgba(0,0,0,0.3);
-  animation: none !important;
 }
 .hover-magnify .draft-card {
   transform: scale(1.15) !important;
@@ -1900,12 +1847,6 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
    index.html — both copies were dead. Same as blockFullPulse. */
 
 /* Player hand card — refined hover lift */
-.player-hand-section .hand-cards .card {
-  transition: transform 200ms var(--ease-snap), box-shadow 200ms var(--ease-snap), filter 200ms var(--ease-snap);
-  /* will-change removed — persistent on every hand card, it's the MDN
-     antipattern (a hint meant to be transient, not a permanent rule on many
-     elements). :hover below promotes just the card being interacted with. */
-}
 .player-hand-section .hand-cards .card:hover,
 .player-hand-section .hand-cards .card.card-dragging {
   will-change: transform;
@@ -1920,13 +1861,10 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
      NOTE: hand cards get their Snap-style enlarge from the WRAPPER rule
      (.hand-card-wrapper — see the magnify block), not from here. */
   transform: none !important;
-  box-shadow: 0 10px 24px rgba(0,0,0,0.55), 0 0 14px rgba(46,204,113,0.35);
-  filter: brightness(1.06);
   z-index: 10;
 }
 .player-hand-section .hand-cards .card.villain:hover {
   transform: none !important;
-  box-shadow: 0 10px 24px rgba(0,0,0,0.55), 0 0 14px rgba(231,76,60,0.35);
 }
 /* HP bar floating damage number */
 .hp-dmg-float {
@@ -2545,7 +2483,6 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
    pseudo-elements, no JS, no per-frame work. */
 .card-slot.target-highlight {
   border: 1px solid var(--tron-dim);
-  background: rgba(var(--theme-rgb, 79,195,247),0.06);
   box-shadow: 0 0 14px var(--tron-glow), inset 0 0 12px rgba(var(--theme-rgb, 79,195,247),0.05);
   cursor: pointer;
   position: relative;
@@ -3306,7 +3243,7 @@ body.turn-combat .board .lane.lane-active {
      it is the half of the badge that actually changes during a fight. */
   .board .card .status-badge {
     padding: var(--sb-pad) calc(var(--sb-pad) * 2); font-size: var(--sb-num); letter-spacing: 0; max-width: 100%;
-    display: inline-flex; align-items: center; gap: 1px; line-height: 1;
+    display: inline-flex; align-items: center;  line-height: 1;
   }
   .board .card .status-badge .sb-w { display: none; }
   .board .card .status-badge .sb-i { display: inline-flex; width: var(--sb-i); height: var(--sb-i); }
@@ -3524,9 +3461,6 @@ body.turn-combat .board .lane.lane-active {
     max-width: 50%;
     min-height: 220px;
   }
-  .draft-card .card-name { font-size: 11px; letter-spacing: 0.6px; }
-  .draft-card .card-desc { font-size: 10px; line-height: 1.3; }
-  .draft-card .card-cost { --cost-size: 20px; }
   /* Pick counter + dot indicator + back-buttons row on draft */
   .draft-hud-row { gap: 8px; padding: 6px 2px 8px; }
   .draft-hud-label { font-size: 14px; letter-spacing: 4px; }
@@ -3638,13 +3572,9 @@ body.turn-combat .board .lane.lane-active {
   }
   .player-hand-section .hand-cards .card,
   .player-hand-section .hand-cards .hand-card-wrapper {
-    width: 92px;
-    min-width: 92px;
-    max-width: 92px;
     scroll-snap-align: start;
   }
   .player-hand-section .hand-cards .card {
-    min-height: 130px;
     font-size: 10px;
     padding: 6px 3px 14px;
   }
@@ -4119,12 +4049,11 @@ body.turn-combat .board .lane.lane-active {
      margins resolve cleanly inside the column-flex parent. */
   align-self: stretch;
   margin: 0 14% 4px;
-  background: linear-gradient(90deg, transparent, rgba(var(--theme-rgb, 79,195,247),0.22), transparent);
 }
 .card.enemy-card .card-abilities:not(:empty)::before {
   background: linear-gradient(90deg, transparent, rgba(231,76,60,0.22), transparent);
 }
-.card .card-desc { position: relative; padding-top: 4px; }
+.card .card-desc {  padding-top: 4px; }
 .card .card-desc::before {
   content: ''; display: block; height: 1px;
   margin: 0 20% 4px;
@@ -4139,22 +4068,6 @@ body.turn-combat .board .lane.lane-active {
    the state, so the dot is redundant and dropped. User spec: "sheen
    on cards in hand" — keeping the sheen live matters more than this
    tiny affordability pip. */
-.hand-card-wrapper .card.unafford {
-  /* NEAR-TOTAL desaturation — grayscale(0.6) kept 40% of the color, so
-     warm bright art (Deathstroke's fire, Omni-Man's red) still read as
-     vivid/playable while naturally-dark art (Knull, Trigon) went black.
-     User report: "I have no energy and some cards are greyed out while
-     others aren't — they should ALL be." At 0.95 every painting reads
-     unmistakably monochrome-dead regardless of its palette; brightness
-     keeps text/stat orbs legible. !important so the hover crisp-render
-     path (filter: blur(0)) and any keyframe animation can never strip
-     the disabled look off a card mid-hover/mid-animation. */
-  /* Softened from grayscale(0.95) brightness(0.6) — still unmistakably
-     monochrome-dead on every palette, but less crushed ("the grey is a
-     little too harsh"). Hover restores FULL color below so you can read
-     the art while it's magnified; the grey snaps back on mouse-leave. */
-  filter: grayscale(0.85) brightness(0.74) !important;
-}
 
 /* Keyword tooltip — fixed, lightweight. Shown via JS on hover. */
 .kw-tooltip {
@@ -5785,8 +5698,6 @@ body.turn-combat .board .lane.lane-active {
   position: static;
   transform: none;
   flex: 1 1 auto;
-  display: flex; align-items: center; justify-content: center;
-  padding: 4px 12px 14px;
   color: var(--text-mute, #b8c2cc);
   font-size: 11px; line-height: 1.45;
 }
@@ -6321,7 +6232,6 @@ body.turn-combat .board .lane.lane-active {
   font-family: 'Rajdhani', sans-serif;
   font-weight: 500;
 }
-.card-slot { position: relative; }
 /* Hover affordance — brighten empty glyph when its card-slot is a valid play target */
 .card-slot.playable .empty-lane-glyph { color: rgba(255,255,255,0.28); transition: color 0.2s var(--ease-snap); }
 .card-slot.playable:hover .empty-lane-glyph { color: rgba(255,255,255,0.85); }
