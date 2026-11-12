@@ -4693,7 +4693,7 @@ test('Crazy and Insane highlight in body text like every other status', function
   // grey prose with no tooltip. THREE lists have to agree for a keyword to work
   // in body text — this is a duplicated-predicate guard, so it reads ui.js as
   // source (UI can't load headless: it needs a DOM).
-  var src = readFile('./ui.js');
+  var src = readFile('./ui-parts.txt').trim().split('\n').map(function (f) { return readFile('./' + f); }).join('\n');
   ['Crazy', 'Insane'].forEach(function (k) {
     assert(src.indexOf("'" + k + "':") > -1, k + ' has a KEYWORD_DATA entry');
     assert(src.indexOf("'" + k.toLowerCase() + "':'" + k + "'") > -1,
@@ -4809,7 +4809,7 @@ test('Dead Draw reaches the live instance, not just the printed def', function (
   var src = readFile('./abilities.js');
   assert(src.indexOf('...G.state.player.deadPile, ...G.state.ai.deadPile') > -1,
     'Hela merges both dead piles before rolling');
-  var tip = readFile('./ui.js');
+  var tip = readFile('./ui-parts.txt').trim().split('\n').map(function (f) { return readFile('./' + f); }).join('\n');
   assert(tip.indexOf('The Dead Pile is <b>shared</b>') > -1, 'the tooltip says shared');
   assert(tip.indexOf('the pull is <b>random</b>') > -1, 'and random');
 
@@ -6201,7 +6201,7 @@ test('Optimus cannot command an ally that is action-locked', function () {
 // (`_envTurns` undefined), boon-coloured (`owner` undefined, so "pointed at me"
 // answered no), and one row per lane regardless of what was in it.
 test('the event rail reads lane._env per side, not as a card', function () {
-  var src = readFile('ui.js');
+  var src = readFile('ui-parts.txt').trim().split('\n').map(function (f) { return readFile(f); }).join('\n');
   var i = src.indexOf('_eventRailModel(s) {');
   assert(i > 0, 'found the rail model');
   var body = src.slice(i, i + 3000);
@@ -6223,7 +6223,7 @@ test('an event stamps the environments it seats, so the rail can skip them', fun
   assertEq(!!seated._fromEvent, true, 'and stamped as event-placed');
   // The skip reads that stamp, and only that stamp — a player-played
   // environment has no event row to hide behind and must keep its own.
-  var ui = readFile('ui.js');
+  var ui = readFile('ui-parts.txt').trim().split('\n').map(function (f) { return readFile(f); }).join('\n');
   var i = ui.indexOf('_eventRailModel(s) {');
   var body = ui.slice(i, i + 3000);
   assert(/if \(env\._fromEvent\) return;/.test(body), 'the rail skips event-placed environments');
@@ -6327,7 +6327,7 @@ test('the End button is disabled, not just refused, during an event hold', funct
   // hand. The redraw button got this same fix one release earlier — "1v1 had no
   // idea the lock existed, so the redraw button stayed lit while the engine
   // refused" — and this is the same bug at the next control along.
-  var src = readFile('ui.js');
+  var src = readFile('ui-parts.txt').trim().split('\n').map(function (f) { return readFile(f); }).join('\n');
   var i = src.indexOf("setEnd('End Cards'");
   assert(i > 0, 'found the end-phase button renderer');
   var around = src.slice(Math.max(0, i - 1800), i + 900);
@@ -6341,7 +6341,7 @@ test('the End button is disabled, not just refused, during an event hold', funct
 });
 
 test("MC Ballyhoo's card is not held back behind the music", function () {
-  var ui = readFile('ui.js');
+  var ui = readFile('ui-parts.txt').trim().split('\n').map(function (f) { return readFile(f); }).join('\n');
   // The card used to be raised INSIDE the lead timeout. It is raised before it
   // now, and only the fanfare-to-voice handoff still waits.
   var i = ui.indexOf('showBallyhoo() {');
@@ -6368,7 +6368,7 @@ test('the event hold does not outlast the show', function () {
   // "its stuck grey" complaint the hard ceiling exists for.
   var g = readFile('game.js');
   var lock = parseInt((g.match(/_BALLYHOO_LOCK_MS:\s*(\d+)/) || [])[1], 10);
-  var hold = parseInt((readFile('ui.js').match(/BALLYHOO_HOLD_MS:\s*(\d+)/) || [])[1], 10);
+  var hold = parseInt((readFile('ui-parts.txt').trim().split('\n').map(function (f) { return readFile(f); }).join('\n').match(/BALLYHOO_HOLD_MS:\s*(\d+)/) || [])[1], 10);
   assert(!!lock && !!hold, 'both constants found');
   var show = hold * 2 + 500;                 // two beats plus their exits
   assert(lock >= show, 'the lock covers the whole show (' + lock + ' >= ' + show + ')');
@@ -6474,7 +6474,7 @@ test('AI actions are paced about 1.5 seconds apart — BOTH gaps', function () {
   // UI.aiStepDelay is STUBBED by the sim's UI shim (it is presentation, and the
   // shim models none), so read the shipped numbers out of ui.js rather than
   // asserting against a stub that would agree with anything.
-  var uisrc = readFile('ui.js');
+  var uisrc = readFile('ui-parts.txt').trim().split('\n').map(function (f) { return readFile(f); }).join('\n');
   var m = uisrc.match(/aiStepDelay\(\)\s*\{\s*return \{([^}]*)\}/);
   assert(!!m, 'found aiStepDelay in ui.js');
   var tiers = {};
@@ -7299,7 +7299,7 @@ test("Droideka's overcharge shows on his ATK orb, not just in the damage", funct
   // Guard the SOURCE relationship: makeCardEl must route the orb through
   // _cardEffectiveAtk, not card.attack. Reading the source keeps this honest
   // in a harness with no DOM.
-  var src = readFile('ui.js');
+  var src = readFile('ui-parts.txt').trim().split('\n').map(function (f) { return readFile(f); }).join('\n');
   var i = src.indexOf('const atkCell = hideAtk');
   assert(i > -1, 'the ATK orb assignment still exists');
   var line = src.slice(i, i + 220);
@@ -8913,7 +8913,7 @@ test("…and playEffect is NOT in the sound bridge, on purpose", function () {
   // playEffect is not: ui.js fires it for heal, damage, death and mind control
   // from paths that run on EVERY client, so the bridge would relay those too
   // and the guest would hear them twice. This pins the distinction.
-  var ui = read('ui.js') + '\n' + read('fx.js');   // fx.js = the effects library split out of ui.js
+  var ui = read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n');   // every UI part, in load order
   var m = /const RELAY = \[([^\]]*)\];/.exec(ui);
   assert(!!m, 'found the bridge list');
   // The QUOTED name, not a substring: 'playEffectSfx' is legitimately in that
@@ -12090,7 +12090,7 @@ test('2v2: the held-action queue does not spin when the lock is not a prompt', f
 // whichever of the two cast it, and a TEAMMATE's read "You play a Trick",
 // which is worse: it credits you with a card you never played.
 test('the trick reveal names the caster, not the side', function () {
-  var ui = read('ui.js') + '\n' + read('fx.js');   // fx.js = the effects library split out of ui.js
+  var ui = read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n');   // every UI part, in load order
 
   // The panel takes a caster name and the queue carries it.
   assert(/showTrickReveal\(name, desc, cost, mine, who\)/.test(ui),

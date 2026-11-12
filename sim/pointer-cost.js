@@ -54,7 +54,7 @@ function eq(label, actual, expected) {
   }
 }
 
-var UISRC_RAW = read('ui.js');
+var UISRC_RAW = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
 // Blank comment bodies (keep newlines so line numbers still mean something).
 // This file's OWN prose names the removed writers, and art-accent.js was
 // failed once by exactly that — a comment reading as code.

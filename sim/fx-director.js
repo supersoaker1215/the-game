@@ -86,7 +86,7 @@ check('…and the second announcement does play', PLAYED.indexOf('trickReveal:t2
 
 // 8. showDamageFloats routes through the director
 check('the dispatcher reads the stream and hands it to the director',
-      /showDamageFloats\(\)\s*\{\s*const events = Game\.flushDmg\(\);\s*if \(events\.length\) this\._fxDirect\(events\);/.test(read('ui.js')));
+      /showDamageFloats\(\)\s*\{\s*const events = Game\.flushDmg\(\);\s*if \(events\.length\) this\._fxDirect\(events\);/.test((read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'))));
 
 // ---- STEP 1: a beat lasts as long as its animations ---------------------------
 reset();
@@ -156,7 +156,7 @@ var a5 = S._playSample('audio/x/three.mp3', { category: 'play', noFade: true });
 check('a card play during a voice line plays under it, never cutting it', a5 && a5._voiceUnder === true && !a4.paused);
 
 // ---- STEP 3: the mixer (Web Audio can't run headless — assert its wiring) ----
-var SRC = read('ui.js');
+var SRC = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
 check('samples are routed into the mixer just before they play', /this\._route\(pick, this\._MIX_BUS_OF\[cat\] \|\| 'sfx'\);\s*try \{\s*pick\.volume = 0;/.test(SRC));
 check('three buses: music, sfx, voice', /\['music', 'sfx', 'voice'\]\.forEach\(b => \{ mix\[b\] = ctx\.createGain\(\)/.test(SRC));
 check('a routed element\'s volume drives its GainNode (so every existing fade works, iOS included)',

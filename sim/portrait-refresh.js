@@ -43,7 +43,7 @@ function eq(label, actual, expected) {
   }
 }
 
-var UISRC = read('ui.js');
+var UISRC = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
 
 // Balance braces so a nested arrow body cannot end the slice early.
 function methodBody(name) {

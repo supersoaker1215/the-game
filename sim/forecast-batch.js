@@ -47,7 +47,7 @@ function eq(label, actual, expected) {
   }
 }
 
-var UISRC = read('ui.js');
+var UISRC = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
 
 // Pull one method's body out of ui.js by its opening line, balancing braces so
 // a nested function or object literal cannot end the slice early. Line-wise

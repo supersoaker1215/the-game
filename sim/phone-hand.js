@@ -97,7 +97,7 @@ check('phone: the name plate is inset by the frame, so the fitter targets the vi
       pl && /--cf-inset/.test(pl.val), pl ? pl.val : 'missing — plate 40px vs a 36px window; names cut at both edges');
 
 // ---- the publisher ------------------------------------------------------------
-var UISRC = read('ui.js');
+var UISRC = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
 check('the hand fitter publishes the real width after each pass',
       /_syncHandRealWidth\(\)\s*\{/.test(UISRC) && /this\._syncHandRealWidth\(\)/.test(UISRC));
 (function () {

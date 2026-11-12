@@ -4,7 +4,7 @@
 //   load('./sim/shim-dom.js');   // gives you Game AND the real UI
 //
 // WHY. ui.js is 40,106 lines, 27% of the codebase, and no test could execute a
-// line of it: 28 suites in sim/ `read('ui.js')` as TEXT and match regexes
+// line of it: 28 suites in sim/ `(read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'))` as TEXT and match regexes
 // against the source. That verifies the code LOOKS right, which is a different
 // claim from working — and it is why several visual fixes in this repo's
 // history shipped inert. A selector that matches nothing, a class never added,
@@ -599,6 +599,7 @@ if (typeof performance === 'undefined') this.performance = { now: function () { 
 // THE REAL ui.js. Its auto-start is skipped under __HEADLESS_SIM (see the tail
 // of that file), so loading it defines UI without going at a browser.
 load('./fx.js');   // the effects library — must precede ui.js (it declares UI_FX, which ui.js merges in)
+load('./audio.js'); load('./ui-2v2.js'); load('./ui-menu.js');   // the other split-out UI parts — also before ui.js
 load('./ui.js');
 
 // …and then the element cache it would have built. init() also wires listeners,
@@ -606,7 +607,7 @@ load('./ui.js');
 // only the id lookups, so renderers find what they expect.
 (function () {
   if (!UI || typeof UI !== 'object') return;
-  var src = read('ui.js');
+  var src = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
   var re = /this\.([a-zA-Z_$][\w$]*)\s*=\s*document\.getElementById\('([^']+)'\)/g, m;
   var n = 0;
   while ((m = re.exec(src))) {

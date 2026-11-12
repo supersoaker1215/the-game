@@ -46,7 +46,7 @@ function endsInvisible(cls, body) {
   return /opacity:\s*0|visibility:\s*hidden|mask-position|mask-image/.test(kf[1]) ||
          /mask-image|mask-position/.test(body);
 }
-var UIJS = read('ui.js');
+var UIJS = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
 var findings = [];
 function note(kind, what, detail) { findings.push({ kind: kind, what: what, detail: detail }); }
 

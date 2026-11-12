@@ -34,7 +34,7 @@ for (var i = 0; i < argv.length; i++) if (argv[i] === '--verbose') VERBOSE = tru
 var CSS = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('')).replace(/\/\*[\s\S]*?\*\//g, function (c) {
   return c.replace(/[^\n]/g, ' ');           // keep line numbers true
 });
-var UIJS = read('ui.js');
+var UIJS = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
 
 var findings = [];
 function finding(msg) { findings.push(msg); }

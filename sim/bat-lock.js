@@ -100,7 +100,7 @@ t('BL-4 nothing is marked when you cannot afford anything', function () {
 
 // ---- 2. the marker is wired where the truth is, not where one branch is ----
 t('BL-5 the hand renderer asks for the lock OUTSIDE the playability branch', function () {
-  var ui = read('ui.js');
+  var ui = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
   var decl  = ui.indexOf("const batBlocked = Game.isCardBatmanBlocked('player', card)");
   var branch = ui.indexOf('} else if (!hasPending) {');
   eq('the lock is computed', decl > 0, true);
@@ -112,7 +112,7 @@ t('BL-5 the hand renderer asks for the lock OUTSIDE the playability branch', fun
 });
 
 t('BL-6 the marker is applied unconditionally, once per hand card', function () {
-  var ui = read('ui.js');
+  var ui = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
   eq('the helper exists', /_applyBatLock\(wrap, el, on\)/.test(ui), true);
   eq('and is called with the live answer',
      (ui.match(/this\._applyBatLock\(wrap, el, batBlocked\)/g) || []).length, 1);
@@ -126,7 +126,7 @@ t('BL-6 the marker is applied unconditionally, once per hand card', function () 
 });
 
 t('BL-7 the mark hangs on the WRAPPER — inside .card the grayscale filter eats it', function () {
-  var ui = read('ui.js');
+  var ui = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
   var body = ui.slice(ui.indexOf('_applyBatLock(wrap, el, on) {'));
   body = body.slice(0, body.indexOf('\n  },'));
   eq('appended to the wrapper', /wrap\.appendChild\(mark\)/.test(body), true);
@@ -235,7 +235,7 @@ t('BL-13 the mark is a SILHOUETTE, and the traced outline survives its own rim',
 });
 
 t('BL-14 the viewBox matches the coordinate space the path is drawn in', function () {
-  var ui = read('ui.js');
+  var ui = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
   var vb = ui.match(/_BAT_LOCK_VIEWBOX:\s*'0 0 ([\d.]+) ([\d.]+)'/);
   eq('viewBox declared', !!vb, true);
   if (!vb) return;

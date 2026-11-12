@@ -44,7 +44,7 @@ function eq(label, actual, expected) {
   }
 }
 
-var UISRC  = read('ui.js');
+var UISRC  = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
 var CSSSRC = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join(''));
 
 function decomment(s) {

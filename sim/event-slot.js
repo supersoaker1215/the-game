@@ -29,7 +29,7 @@ function eq(label, actual, expected) {
   }
 }
 var SRC = read('game.js');
-var UISRC = read('ui.js');
+var UISRC = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
 
 t('ES-1 an event is three rounds, and so is an environment', function () {
   eq('_EVENT_LEN', Game._EVENT_LEN, 3);
@@ -152,13 +152,13 @@ t('ES-11 a Cog VP arrival is never predicted', function () {
 t('ES-12 the rail keeps the row at zero — the seam', function () {
   // At inRounds 0 the event is due but has not claimed the slot yet. Dropping
   // the row there made it vanish for exactly the moment it was arriving.
-  var ui = read('ui.js');
+  var ui = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
   eq('rendered at zero', /if \(upNext && upNext\.inRounds >= 0\)/.test(ui), true);
   eq('and reads "now"', /upNext\.inRounds > 0 \? 'in ' \+ upNext\.inRounds : 'now'/.test(ui), true);
 });
 
 t('ES-13 rail rows are reused, or nothing can transition', function () {
-  var ui = read('ui.js');
+  var ui = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
   // innerHTML on the whole rail replaces every node, and a brand-new element
   // has nothing to transition FROM — the promotion would pop.
   eq('rows are keyed', /data-ev-id/.test(ui), true);

@@ -118,7 +118,7 @@ t('M-4 environments are never compelled', function () {
 //       routes through the helper too.
 // ============================================================
 t('M-5 all three placement surfaces route through placeableLanesFor', function () {
-  var ui = readFile('./ui.js');
+  var ui = readFile('./ui-parts.txt').trim().split('\n').map(function (f) { return readFile('./' + f); }).join('\n');
   var uses = (ui.match(/placeableLanesFor/g) || []).length;
   eq('at least three call sites in the UI', uses >= 3, true);
   // And none of them still hand-rolls "is my slot free" as the whole rule.

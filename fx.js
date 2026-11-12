@@ -127,12 +127,14 @@ const UI_FX = {
     if (style !== 'moth') document.body.appendChild(trail);   // the moth leaves dust, not a line
 
     realEl.classList.add('card-flying');
+    realEl.dataset.flyAt = String(Date.now());   // swept if it sticks (renderBoard), like every other card-flying
     let done = false;
     const land = () => {
       if (done) return; done = true;
       try { ghost.remove(); } catch (e) {}
       try { trail.remove(); } catch (e) {}
       realEl.classList.remove('card-flying');
+      if (realEl.dataset) delete realEl.dataset.flyAt;
       const slot = realEl.closest('.player-slot, .ai-slot');
       const lane = realEl.closest('.lane');
       try { this._spawnPlayerLandFx(realEl, lane, slot, true, { thump: false }); } catch (e) {}

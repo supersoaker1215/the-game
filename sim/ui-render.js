@@ -4,7 +4,7 @@
 //   jsc sim/ui-render.js
 //
 // ui.js is 40,106 lines, 27% of the codebase, and until now no test executed a
-// line of it. Twenty-eight suites in sim/ `read('ui.js')` as TEXT and match
+// line of it. Twenty-eight suites in sim/ `(read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'))` as TEXT and match
 // regexes against the source, which verifies the code LOOKS right — a different
 // claim from working, and the reason several visual fixes in this repo's
 // history shipped inert. A selector that matches nothing, a class that is never
@@ -383,7 +383,7 @@ test('VOICE: a 2v2 room left behind does not keep the panel on the main menu, an
   eq(Voice._inOnlineMatch(), false, 'on the main menu, voice is not live — so mount() removes the panel');
   var css = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join(''));
   ok(/body\.on-main-menu \.voice-panel\s*\{\s*bottom:\s*34px/.test(css), 'when both show, VOICE sits above the badge');
-  ok(/'voice-gate'/.test(read('ui.js')), 'the voice check runs before the menu screens return');
+  ok(/'voice-gate'/.test((read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'))), 'the voice check runs before the menu screens return');
 });
 
 test('the wordmark carries its subtitle on the menu, every submenu and the title screen', function () {
@@ -394,7 +394,7 @@ test('the wordmark carries its subtitle on the menu, every submenu and the title
   UI.mmShowSub('mp');
   ok(!!el.querySelector('.mm-panel .mm-tagline'), 'multiplayer');
   UI._mmSub = null;
-  var tsrc = read('ui.js'); var ti = tsrc.indexOf('  renderTitleScreen(s) {');
+  var tsrc = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n')); var ti = tsrc.indexOf('  renderTitleScreen(s) {');
   ok(/class="mm-tagline">Card Lane Battle</.test(tsrc.slice(ti, tsrc.indexOf('  _armTitleDismiss() {', ti))), 'title screen (the menu header itself)');
 });
 

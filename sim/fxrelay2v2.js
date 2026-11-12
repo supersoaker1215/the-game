@@ -31,7 +31,7 @@ var VERBOSE = false;
 for (var i = 0; i < argv.length; i++) if (argv[i] === '--verbose') VERBOSE = true;
 
 function src(f) { return read(f); }
-var UIJS = src('ui.js');
+var UIJS = read('ui-parts.txt').trim().split('\n').map(src).join('\n');   // every UI part, in load order
 var GAMEJS = src('game.js');
 var ABIL = src('abilities.js');
 var TRICKS = src('tricks.js');

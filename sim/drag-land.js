@@ -13,7 +13,7 @@
 // ============================================================
 var __SIM_ROOT_OVERRIDE = '.';
 load('./sim/shim-dom.js');
-var SRC = read('ui.js');
+var SRC = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
 var pass = 0, fails = [];
 function check(name, cond, detail) { if (cond) pass++; else fails.push(name + (detail ? ' — ' + detail : '')); }
 

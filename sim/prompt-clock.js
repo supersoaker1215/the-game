@@ -166,7 +166,7 @@ t('PC-4 _forceEndStalledCombat is a dropper, not a resolver', function () {
 // damage. PC-6 pins that.
 // ============================================================
 t('PC-5 the 2v2 renderers are wrapped so one throw cannot eat the frame', function () {
-  var ui = readFile('./ui.js');
+  var ui = readFile('./ui-parts.txt').trim().split('\n').map(function (f) { return readFile('./' + f); }).join('\n');
   eq('online board wrapped', /_safe\('2v2OnlineBoard'/.test(ui), true);
   eq('local game wrapped',   /_safe\('2v2LocalGame'/.test(ui), true);
   eq('overlay wrapped',      /_safe\('2v2Overlay'/.test(ui), true);

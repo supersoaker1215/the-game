@@ -82,7 +82,7 @@ check('crazy wobble rides the slot', !!crazy && /cardCrazyWobble/.test(crazy.bod
 check('the crazy restore no longer targets slot-hosted cards',
   /body\.fx-lean:not\(\.low-fx\) \.card\.status-crazy:not\(:where\(\.card-slot > \*\)\)(:where\(:not\([^)]*\)\))?\s*\{/.test(CSS));
 check('the slot keeps each card\'s desync phase', /:where\(body\.fx-lean:not\(\.low-fx\)\) \.card-slot:where\(:has\(> \.card:is\([^)]*\)\)\)\s*\{\s*animation-delay:\s*var\(--vibe-delay/.test(CSS));
-var UIJS = read('ui.js');
+var UIJS = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
 check('ui.js copies --vibe-delay from the card onto its slot (only when it changed)',
   /host\.classList\.contains\('card-slot'\)[\s\S]{0,200}getPropertyValue\('--vibe-delay'\)[\s\S]{0,120}!== vd/.test(UIJS));
 

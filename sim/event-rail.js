@@ -19,7 +19,7 @@
 
 var CSS = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join(''));
 var BARE = CSS.replace(/\/\*[\s\S]*?\*\//g, function (c) { return c.replace(/[^\n]/g, ' '); });
-var UI  = read('ui.js');
+var UI  = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
 // Comments in this file explain what was REMOVED by name, so a plain substring
 // search finds the explanation and calls it the defect. Strip them first.
 var UI_CODE = UI.replace(/^\s*\/\/.*$/gm, '');

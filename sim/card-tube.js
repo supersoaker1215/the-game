@@ -604,7 +604,7 @@ check('and the old fixed green is gone from it',
 // A head framed just inside that preview is cut on the real card. Rendering the
 // actual card removes the guess: there is no aspect left to keep in sync.
 (function () {
-  var UISRC = read('ui.js').replace(/\/\*[\s\S]*?\*\//g, function (c) { return c.replace(/[^\n]/g, ' '); })
+  var UISRC = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n')).replace(/\/\*[\s\S]*?\*\//g, function (c) { return c.replace(/[^\n]/g, ' '); })
                            .replace(/\/\/[^\n]*/g, '');
   check('the gallery builds a real card for the card crop',
         /extraClass: 'draft-card gal-preview-card'/.test(UISRC),
@@ -643,7 +643,7 @@ check('and the old fixed green is gone from it',
 // of `.draft-card` ones, and every rule that forgets to name .enc-card is a
 // fresh drift. The codex WEARS the class instead, so it cannot drift again.
 (function () {
-  var UISRC = read('ui.js').replace(/\/\*[\s\S]*?\*\//g, function (c) { return c.replace(/[^\n]/g, ' '); })
+  var UISRC = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n')).replace(/\/\*[\s\S]*?\*\//g, function (c) { return c.replace(/[^\n]/g, ' '); })
                            .replace(/\/\/[^\n]*/g, '');
   var codexCalls = UISRC.match(/extraClass: 'enc-card[^']*'/g) || [];
   check('the codex renders at least one card surface', codexCalls.length >= 2,
@@ -747,7 +747,7 @@ check('and the old fixed green is gone from it',
 // still prints it, and there it sits beside the cost-curve note, which is that
 // row's whole purpose.
 (function () {
-  var UISRC = read('ui.js').replace(/\/\*[\s\S]*?\*\//g, function (c) { return c.replace(/[^\n]/g, ' '); })
+  var UISRC = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n')).replace(/\/\*[\s\S]*?\*\//g, function (c) { return c.replace(/[^\n]/g, ' '); })
                            .replace(/\/\/[^\n]*/g, '');
   check('no inspect surface builds a rarity ribbon',
         !/className\s*=\s*`card-inspect-rarity/.test(UISRC),
@@ -828,7 +828,7 @@ check('and the old fixed green is gone from it',
 (function () {
   // Same decomment the rest of this suite uses on the CSS — the prose in ui.js
   // quotes these very identifiers, so the comments go first.
-  var UISRC = read('ui.js').replace(/\/\*[\s\S]*?\*\//g, function (c) { return c.replace(/[^\n]/g, ' '); })
+  var UISRC = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n')).replace(/\/\*[\s\S]*?\*\//g, function (c) { return c.replace(/[^\n]/g, ' '); })
                            .replace(/\/\/[^\n]*/g, '');
   function body(name) {
     var open = UISRC.indexOf('\n  ' + name + '(');
@@ -1141,7 +1141,7 @@ check('and the old fixed green is gone from it',
 // so the halo was generated and cut off flush. Measured 19 against the
 // reference's 673.
 (function () {
-  var UIJS = read('ui.js');
+  var UIJS = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
   check('the container rule exists', /\.card-glow-host\s*\{[^}]*drop-shadow/.test(BARE),
         'nothing paints the halo');
   check('and it reads the accent carried up to it',
@@ -1294,7 +1294,7 @@ check('and the old fixed green is gone from it',
 // owner asked for it, looked at it, and asked for the opposite: "the rarity
 // line by the name should be the border colour, no rarity line anymore."
 (function () {
-  var UIJS = read('ui.js');
+  var UIJS = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
   check('the bars take the card colour, not a rarity colour',
         /card-name-overlay::before[\s\S]{0,260}rgb\(var\(--cf-rgb/.test(BARE),
         'they should read the same token everything else on the card reads');

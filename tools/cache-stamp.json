@@ -84,16 +84,28 @@
     "hash": "512ad529"
   },
   "fx.js": {
+    "v": 2,
+    "hash": "83662882"
+  },
+  "audio.js": {
     "v": 1,
-    "hash": "b8197acf"
+    "hash": "04635d28"
+  },
+  "ui-2v2.js": {
+    "v": 1,
+    "hash": "6af63358"
+  },
+  "ui-menu.js": {
+    "v": 1,
+    "hash": "36c068e7"
   },
   "menu-scene.js": {
     "v": 2,
     "hash": "10d54608"
   },
   "ui.js": {
-    "v": 1728,
-    "hash": "0df5b922"
+    "v": 1729,
+    "hash": "67c5f38b"
   },
   "board-v2.js": {
     "v": 32,

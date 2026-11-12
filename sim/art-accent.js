@@ -38,7 +38,7 @@ var CSS_RAW = (read('style-parts.txt').trim().split('\n').map(function (f) { ret
 // rule to any regex. Blanking comment bodies (keeping newlines, so line numbers
 // in a failure still mean something) is the same guard sim/draft-screen.js uses.
 var CSS = CSS_RAW.replace(/\/\*[\s\S]*?\*\//g, function (c) { return c.replace(/[^\n]/g, ' '); });
-var UISRC = read('ui.js');
+var UISRC = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
 // A MISSING GENERATED FILE IS A FAILING TEST, NOT A CRASHED RUNNER. `read`
 // throws, which takes the whole suite (and run-tests.sh's summary) down with a
 // stack instead of a sentence. Whoever deletes card-art-accent.js should get

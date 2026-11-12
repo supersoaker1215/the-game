@@ -316,7 +316,7 @@ UI.animateStatChanges();
 var down = flips.filter(function (f) { return f.which === 'atk'; })[0];
 check('the boost wearing off pops DOWN', !!down && down.delta < 0, JSON.stringify(flips));
 // One formula: the comparison and the orb share a helper, neither re-derives it.
-var UISRC = read('ui.js');
+var UISRC = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
 function methodBody(head) {
   var i = UISRC.indexOf('\n  ' + head); if (i < 0) return '';
   var j = UISRC.indexOf('{', i), depth = 0, k = j;

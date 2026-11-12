@@ -20,7 +20,7 @@
 
 var CSS = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join(''));
 var BARE = CSS.replace(/\/\*[\s\S]*?\*\//g, function (c) { return c.replace(/[^\n]/g, ' '); });
-var UI  = read('ui.js');
+var UI  = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
 
 var pass = 0, fails = [];
 function check(name, cond, detail) { if (cond) pass++; else fails.push(name + (detail ? ' — ' + detail : '')); }

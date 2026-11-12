@@ -13,7 +13,7 @@
 // ============================================================
 var __SIM_ROOT_OVERRIDE = '.';
 load('./sim/shim-dom.js');
-var SRC = read('ui.js'), SW = read('sw.js'), CSS = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join(''));
+var SRC = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n')), SW = read('sw.js'), CSS = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join(''));
 var pass = 0, fails = [];
 function check(name, cond, detail) { if (cond) pass++; else fails.push(name + (detail ? ' — ' + detail : '')); }
 function body(sig, next) { var a = SRC.indexOf(sig); return a < 0 ? '' : SRC.slice(a, SRC.indexOf(next, a + sig.length)); }

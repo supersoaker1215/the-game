@@ -40,7 +40,7 @@ function eq(label, actual, expected) {
   }
 }
 
-var UISRC = read('ui.js');
+var UISRC = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
 function decomment(s) {
   return s.replace(/\/\*[\s\S]*?\*\//g, function (c) { return c.replace(/[^\n]/g, ' '); })
           .replace(/\/\/[^\n]*/g, '');

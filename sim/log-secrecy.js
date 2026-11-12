@@ -140,7 +140,7 @@ t('LS-5 every log surface runs the same filter', function () {
   // The bug was that only ONE of the three did. This pins the shared helper
   // existing and being what the other surfaces call, which is the only thing a
   // headless test can check about a DOM renderer.
-  var src = read('ui.js');
+  var src = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
   ok('UI.readableLog exists', /readableLog\(log\)\s*\{/.test(src));
   // Was >=3 and named the board aside as one of the three. That panel has been
   // removed, so the number came down with it — the guarantee is "every surface
