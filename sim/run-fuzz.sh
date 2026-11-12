@@ -6,11 +6,11 @@
 #
 # Usage:   sim/run-fuzz.sh [RUNS] [SEED]      (defaults: 500 games, seed 0)
 # Repro a failure:  jsc sim/fuzz.js -- --runs 1 --seed <SEED>
-JSC="/System/Library/Frameworks/JavaScriptCore.framework/Versions/A/Helpers/jsc"
 RUNS="${1:-500}"
 SEED="${2:-0}"
 cd "$(dirname "$0")/.." || exit 2
-if [ ! -x "$JSC" ]; then echo "jsc not found at $JSC"; exit 2; fi
+. sim/find-jsc.sh
+if [ ! -x "$JSC" ]; then echo "jsc not found (macOS: built in; Linux: apt-get install libjavascriptcoregtk-bin; or set JSC=/path/to/jsc)"; exit 2; fi
 OUT="$("$JSC" sim/fuzz.js -- --runs "$RUNS" --seed "$SEED" 2>&1)"
 echo "$OUT" | grep -E "FUZZ-VIOLATION|=== fuzzed" | tail -20
 if echo "$OUT" | grep -qE "[1-9][0-9]* crashes|[1-9][0-9]* invariant violations|FUZZ-VIOLATION|threw:"; then

@@ -21,9 +21,9 @@
 # SAMPLE SIZE IS PART OF THE READING. difficulty.js runs 200 games, so its
 # winrate carries roughly +/-7pp at 95% — 52.0 and 48.0 are the same number.
 # Raise it (`--games 2000`) before concluding anything from a small move.
-JSC="/System/Library/Frameworks/JavaScriptCore.framework/Versions/A/Helpers/jsc"
 cd "$(dirname "$0")/.." || exit 2
-[ -x "$JSC" ] || { echo "jsc not found at $JSC"; exit 2; }
+. sim/find-jsc.sh
+[ -x "$JSC" ] || { echo "jsc not found (macOS: built in; Linux: apt-get install libjavascriptcoregtk-bin; or set JSC=/path/to/jsc)"; exit 2; }
 BASE="sim/data/balance-baseline.txt"
 TOOLS="aggression difficulty round1-open combat-diff"
 

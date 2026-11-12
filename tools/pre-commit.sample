@@ -18,8 +18,12 @@
 # (core.hooksPath is deliberately NOT used — it would redirect every hook and
 # disable the post-commit auto-push that already lives here.)
 
+# Find jsc: macOS framework binary, else `jsc` on PATH (Linux:
+# apt-get install libjavascriptcoregtk-bin). Inlined rather than sourcing
+# sim/find-jsc.sh because this file is COPIED into .git/hooks/.
 JSC=/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Helpers/jsc
-[ -x "$JSC" ] || exit 0                       # no jsc (not macOS) — don't block the commit
+[ -x "$JSC" ] || JSC="$(command -v jsc 2>/dev/null)"
+[ -n "$JSC" ] && [ -x "$JSC" ] || exit 0      # no jsc anywhere — don't block the commit
 [ -f tools/stamp-cache.js ] || exit 0
 
 # ---- THE STAMPER HASHES THE WORKING TREE, AND A COMMIT SHIPS THE INDEX ------
