@@ -328,8 +328,8 @@ const AI = {
     if (!choices || !choices.length) return null;
     if (choices.length === 1) return choices[0];
     var best = null, bestScore = -Infinity;
-    for (var i = 0; i < choices.length; i++) {
-      var q = this.draftCardQuality(choices[i]);
+    for (let i = 0; i < choices.length; i++) {
+      const q = this.draftCardQuality(choices[i]);
       if (q > bestScore) { bestScore = q; best = choices[i]; }
     }
     return best;

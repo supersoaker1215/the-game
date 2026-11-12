@@ -28,12 +28,12 @@
     "hash": "cd48f8d0"
   },
   "game.js": {
-    "v": 824,
-    "hash": "9fbf02d9"
+    "v": 825,
+    "hash": "397f2a67"
   },
   "ai.js": {
-    "v": 76,
-    "hash": "eb448d40"
+    "v": 77,
+    "hash": "b4be6946"
   },
   "roguelite.js": {
     "v": 131,
@@ -56,8 +56,8 @@
     "hash": "063d487d"
   },
   "ui.js": {
-    "v": 1683,
-    "hash": "2efd5bfd"
+    "v": 1684,
+    "hash": "e1d17dc0"
   },
   "board-v2.js": {
     "v": 32,
@@ -80,8 +80,8 @@
     "hash": "bebcffc9"
   },
   "error-reporter.js": {
-    "v": 2,
-    "hash": "0b71e2da"
+    "v": 3,
+    "hash": "3571225a"
   },
   "perf-overlay.js": {
     "v": 1,

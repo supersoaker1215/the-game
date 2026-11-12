@@ -2239,11 +2239,6 @@ const UI = {
       // fade-in / 2s fade-out baked.
       'Iron Man':         { hover: { src: 'audio/cards/iron-man-hover.mp3', maxDur: 82 }, play: { src: 'audio/cards/iron-man-play.mp3', maxDur: 5 } },
       'Black Panther':    { hover: { src: 'audio/cards/black-panther-hover.mp3?v=2', maxDur: 236 } },
-      // Winter Soldier hover: 52s of Henry Jackman's "End Of The Line"
-      // (1:05 → 1:57 of the source) — the cold-war motif build. -20 LUFS
-      // unified-baseline, 1s fade-in / 2s fade-out baked. maxDur 53 lets
-      // the full phrase play.
-      'Winter Soldier':   { hover: { src: 'audio/cards/winter-soldier-hover.mp3?v=1', maxDur: 53 } },
       // Jigsaw hover: 69s of Charlie Clouser's "Hello Zepp + Overture"
       // (start → 1:09) — the Saw signature theme intro. -20 LUFS unified-
       // baseline, 1s fade-in / 2s fade-out baked. maxDur 70 lets the full
@@ -3524,11 +3519,12 @@ const UI = {
       // SFX and the music the whole time.
       // Killed HERE rather than at the call site so it stays dead no matter who
       // calls it, and arenaHumStop keeps working for anything already running
-      // when this ships. The generator below is left intact and unreachable —
-      // restoring it is deleting this return.
-      return;
-      /* eslint-disable no-unreachable */
-      // eslint-disable-next-line no-unreachable
+      // when this ships. The generator is kept intact in _arenaHumStartRetired
+      // below — restoring it is calling that from here.
+    },
+
+    // The retired arena-hum generator (see arenaHumStart). Nothing calls it.
+    _arenaHumStartRetired() {
       if (!this._init()) return;
       if (this._arenaHum) return; // already running
       if (!UI.settings || UI.settings.sfxVolume === 0) return;
@@ -3577,7 +3573,6 @@ const UI = {
       // Start everything together
       subA.start(now); subB.start(now); mid.start(now); sh.start(now); lfo.start(now);
       this._arenaHum = { bus, subA, subB, mid, sh, lfo };
-      /* eslint-enable no-unreachable */
     },
 
     arenaHumStop() {
@@ -6441,11 +6436,12 @@ const UI = {
     // can't linger across a hot-reload.
     const popEl = document.getElementById('hover-magnify');
     if (popEl) { popEl.style.display = 'none'; popEl.innerHTML = ''; }
-    return;
-    /* eslint-disable no-unreachable */
-    // Legacy implementation preserved below in case the user ever
-    // wants the hover-magnify back. The early return above keeps it
-    // off without deleting the working code.
+  },
+
+  // Legacy hover-magnify implementation, preserved in case the user ever
+  // wants it back (call it from installHoverMagnify). Nothing calls it, which
+  // keeps it off without deleting the working code.
+  _installHoverMagnifyLegacy() {
     const pop = document.getElementById('hover-magnify');
     if (!pop) return;
     const HOVER_DELAY = 280;       // ms before magnify reveals
@@ -6737,7 +6733,6 @@ const UI = {
   installFxBridge() {
     if (this._fxBridgeInstalled) return;
     this._fxBridgeInstalled = true;
-    const self = this;
     const serialize = (a) => {
       if (a == null) return a;
       const t = typeof a;
@@ -6782,8 +6777,8 @@ const UI = {
       if (key.indexOf('_fx') !== 0 && !RELAY_ALSO.has(key)) return;
       const fn = this[key];
       if (typeof fn !== 'function') return;
-      this[key] = function (...args) {
-        const top = self._sigFxDepth === 0;
+      this[key] = (...args) => {
+        const top = this._sigFxDepth === 0;
         // Host-only emit, outermost call only, and never from a preview sim.
         // onlineRelayRole covers BOTH online modes — 1v1 (mp.role) and 2v2
         // (twoVTwo.you === 'p1'). Keying on mp.role alone meant a 2v2 room
@@ -6812,16 +6807,16 @@ const UI = {
             if (ok) { try { Game.emitFX('sig', { fn: key, args: payload }); } catch (e) {} }
           }
         }
-        self._sigFxDepth++;
+        this._sigFxDepth++;
         // Same rule as the sound bridge: abilities and tricks call these
         // signature animations directly, and an exception here would travel up
         // into the ability and be swallowed by _runHookBody — costing the whole
         // effect to save a visual. Most call sites already write
         // `try { UI._fxWhatever(...) } catch (e) {}` by hand; doing it here
         // means the ones that forgot are covered too.
-        try { return fn.apply(self, args); }
+        try { return fn.apply(this, args); }
         catch (e) { console.error('[fx ' + key + ']', e); }
-        finally { self._sigFxDepth--; }
+        finally { this._sigFxDepth--; }
       };
     });
   },
@@ -6842,17 +6837,16 @@ const UI = {
     if (this._sfxBridgeInstalled) return;
     if (!this.sfx) return;
     this._sfxBridgeInstalled = true;
-    const self = this;
     const RELAY = ['playCardSfx', 'playCardAbility', 'playEffectSfx', 'playTrickSfx'];
     RELAY.forEach((key) => {
       const fn = this.sfx[key];
       if (typeof fn !== 'function') return;
-      this.sfx[key] = function (...args) {
+      this.sfx[key] = (...args) => {
         const isHost = typeof Game !== 'undefined' && Game.onlineRelayRole
                        && Game.onlineRelayRole() === 'host';
         const kind = args[1];
         const alreadyCovered = (key === 'playCardSfx' && (kind === 'play' || kind === 'death'));
-        if (isHost && !alreadyCovered && Game.state && !Game.state._silentSim && !self._sfxReplaying) {
+        if (isHost && !alreadyCovered && Game.state && !Game.state._silentSim && !this._sfxReplaying) {
           // Only the primitives travel — a card argument would not survive, and
           // none of these sounds need the object, just the name.
           const payload = args.map(a => (a && typeof a === 'object') ? undefined : a);
@@ -6870,7 +6864,7 @@ const UI = {
         // The audio layer has plenty of ways to fail that have nothing to do
         // with the game — a suspended AudioContext, a file that never loaded,
         // an autoplay policy — and none of them are worth an ability for.
-        try { return fn.apply(self.sfx, args); } catch (e) { console.error('[sfx ' + key + ']', e); }
+        try { return fn.apply(this.sfx, args); } catch (e) { console.error('[sfx ' + key + ']', e); }
       };
     });
   },
@@ -15388,7 +15382,6 @@ const UI = {
   _2v2TrackerMakeMovable(el) {
     if (el._tkWired) return;
     el._tkWired = true;
-    const UIref = this;
     let mode = null, sx = 0, sy = 0, sl = 0, st = 0, sw = 0, sh = 0, moved = false;
     const hit = (e, sel) => e.target && e.target.closest && e.target.closest(sel);
     el.addEventListener('pointerdown', (e) => {
@@ -15438,13 +15431,13 @@ const UI = {
       if (!didMove) {
         // A click on the head that never travelled is the old collapse toggle.
         if (wasMove) {
-          UIref._2v2TrackerCollapsed = !UIref._2v2TrackerCollapsed;
-          if (UIref.render) UIref.render();
+          this._2v2TrackerCollapsed = !this._2v2TrackerCollapsed;
+          if (this.render) this.render();
         }
         return;
       }
       const r = el.getBoundingClientRect();
-      UIref._2v2TrackerSaveGeom({
+      this._2v2TrackerSaveGeom({
         left: Math.round(r.left), top: Math.round(r.top),
         w: Math.round(r.width),
         h: el.classList.contains('is-collapsed') ? 0 : Math.round(r.height),
@@ -15456,8 +15449,8 @@ const UI = {
     // a panel dragged somewhere useless.
     el.addEventListener('dblclick', (e) => {
       if (!hit(e, '.twov2-tk-head')) return;
-      UIref._2v2TrackerResetGeom(el);
-      if (UIref.render) UIref.render();
+      this._2v2TrackerResetGeom(el);
+      if (this.render) this.render();
     });
   },
 
@@ -16694,7 +16687,7 @@ const UI = {
     });
   },
 
-  async openLeaderboard() {
+  openLeaderboard() {
     if (typeof Leaderboard === 'undefined') { this.alertModal('Leaderboard is unavailable.'); return; }
     Leaderboard.connect();
     // Opt-in board: anyone may OPEN it to look, but you only appear after you
@@ -17345,6 +17338,7 @@ const UI = {
     // Left as an early return rather than deleting the body, so the CSS planes,
     // the @property declarations and the settings knob it reads all stay
     // internally consistent and this is one line to reverse.
+    // deno-lint-ignore no-constant-condition -- deliberate kill-switch
     if (true) return;
     if (!el || el._mmParallaxOn) return;
     if (typeof window === 'undefined' || !window.matchMedia) return;
@@ -34729,8 +34723,11 @@ const UI = {
     // previous build left behind is torn down on the next render.
     const svgOld = document.getElementById('attack-telegraph');
     if (svgOld) svgOld.remove();
-    return;
-    /* eslint-disable no-unreachable */
+  },
+
+  // The removed always-on attack-line drawer (see _renderAttackTelegraph),
+  // kept for reference. Nothing calls it.
+  _renderAttackTelegraphRetired() {
     const s = (typeof Game !== 'undefined') && Game.state;
     let svg = document.getElementById('attack-telegraph');
     if (this.settings && this.settings.attackTelegraph === false) {
@@ -35969,7 +35966,7 @@ const UI = {
           svg.style.setProperty('--trail-thick', thick.toFixed(2) + 'px');
           if (smoothedSpeed > SETTLED_SPEED) decayRaf = requestAnimationFrame(decay);
         };
-        function kickDecay() { if (!decayRaf) decayRaf = requestAnimationFrame(decay); }
+        const kickDecay = () => { if (!decayRaf) decayRaf = requestAnimationFrame(decay); };
         kickDecay();
       }
     }
@@ -36933,6 +36930,7 @@ const UI = {
     // .mm-panel (style.css:17195) and body::before (17199). Killing only the
     // plane parallax would have left the menu still swimming under the pointer,
     // which is exactly the complaint.
+    // deno-lint-ignore no-constant-condition -- deliberate kill-switch; sim/pointer-cost.js PC-4 pins it
     if (true) return;
     if (!this._hasFinePointer()) return;  // mouse-driven menu parallax; a tap would leave the bg shifted
     if (this.isLowFx()) return;           // mousemove repaint — off on low-capability GPUs
