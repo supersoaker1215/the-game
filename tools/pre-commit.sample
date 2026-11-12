@@ -18,6 +18,16 @@
 # (core.hooksPath is deliberately NOT used — it would redirect every hook and
 # disable the post-commit auto-push that already lives here.)
 
+# ---- LINT FIRST (fast, ~2s). A duplicate key, a redeclaration or dead code
+# blocks the commit before anything is stamped or pushed. Skipped where deno
+# is not installed so no one is locked out. Config + scope: deno.json.
+if command -v deno >/dev/null 2>&1; then
+  if ! deno lint --quiet; then
+    echo "[lint] deno lint found problems — fix them (or add a // deno-lint-ignore <rule> with the reason)." >&2
+    exit 1
+  fi
+fi
+
 JSC=/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Helpers/jsc
 [ -x "$JSC" ] || exit 0                       # no jsc (not macOS) — don't block the commit
 [ -f tools/stamp-cache.js ] || exit 0

@@ -2424,11 +2424,6 @@ const UI = {
       // fade-in / 2s fade-out baked.
       'Iron Man':         { hover: { src: 'audio/cards/iron-man-hover.mp3', maxDur: 82 }, play: { src: 'audio/cards/iron-man-play.mp3', maxDur: 5 } },
       'Black Panther':    { hover: { src: 'audio/cards/black-panther-hover.mp3?v=2', maxDur: 236 } },
-      // Winter Soldier hover: 52s of Henry Jackman's "End Of The Line"
-      // (1:05 → 1:57 of the source) — the cold-war motif build. -20 LUFS
-      // unified-baseline, 1s fade-in / 2s fade-out baked. maxDur 53 lets
-      // the full phrase play.
-      'Winter Soldier':   { hover: { src: 'audio/cards/winter-soldier-hover.mp3?v=1', maxDur: 53 } },
       // Jigsaw hover: 69s of Charlie Clouser's "Hello Zepp + Overture"
       // (start → 1:09) — the Saw signature theme intro. -20 LUFS unified-
       // baseline, 1s fade-in / 2s fade-out baked. maxDur 70 lets the full
@@ -3784,9 +3779,8 @@ const UI = {
       // calls it, and arenaHumStop keeps working for anything already running
       // when this ships. The generator below is left intact and unreachable —
       // restoring it is deleting this return.
-      return;
-      /* eslint-disable no-unreachable */
-      // eslint-disable-next-line no-unreachable
+      const ARENA_HUM_ENABLED = false;   // flip to true to bring the hum back
+      if (!ARENA_HUM_ENABLED) return;
       if (!this._init()) return;
       if (this._arenaHum) return; // already running
       if (!UI.settings || UI.settings.sfxVolume === 0) return;
@@ -6776,8 +6770,8 @@ const UI = {
     // can't linger across a hot-reload.
     const popEl = document.getElementById('hover-magnify');
     if (popEl) { popEl.style.display = 'none'; popEl.innerHTML = ''; }
-    return;
-    /* eslint-disable no-unreachable */
+    const HOVER_MAGNIFY_ENABLED = false;   // flip to true to bring the legacy popup back
+    if (!HOVER_MAGNIFY_ENABLED) return;
     // Legacy implementation preserved below in case the user ever
     // wants the hover-magnify back. The early return above keeps it
     // off without deleting the working code.
@@ -13621,6 +13615,9 @@ const UI = {
     });
   },
 
+  // Kept async: callers may await it, and the signature is part of how the
+  // menu wires it. Nothing inside needs to wait today.
+  // deno-lint-ignore require-await
   async openLeaderboard() {
     if (typeof Leaderboard === 'undefined') { this.alertModal('Leaderboard is unavailable.'); return; }
     Leaderboard.connect();
@@ -14412,7 +14409,8 @@ const UI = {
     // Left as an early return rather than deleting the body, so the CSS planes,
     // the @property declarations and the settings knob it reads all stay
     // internally consistent and this is one line to reverse.
-    if (true) return;
+    const MENU_PLANE_PARALLAX = false;   // flip to true to restore
+    if (!MENU_PLANE_PARALLAX) return;
     if (!el || el._mmParallaxOn) return;
     if (typeof window === 'undefined' || !window.matchMedia) return;
     // Respect the OS setting and skip devices with no real pointer.
@@ -32007,8 +32005,8 @@ const UI = {
     // previous build left behind is torn down on the next render.
     const svgOld = document.getElementById('attack-telegraph');
     if (svgOld) svgOld.remove();
-    return;
-    /* eslint-disable no-unreachable */
+    const ALWAYS_ON_TELEGRAPH = false;   // replaced by the hover forecast; kept switchable
+    if (!ALWAYS_ON_TELEGRAPH) return;
     const s = (typeof Game !== 'undefined') && Game.state;
     let svg = document.getElementById('attack-telegraph');
     if (this.settings && this.settings.attackTelegraph === false) {
@@ -34218,7 +34216,8 @@ const UI = {
     // .mm-panel (style.css:17195) and body::before (17199). Killing only the
     // plane parallax would have left the menu still swimming under the pointer,
     // which is exactly the complaint.
-    if (true) return;
+    const MENU_POINTER_PARALLAX = false;   // flip to true to restore
+    if (!MENU_POINTER_PARALLAX) return;
     if (!this._hasFinePointer()) return;  // mouse-driven menu parallax; a tap would leave the bg shifted
     if (this.isLowFx()) return;           // mousemove repaint — off on low-capability GPUs
     let rafPending = false;

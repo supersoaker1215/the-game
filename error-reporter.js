@@ -133,8 +133,8 @@
       wrap.appendChild(clrBtn);
       document.body.appendChild(wrap);
     }
-    var btn = document.getElementById(BTN_ID);
-    if (btn) btn.textContent = '⚠ Copy bug report (' + count + ')';
+    var countBtn = document.getElementById(BTN_ID);
+    if (countBtn) countBtn.textContent = '⚠ Copy bug report (' + count + ')';
   }
 
   function onClick() {

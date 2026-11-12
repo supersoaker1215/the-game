@@ -100,11 +100,23 @@ function enclosingInstaller(at) {
   while ((m = re.exec(UISRC)) !== null) { if (m.index > at) break; best = { name: m[1], at: m.index }; }
   return best;
 }
+// PROVABLY OFF, two spellings: the old literal `if (true) return;`, and the
+// lint-clean named switch (deno lint forbids constant conditions, 2026-11-12):
+//   const MENU_POINTER_PARALLAX = false;
+//   if (!MENU_POINTER_PARALLAX) return;
+function offGuardAt(seg) {
+  var lit = seg.indexOf('if (true) return;');
+  var m = /const ([A-Z][A-Z0-9_]*) = false;[^\n]*\n\s*if \(!\1\) return;/.exec(seg);
+  var named = m ? m.index : -1;
+  if (lit < 0) return named;
+  if (named < 0) return lit;
+  return Math.min(lit, named);
+}
 function unreachable(handlerAt) {
   var fn = enclosingInstaller(handlerAt);
   if (!fn) return false;
   var seg = UISRC.slice(fn.at, handlerAt);
-  return seg.indexOf('if (true) return;') >= 0;
+  return offGuardAt(seg) >= 0;
 }
 
 t('PC-2 no reachable mousemove listener writes a <body> custom property', function () {
@@ -155,7 +167,7 @@ t('PC-4 the third body-level writer stays disabled', function () {
   eq('installParallaxMenu found', open > 0, true);
   var body = UISRC.slice(open, open + 2200);
   var listenerAt = body.indexOf("addEventListener('mousemove'");
-  var guardAt = body.indexOf('if (true) return;');
+  var guardAt = offGuardAt(body);
   eq('it is guarded', guardAt >= 0, true);
   eq('and the guard comes BEFORE the listener', guardAt >= 0 && guardAt < listenerAt, true);
 });

@@ -481,6 +481,24 @@ echo "=== pointer-cost.js (no <body> custom-prop write on every mousemove) ==="
 run_suite sim/pointer-cost.js
 
 echo ""
+echo "=== deno lint (shipped JS — config in deno.json) ==="
+# Catches the bug classes no unit test looks for: a duplicate object key that
+# silently drops an entry (a stale 'Winter Soldier' sound row hid this way),
+# redeclarations, unreachable code. Zero findings is the bar; an intentional
+# exception carries a `// deno-lint-ignore <rule>` with its reason.
+if command -v deno >/dev/null 2>&1; then
+  if deno lint >/tmp/clb-lint.out 2>&1; then
+    echo "  ✅ $(tail -1 /tmp/clb-lint.out)"
+  else
+    cat /tmp/clb-lint.out | tail -40
+    echo "  ❌ deno lint FAILED"
+    FAIL=1
+  fi
+else
+  echo "  (deno not installed — lint skipped)"
+fi
+
+echo ""
 if [ "$FAIL" -ne 0 ]; then
   echo "❌ TESTS FAILED — see suites above."
   exit 1

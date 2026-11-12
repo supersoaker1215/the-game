@@ -57,6 +57,8 @@ const Leaderboard = {
   name() { return this._ls(this._NAME_KEY) || ''; },
   hasName() { return !!this.name(); },
   setName(n) {
+    // Stripping control characters from player names is the point — the rule warns about matching them.
+    // deno-lint-ignore no-control-regex
     const clean = String(n || '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 24);
     if (!clean) return false;
     this._lsSet(this._NAME_KEY, clean);
@@ -74,6 +76,8 @@ const Leaderboard = {
   hasJoined() { return this._ls(this._JOINED_KEY) === '1'; },
   join(n) {
     if (n != null) {
+      // Stripping control characters from player names is the point — the rule warns about matching them.
+      // deno-lint-ignore no-control-regex
       const clean = String(n || '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 24);
       if (clean) this._lsSet(this._NAME_KEY, clean);
     }
