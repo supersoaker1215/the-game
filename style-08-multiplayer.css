@@ -1579,7 +1579,6 @@ body.in-match #classic-decision:has(.cd-slot > *) { display: flex; }
   align-items: stretch !important;
   gap: 10px !important;
 }
-#classic-decision .fp-trick-preview { flex: 0 0 auto !important; }
 
 #classic-decision .floating-prompt-panel,
 #classic-decision .fp-body,
@@ -2986,11 +2985,7 @@ body.in-match:not(.board-v2) .board {
   transition: background 140ms ease, filter 140ms ease;
 }
 .mps-mode.is-on {
-  background: rgb(var(--theme-rgb));
   padding: 2px;
-  filter: drop-shadow(0 0 1px rgba(255,255,255,0.9))
-          drop-shadow(0 0 4px rgba(var(--theme-rgb), 0.85))
-          drop-shadow(0 0 12px rgba(var(--theme-rgb), 0.30));
 }
 .mps-mode > * { background: var(--mp-inert); }
 .mps-mode.is-on > * { background: var(--mp-lit-cyan); }
@@ -3018,11 +3013,6 @@ body.in-match:not(.board-v2) .board {
 .mps-mode-ind {
   width: 13px; height: 13px; flex: 0 0 13px;
   border: 1px solid var(--mp-edge); background: none;
-}
-.mps-mode.is-on .mps-mode-ind {
-  border-color: rgb(var(--theme-rgb));
-  background: rgb(var(--theme-rgb));
-  box-shadow: 0 0 6px rgba(var(--theme-rgb), 0.8);
 }
 /* the nested deck row — belongs to 1v1 Custom Decks, dimmed until chosen */
 .mps-deck {
@@ -3074,7 +3064,6 @@ body.in-match:not(.board-v2) .board {
   width: 12px; height: 12px; background: var(--mp-text-3);
   transition: transform 140ms var(--ease-snap, cubic-bezier(.22,1,.36,1)), background 140ms ease;
 }
-.mps-ev.is-on .mps-ev-sw { background: rgba(var(--theme-rgb), 0.22); border-color: rgb(var(--theme-rgb)); }
 .mps-ev.is-on .mps-ev-sw::after { transform: translateX(20px); background: rgb(var(--theme-rgb)); }
 .mps-ev-val {
   min-width: 26px;
@@ -3096,11 +3085,7 @@ body.in-match:not(.board-v2) .board {
 .mps-create {
   position: relative; isolation: isolate;
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  width: 100%; padding: 2px; border: 0; cursor: pointer;
-  background: rgb(var(--theme-rgb));
-  filter: drop-shadow(0 0 1px rgba(255,255,255,0.9))
-          drop-shadow(0 0 4px rgba(var(--theme-rgb), 0.85))
-          drop-shadow(0 0 12px rgba(var(--theme-rgb), 0.30));
+  width: 100%;   cursor: pointer;
 }
 .mps-create > span { position: relative; z-index: 1; background: none; }
 /* the inner fill is a pseudo-element, so the 2px ring around it IS the tube */
@@ -3193,20 +3178,9 @@ body.in-match:not(.board-v2) .board {
 .mpl-code { display: flex; align-items: center; gap: 16px; }
 .mpl-code-tiles { display: flex; gap: 8px; cursor: pointer; }
 .mpl-code-tile {
-  width: 52px; height: 62px; display: grid; place-items: center;
-  background: rgb(var(--theme-rgb)); color: #04060a;
-  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
-  font-size: 34px; font-weight: 700; line-height: 1;
-  filter: drop-shadow(0 0 1px rgba(255,255,255,0.9))
-          drop-shadow(0 0 4px rgba(var(--theme-rgb), 0.85))
-          drop-shadow(0 0 12px rgba(var(--theme-rgb), 0.30));
+     place-items: center;
 }
 /* Room full: the code stops instructing, so it stops glowing. */
-.mpl-code-tiles.is-closed .mpl-code-tile {
-  background: rgba(var(--theme-rgb), 0.14);
-  border: 1px solid rgba(var(--theme-rgb), 0.40);
-  color: #8fd8e8; filter: none;
-}
 .mpl-code-acts { display: flex; flex-direction: column; gap: 4px; }
 .mpl-code-act {
   background: none; border: 0; cursor: pointer; padding: 1px 0; text-align: left;
@@ -3228,15 +3202,7 @@ body.in-match:not(.board-v2) .board {
 .mpl-seats { display: flex; flex-direction: column; gap: 10px; margin-top: 22px; }
 .mpl-seat { padding: 1px; background: rgba(140,170,190,0.18); }
 .mpl-seat > * { background: rgba(8,12,17,0.9); }
-.mpl-seat.is-you  { padding: 2px; background: rgb(var(--theme-rgb));
-  filter: drop-shadow(0 0 1px rgba(255,255,255,0.9))
-          drop-shadow(0 0 4px rgba(var(--theme-rgb), 0.85))
-          drop-shadow(0 0 12px rgba(var(--theme-rgb), 0.30)); }
 .mpl-seat.is-you  > * { background: var(--mp-lit-cyan); }
-.mpl-seat.is-opp  { padding: 2px; background: rgb(var(--own-opponent));
-  filter: drop-shadow(0 0 1px rgba(255,255,255,0.9))
-          drop-shadow(0 0 4px rgba(var(--own-opponent), 0.85))
-          drop-shadow(0 0 12px rgba(var(--own-opponent), 0.30)); }
 .mpl-seat.is-opp  > * { background: var(--mp-lit-red); }
 .mpl-seat-head {
   display: flex; align-items: center; gap: 12px; padding: 22px 18px;
@@ -3253,7 +3219,7 @@ body.in-match:not(.board-v2) .board {
   font-size: 21px; font-weight: 400; letter-spacing: 0.04em; color: #ffffff;
 }
 .mpl-seat.is-open .mpl-seat-name {
-  color: var(--mp-text-off); text-transform: uppercase; letter-spacing: 0.10em; font-size: 17px;
+   text-transform: uppercase; letter-spacing: 0.10em; font-size: 17px;
 }
 .mpl-seat-state {
   font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
@@ -3296,10 +3262,7 @@ body.in-match:not(.board-v2) .board {
 }
 .mpl-start[disabled] { cursor: not-allowed; }
 .mpl-start.is-ready {
-  border-color: rgb(var(--theme-rgb)); color: #ffffff;
-  filter: drop-shadow(0 0 1px rgba(255,255,255,0.9))
-          drop-shadow(0 0 4px rgba(var(--theme-rgb), 0.85))
-          drop-shadow(0 0 12px rgba(var(--theme-rgb), 0.30));
+  border-color: rgb(var(--theme-rgb)); 
 }
 .mpl-seatcount {
   font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
@@ -3746,9 +3709,6 @@ body.in-match:not(.board-v2) .board {
 #right-col {
   position: fixed;
   right: 18px;
-  top: 58px;
-  bottom: 16px;
-  width: 200px;
   /* 500 — the layer the decision panel used to hold on its own. It docks in
      here now (see _classicDecisionSlot), so the column has to sit where the
      panel sat or docking it would push a live prompt under the chrome. Still
@@ -3841,7 +3801,6 @@ body.in-match:not(.board-v2) .board {
   max-height: 44% !important;
   margin: 0 !important;
   overflow-y: auto;
-  flex: 0 1 auto;
   cursor: default;                 /* docked, so no drag handle to imply */
 }
 
@@ -6286,10 +6245,6 @@ body:not(.ai-thinking) .ai-thinking-ring circle {
   .draft-overlay .draft-stage > .draft-choices > .draft-offer {
     align-self: center !important;
   }
-  .draft-overlay .draft-stage > .draft-choices > .draft-offer > .draft-card,
-  .draft-overlay .draft-stage > .draft-choices > .draft-offer > .trick-draft {
-    min-height: var(--dph-pair-h, 0) !important;
-  }
   .draft-overlay .draft-stage > .draft-choices > .draft-offer {
     flex: 0 0 auto !important;
     width: var(--dph-card-w) !important;
@@ -6415,7 +6370,7 @@ html, body { touch-action: manipulation; }
    it needs are for PRESS START, which sits where the first menu row will be:
    left-aligned on the menu's text axis, no centring indent. */
 #main-menu-overlay.ts-menulike .ts-prompt {
-  margin-top: clamp(28px, 7vh, 72px); padding: 0; text-align: left; text-indent: 0;
+  margin-top: clamp(28px, 7vh, 72px); padding: 0;  
   font-size: clamp(16px, 1.9vw, 26px); letter-spacing: 0.36em;
 }
 #main-menu-overlay.ts-menulike.is-title-leaving .ts-prompt { transition: opacity 360ms var(--ease-exit, ease-in); opacity: 0; }

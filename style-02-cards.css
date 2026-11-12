@@ -38,12 +38,10 @@
   --stat-line: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='10' stroke-linejoin='miter' stroke-linecap='butt' d='M0,26 L0,0 L26,0 M74,0 L100,0 L100,26 M100,74 L100,100 L74,100 M26,100 L0,100 L0,74'/></svg>");
   width: var(--stat-h, 22px); height: var(--stat-h, 22px);
   display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 700; z-index: 4;
+  font-size: 11px;  z-index: 4;
   position: absolute; bottom: 5px;
   background: transparent;
   border: 0;
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
 }
 /* The four corner brackets. */
 .stat-atk::before,
@@ -731,7 +729,7 @@
 }
 .status-badge {
   font-family: var(--font-mono);
-  font-size: 8px; font-weight: 700; padding: 0 4px; border-radius: 2px;
+  font-size: 8px; font-weight: 700; padding: 0 4px; 
   line-height: 1.35; letter-spacing: 0.3px; white-space: nowrap;
   text-transform: uppercase;
   background: rgba(0, 8, 14, 0.55);
@@ -766,9 +764,9 @@
 .badge-taunt      { color: var(--kw-taunt); }
 /* Pinhead's Chains — cold iron grey with a faint rattle so a chained pair reads
    at a glance in hand. */
-.badge-chained    { color: #b8c0cc; text-shadow: 0 0 5px rgba(184,192,204,0.55); }
+.badge-chained    {  text-shadow: 0 0 5px rgba(184,192,204,0.55); }
 /* Pinhead's chains, told apart from The Bathroom's grey at a glance. */
-.badge-bound      { color: #d87a58; text-shadow: 0 0 5px rgba(200,106,74,0.55); }
+.badge-bound      {  text-shadow: 0 0 5px rgba(200,106,74,0.55); }
 .badge-dmg-immune { color: var(--kw-dmg-immune); }
 .badge-untrickable{ color: var(--kw-untrickable); }
 .badge-armor      { color: var(--kw-armor); }
@@ -1638,9 +1636,7 @@
   transform-origin: 0 0;
 }
 .hover-magnify .draft-card {
-  transform: scale(1.15) !important;
   transform-origin: 0 0;
-  animation: none !important;
 }
 /* Nuke every animation, transition, AND pointer event on the clone
    and its descendants. Pointer-events: none on the wrapper isn't
@@ -1968,8 +1964,6 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
      cards (and to the left of lane 1 / right of lane 6 below
      them). User spec: "match the same color." */
   background: #000000;
-  border-top: 1px solid var(--tron-dim);
-  box-shadow: 0 -1px 0 var(--tron-glow);
   position: relative;
   /* z-index 220 sits ABOVE the .info-bar.player-bar's z-index: 210
      so when a hand card hover-lifts upward, it paints OVER the HUD
@@ -2085,17 +2079,8 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
 .hand-card-wrapper {
   --fan-rotate: 0deg;
   --fan-lift: 0px;
-  transition: transform 0.2s var(--ease-snap), z-index 0s;
   position: relative;
   transform: translateY(var(--fan-lift)) rotate(var(--fan-rotate));
-  transform-origin: 50% 0%;
-}
-.hand-card-wrapper:hover {
-  /* No transform — hover feedback is just the rarity-tier border glow
-     on the inner card (see .card.hand-card:hover at ~7132). Keeping the
-     wrapper static prevents cursor-out-of-bounds flip-flops that used
-     to cause the hover audio to pulse. */
-  z-index: 50;
 }
 /* Empty-hand placeholder — polish-pass Tier 2.
    Replaces the flat "No cards" text with a Tron-themed card-back
@@ -2152,9 +2137,6 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   /* Matched breathing room for the tricks row — same reason as the hand
      section above. Was 2px. */
   padding: 10px var(--match-gutter) 6px;
-  border-top: 1px solid var(--tron-dim);
-  box-shadow: 0 -1px 0 var(--tron-glow);
-  position: relative;
   /* Must sit above .player-hand-section (z-index 220) so hover-scaled
      trick cards paint over the hand row, not under it. !important
      because #game-area > * (line 475) sets z-index: 1 with higher
@@ -2171,17 +2153,11 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   width: 132px; padding: 6px 8px 6px;
   background: #000000;
   border: 1px solid rgba(155,89,182,0.95);
-  border-radius: var(--r-card);
-  position: relative;
-  box-shadow:
-    0 0 12px rgba(155,89,182,0.50),
-    0 0 24px rgba(155,89,182,0.22);
   transform-origin: center bottom;
   transition: transform 240ms var(--ease-out-soft, cubic-bezier(0.22, 1, 0.36, 1)), box-shadow 0.2s var(--ease-snap);
 }
 .trick-card.playable { cursor: pointer; }
 .trick-card:where(:not(.trick-draft)):hover {
-  transform: scale(1.5) translateY(-6px);
   z-index: 100;
   filter: blur(0);
   -webkit-font-smoothing: antialiased;
@@ -2189,9 +2165,6 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
 }
 .trick-card.playable:hover {
   border-color: rgba(187,143,206,0.95);
-  box-shadow:
-    0 0 16px rgba(155,89,182,0.95),
-    0 0 32px rgba(155,89,182,0.55);
 }
 .trick-portrait {
   width: 100%;
@@ -2221,25 +2194,19 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   position: absolute; top: -7px; left: -7px;
   width: 22px; height: 22px; border-radius: 50%;
   background: #000000;
-  color: #d7b3e6;
   font-family: var(--font-mono);
   font-weight: 700; font-size: 12px;
   display: flex; align-items: center; justify-content: center;
   border: 1px solid rgba(155,89,182,0.95);
-  box-shadow:
-    0 0 12px rgba(155,89,182,0.60),
-    0 0 24px rgba(155,89,182,0.28);
-  text-shadow: 0 0 6px rgba(155,89,182,0.60);
   z-index: 2;
   font-variant-numeric: tabular-nums;
 }
 .trick-name {
   /* Match .card-name-banner — single underscan hairline + centered diamond. */
   font-family: 'Rajdhani', 'Segoe UI', system-ui, sans-serif;
-  font-size: 11px; font-weight: 700; color: #d7b3e6;
+  font-size: 11px; font-weight: 700; 
   text-align: center;
   letter-spacing: 1.2px; text-transform: uppercase;
-  text-shadow: 0 0 8px rgba(155,89,182,0.70), 0 1px 2px rgba(0,0,0,0.85);
   padding: 2px 6px 6px;
   margin: 2px -8px 6px;
   background: transparent;
@@ -2253,8 +2220,6 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   left: 50%;
   width: 5px; height: 5px;
   transform: translateX(-50%) rotate(45deg);
-  background: rgba(155,89,182,0.85);
-  box-shadow: 0 0 4px rgba(155,89,182,0.85), 0 0 8px rgba(155,89,182,0.60);
   z-index: 3;
 }
 .trick-desc {
@@ -2289,37 +2254,24 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   background: #000000;
 }
 .btn-primary {
-  border-color: rgba(var(--theme-rgb, 79,195,247),0.95);
   color: rgba(var(--theme-rgb, 79,195,247),0.95);
-  box-shadow:
-    0 0 12px rgba(var(--theme-rgb, 79,195,247),0.45),
-    0 0 24px rgba(var(--theme-rgb, 79,195,247),0.18);
-  text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247),0.50);
 }
 .btn-primary:hover {
-  color: var(--text-hi, #f5fbff); transform: translateY(-2px);
-  box-shadow:
-    0 0 14px rgba(var(--theme-rgb, 79,195,247),0.80),
-    0 0 28px rgba(var(--theme-rgb, 79,195,247),0.35);
+   transform: translateY(-2px);
 }
 .btn:active { transform: translateY(0); filter: brightness(0.92); }
 .btn-secondary {
-  border-color: rgba(255,255,255,0.90); color: var(--text-hi, #f5fbff);
-  box-shadow: 0 0 12px rgba(255,255,255,0.35), 0 0 24px rgba(255,255,255,0.15);
-  text-shadow: 0 0 6px rgba(255,255,255,0.35);
+   color: var(--text-hi, #f5fbff);
 }
 .btn-secondary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 0 14px rgba(255,255,255,0.70), 0 0 28px rgba(255,255,255,0.30);
 }
 .btn-danger {
   border-color: rgba(231,76,60,0.95); color: #ff8a7a;
-  box-shadow: 0 0 12px rgba(231,76,60,0.55), 0 0 24px rgba(231,76,60,0.25);
   text-shadow: 0 0 6px rgba(231,76,60,0.55);
 }
 .btn-danger:hover {
   color: #ffd0ca; transform: translateY(-2px);
-  box-shadow: 0 0 14px rgba(231,76,60,0.85), 0 0 28px rgba(231,76,60,0.40);
 }
 
 /* ---- LOG ---- */
@@ -2333,7 +2285,6 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   background: rgba(6,10,16,0.55);
   border: 1px solid var(--tron-dim);
   border-radius: 4px; padding: 6px 8px;
-  font-family: 'Courier New', monospace; font-size: 11px;
   box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
 }
 .log-entry {
@@ -2528,10 +2479,6 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   font-size: 14px; font-weight: 700;
   letter-spacing: 1.5px; text-transform: uppercase;
   text-align: center;
-  text-shadow: 0 0 8px rgba(var(--gold-rgb),0.40);
-  box-shadow:
-    0 0 12px rgba(var(--gold-rgb),0.60),
-    0 0 24px rgba(var(--gold-rgb),0.25);
   animation: promptPulse 1.4s ease-in-out infinite;
   transition: opacity 200ms var(--ease-snap);
 }
@@ -2567,7 +2514,6 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   letter-spacing: 0.2px;
   text-transform: none;
   color: #ffe9a8;
-  text-shadow: 0 0 9px rgba(var(--gold-rgb), 0.55);
 }
 /* A banner you have to reach INTO must not ghost away as you approach it —
    see the :hover peek-through above. */
@@ -2771,9 +2717,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
      I can't select rematch... so it needs to be condensed." */
   padding: 18px 24px 16px;
   background: rgba(0,0,0,0.95);
-  border: 1px solid rgba(255,255,255,0.90);
   border-radius: 8px;
-  box-shadow: 0 0 12px rgba(255,255,255,0.35), 0 0 24px rgba(255,255,255,0.15);
   animation: gameOverSlideUp 0.55s var(--ease-spring, cubic-bezier(0.34,1.56,0.64,1.0)) 0.15s both;
   min-width: min(380px, 100%);
   max-width: 720px;
@@ -2873,7 +2817,6 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
      (.go-stat-row border-bottom) already carry the table structure,
      so the surrounding box is dead weight against the #000 backdrop. */
   border: none;
-  background: transparent;
   min-width: min(440px, 100%);
   text-align: left;
   font-family: 'Rajdhani', sans-serif;
@@ -2927,8 +2870,6 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
 /* Winning side gets a brighter glow on top of its base color. Losing
    side keeps full opacity — both values stay equally readable; only the
    winner's halo intensifies. */
-.game-over-stats .go-col-you.go-stat-hi  { text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247),0.85), 0 0 14px rgba(var(--theme-rgb, 79,195,247),0.50); }
-.game-over-stats .go-col-opp.go-stat-hi  { text-shadow: 0 0 6px rgba(231,76,60,0.85), 0 0 14px rgba(231,76,60,0.50); }
 
 /* Card-name span inside stat cells — same team color as the column.
    Kept as its own class so future refactors (e.g. mixed-team cells)
@@ -3110,11 +3051,9 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
    ============================================================ */
 body.turn-combat .board .lane:not(.lane-active) {
   opacity: 0.45;
-  transition: opacity 240ms var(--ease-snap);
 }
 body.turn-combat .board .lane.lane-active {
   opacity: 1;
-  transition: opacity 240ms var(--ease-snap);
 }
 
 /* Mobile: hide the page scrollbar (the thin sidebar was ugly clutter, and on
@@ -3445,10 +3384,8 @@ body.turn-combat .board .lane.lane-active {
   .ai-hand-mini { display: flex !important; min-width: 0; }
   .ai-hand-mini .card-back { width: 12px; height: 18px; flex: 0 0 auto; }
   .ai-hand-mini .hand-cards { gap: 2px; padding: 0; min-height: 0; }
-  .settings-panel { padding: 14px 16px; min-width: 0; width: 100%; max-width: 360px; }
-  .game-over-content { padding: 22px 18px; min-width: 0; }
-  .game-over-title { font-size: 32px; letter-spacing: 4px; }
-  .cheat-sheet-panel { padding: 20px 20px 16px; }
+  .settings-panel {  min-width: 0;   }
+  .game-over-content {  min-width: 0; }
 
   /* Card draft — currently 2 huge cards stack vertically on phone,
      each filling the screen. Constrain widths + keep them side-by-side
@@ -3474,7 +3411,7 @@ body.turn-combat .board .lane.lane-active {
      visual scrollbar. overflow-x:auto is the scroller; overflow-y:hidden keeps
      it from also showing a vertical bar (the two can't be auto/visible split). */
   .player-hand-section {
-    padding: 4px 6px; position: relative; z-index: 300;
+     position: relative; z-index: 300;
     overflow-x: auto; overflow-y: hidden;
     scrollbar-width: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain;
   }
@@ -3482,7 +3419,6 @@ body.turn-combat .board .lane.lane-active {
   /* safe center: cards center when few, but align to the START (scrollable)
      when they overflow — plain `center` clips the first cards unreachably. */
   .player-hand-section .hand-cards { justify-content: safe center; }
-  .tricks-section { padding: 4px 6px; }
   /* A hovered / lifted / magnifying hand card paints ABOVE the bottom player
      banner (UNDO/DONE + HP), not behind it. */
   .player-hand-section .hand-cards .card:hover,
@@ -3740,18 +3676,13 @@ body.turn-combat .board .lane.lane-active {
   .encyc-tag { font-size: 9px; letter-spacing: 2px; }
   .encyc-title { font-size: 18px; letter-spacing: 2px; }
   .encyc-sub { font-size: 11px; }
-  .encyc-head { flex-direction: column; align-items: flex-start; gap: 8px; padding-top: 28px; }
-  .encyc-tabs { gap: 6px; }
+  .encyc-head {    padding-top: 28px; }
   .encyc-tabs .db-tab { padding: 6px 10px; font-size: 11px; }
-  .encyc-toolbar { gap: 8px; flex-direction: column; align-items: stretch; }
+  .encyc-toolbar {  flex-direction: column; align-items: stretch; }
   .db-search-wrap { width: 100%; }
   .db-search { font-size: 13px; padding: 6px 10px 6px 30px; }
   .db-cost-row { gap: 4px; flex-wrap: wrap; }
   .db-cost-chip { padding: 4px 8px; font-size: 10px; min-width: 36px; }
-  .encyc-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 8px !important;
-  }
 
   /* ---- MY DECKS ---- */
   .my-decks-overlay { padding: 10px; }
@@ -3978,8 +3909,6 @@ body.turn-combat .board .lane.lane-active {
    ============================================================ */
 
 /* Stat circles use tabular numerals so 1↔10 doesn't jitter */
-.stat-circle { font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums; }
 
 /* Keyword pills — black-hole style: pure black bg, colored ring + glow.
    Miniature lane pips attached to cards — same visual DNA. */
@@ -3989,7 +3918,6 @@ body.turn-combat .board .lane.lane-active {
   font-weight: 700;
   padding: 1px 6px;
   margin: 1px 2px;
-  border-radius: 4px;
   background: #000000;
   border: 1px solid currentColor;
   line-height: 1;
@@ -4020,7 +3948,7 @@ body.turn-combat .board .lane.lane-active {
 
 /* Draft cards are larger than hand cards — scale up the trait badges so they
    read cleanly. Same badge classes as in-game cards, just bigger text. */
-.draft-card .status-badges { gap: 6px; margin: 2px 0 6px; }
+.draft-card .status-badges { gap: 6px;  }
 .draft-card .status-badge {
   font-size: 11px;
   padding: 2px 8px;
@@ -4334,9 +4262,8 @@ body.turn-combat .board .lane.lane-active {
 }
 .recap-row:last-child { border-bottom: none; }
 .recap-label { color: var(--text-mute, #b8c2cc); font-size: 12px; letter-spacing: 0.5px; }
-.recap-val   { color: var(--text-body, #f5fbff); font-weight: 600; font-size: 13px; }
+.recap-val   {  font-weight: 600; font-size: 13px; }
 .recap-val.recap-ally  { color: #7fd0ff; }
-.recap-val.recap-enemy { color: rgb(231,76,60); }
 
 /* ---- Round-recap timeline strip ---- */
 .recap-timeline {
@@ -4580,13 +4507,6 @@ body.turn-combat .board .lane.lane-active {
   line-height: 1;
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  text-shadow:
-    0 0 6px rgba(var(--theme-rgb, 79,195,247),1),
-    0 0 12px rgba(var(--theme-rgb, 79,195,247),0.45);
-  box-shadow:
-    0 0 12px rgba(var(--theme-rgb, 79,195,247),0.65),
-    0 0 24px rgba(var(--theme-rgb, 79,195,247),0.30),
-    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247),0.22);
   transition: transform 0.2s var(--ease-snap), box-shadow 240ms var(--ease-snap), color 0.2s var(--ease-snap), background 0.2s var(--ease-snap);
 }
 /* Sync-from-GitHub button — sibling of the settings cog, sits
@@ -4640,10 +4560,6 @@ body.turn-combat .board .lane.lane-active {
   text-shadow:
     0 0 8px rgba(var(--theme-rgb, 79,195,247),1),
     0 0 16px rgba(var(--theme-rgb, 79,195,247),0.65);
-  box-shadow:
-    0 0 16px rgba(var(--theme-rgb, 79,195,247),0.85),
-    0 0 32px rgba(var(--theme-rgb, 79,195,247),0.45),
-    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247),0.30);
 }
 .settings-overlay {
   position: fixed !important; inset: 0; background: rgba(0,0,0,0.7);
@@ -4660,7 +4576,6 @@ body.turn-combat .board .lane.lane-active {
   -webkit-overflow-scrolling: touch;
 }
 .settings-panel {
-  background: #000;
   border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.55);
   border-radius: 8px;
   padding: 22px 28px; min-width: min(360px, 100%);
@@ -4890,15 +4805,13 @@ body.turn-combat .board .lane.lane-active {
   grid-template-columns: 2fr 1fr; /* cards take more room than tricks */
   gap: 14px;
   height: 28vh;
-  min-height: 160px;
-  max-height: 260px;
   margin-bottom: 12px;
   padding-bottom: 12px;
   border-bottom: 1px dashed var(--theme-accent-edge, rgba(79,195,247,0.25));
 }
 .db-deck-strip .db-deck-section {
   display: flex; flex-direction: column;
-  min-height: 0; /* let the inner list scroll */
+   /* let the inner list scroll */
   margin-bottom: 0;
 }
 /* Horizontal list variant — rows wrap into a multi-row flex grid,
@@ -4956,7 +4869,6 @@ body.turn-combat .board .lane.lane-active {
    GAME OVER — HP-over-rounds curve
    ============================================================ */
 .go-hp-chart {
-  margin: 0 0 16px;
   padding: 10px 10px 4px;
   background: rgba(255,255,255,0.02);
   border: 1px solid rgba(255,255,255,0.08);
@@ -5193,14 +5105,9 @@ body.turn-combat .board .lane.lane-active {
   opacity: 0;
   z-index: 600 !important;
   min-width: 280px; max-width: 420px;
-  background: rgba(6,10,18,0.96);
   /* Purple chrome — matches the universal trick identity (purple = tricks
      across the whole game). Was red (matching AI) but a trick is a trick
      regardless of who played it. */
-  border: 1px solid rgba(155,89,182,0.75);
-  border-radius: 8px;
-  padding: 12px 18px;
-  box-shadow: 0 6px 22px rgba(0,0,0,0.7), 0 0 18px rgba(155,89,182,0.45);
   transition: transform 240ms var(--ease-snap), opacity 240ms var(--ease-snap);
   pointer-events: none;
   text-align: center;
@@ -5212,24 +5119,15 @@ body.turn-combat .board .lane.lane-active {
 .ai-trick-toast .ai-trick-label {
   font-family: 'Rajdhani', sans-serif;
   text-transform: uppercase;
-  letter-spacing: 2px;
-  font-size: 10px;
-  color: #d7b3e6;
-  margin-bottom: 4px;
 }
 .ai-trick-toast .ai-trick-name {
   font-family: 'Rajdhani', sans-serif;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 1.5px;
-  font-size: 16px;
-  color: #d7b3e6;
-  text-shadow: 0 0 10px rgba(155,89,182,0.55);
   margin-bottom: 6px;
 }
 .ai-trick-toast .ai-trick-desc {
   font-family: 'Inter', sans-serif;
-  font-size: 12px;
   color: var(--text-mute, #b8c2cc);
   line-height: 1.45;
 }
@@ -5254,7 +5152,6 @@ body.turn-combat .board .lane.lane-active {
 }
 .ai-trick-toast.toast-kind-discard .ai-trick-label,
 .ai-trick-toast.toast-kind-discard .ai-trick-name {
-  color: var(--text-hi, #f5fbff);
   text-shadow: 0 0 10px rgba(255,255,255,0.35);
   text-transform: uppercase;
   font-size: 11px;
@@ -5331,11 +5228,6 @@ body.turn-combat .board .lane.lane-active {
   min-width: min(420px, 100%); max-width: 560px;
   /* Neon halo — a sharp outer ring + soft outer bloom in the player
      theme color. Matches the rest of the game's HUD chrome. */
-  box-shadow:
-    0 0 0 1px rgba(var(--theme-rgb, 79,195,247),0.30),
-    0 0 18px rgba(var(--theme-rgb, 79,195,247),0.55),
-    0 0 42px rgba(var(--theme-rgb, 79,195,247),0.25),
-    0 18px 50px rgba(0,0,0,0.55);
   pointer-events: auto;
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
   animation: fpSlideIn 0.28s var(--ease-out-soft);
@@ -5389,7 +5281,6 @@ body.turn-combat .board .lane.lane-active {
   text-transform: uppercase; letter-spacing: 3px;
   font-weight: 700; font-size: 16px;
   color: var(--text-hi, #f5fbff);
-  text-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247),0.5);
 }
 .fp-sub {
   display: block; margin-top: 4px;
@@ -5539,12 +5430,10 @@ body.turn-combat .board .lane.lane-active {
 .choice-tray-panel {
   position: relative;
   margin-bottom: 18px;
-  background: rgba(6,10,18,0.97);
   border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.55);
   border-radius: 8px 8px 4px 4px;
   padding: 14px 20px 18px;
   max-width: 90vw;
-  box-shadow: 0 -8px 30px rgba(0,0,0,0.7), 0 0 22px rgba(var(--theme-rgb, 79,195,247),0.22);
   pointer-events: auto;
   animation: trayRise 0.3s var(--ease-out-soft);
 }
@@ -5569,7 +5458,6 @@ body.turn-combat .board .lane.lane-active {
   text-transform: uppercase; letter-spacing: 2.5px;
   font-weight: 700; font-size: 14px;
   color: var(--text-hi, #f5fbff);
-  text-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247),0.4);
 }
 .choice-tray-desc {
   display: block; margin-top: 3px;
@@ -5632,7 +5520,6 @@ body.turn-combat .board .lane.lane-active {
   background: rgba(8,14,22,0.9);
   border: 2px solid rgba(var(--theme-rgb, 79,195,247),0.65);
   border-radius: 8px;
-  padding: 0 0 22px;
   overflow: hidden;
   cursor: pointer;
   color: var(--text-body, #e8eef6);
@@ -5961,9 +5848,6 @@ body.turn-combat .board .lane.lane-active {
      base sits at 0.30 so the line is visible-but-quiet on empty lanes
      and any spec-edge bleed into contested lanes is invisible. */
   background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.30) 30%, rgba(255,255,255,0.30) 70%, transparent 100%);
-  box-shadow:
-    0 0 8px rgba(255,255,255,0.10),
-    0 0 16px rgba(255,255,255,0.05);
 }
 /* Lane number pip — matches the lane edge: bright white border + consistent glow */
 .lane-number {
@@ -5977,9 +5861,6 @@ body.turn-combat .board .lane.lane-active {
   display: flex; align-items: center; justify-content: center;
   letter-spacing: 0.5px;
   z-index: 2;
-  box-shadow:
-    0 0 12px rgba(255,255,255,0.35),
-    0 0 24px rgba(255,255,255,0.15);
 }
 /* Active lane — was gold/yellow per "actively resolving" cue, but
    it overrode the lane's occupancy color story (red for AI, blue
@@ -5997,15 +5878,11 @@ body.turn-combat .board .lane.lane-active {
   box-shadow:
     0 0 10px rgba(255,255,255,0.45),
     0 0 22px rgba(255,255,255,0.20);
-  animation: laneActivePulse 1.2s ease-in-out infinite;
 }
 .lane .lane-sep.lane-active::before {
   /* Active line stays neutral white at low alpha so the occupancy
      red/blue/purple still bleeds through. */
   background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.55) 30%, rgba(255,255,255,0.55) 70%, transparent 100%);
-  box-shadow:
-    0 0 10px rgba(255,255,255,0.40),
-    0 0 22px rgba(255,255,255,0.18);
 }
 @keyframes laneActivePulse {
   0%, 100% { opacity: 1; }
@@ -6019,31 +5896,11 @@ body.turn-combat .board .lane.lane-active {
    blue when player holds, purple when contested.
    .lane-active (gold combat pulse) still overrides via its own more-specific
    rule further up. */
-.lane.occ-ai .lane-sep::before {
-  background: linear-gradient(90deg, transparent 0%, rgba(231,76,60,0.95) 30%, rgba(231,76,60,0.95) 70%, transparent 100%);
-  box-shadow:
-    0 0 12px rgba(231,76,60,0.55),
-    0 0 24px rgba(231,76,60,0.22);
-}
 .lane.occ-ai .lane-number {
-  border-color: rgba(231,76,60,0.95);
   color: #ff8a7a;
-  box-shadow:
-    0 0 12px rgba(231,76,60,0.55),
-    0 0 24px rgba(231,76,60,0.22);
-}
-.lane.occ-player .lane-sep::before {
-  background: linear-gradient(90deg, transparent 0%, rgba(var(--theme-rgb, 79,195,247),0.95) 30%, rgba(var(--theme-rgb, 79,195,247),0.95) 70%, transparent 100%);
-  box-shadow:
-    0 0 12px rgba(var(--theme-rgb, 79,195,247),0.55),
-    0 0 24px rgba(var(--theme-rgb, 79,195,247),0.22);
 }
 .lane.occ-player .lane-number {
-  border-color: rgba(var(--theme-rgb, 79,195,247),0.95);
   color: #7fd0ff;
-  box-shadow:
-    0 0 12px rgba(var(--theme-rgb, 79,195,247),0.55),
-    0 0 24px rgba(var(--theme-rgb, 79,195,247),0.22);
 }
 /* Lane-number pip stays visible even when the lane is occupied. It was
    previously hidden once a card landed, but the player wants a constant
@@ -6063,27 +5920,18 @@ body.turn-combat .board .lane.lane-active {
    so the contested seam reads as the brightest line on the board.
    User direction: "the contested lanes need to be neon highlighted as
    well — its blur should be purple."  */
-.lane.occ-both .lane-sep::before {
-  background: linear-gradient(90deg, transparent 0%, rgba(180,90,220,1) 30%, rgba(180,90,220,1) 70%, transparent 100%);
-  box-shadow:
-    0 0 14px rgba(180,90,220,0.85),
-    0 0 32px rgba(180,90,220,0.40),
-    0 0 56px rgba(180,90,220,0.18);
-}
 /* Contested lane-number circle — a purple-red MIX (magenta on the
    color wheel) so it reads as the visual blend of the AI red rim and
    the player purple/blue rim meeting in the middle. User direction:
    "the middle circle should be the mix between purple and red on the
    color wheel."  */
 .lane.occ-both .lane-number {
-  border-color: rgba(220,50,130,1);
   color: #ff8fc0;
   background: rgba(40,8,24,0.85);
   box-shadow:
     0 0 14px rgba(220,50,130,0.85),
     0 0 28px rgba(220,50,130,0.40),
     inset 0 0 6px rgba(220,50,130,0.20);
-  text-shadow: 0 0 6px rgba(220,50,130,0.85);
 }
 
 /* Parity removed from the pip — lane numbers are the indicator. Keeping the
@@ -6091,11 +5939,9 @@ body.turn-combat .board .lane.lane-active {
 
 /* Active-lane full-lane glow during combat — breathes via opacity only */
 .lane.lane-active {
-  border-color: rgba(var(--gold-rgb),0.95);
   /* Reset split-gradient border-image so the gold combat pulse wins cleanly
      when a contested (occ-both) lane enters its combat turn. */
   border-image: none;
-  box-shadow: 0 0 12px rgba(var(--gold-rgb),0.60), 0 0 24px rgba(var(--gold-rgb),0.25);
   animation: laneActivePulse 1.2s ease-in-out infinite;
 }
 /* Vertical tracer line — one-shot sweep top→bottom when the lane becomes active.
@@ -6104,8 +5950,6 @@ body.turn-combat .board .lane.lane-active {
   content: ''; position: absolute;
   left: 50%; top: 0; bottom: 0; width: 1px;
   transform-origin: top; transform: translateX(-50%) scaleY(0);
-  background: linear-gradient(180deg, transparent 0%, rgba(var(--gold-rgb),0.95) 50%, transparent 100%);
-  box-shadow: 0 0 12px rgba(var(--gold-rgb),0.70), 0 0 24px rgba(var(--gold-rgb),0.30);
   pointer-events: none; z-index: 1;
   animation: laneTracer 1.2s ease-out forwards;
 }
@@ -6225,7 +6069,7 @@ body.turn-combat .board .lane.lane-active {
 /* Empty-lane placeholder glyph — faint "+" centered in the slot */
 .empty-lane-glyph {
   position: absolute; inset: 0;
-  display: flex; align-items: center; justify-content: center;
+   align-items: center; justify-content: center;
   font-size: 28px;
   color: rgba(255,255,255,0.08);
   pointer-events: none;

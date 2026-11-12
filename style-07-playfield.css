@@ -247,12 +247,6 @@ body.hand-text-always .trick-cards .trick-card .status-badges,
   padding: 6px 10px;
   letter-spacing: 3px;
 }
-.rl-pick-step-active {
-  color: #fff;
-  text-shadow:
-    0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.85),
-    0 0 20px rgba(var(--theme-rgb, 79,195,247), 0.40);
-}
 
 /* ---- 3. Ascension rows / event choices -------------------------
    .rl-event-choice carried the worst offender in the mode: a solid
@@ -319,7 +313,6 @@ body.hand-text-always .trick-cards .trick-card .status-badges,
 }
 .rl-hud .rl-hud-pill.rl-hud-btn:hover {
   transform: scale(1.12);
-  color: #fff;
   text-shadow:
     0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.85),
     0 0 22px rgba(var(--theme-rgb, 79,195,247), 0.40);
@@ -2353,21 +2346,19 @@ body.low-fx .badge-asleep { animation: none; }
      shouldnt happen it needs to fix bottom right." The ceiling is now a real
      bound and the chip list scrolls inside it, so the footprint is the same
      corner whatever the round holds. */
-  z-index: 60; width: 176px; overflow-y: auto;
+  z-index: 60;  overflow-y: auto;
   /* Only bounds the fallback case (no --hand-top yet, top:auto), where the panel
      is bottom-anchored and would otherwise climb over the board. */
   max-height: min(46vh, 300px);
   background: #000;
   border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);
-  border-radius: 12px;
   box-shadow: 0 0 18px rgba(var(--theme-rgb, 79,195,247), 0.22),
               0 6px 22px rgba(0,0,0,0.6),
               inset 0 0 24px rgba(var(--theme-rgb, 79,195,247), 0.06);
-  padding: 8px 8px 9px;
   font-family: inherit; pointer-events: auto; user-select: none;
 }
 .twov2-tk-head {
-  display: flex; align-items: center; gap: 6px; cursor: grab; padding-bottom: 8px;
+  display: flex; align-items: center;  cursor: grab; 
   /* The head and the grip are drag surfaces — the browser must not claim the
      gesture for scrolling/panning first, or a touch drag never reaches us. */
   touch-action: none;
@@ -2394,7 +2385,7 @@ body.low-fx .badge-asleep { animation: none; }
 }
 .twov2-tracker.is-collapsed .twov2-tk-grip { display: none; }
 .twov2-tk-title {
-  font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+    text-transform: uppercase;
   font-weight: 700; flex: 1;
   color: var(--theme-accent-bright, #d4ecff);
   text-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.75),
@@ -2403,10 +2394,10 @@ body.low-fx .badge-asleep { animation: none; }
 /* Boxless — a solid blue chip with black text is exactly the "blue box" the
    rest of the UI had removed. Outline + glow says the same thing and belongs. */
 .twov2-tk-round {
-  font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+   font-weight: 700; letter-spacing: 0.04em;
   color: rgb(var(--theme-rgb, 79,195,247));
   border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);
-  background: transparent; padding: 1px 6px; border-radius: 4px;
+  background: transparent;  border-radius: 4px;
   text-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.8);
   box-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.22);
 }
@@ -2415,7 +2406,7 @@ body.low-fx .badge-asleep { animation: none; }
   color: rgb(var(--theme-rgb, 79,195,247));
   text-shadow: 0 0 7px rgba(var(--theme-rgb, 79,195,247), 0.6);
 }
-.twov2-tk-row { display: flex; flex-direction: column; gap: 5px; }
+.twov2-tk-row { display: flex; flex-direction: column;  }
 .twov2-tracker.is-collapsed { width: auto; }
 .twov2-tracker.is-collapsed .twov2-tk-head { padding-bottom: 0; }
 .twov2-tracker.is-collapsed .twov2-tk-round { display: none; }
@@ -2449,9 +2440,6 @@ body.low-fx .badge-asleep { animation: none; }
    Tricks", and at the first pass (146px, 12px names) the body had 66px and cut
    both. The chip pays for the new mic out of its own padding and ordinal rather
    than out of the words. */
-.twov2-tk-chip { gap: calc(5px * var(--tk-scale, 1)); }
-.twov2-tk-name { font-size: calc(11px * var(--tk-scale, 1)); }
-.twov2-tk-ord { width: calc(15px * var(--tk-scale, 1)); height: calc(15px * var(--tk-scale, 1)); font-size: calc(9px * var(--tk-scale, 1)); }
 
 
 /* ---- VOICE, INSIDE THE RAIL --------------------------------------------
@@ -3213,14 +3201,9 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    ============================================================ */
 .voice-panel {
   position: fixed; left: 12px; bottom: 12px; z-index: 6000;
-  width: 208px; padding: 0; border-radius: 10px;
+  width: 208px; padding: 0; 
   /* Pure black, deliberately. Anything translucent here picks up the board
      behind it and the panel stops reading as its own surface. */
-  background: #000;
-  border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);
-  box-shadow:
-    0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.22),
-    inset 0 0 22px rgba(var(--theme-rgb, 79,195,247), 0.05);
   font-family: 'Rajdhani', system-ui, sans-serif;
   color: rgba(var(--theme-rgb, 79,195,247), 0.92);
   overflow: hidden;
@@ -3423,7 +3406,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 @media (max-width: 900px) {
   .mm-lb-rail {
     top: auto; bottom: 10px; right: 10px; left: 10px;
-    transform: none; width: auto; max-height: 40vh; overflow-y: auto;
+    transform: none;  max-height: 40vh; overflow-y: auto;
   }
 }
 
@@ -4370,10 +4353,6 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
     var(--cf-inset) calc(100% - var(--cf-inset)),
     var(--cf-inset) calc(var(--cf-inset) + var(--chamfer)));
   box-shadow: none !important;
-  filter:
-    drop-shadow(0 0 1px  rgba(230, 200, 245, 0.75))
-    drop-shadow(0 0 5px  rgba(var(--cf-rgb), 0.50))
-    drop-shadow(0 0 14px rgba(var(--cf-rgb), 0.22));
 }
 .trick-card.draft-card, .trick-card.trick-draft { --card-w: var(--read-card-w); --cf-inset: 2px; }
 .trick-card .cf-frame {

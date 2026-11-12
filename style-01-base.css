@@ -616,33 +616,20 @@ html:has(body.preview-mobile) {
    ring + double box-shadow halo + glowing icon, with a stronger pulse
    on hover. */
 .viewport-toggle {
-  position: fixed;
   top: 14px; left: 14px;
   z-index: 600;
   width: 36px; height: 36px;
   background: #000000;
   border: 1px solid var(--theme-accent-bright, rgba(79,195,247,0.95));
   border-radius: 50%;
-  color: var(--theme-accent-bright, #a8dcff);
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   font-family: 'Rajdhani', sans-serif;
-  text-shadow: 0 0 6px var(--theme-glow-outer, rgba(79,195,247,1));
-  box-shadow:
-    0 0 12px var(--theme-glow-outer, rgba(79,195,247,0.65)),
-    0 0 24px var(--theme-glow-inner, rgba(79,195,247,0.30)),
-    inset 0 0 0 1px var(--theme-wash-08, rgba(79,195,247,0.22));
   transition: transform 0.2s var(--ease-snap), box-shadow 240ms var(--ease-snap), color 0.2s var(--ease-snap), background 0.2s var(--ease-snap), border-color 0.2s var(--ease-snap);
 }
 .viewport-toggle:hover {
-  border-color: var(--theme-accent-bright, rgba(79,195,247,1));
   color: var(--text-hi, #ffffff);
-  background: var(--theme-wash-08, rgba(79,195,247,0.08));
   transform: scale(1.08);
-  box-shadow:
-    0 0 16px var(--theme-glow-outer, rgba(79,195,247,0.95)),
-    0 0 32px var(--theme-glow-inner, rgba(79,195,247,0.55)),
-    inset 0 0 0 1px var(--theme-wash-15, rgba(79,195,247,0.30));
 }
 .viewport-toggle svg {
   width: 18px; height: 18px;
@@ -676,22 +663,7 @@ body.clb-toggle-hidden .viewport-toggle {
 /* Ambient stage — a faint radial bloom at top-center + a barely-there
    circuit grid give the pure-black canvas a sense of depth without
    compromising the Tron aesthetic. Fixed so it doesn't scroll. */
-body::before {
-  content: "";
-  position: fixed; inset: 0; pointer-events: none; z-index: 0;
-  /* Top vignette = AI/enemy side, bottom vignette = player side.
-     Was hardcoded blue/red; now follows --enemy-rgb / --player-rgb so
-     a red-theme player sees a red bottom + blue top, etc. User
-     feedback May-1: "the area to the left/right of the lanes feels
-     kinda blue" — root cause was this vignette bleeding through the
-     side gaps even when the active theme wasn't blue. */
-  background:
-    radial-gradient(ellipse 70% 55% at 50% 0%, rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.06), transparent 70%),
-    radial-gradient(ellipse 70% 55% at 50% 100%, rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.04), transparent 70%);
-}
 body::after {
-  content: "";
-  position: fixed; inset: 0; pointer-events: none; z-index: 0;
   background-image:
     linear-gradient(to right, rgba(var(--theme-rgb, 79,195,247), 0.035) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(var(--theme-rgb, 79,195,247), 0.035) 1px, transparent 1px);
@@ -702,7 +674,6 @@ body::after {
 }
 /* Pure black tarmac — matches the draft screen. Sleek, minimal. Colors pop. */
 #game-area {
-  position: relative;
   background: #000000;
 }
 #game-area > * { position: relative; z-index: 1; }
@@ -727,7 +698,7 @@ body::after {
   position: fixed; top: 0; left: 0; right: 0; bottom: 0;
   display: flex; align-items: center; justify-content: center;
   z-index: 500; pointer-events: none;
-  opacity: 0; transition: opacity 0.3s var(--ease-snap);
+  opacity: 0; 
 }
 .phase-banner.active { opacity: 1; }
 /* Phase banner — black pill with unified white glow. Matches HUD + lane pips. */
@@ -737,13 +708,8 @@ body::after {
   letter-spacing: 5px; text-align: center;
   color: var(--text-hi, #f5fbff);
   position: relative; padding: 14px 36px;
-  background: #000000;
   border: 1px solid rgba(255,255,255,0.90);
   border-radius: 4px;
-  box-shadow:
-    0 0 12px rgba(255,255,255,0.35),
-    0 0 24px rgba(255,255,255,0.15);
-  text-shadow: 0 0 8px rgba(255,255,255,0.35);
   animation: bannerSlideIn 1.6s var(--ease-out-soft);
 }
 /* Combat banner — was gold pill, but user feedback repeatedly:
@@ -752,14 +718,6 @@ body::after {
    transitions. Now: theme-cyan (or white if no theme) to match
    the rest of the HUD chrome — no faction-conflicting gold flash
    when combat starts. */
-.phase-banner-text.phase-combat {
-  color: color-mix(in srgb, rgb(var(--theme-rgb, 79, 195, 247)) 65%, white);
-  border-color: rgba(var(--theme-rgb, 79, 195, 247), 0.85);
-  box-shadow:
-    0 0 12px rgba(var(--theme-rgb, 79, 195, 247), 0.50),
-    0 0 24px rgba(var(--theme-rgb, 79, 195, 247), 0.20);
-  text-shadow: 0 0 8px rgba(var(--theme-rgb, 79, 195, 247), 0.50);
-}
 @keyframes bannerSlideIn {
   0%   { opacity: 0; transform: scale(0.85) translateY(12px); }
   15%  { opacity: 1; transform: scale(1.03) translateY(0); }
@@ -772,7 +730,6 @@ body::after {
 .turn-hud {
   display: flex; align-items: center; justify-content: center; gap: 10px;
   padding: 8px 16px;
-  background: #000000;
   border-bottom: 1px solid rgba(255,255,255,0.25);
   font-size: 13px; font-weight: 600;
 }
@@ -782,9 +739,6 @@ body::after {
   padding: 6px 14px; border-radius: 999px;
   background: #000000;
   border: 1px solid rgba(255,255,255,0.90);
-  box-shadow:
-    0 0 12px rgba(255,255,255,0.35),
-    0 0 24px rgba(255,255,255,0.15);
   transition: border-color 0.3s var(--ease-snap), box-shadow 0.3s var(--ease-snap);
 }
 /* HUD pill outline — tints by who went FIRST this round (round initiative).
@@ -793,17 +747,10 @@ body::after {
    Applied via round-first-* body classes from UI.checkPhaseTransition. */
 body.round-first-player .hud-pill-main {
   border-color: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95);
-  box-shadow:
-    0 0 12px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.45),
-    0 0 24px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.18);
 }
 body.round-first-ai .hud-pill-main {
   border-color: rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95);
-  box-shadow:
-    0 0 12px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.55),
-    0 0 24px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.25);
 }
-.hud-pill-main { padding: 6px 14px; }
 
 /* Legacy .hud-telemetry / .tel-* rules removed — the deck/tricks counts
    are now inline inside .hud-pill-main as .hud-count spans, so the
@@ -821,19 +768,10 @@ body.round-first-ai .hud-pill-main {
      rather than an inline word. */
   letter-spacing: 2px;
   text-transform: uppercase;
-  text-shadow: 0 0 6px rgba(var(--gold-rgb),0.35);
   transition: color 0.3s var(--ease-snap), text-shadow 0.3s var(--ease-snap);
 }
 /* Label hue follows the round-opener too — same colour system as the
    badge itself so the whole "ROUND N" unit reads as one signal. */
-body.round-first-player .hud-round {
-  color: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 1);
-  text-shadow: 0 0 6px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.40);
-}
-body.round-first-ai     .hud-round {
-  color: rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 1);
-  text-shadow: 0 0 6px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.40);
-}
 
 .hud-round #round-num {
   position: relative;
@@ -848,9 +786,6 @@ body.round-first-ai     .hud-round {
   font-family: var(--font-mono);
   font-weight: 700; font-size: 13px;
   letter-spacing: 0;
-  text-shadow:
-    0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.95),
-    0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.45);
   line-height: 1;
   font-variant-numeric: tabular-nums;
   transition: color 0.3s var(--ease-snap), text-shadow 0.3s var(--ease-snap);
@@ -870,32 +805,6 @@ body.round-first-ai     .hud-round {
 }
 /* Round badge — repaint by round opener. Same Tron double-ring spec as the
    gold default, just the hue changes to signal initiative. */
-body.round-first-player .hud-round #round-num {
-  color: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 1);
-  text-shadow:
-    0 0 6px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95),
-    0 0 12px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.45);
-}
-body.round-first-player .hud-round #round-num::before {
-  border-color: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95);
-  box-shadow:
-    inset 0 0 0 1px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.22),
-    0 0 10px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.70),
-    0 0 22px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.32);
-}
-body.round-first-ai .hud-round #round-num {
-  color: rgb(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60));
-  text-shadow:
-    0 0 6px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95),
-    0 0 12px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.45);
-}
-body.round-first-ai .hud-round #round-num::before {
-  border-color: rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95);
-  box-shadow:
-    inset 0 0 0 1px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.22),
-    0 0 10px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.70),
-    0 0 22px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.32);
-}
 .hud-phase {
   color: var(--text-hi, #f5fbff);
   font-family: 'Rajdhani', sans-serif;
@@ -944,12 +853,6 @@ body.turn-ai     .info-bar.player-bar {
 
 /* Phase label — tints by CURRENT turn (not round opener). So the pill outline
    holds the round-opener colour while the phase word tracks who's acting now. */
-body.turn-player .hud-phase {
-  color: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 1);
-  text-shadow:
-    0 0 6px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.65),
-    0 0 12px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.30);
-}
 body.turn-ai .hud-phase {
   color: rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 1);
   text-shadow:
@@ -981,8 +884,8 @@ body::after {
 /* Top edge = AI/enemy turn glow → --enemy-rgb (red default; flips
    when player picks red theme). Bottom edge = player turn glow →
    --player-rgb (blue default; follows active theme). */
-body::before { top: 0;    background: linear-gradient(to bottom, rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.75), transparent); box-shadow: 0 0 22px 2px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.55); }
-body::after  { bottom: 0; background: linear-gradient(to top,   rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.75), transparent); box-shadow: 0 0 22px 2px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.55); }
+body::before { top: 0;     box-shadow: 0 0 22px 2px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.55); }
+body::after  { bottom: 0;  box-shadow: 0 0 22px 2px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.55); }
 body.turn-player::after { opacity: 1; animation: turnEdgePulse 2s ease-in-out infinite; }
 body.turn-ai::before    { opacity: 1; animation: turnEdgePulse 2s ease-in-out infinite; }
 body.turn-combat::before,
@@ -1001,16 +904,9 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
    round dots. Reads as a signal pickup on a trace line connecting the
    segments of the HUD pill. */
 .hud-divider {
-  width: 5px; height: 5px; border-radius: 0;
+    border-radius: 0;
   transform: rotate(45deg);
-  background: rgba(255,255,255,0.92);
   box-shadow: 0 0 5px rgba(255,255,255,0.65), 0 0 10px rgba(255,255,255,0.35);
-}
-.hud-divider.hud-divider-cyan {
-  background: rgb(var(--theme-rgb, 79,195,247));
-  box-shadow:
-    0 0 5px rgba(var(--theme-rgb, 79,195,247), 1),
-    0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.55);
 }
 .hud-divider.hud-divider-purple {
   /* Amethyst node — same purple family as the trick cards. */
@@ -1042,24 +938,6 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
   transition: border-color 0.3s var(--ease-snap), box-shadow 0.3s var(--ease-snap), color 0.3s var(--ease-snap);
 }
 .hud-count-deck { color: rgb(var(--theme-rgb, 79,195,247)); }
-.hud-count-deck b {
-  color: rgb(var(--theme-rgb, 79,195,247));
-  border-color: rgba(var(--theme-rgb, 79,195,247), 0.95);
-  box-shadow:
-    0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.55),
-    0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.25),
-    inset 0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.10);
-  text-shadow:
-    0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.90),
-    0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.45);
-}
-.hud-count-tricks { color: #d7b3e6; }
-.hud-count-tricks b {
-  color: #d7b3e6;
-  border-color: rgba(155,89,182,0.95);
-  box-shadow: 0 0 8px rgba(155,89,182,0.60), 0 0 14px rgba(155,89,182,0.30), inset 0 0 6px rgba(155,89,182,0.12);
-  text-shadow: 0 0 6px rgba(155,89,182,0.95), 0 0 12px rgba(155,89,182,0.50);
-}
 
 /* ---- INFO BARS (Enemy above lanes, Player below lanes) ---- */
 /* Same grid on both banners. Equal height and a shared right edge still hold —
@@ -1131,14 +1009,8 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
    0.30 they were authored at. The 0.08 background washes stay literal on
    purpose — those are fills, and the knob deliberately leaves fills alone. */
 .info-bar.ai-bar {
-  background:
-    linear-gradient(180deg, rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.08), transparent 50%),
-    linear-gradient(180deg, #000000, #000000);
   border-top: 1px solid var(--enemy-accent-bright);
   border-bottom: 1px solid var(--enemy-accent-bright);
-  box-shadow:
-    inset 0 1px 0 rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), calc(0.30 + (1 - 0.30) * var(--neon-lift, 0))),
-    inset 0 -1px 0 rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), calc(0.30 + (1 - 0.30) * var(--neon-lift, 0)));
   /* NO `filter` here — and none on .info-bar.player-bar either.
      The turn-focus system above (body.turn-player / body.turn-ai, ~line 907)
      already writes `filter` on both bars, and `filter` is ONE property: a halo
@@ -1155,14 +1027,8 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
      declared standalone here. */
 }
 .info-bar.player-bar {
-  background:
-    linear-gradient(0deg, rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.08), transparent 50%),
-    linear-gradient(180deg, #000000, #000000);
   border-top: 1px solid var(--player-accent-bright);
   border-bottom: 1px solid var(--player-accent-bright);
-  box-shadow:
-    inset 0 1px 0 rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), calc(0.30 + (1 - 0.30) * var(--neon-lift, 0))),
-    inset 0 -1px 0 rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), calc(0.30 + (1 - 0.30) * var(--neon-lift, 0)));
 }
 
 /* Mini enemy hand centered in the enemy banner */
@@ -1217,7 +1083,6 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
      own low-alpha track is the outline. */
   border-radius: 0;
   border: 0;
-  position: relative;
   /* THE RING IS THE METER. --fill was already being written on every render as
      a percentage and only the .full state ever drew a conic-gradient, so at 6/8
      the circle looked identical to 0/8 and the two digits inside were carrying
@@ -1238,7 +1103,6 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
      what is actually painted, so the lit arc throws light and the 0.10 track
      behind it barely does. The meter brightens as it fills without anything
      having to drive it. */
-  box-shadow: none;
   filter: drop-shadow(0 0 3px rgba(var(--bc, var(--gold-rgb)), 0.55))
           drop-shadow(0 0 7px rgba(var(--bc, var(--gold-rgb)), 0.22));
   transition: border-color 240ms var(--ease-snap), box-shadow 240ms var(--ease-snap), background 240ms var(--ease-snap);
@@ -1320,12 +1184,10 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
   background: conic-gradient(from -90deg,
     rgba(var(--theme-rgb, 79,195,247), 0.85) 0 var(--fill),
     rgba(6,10,16,0.92) var(--fill) 100%);
-  border-color: rgba(var(--theme-rgb, 79,195,247), 0.55);
   /* Halo removed. Two stacked outer glows bloomed off a 44px circle and read as
      shine rather than instrumentation. The ring IS the reading now, so it does
      not need selling — .full below keeps its glow, because there the bloom is
      the event rather than decoration. */
-  box-shadow: none;
 }
 .player-bar .block-circle.full {
   background: conic-gradient(from -90deg, rgba(var(--theme-rgb, 79,195,247), 0.92) 0 100%, rgba(var(--theme-rgb, 79,195,247), 0.92) 100%);
@@ -1336,7 +1198,6 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
 }
 .player-bar .block-circle-value {
   color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 65%, white);
-  text-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.70);
 }
 .player-bar .block-circle.full .block-circle-value {
   color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 50%, white);
@@ -1347,8 +1208,7 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
   background: conic-gradient(from -90deg,
     rgba(231,76,60,0.85) 0 var(--fill),
     rgba(16,7,7,0.92) var(--fill) 100%);
-  border-color: rgba(231,76,60,0.55);
-  box-shadow: none;   /* same as the player side — see note above */
+     /* same as the player side — see note above */
 }
 .ai-bar .block-circle.full {
   background: conic-gradient(from -90deg, rgba(231,76,60,0.92) 0 100%, rgba(231,76,60,0.92) 100%);
@@ -1358,7 +1218,6 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
 }
 .ai-bar .block-circle-value {
   color: #ff8a7a;
-  text-shadow: 0 0 8px rgba(231,76,60,0.70);
 }
 .ai-bar .block-circle.full .block-circle-value {
   color: #ffd0ca;
@@ -1456,7 +1315,7 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
 .actions-section #btn-undo { flex-shrink: 0; }
 
 /* Health Bars — Hearthstone style */
-.health-container { display: flex; align-items: center; gap: 8px; position: relative; }
+.health-container { display: flex; align-items: center; gap: 8px;  }
 
 /* Frozen HP (Mr. Freeze) — THE BAR FREEZES, NOT A BOX AROUND IT.
    This used to wrap the whole .health-container in a rounded panel: padding,
@@ -1535,15 +1394,6 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
   width: 160px; height: 16px; background: #000000;
   border-radius: 2px; overflow: hidden;
   border: 1px solid rgba(255,255,255,0.30);
-  position: relative;
-}
-.player-bar .health-bar {
-  border-color: rgba(var(--theme-rgb, 79,195,247), 0.95);
-  box-shadow: 0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.55), 0 0 24px rgba(var(--theme-rgb, 79,195,247), 0.22);
-}
-.ai-bar .health-bar {
-  border-color: rgba(231,76,60,0.95);
-  box-shadow: 0 0 12px rgba(231,76,60,0.55), 0 0 24px rgba(231,76,60,0.25);
 }
 /* Hollow fill + bright leading edge — the track stays dark, the fill is a
    low-opacity color wash, and a 2px neon line glows at the HP boundary. */
@@ -1613,22 +1463,6 @@ body.hit-pause .ai-hand * {
    .health-fill.player-hp is the !important one further down the file (search
    --player-r); it wins on importance regardless of order. Editing here changes
    nothing on screen. */
-.health-fill.player-hp {
-  background: linear-gradient(90deg, rgba(var(--theme-rgb, 79,195,247), 0.08), rgba(var(--theme-rgb, 79,195,247), 0.20));
-  box-shadow:
-    inset -2px 0 0 0 rgba(168,220,255,1),
-    2px 0 6px rgba(var(--theme-rgb, 79,195,247), 0.90),
-    4px 0 12px rgba(var(--theme-rgb, 79,195,247), 0.55),
-    6px 0 20px rgba(var(--theme-rgb, 79,195,247), 0.25);
-}
-.health-fill.ai-hp {
-  background: linear-gradient(90deg, rgba(231,76,60,0.08), rgba(231,76,60,0.24));
-  box-shadow:
-    inset -2px 0 0 0 rgba(255,138,122,1),
-    2px 0 6px rgba(231,76,60,0.90),
-    4px 0 12px rgba(231,76,60,0.55),
-    6px 0 20px rgba(231,76,60,0.25);
-}
 /* Hide the leading edge when the bar is full (100%) — there's no boundary to mark. */
 .health-fill.player-hp[style*="width: 100%"],
 .health-fill.player-hp[style*="width:100%"] {
@@ -1651,17 +1485,9 @@ body.hit-pause .ai-hand * {
 }
 .health-text.player-color {
   color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 65%, white);
-  text-shadow:
-    0 0 4px rgba(var(--theme-rgb, 79,195,247), 0.95),
-    0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.55),
-    0 1px 2px rgba(0,0,0,0.8);
 }
 .health-text.ai-color {
   color: #ffc4b9;
-  text-shadow:
-    0 0 4px rgba(231,76,60,0.95),
-    0 0 12px rgba(231,76,60,0.55),
-    0 1px 2px rgba(0,0,0,0.8);
 }
 
 /* Block Meter — clean bar */
@@ -1700,7 +1526,6 @@ body.hit-pause .ai-hand * {
   font-family: var(--font-mono);
   font-weight: 700; font-size: 18px;
   display: inline-flex; align-items: center; justify-content: center;
-  text-shadow: 0 0 6px rgba(var(--gold-rgb),0.95), 0 0 14px rgba(var(--gold-rgb),0.55);
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
@@ -1801,13 +1626,9 @@ body.hit-pause .ai-hand * {
    "dead" semantics) and only repaint the badge frame. */
 .player-bar .pile-badge.dead-pile {
   color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 65%, white);
-  border-color: rgba(var(--theme-rgb, 79,195,247), 0.95);
-  box-shadow: 0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.55), 0 0 24px rgba(var(--theme-rgb, 79,195,247), 0.22);
 }
 .player-bar .pile-badge.dead-pile:hover {
-  background: rgba(var(--theme-rgb, 79,195,247), 0.14); color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 50%, white);
-  border-color: rgba(var(--theme-rgb, 79,195,247), 0.85);
-  box-shadow: 0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.55), inset 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.12);
+   color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 50%, white);
 }
 
 /* Trick-history badge — same chrome as dead-pile but tinted purple
@@ -1882,12 +1703,10 @@ body.hit-pause .ai-hand * {
   color: var(--text-body, #e8f5ff);
   display: flex; align-items: center; justify-content: flex-end;
   padding-right: 6px;
-  text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.35);
 }
 .mode-option {
   /* Base button: Tron capsule, black core, cyan ring. Hover raises the ring
      brightness. Disabled variant dims to grey + grey border. */
-  background: #000;
   border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.70);
   border-radius: 4px;
   padding: 18px 16px 16px;
@@ -1896,24 +1715,15 @@ body.hit-pause .ai-hand * {
   color: var(--text-hi, #f5fbff);
   font-family: 'Rajdhani', sans-serif;
   transition: border-color 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap), transform 0.15s var(--ease-snap), opacity 0.2s var(--ease-snap);
-  box-shadow:
-    0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.22),
-    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.06);
   position: relative;
 }
 .mode-option:hover {
   transform: translateY(-2px);
-  border-color: rgba(var(--theme-rgb, 79,195,247), 1);
-  box-shadow:
-    0 0 18px rgba(var(--theme-rgb, 79,195,247), 0.60),
-    0 0 36px rgba(var(--theme-rgb, 79,195,247), 0.25),
-    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.18);
 }
 .mode-option-label {
   font-size: 18px; font-weight: 700;
   letter-spacing: 3px; text-transform: uppercase;
   color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 65%, white);
-  text-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.70);
   margin-bottom: 6px;
 }
 .mode-option-sub {
@@ -1953,7 +1763,7 @@ body.hit-pause .ai-hand * {
    ============================================================ */
 .main-menu-overlay {
   position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-  display: flex; align-items: center; justify-content: center;
+  display: flex;  justify-content: center;
   z-index: 215;
   background: #000000;
 }
@@ -1991,7 +1801,6 @@ body.hit-pause .ai-hand * {
   z-index: 1;   /* above the .mm-flow atmosphere */
   max-width: 580px; width: 92%;
   padding: var(--panel-pad);
-  background: none;
   border: var(--panel-border);
   border-radius: var(--panel-radius);
   box-shadow:
@@ -2085,13 +1894,8 @@ body.hit-pause .ai-hand * {
   font-size: 52px; font-weight: 700;
   letter-spacing: 12px; text-transform: uppercase;
   text-align: center; margin: 0 0 8px;
-  color: var(--text-hi, #f5fbff);
   text-indent: 12px;
   line-height: 1;
-  text-shadow:
-    0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.85),
-    0 0 28px rgba(var(--theme-rgb, 79,195,247), 0.45),
-    0 0 48px rgba(var(--theme-rgb, 79,195,247), 0.18);
 }
 .mm-subtitle {
   font-family: 'Rajdhani', sans-serif;
@@ -2148,9 +1952,6 @@ body.hit-pause .ai-hand * {
 .mm-option {
   position: relative;
   overflow: hidden;
-  background:
-    linear-gradient(90deg, rgba(var(--theme-rgb, 79,195,247), 0.06) 0%, rgba(0,0,0,0) 55%),
-    #000;
   border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);
   border-radius: 4px;
   padding: 14px 18px 14px 22px;
@@ -2160,9 +1961,6 @@ body.hit-pause .ai-hand * {
   display: flex; align-items: center; gap: 16px;
   text-align: left;
   transition: border-color 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap), transform 0.15s var(--ease-snap), background 0.2s var(--ease-snap), padding-left 0.2s var(--ease-snap);
-  box-shadow:
-    0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.18),
-    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.05);
 }
 /* Left-edge accent bar — idle state is a thin 2px cyan vertical; on hover
    it brightens + the option shifts right so the bar reads as an active
@@ -2172,27 +1970,15 @@ body.hit-pause .ai-hand * {
   position: absolute;
   left: 0; top: 10%; bottom: 10%;
   width: 2px;
-  background: rgba(var(--theme-rgb, 79,195,247), 0.60);
-  box-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.55);
   transition: width 0.2s var(--ease-snap), background 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap), top 0.2s var(--ease-snap), bottom 0.2s var(--ease-snap);
 }
 .mm-option:hover {
   transform: translateY(-1px);
-  border-color: rgba(var(--theme-rgb, 79,195,247), 1);
-  background:
-    linear-gradient(90deg, rgba(var(--theme-rgb, 79,195,247), 0.12) 0%, rgba(0,0,0,0) 55%),
-    rgba(var(--theme-rgb, 79,195,247), 0.04);
   padding-left: 26px;
-  box-shadow:
-    0 0 20px rgba(var(--theme-rgb, 79,195,247), 0.55),
-    0 0 40px rgba(var(--theme-rgb, 79,195,247), 0.22),
-    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.18);
 }
 .mm-option:hover::before {
   width: 3px;
   top: 0; bottom: 0;
-  background: rgb(var(--theme-rgb, 79,195,247));
-  box-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247),1), 0 0 18px rgba(var(--theme-rgb, 79,195,247),0.55);
 }
 .mm-option:active {
   transform: translateY(0);
@@ -2212,16 +1998,10 @@ body.hit-pause .ai-hand * {
 .mm-svg {
   width: 26px; height: 26px;
   color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 65%, white);
-  filter:
-    drop-shadow(0 0 4px rgba(var(--theme-rgb, 79,195,247), 0.75))
-    drop-shadow(0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.35));
   transition: transform 0.2s var(--ease-snap), filter 240ms var(--ease-snap);
 }
 .mm-option:hover .mm-svg {
   color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 50%, white);
-  filter:
-    drop-shadow(0 0 5px rgba(var(--theme-rgb, 79,195,247), 1))
-    drop-shadow(0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.55));
   transform: scale(1.08);
 }
 .mm-option-label {
@@ -2308,7 +2088,6 @@ body.hit-pause .ai-hand * {
   opacity: 0;
   filter: contrast(1.1) saturate(1.14) brightness(0.9);
   transition: opacity 0.9s var(--ease-snap), filter 0.3s var(--ease-snap);
-  animation: mmHeroDrift 34s ease-in-out infinite alternate;
   will-change: transform, opacity;
 }
 .mm-mw3 .mm-hero-img.is-visible {
@@ -2328,7 +2107,6 @@ body.hit-pause .ai-hand * {
   100% { transform: scale(1.11) translate(-1.8%, 1.5%); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .mm-mw3 .mm-hero-img { animation: none; transform: scale(1.05); }
 }
 /* ---- Fractured-mirror hero: 3 diagonal art bands + glowing neon seam-lines.
    Each shard clips one diagonal band of the (shared) art and offsets it
@@ -2411,7 +2189,7 @@ body.hit-pause .ai-hand * {
 /* Menu column — left, transparent, no box. */
 .mm-mw3 .mm-panel {
   position: relative; z-index: 3;   /* above the seam (z2) + scrim (z1) */
-  max-width: none; width: min(560px, 78vw);
+  max-width: none; 
   margin: 0 0 0 clamp(34px, 7vw, 120px); padding: 0;
   /* !important to beat the Neon Theme block's themed panel box (it uses
      !important on background/border/box-shadow). MW3 wants no box. */
@@ -2422,9 +2200,9 @@ body.hit-pause .ai-hand * {
 /* Wordmark — top-left, aligned with the menu list below it. Viewport-scaled
    (user: "make the play/library/... all bigger with the game title") so big
    windows get a properly big menu instead of small text in a wide frame. */
-.mm-mw3 .mm-header { align-items: flex-start; margin-bottom: 24px; }
+.mm-mw3 .mm-header { align-items: flex-start;  }
 .mm-mw3 .mm-title {
-  text-align: left; width: 100%; font-size: clamp(30px, 4.4vw, 62px);
+  text-align: left; width: 100%; 
   letter-spacing: 8px; margin: 0; text-indent: 0;
 }
 .mm-mw3 .mm-section-label { margin-left: 0; }
@@ -2447,7 +2225,7 @@ body.hit-pause .ai-hand * {
 .mm-mw3 .mm-tagline::after { background: linear-gradient(90deg, rgba(var(--theme-rgb, 79,195,247), 0.7), transparent); }
 /* Options become flat TEXT ROWS — no tile box; the neon left-bar + a soft
    left-wash on hover/focus is the only chrome (MW3 restraint). */
-.mm-mw3 .mm-grid.mm-grid-section { gap: 1px; margin-bottom: 16px; }
+.mm-mw3 .mm-grid.mm-grid-section { gap: 1px;  }
 .mm-mw3 .mm-option {
   /* !important to strip the themed tile box (Neon Theme block uses it). */
   background: none !important; border: none !important; border-radius: 0;
@@ -2480,18 +2258,13 @@ body.hit-pause .ai-hand * {
 }
 /* Viewport-scaled menu type — options, icons, and section labels grow with the
    window (user: "make the play/library/... all bigger with the game title"). */
-.mm-mw3 .mm-option-icon { width: clamp(30px, 2.6vw, 46px); height: clamp(30px, 2.6vw, 46px); }
-.mm-mw3 .mm-svg { width: clamp(22px, 2vw, 34px); height: clamp(22px, 2vw, 34px); }
 .mm-mw3 .mm-option-sub { display: none; }   /* labels only — cleaner, AAA */
 /* labels become the focal line now that subtext is gone */
-.mm-mw3 .mm-option { padding-top: clamp(12px, 1.1vw, 20px); padding-bottom: clamp(12px, 1.1vw, 20px); }
 .mm-mw3 .mm-option-label {
-  font-size: clamp(18px, 1.7vw, 30px);
   letter-spacing: 2.5px;
   display: inline-block; transform-origin: left center;
   transition: transform 200ms var(--ease-snap), color 200ms var(--ease-snap), text-shadow 200ms var(--ease-snap);
 }
-.mm-mw3 .mm-section-label { font-size: clamp(11px, 1vw, 17px); }
 
 /* Hover HOTSPOT = the text only. The options + section labels shrink to their
    content width so hovering the empty space to the right (over the hero) no
@@ -2602,13 +2375,12 @@ body.hit-pause .ai-hand * {
    over the menu rows. User direction: "just below the sandbox mode
    regardless and not seen at all until you scroll all the way down." */
 .mm-mw3 .mm-botbar {
-  position: static; z-index: 4; margin-top: 36px;
+  position: static; z-index: 4; 
   padding: 8px 0 0; pointer-events: none;
   /* Seam line hugs the menu-list column only — capped to the widest option
      (~212px) so it ends right at the list edge and never runs into the hero
      art. The hero picker sits directly below it (where the now-playing
      credit used to). */
-  max-width: 220px;
   border-top: 1px solid rgba(var(--theme-rgb,79,195,247),0.28);
   font-family: 'Rajdhani', sans-serif; text-transform: uppercase;
 }
@@ -2619,7 +2391,7 @@ body.hit-pause .ai-hand * {
   min-height: 18px; margin-bottom: 6px; pointer-events: none;
 }
 .mm-mw3 .mm-nowplaying {
-  font-size: 11px; font-weight: 700; letter-spacing: 2.5px;
+   font-weight: 700; letter-spacing: 2.5px;
   color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 72%, white);
   text-shadow: 0 0 8px rgba(var(--theme-rgb,79,195,247),0.5);
   transition: color 240ms var(--ease-snap), text-shadow 240ms var(--ease-snap), transform 0.12s var(--ease-snap);
@@ -2646,7 +2418,7 @@ body.hit-pause .ai-hand * {
    line. ~3 rows visible; the rest scroll. Click a name to play/preview it;
    star the top line to make the current hero your default. */
 .mm-mw3 .mm-heropick {
-  position: relative; margin-top: 0; max-width: 220px;
+  position: relative; margin-top: 0; 
   /* 58px was "~3 rows tall" against the DESKTOP row height of ~19px. On a phone
      these rows are <button> elements, and the phone block's 40px tap-target
      baseline (`button, .btn { min-height: 40px }`) more than doubles them — so
@@ -2656,7 +2428,6 @@ body.hit-pause .ai-hand * {
      as "not scrollable / hit or miss" — there was almost nothing to grab.
      Row-height-relative instead of a magic number, so it stays ~3 rows on both:
      desktop 3 x 19 = 58px (unchanged), phone 3 x 40 = 122px. */
-  max-height: calc(3 * var(--heropick-row-h, 19.4px));
   /* overflow-x MUST be stated. Declaring only `overflow-y: auto` does NOT leave
      the other axis alone — per spec, when one axis is `visible` and the other
      is not, the `visible` one computes to `auto`. So this list had a horizontal
@@ -2682,7 +2453,7 @@ body.hit-pause .ai-hand * {
 .mm-mw3 .mm-heropick::-webkit-scrollbar-track { background: transparent; }
 .mm-mw3 .mm-heropick::-webkit-scrollbar-thumb { background: rgba(var(--theme-rgb,79,195,247),0.35); border-radius: 2px; }
 .mm-mw3 .mm-heropick-row {
-  display: block; width: 100%; text-align: left;
+  display: block; width: 100%; 
   background: none; border: 0; padding: 2px 0; cursor: pointer;
   /* Truncate rather than push the row wider than the list. Belt to the
      overflow-x: hidden brace above: that stops the SCROLLBAR, this stops a long
@@ -2693,7 +2464,7 @@ body.hit-pause .ai-hand * {
   text-overflow: ellipsis;
   box-sizing: border-box;
   font-family: 'Rajdhani', sans-serif; text-transform: uppercase;
-  font-size: 11px; font-weight: 600; letter-spacing: 1.8px; line-height: 1.4;
+   font-weight: 600; letter-spacing: 1.8px; line-height: 1.4;
   color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 55%, white);
   opacity: 0.5; transition: opacity 150ms var(--ease-snap), color 150ms var(--ease-snap), text-shadow 150ms var(--ease-snap), transform 0.1s var(--ease-snap);
 }
@@ -3021,7 +2792,7 @@ body.hit-pause .ai-hand * {
      unit; content stays left-aligned inside so the icon column lines up. */
   .mm-mw3 .mm-panel { margin: 0 auto; width: fit-content; max-width: 90vw; padding: 0; }
   .mm-mw3 .mm-header { align-items: center; }
-  .mm-mw3 .mm-title { text-align: center; width: 100%; font-size: clamp(26px, 6vw, 40px); }
+  .mm-mw3 .mm-title { text-align: center; width: 100%;  }
   /* Center the bottom-bar (now-playing + hero picker) block too. */
   .mm-mw3 .mm-botbar { margin-left: auto; margin-right: auto; }
 }
@@ -3098,7 +2869,6 @@ body.hit-pause .ai-hand * {
   color: var(--text-hi, #f5fbff);
   text-align: center;
   margin: 0 0 8px;
-  text-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.70);
 }
 .md-subtitle {
   font-size: 11px; font-weight: 600;
@@ -3108,7 +2878,6 @@ body.hit-pause .ai-hand * {
   margin-bottom: 26px;
 }
 .md-empty {
-  text-align: center;
   color: var(--text-faint, #667078);
   font-style: italic;
   padding: 40px 20px;
@@ -3126,13 +2895,10 @@ body.hit-pause .ai-hand * {
   font-size: 11px; font-weight: 700;
   letter-spacing: 2px; text-transform: uppercase;
   cursor: pointer;
-  box-shadow: 0 0 10px rgba(46,204,113,0.35);
   transition: border-color 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap), color 0.15s var(--ease-snap);
 }
 .md-new-btn:hover {
   border-color: rgba(46,204,113,1);
-  box-shadow: 0 0 18px rgba(46,204,113,0.55);
-  color: #b9f5cb;
 }
 .md-deck-grid {
   display: grid;
@@ -3140,13 +2906,9 @@ body.hit-pause .ai-hand * {
   gap: 14px;
 }
 .md-deck-card {
-  background: #000;
   border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.60);
   border-radius: 4px;
   padding: 14px 16px 12px;
-  box-shadow:
-    0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.22),
-    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.08);
   display: flex; flex-direction: column;
   gap: 10px;
   min-height: 180px;
@@ -3188,7 +2950,6 @@ body.hit-pause .ai-hand * {
   font-size: 14px; font-weight: 700;
   letter-spacing: 2px; text-transform: uppercase;
   color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 65%, white);
-  text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.55);
   padding-bottom: 8px;
   border-bottom: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.25);
 }
@@ -3294,7 +3055,6 @@ body.hit-pause .ai-hand * {
   color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 5%, white);
   text-align: center;
   margin: 0 0 8px;
-  text-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.70);
 }
 .stats-subtitle {
   font-size: 11px; font-weight: 600;
@@ -3321,7 +3081,6 @@ body.hit-pause .ai-hand * {
   padding: 10px 22px 10px;
   min-width: 160px;
   text-align: center;
-  box-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.25), inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.08);
   font-family: 'Rajdhani', sans-serif;
 }
 .stats-summary-label {
@@ -3336,7 +3095,6 @@ body.hit-pause .ai-hand * {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.3px;
-  text-shadow: 0 0 6px rgba(var(--gold-rgb),0.45);
 }
 .stats-summary-sub {
   font-size: 10px; font-weight: 500;
@@ -3428,7 +3186,6 @@ body.hit-pause .ai-hand * {
   width: 100%; padding: 12px 16px;
   background: transparent;
   border: none;
-  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 65%, white);
   font-family: 'Rajdhani', sans-serif;
   font-size: 12px; font-weight: 700;
   letter-spacing: 2.5px; text-transform: uppercase;
@@ -3473,17 +3230,12 @@ body.hit-pause .ai-hand * {
   display: flex; justify-content: space-between;
   align-items: baseline;
   padding: 4px 8px;
-  background: rgba(var(--theme-rgb, 79,195,247), 0.04);
   border-radius: 2px;
   font-family: 'Rajdhani', sans-serif;
   font-size: 11px;
   cursor: help;
 }
-.ai-weight-row:hover {
-  background: rgba(var(--theme-rgb, 79,195,247), 0.10);
-}
 .ai-weight-label {
-  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 35%, white);
   letter-spacing: 0.3px;
 }
 .ai-weight-value {
@@ -3511,7 +3263,6 @@ body.hit-pause .ai-hand * {
   cursor: pointer;
   transition: all 0.15s var(--ease-snap);
 }
-.stats-export-btn:hover, .stats-reload-btn:hover { border-color: rgba(var(--theme-rgb, 79,195,247), 1); box-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.40); }
 .stats-reset-btn { border-color: rgba(231,76,60,0.55); color: #f1948a; }
 .stats-reset-btn:hover { border-color: rgba(231,76,60,1); box-shadow: 0 0 10px rgba(231,76,60,0.45); color: #ffb5ad; }
 
@@ -3594,7 +3345,6 @@ body.hit-pause .ai-hand * {
   flex: 0 0 auto;
   min-width: 130px;
   padding: 8px 10px;
-  background: rgba(0,0,0,0.65);
   border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.30);
   border-radius: 4px;
   position: relative;
@@ -3727,7 +3477,6 @@ body.hit-pause .ai-hand * {
 .stats-table th {
   font-size: 9px; font-weight: 700;
   letter-spacing: 2px; text-transform: uppercase;
-  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 50%, white);
   cursor: pointer;
   user-select: none;
   background: #000;
@@ -3921,15 +3670,8 @@ body.hit-pause .ai-hand * {
   overflow: hidden;
 }
 .db-panel {
-  width: 100%;
-  max-width: 1440px;
-  padding: var(--panel-pad-dense);
   display: flex; flex-direction: column;
-  box-sizing: border-box;
   font-family: 'Rajdhani', sans-serif;
-  background: #000;
-  border: var(--panel-border);
-  border-radius: var(--panel-radius);
 }
 
 /* ---- Header row ---- */
@@ -3946,7 +3688,7 @@ body.hit-pause .ai-hand * {
 .db-back:hover { border-color: rgba(var(--theme-rgb, 79,195,247),1); color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 50%, white); box-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247),0.45); }
 .db-presets { display: flex; gap: 8px; justify-self: end; }
 .db-preset {
-  background: #000; border: 1px solid rgba(155,89,182,0.55);
+   border: 1px solid rgba(155,89,182,0.55);
   color: #d7b3e6; padding: 6px 12px; border-radius: 2px;
   font-family: inherit; font-size: 10px; font-weight: 700;
   letter-spacing: 2px; text-transform: uppercase;
@@ -3974,9 +3716,9 @@ body.hit-pause .ai-hand * {
 
 
 /* ---- Tabs + cost filter ---- */
-.db-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.db-tabs { display: flex; gap: 6px;  }
 .db-tab {
-  background: #000; border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.40);
+   border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.40);
   color: #8fc8ee; padding: 8px 20px; border-radius: 2px;
   font-family: inherit; font-size: 11px; font-weight: 700;
   letter-spacing: 2px; text-transform: uppercase;
@@ -3998,7 +3740,7 @@ body.hit-pause .ai-hand * {
   cursor: pointer;
   transition: all 0.15s var(--ease-snap);
 }
-.db-cost-chip:hover { border-color: rgba(255,255,255,0.55); color: var(--text-body, #e8f5ff); }
+.db-cost-chip:hover {  color: var(--text-body, #e8f5ff); }
 .db-cost-active {
   background: rgba(255,255,255,0.06); color: var(--text-hi, #f5fbff);
   border-color: rgba(255,255,255,0.80);
@@ -4017,7 +3759,6 @@ body.hit-pause .ai-hand * {
 .db-grid::-webkit-scrollbar { width: 6px; }
 .db-grid::-webkit-scrollbar-thumb { background: rgba(var(--theme-rgb, 79,195,247), 0.30); border-radius: 2px; }
 .db-grid-item {
-  background: #000;
   border: 1px solid rgba(255,255,255,0.20);
   border-radius: var(--r-card);
   /* Three anchored regions:
@@ -4028,18 +3769,15 @@ body.hit-pause .ai-hand * {
      Right padding reserves the badge column's width. */
   padding: 10px 90px 24px 18px;
   cursor: pointer;
-  position: relative;
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 4px;
   min-height: 72px;
   overflow: hidden;
-  transition: border-color 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap), transform 0.1s var(--ease-snap);
 }
 
 
-.db-grid-item:hover { transform: translateY(-1px); }
 /* Cost badge — diamond pip that mirrors the in-game `.card-cost`
    chrome. Rotated-square backdrop with an upright numeral on top,
    tinted per rarity tier. Absolutely-positioned in the top-left
@@ -4145,24 +3883,11 @@ body.hit-pause .ai-hand * {
 /* ---- Right pane: deck panel ---- */
 
 .db-meter {
-  background: #000;
-  border: 1px solid rgba(255,255,255,0.35);
-  border-radius: 2px;
-  padding: 10px 14px;
-  display: flex; align-items: baseline; gap: 10px;
+   align-items: baseline; 
   transition: border-color 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap), color 0.2s var(--ease-snap);
 }
 .db-meter-label {
-  font-size: 10px; font-weight: 700;
-  letter-spacing: 2px; text-transform: uppercase;
   color: var(--text-mute, #9caab4);
-}
-.db-meter-value {
-  font-size: 18px; font-weight: 700;
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  color: var(--text-body, #e8f5ff);
-  letter-spacing: 0.5px;
 }
 .db-meter-ok {
   border-color: rgba(46,204,113,0.85);
@@ -4177,18 +3902,12 @@ body.hit-pause .ai-hand * {
 
 .db-deck-section { margin-bottom: 14px; display: flex; flex-direction: column; min-height: 0; }
 .db-deck-heading {
-  font-size: 10px; font-weight: 700;
-  letter-spacing: 3px; text-transform: uppercase;
+   font-weight: 700;
   /* Theme-tinted heading + underline — mirrors the neon "section
      title" look used in the Settings modal (same CSS pattern). Was
      hardcoded to a washed blue that never responded to theme
      changes. */
-  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 35%, white);
-  text-shadow:
-    0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.65),
-    0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.30);
   padding: 6px 4px;
-  border-bottom: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.35);
   margin-bottom: 4px;
 }
 .db-deck-list {
@@ -4201,7 +3920,6 @@ body.hit-pause .ai-hand * {
 .db-deck-list::-webkit-scrollbar-thumb { background: rgba(var(--theme-rgb, 79,195,247), 0.30); border-radius: 2px; }
 .db-deck-empty {
   color: var(--text-faint, #667078); font-size: 11px; font-style: italic;
-  padding: 6px 4px;
 }
 .db-deck-row {
   background: #000;
@@ -4532,11 +4250,6 @@ body.hit-pause .ai-hand * {
   transition: background 0.15s var(--ease-snap), color 0.15s var(--ease-snap);
 }
 .mp-tab:hover { color: var(--text-hi, #f5fbff); background: rgba(var(--theme-rgb, 79,195,247),0.08); }
-.mp-tab-active {
-  background: var(--theme-wash-08, rgba(79,195,247,0.10));
-  color: var(--text-hi, #f5fbff);
-  box-shadow: inset 0 -2px 0 0 var(--theme-accent-bright, #4fc3f7);
-}
 .mp-pane {
   display: flex; flex-direction: column; align-items: center;
   gap: 14px;
@@ -4722,8 +4435,6 @@ body.hit-pause .ai-hand * {
 }
 @container (max-width: 520px) {
   .mp-panel { padding: 40px 20px 24px; }
-  .mp-code-display { font-size: 42px; letter-spacing: 10px; padding: 12px 18px; }
-  .mp-code-input { font-size: 28px; letter-spacing: 6px; }
 }
 
 .db-save-btn, .db-load-btn, .db-delete-btn, .db-start-btn,
@@ -4747,16 +4458,11 @@ body.hit-pause .ai-hand * {
 .db-delete-btn { border-color: rgba(231,76,60,0.55); color: #f1948a; }
 .db-delete-btn:hover { border-color: rgba(231,76,60,1); box-shadow: 0 0 10px rgba(231,76,60,0.45); color: #ffb5ad; }
 .db-start-btn {
-  padding: 10px 28px;
-  border-color: rgba(46,204,113,0.85);
   color: #8ef2ad;
   font-size: 13px;
-  box-shadow: 0 0 10px rgba(46,204,113,0.40);
 }
 .db-start-btn:hover {
   border-color: rgba(46,204,113,1);
-  box-shadow: 0 0 18px rgba(46,204,113,0.65), inset 0 0 0 1px rgba(46,204,113,0.20);
-  color: #b9f5cb;
 }
 .db-start-btn-disabled {
   opacity: 0.35;
@@ -4806,7 +4512,6 @@ body.hit-pause .ai-hand * {
   max-width: 980px;
   width: 100%;
   padding: var(--panel-pad-dense);
-  position: relative;
   background: #000;
   border-top: 1px solid rgba(255,255,255,0.95);
   border-bottom: 1px solid rgba(255,255,255,0.95);
@@ -4836,12 +4541,6 @@ body.hit-pause .ai-hand * {
     0 0 18px rgba(255,255,255,0.55),
     0 0 28px rgba(var(--theme-rgb, 79,195,247),0.35);
   flex: 0 0 auto;
-}
-.draft-panel.draft-tricks .draft-hud-label {
-  text-shadow:
-    0 0 8px rgba(255,255,255,0.95),
-    0 0 18px rgba(255,255,255,0.55),
-    0 0 28px rgba(155,89,182,0.40);
 }
 .draft-hud-pips {
   display: inline-flex; align-items: center; gap: 8px;
@@ -4980,21 +4679,7 @@ body.hit-pause .ai-hand * {
 /* Quit-to-menu is a softer tint (red border) so the eye knows it's a
    destructive-ish action without overpowering the primary draft choices. */
 .draft-quit-btn {
-  border-color: rgba(231,76,60,0.65);
   color: #ffb5ad;
-  text-shadow: 0 0 6px rgba(231,76,60,0.70), 0 0 14px rgba(231,76,60,0.35);
-  box-shadow:
-    0 0 10px rgba(231,76,60,0.35),
-    0 0 22px rgba(231,76,60,0.15),
-    inset 0 0 8px rgba(231,76,60,0.06);
-}
-.draft-quit-btn:hover {
-  transform: translateY(-1px);
-  background: rgba(231,76,60,0.08);
-  box-shadow:
-    0 0 14px rgba(231,76,60,0.65),
-    0 0 28px rgba(231,76,60,0.30),
-    inset 0 0 10px rgba(231,76,60,0.12);
 }
 .draft-settings-btn:hover {
   transform: translateY(-1px);
@@ -5056,12 +4741,6 @@ body.hit-pause .ai-hand * {
 /* @keyframes draftMulliganPulse was defined TWICE. Removed here: superseded by the themed version below, which already won.
    Keyframe names resolve globally and last-definition-wins — specificity does
    not apply — so this copy could never play. Guarded by sim/visual-system.js. */
-.draft-panel.draft-tricks .draft-hud-sub {
-  text-shadow:
-    0 0 6px rgba(255,255,255,0.85),
-    0 0 14px rgba(255,255,255,0.45),
-    0 0 22px rgba(155,89,182,0.35);
-}
 .draft-choices { display: flex; gap: 48px; justify-content: center; margin-bottom: 24px; flex-wrap: wrap; }
 
 /* ---- Multiplayer draft "waiting for opponent" placeholder ----
@@ -5247,7 +4926,6 @@ body.hit-pause .ai-hand * {
    the card draft's 220 px so both pickers feel like one screen. */
 .draft-card.trick-draft {
   width: var(--read-card-w);
-  min-height: 200px;
   /* EDGE TO EDGE, same as .card.draft-card. The character cards lost their
      8px inset a few commits ago and the tricks kept theirs, so the two pickers
      were back to reading as different objects — 224px of portrait in a 244px
@@ -5460,16 +5138,9 @@ body.hit-pause .ai-hand * {
 
 /* ---- Trick draft — purple neon edge (no rarity — all tricks look equal) ---- */
 .draft-card.trick-draft {
-  background:
-    linear-gradient(180deg, rgba(155,89,182,0.06) 0%, rgba(155,89,182,0) 45%),
-    #000000 !important;
   border: 1px solid rgba(155,89,182,0.70) !important;
   border-radius: 4px;
   min-height: 200px;
-  box-shadow:
-    0 0 10px rgba(155,89,182,0.30),
-    0 6px 18px rgba(0,0,0,0.55),
-    inset 0 0 0 1px rgba(155,89,182,0.06) !important;
 }
 .draft-card.trick-draft::before {
   content: ''; position: absolute; inset: 4px;
@@ -5481,23 +5152,6 @@ body.hit-pause .ai-hand * {
 .draft-card.trick-draft::after {
   content: ''; position: absolute; inset: 0; border-radius: 4px;
   pointer-events: none;
-  background:
-    linear-gradient(rgba(155,89,182,0.65), rgba(155,89,182,0.65)) top    left   / 12px 1px no-repeat,
-    linear-gradient(rgba(155,89,182,0.65), rgba(155,89,182,0.65)) top    left   / 1px 12px no-repeat,
-    linear-gradient(rgba(155,89,182,0.65), rgba(155,89,182,0.65)) top    right  / 12px 1px no-repeat,
-    linear-gradient(rgba(155,89,182,0.65), rgba(155,89,182,0.65)) top    right  / 1px 12px no-repeat,
-    linear-gradient(rgba(155,89,182,0.65), rgba(155,89,182,0.65)) bottom left   / 12px 1px no-repeat,
-    linear-gradient(rgba(155,89,182,0.65), rgba(155,89,182,0.65)) bottom left   / 1px 12px no-repeat,
-    linear-gradient(rgba(155,89,182,0.65), rgba(155,89,182,0.65)) bottom right  / 12px 1px no-repeat,
-    linear-gradient(rgba(155,89,182,0.65), rgba(155,89,182,0.65)) bottom right  / 1px 12px no-repeat;
-}
-.draft-card.trick-draft:hover {
-  transform: translateY(-8px);
-  border-color: #9b59b6 !important;
-  box-shadow:
-    0 0 18px rgba(155,89,182,0.55),
-    0 14px 32px rgba(125,60,152,0.30),
-    inset 0 0 0 1px rgba(155,89,182,0.12) !important;
 }
 .draft-card .trick-cost {
   position: absolute; top: -10px; left: -10px;
@@ -5634,7 +5288,6 @@ body.hit-pause .ai-hand * {
   font-weight: 700; letter-spacing: 2px;
   text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247),0.45);
 }
-.drafted-list-trick strong { color: #d7b3e6; }
 
 /* ---- Drafted tag rarity tiers ----
    Per-tag color mirrors the rarity-pip palette so the drafted list reads the
@@ -5734,7 +5387,7 @@ body.hit-pause .ai-hand * {
      between the enemy HP bar's red edge and the AI-occupied lane tops, and
      likewise for the player side. Horizontal padding kept for the outermost
      lanes' glow so they don't clip the board frame. */
-  padding: 0 8px; overflow-x: auto;
+   overflow-x: auto;
   /* Static center-lift so the arena floor reads with a touch of depth in the
      lane gaps + outer padding instead of pure black. Fully static (no
      per-frame cost) so it can't reintroduce the perf regression that forced
@@ -5743,9 +5396,6 @@ body.hit-pause .ai-hand * {
      arena read as "super dark" and gave the cards no field to sit against.
      A slightly stronger center glow and a near-black navy base — not pure
      #000 — let the cards stand out without turning the mood grey. */
-  background:
-    radial-gradient(135% 100% at 50% 48%, rgba(48,86,128,0.16) 0%, rgba(12,20,34,0.10) 42%, #04070e 78%),
-    #04070e;
   /* No top/bottom border — the banners already carry those edges. Duplicating
      them created a 2px dead stripe where the colors abut. */
   border-top: none;
@@ -5753,9 +5403,6 @@ body.hit-pause .ai-hand * {
   /* Inset color-wash keeps the red-top / blue-bottom mood inside the board,
      picking up where each banner's outer glow leaves off. Slightly stronger
      than before since it's now the sole glow source in this area. */
-  box-shadow:
-    inset 0  12px 18px -12px rgba(231,76,60,0.45),
-    inset 0 -12px 18px -12px rgba(var(--theme-rgb, 79,195,247),0.40);
 }
 .board {
   /* 12px between lanes, was 4. Owner: "there can be a little more space between
@@ -5797,24 +5444,7 @@ body.hit-pause .ai-hand * {
      at the top corner where blue meets the red banner). */
   border-top: none;
   border-bottom: none;
-  border-left: 1px solid transparent;
-  border-right: 1px solid transparent;
   border-radius: 0;
-  border-image: linear-gradient(180deg,
-      rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95)   0%,    /* meets the AI banner's enemy edge */
-      rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95)   2%,
-      rgba(255,255,255,0.22) 9%,    /* dim middle — was 0.90 (stark white).
-                                       Bright white was bleeding visibly
-                                       into contested lanes and reading as
-                                       a "muddy white glow" between the
-                                       enemy and player halves. 0.22 keeps the
-                                       neutral baseline visible on empty
-                                       lanes without competing with the
-                                       colored occupancy overrides. */
-      rgba(255,255,255,0.22) 91%,
-      rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95)  98%,   /* transitions to player accent */
-      rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95)  100%   /* meets the player banner's accent edge */
-    ) 1;
   /* Symmetric layout: the lane is split into AI-slot / sep / player-slot with
      the two card slots sharing available vertical space EQUALLY (flex 1 1 0).
      Each slot pushes its card toward the central lane-sep — AI card at the
@@ -5830,29 +5460,9 @@ body.hit-pause .ai-hand * {
      canonical block so the standalone `.lane { position: relative; }`
      duplicates further down the file (formerly at lines 9226, 16971)
      are now dead and can be deleted. */
-  position: relative;
   /* Outer halo dimmed in lockstep — was 0.35/0.15 white which compounded
      the centerline white-glow problem. Now reads as quiet ambient. */
-  box-shadow:
-    0 0 12px rgba(255,255,255,0.10),
-    0 0 24px rgba(255,255,255,0.05);
   transition: border-color 240ms var(--ease-snap), box-shadow 240ms var(--ease-snap);
-}
-.lane:hover {
-  /* Hover tints the whole vertical line in the player's theme accent, but
-     still picks up the enemy banner color at the top so the circuit
-     continuity is preserved. */
-  border-image: linear-gradient(180deg,
-      rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95)  0%,
-      rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95)  2%,
-      rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 9%,
-      rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 91%,
-      rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 98%,
-      rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 100%
-    ) 1;
-  box-shadow:
-    0 0 12px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.60),
-    0 0 24px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.25);
 }
 
 /* ---- LANE OCCUPANCY — Tron current state ----
@@ -5968,7 +5578,7 @@ body.hit-pause .ai-hand * {
   position: relative;
 }
 .lane-label.lane-active {
-  color: #fff; background: rgba(var(--theme-rgb, 79,195,247),0.12);
+  color: #fff; 
   border-color: var(--tron-edge);
   box-shadow: 0 0 14px var(--tron-edge);
   text-shadow: 0 0 6px var(--tron-glow);
@@ -6380,23 +5990,6 @@ body.hit-pause .ai-hand * {
 /* Pip colors apply to BOTH hand/board cards and draft cards — the cost class
    on the outer element is enough to scope; no `.card` requirement.
    Rarity palette: common green → uncommon cyan → rare silver → legendary gold. */
-.cost-0 .rarity-strip .rpip, .cost-1 .rarity-strip .rpip,
-.cost-2 .rarity-strip .rpip, .cost-3 .rarity-strip .rpip {
-  background: rgba(46,204,113,1);
-  box-shadow: 0 0 4px rgba(46,204,113,0.95), 0 0 10px rgba(46,204,113,0.55);
-}
-.cost-4 .rarity-strip .rpip, .cost-5 .rarity-strip .rpip, .cost-6 .rarity-strip .rpip {
-  background: rgba(79,195,247,1);
-  box-shadow: 0 0 4px rgba(79,195,247,0.95), 0 0 10px rgba(79,195,247,0.55);
-}
-.cost-7 .rarity-strip .rpip, .cost-8 .rarity-strip .rpip {
-  background: rgba(235,242,250,1);
-  box-shadow: 0 0 4px rgba(240,245,250,1), 0 0 10px rgba(240,245,250,0.65);
-}
-.cost-9 .rarity-strip .rpip, .cost-10 .rarity-strip .rpip {
-  background: rgba(var(--gold-rgb),1);
-  box-shadow: 0 0 4px rgba(var(--gold-rgb),1), 0 0 10px rgba(var(--gold-rgb),0.65);
-}
 
 /* Board-only pip override — on the board the pip color carries SIDE at low
    tiers (so pips visually match the outer border), then goes neutral at high

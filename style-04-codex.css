@@ -21,12 +21,7 @@
   background:
     linear-gradient(180deg, var(--theme-wash-05, rgba(79,195,247,0.05)) 0%, rgba(0,0,0,0) 42%),
     #000;
-  border: 1px solid var(--theme-accent-ring, rgba(79,195,247,0.55));
   border-radius: 4px;
-  box-shadow:
-    0 0 32px var(--theme-glow-inner, rgba(79,195,247,0.30)),
-    0 0 72px var(--theme-glow-outer, rgba(79,195,247,0.14)),
-    inset 0 0 0 1px var(--theme-wash-08, rgba(79,195,247,0.08));
   font-family: 'Rajdhani', sans-serif;
   display: flex; flex-direction: column;
   min-height: 0;
@@ -425,10 +420,6 @@ body.colorblind .ai-bar .health-container {
    board visual weight without distracting. Paired with a vignette
    on the overall page so the board feels "staged." */
 body::before {
-  content: "";
-  position: fixed; inset: 0;
-  pointer-events: none;
-  z-index: -1;
   background:
     radial-gradient(ellipse at 50% 40%,
       rgba(var(--theme-rgb, 79,195,247), 0.04) 0%,
@@ -781,7 +772,6 @@ body {
   user-select: none;
   transition: opacity 0.4s var(--ease-snap);
 }
-.board { position: relative; }
 
 /* ---- 11. Deck / tricks count icons — REMOVED ----
    Earlier version added decorative "stacked card-back" pseudo
@@ -1356,7 +1346,6 @@ body.combat-anticipate .board {
 .tron-trail-path {
   fill: none;
   stroke: var(--theme-accent-bright, rgba(127, 208, 255, 0.95));
-  stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
   /* Multi-layer drop-shadow neon glow — themed via CSS variables so
@@ -1447,7 +1436,6 @@ body.combat-anticipate .board {
   content: '';
   position: absolute;
   inset: 0;
-  pointer-events: none;
   z-index: 0;
   /* Default: empty lane — soft neutral white wash spread across full
      vertical space (not concentrated in middle) so the lane reads as
@@ -1461,7 +1449,6 @@ body.combat-anticipate .board {
      card is settling into place) and finishes ~1200ms after the play
      began. Creates a clear "card lands → wash emerges from under it"
      reading instead of card + wash arriving simultaneously. */
-  transition: background 700ms var(--ease-out-expo) 500ms;
 }
 .lane.occ-ai::before {
   /* AI owns — red wash anchored at the AI half (top of lane).
@@ -1485,20 +1472,6 @@ body.combat-anticipate .board {
     rgba(var(--player-r,127), var(--player-g,208), var(--player-b,255), 0.04) 65%,
     rgba(var(--player-r,127), var(--player-g,208), var(--player-b,255), 0.01) 100%);
 }
-.lane.occ-both::before {
-  /* Both sides occupying — TWO stacked radial gradients (AI top half,
-     player bottom half). Both use theme-aware variables so the
-     contested wash reads as red→player-accent regardless of theme. */
-  background:
-    radial-gradient(ellipse 75% 50% at 50% 25%,
-      rgba(var(--enemy-r,231), var(--enemy-g,76), var(--enemy-b,60), 0.26) 0%,
-      rgba(var(--enemy-r,231), var(--enemy-g,76), var(--enemy-b,60), 0.14) 40%,
-      rgba(var(--enemy-r,231), var(--enemy-g,76), var(--enemy-b,60), 0)    80%),
-    radial-gradient(ellipse 75% 50% at 50% 75%,
-      rgba(var(--player-r,127), var(--player-g,208), var(--player-b,255), 0.16) 0%,
-      rgba(var(--player-r,127), var(--player-g,208), var(--player-b,255), 0.09) 40%,
-      rgba(var(--player-r,127), var(--player-g,208), var(--player-b,255), 0)    80%);
-}
 .lane.destroyed::before {
   /* Destroyed lane goes dark — no wash. */
   background: none;
@@ -1507,7 +1480,6 @@ body.combat-anticipate .board {
 /* (3) PLAYFIELD INNER GLOW — soft radial wash over the board so it
    reads as a lit pane of glass: brighter at the center, dim at the
    edges. Sits behind cards and lanes, doesn't block input. */
-.board-section { position: relative; }
 .board-section::before {
   content: '';
   position: absolute;
@@ -1744,7 +1716,6 @@ body.combat-anticipate .board {
   border-radius: 50%;
   background: rgba(0,0,0,0.78);
   border: 1px solid var(--theme-accent, rgba(79,195,247,0.65));
-  color: var(--text-hi, #f5fbff);
   font-family: 'Rajdhani', sans-serif;
   font-size: 20px; font-weight: 500;
   line-height: 1;
@@ -1752,23 +1723,13 @@ body.combat-anticipate .board {
   display: flex; align-items: center; justify-content: center;
   z-index: 12;
   transition: border-color 0.15s var(--ease-out-soft, var(--ease-snap)), box-shadow 0.15s var(--ease-out-soft, var(--ease-snap)), transform 0.12s var(--ease-out-soft, var(--ease-snap));
-  box-shadow:
-    0 0 8px rgba(var(--theme-rgb, 79,195,247),0.30),
-    0 0 18px rgba(var(--theme-rgb, 79,195,247),0.12);
 }
 .peek-toggle:hover {
-  border-color: rgba(var(--theme-rgb, 79,195,247),1);
-  box-shadow:
-    0 0 14px rgba(var(--theme-rgb, 79,195,247),0.65),
-    0 0 30px rgba(var(--theme-rgb, 79,195,247),0.28);
   transform: scale(1.06);
 }
 .peek-toggle:active { transform: scale(0.94); }
 .peek-toggle-glyph {
-  display: block;
   margin-top: -2px; /* visually center the × glyph */
-  font-size: 22px;
-  pointer-events: none;
 }
 /* Floating restore pill — single shared instance lives at the bottom
    right of the viewport. Carries the same neon halo and breathing
@@ -3243,20 +3204,9 @@ html {
   border-radius: inherit;
   /* Inset shadow that scales with intensity — drives the "danger
      pressure" feel from inside the lane. */
-  box-shadow:
-    inset 0 0 24px rgba(231, 76, 60, 0.18),
-    inset 0 0 48px rgba(231, 76, 60, 0.08);
   animation: threatPulse 1.6s var(--ease-pulse-organic) infinite;
 }
-.lane.threat-lane.threat-2::after {
-  box-shadow:
-    inset 0 0 28px rgba(231, 76, 60, 0.28),
-    inset 0 0 56px rgba(231, 76, 60, 0.14);
-}
 .lane.threat-lane.threat-3::after {
-  box-shadow:
-    inset 0 0 32px rgba(231, 76, 60, 0.40),
-    inset 0 0 64px rgba(231, 76, 60, 0.22);
   /* Pulse faster on top-tier threats so the urgency reads. */
   animation-duration: 1.1s;
 }
@@ -3695,7 +3645,6 @@ body.killing-blow-cinema::after {
    CSS vars on the board element on mousemove (rAF-throttled).
    Subliminal "the board is lit by your attention" effect — pure
    AAA detail. Disabled in reduced-motion. */
-.board { position: relative; }
 /* MOVED OFF `.board::after` ONTO ITS OWN LEAF.
    --bx/--by have to be readable by whatever paints the gradient, and a
    pseudo-element can only inherit them from its own element — so painting this
@@ -4121,9 +4070,6 @@ body.round-tick .board-cursor-light { opacity: 0; }
   background: #000;
   border: var(--panel-border);
   border-radius: var(--panel-radius);
-  box-shadow:
-    0 0 14px var(--theme-glow-outer, rgba(79,195,247,0.55)),
-    0 0 28px var(--theme-glow-inner, rgba(79,195,247,0.25));
   color: var(--text-body, #e8eef6);
   overflow-y: auto;
 }
@@ -4402,35 +4348,25 @@ body.round-tick .board-cursor-light { opacity: 0; }
   font-family: 'Inter', sans-serif;
 }
 .rl-empty-state {
-  padding: 24px;
-  text-align: center;
-  color: rgba(180,200,220,0.7);
-  font-family: 'Rajdhani', sans-serif; font-size: 14px;
+   font-size: 14px;
   font-style: italic;
 }
 
 /* 3-step progress strip on the run-start pick screens. Theme-driven
    so the active step glows with the user's selected neon accent. */
 .rl-pick-progress {
-  display: flex; justify-content: center; align-items: center;
-  gap: 8px;
   font-family: 'Rajdhani', sans-serif;
   font-size: 11px; letter-spacing: 2.5px; font-weight: 700;
-  margin: 0 0 26px;
 }
 .rl-pick-step {
-  padding: 6px 16px;
   background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.50));
   border: 1px solid rgba(255,255,255,0.18);
   border-radius: 12px;
   color: rgba(160,180,200,0.55);
-  text-transform: uppercase;
   transition: color 0.2s var(--ease-snap), border-color 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap);
 }
 .rl-pick-step-active {
-  color: var(--theme-accent-bright, #d4ecff);
   border-color: var(--theme-accent-bright, rgba(79,195,247,1));
-  text-shadow: 0 0 6px var(--theme-glow-outer, rgba(79,195,247,0.85));
   box-shadow:
     0 0 12px var(--theme-glow-outer, rgba(79,195,247,0.45)),
     0 0 28px var(--theme-glow-inner, rgba(79,195,247,0.18)),
@@ -4798,20 +4734,16 @@ body.round-tick .board-cursor-light { opacity: 0; }
 .rl-event-choice.rl-asc-daily .rl-levelup-bucket { color: #ffd77a; }
 
 .rl-event-choice {
-  padding: 14px 18px;
   background: rgba(15,18,25,0.85);
   border: 1px solid rgba(255,255,255,0.25);
   border-radius: 4px;
   font-family: 'Rajdhani', sans-serif;
   font-size: 14px; letter-spacing: 0.5px;
-  color: rgba(220,225,235,0.95);
   text-transform: uppercase;
   text-align: left;
   cursor: pointer;
-  transition: transform 0.15s var(--ease-snap), border-color 0.15s var(--ease-snap), background 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap);
 }
 .rl-event-choice:hover:not([disabled]) {
-  transform: translateY(-1px);
   border-color: var(--theme-accent-bright, #b9f5cb);
   background: rgba(20,30,40,0.95);
   box-shadow: 0 0 12px var(--theme-glow-outer, rgba(120,255,180,0.4));
@@ -5061,7 +4993,6 @@ body.round-tick .board-cursor-light { opacity: 0; }
 }
 
 /* Reward-screen keyboard hint number (top-left of each reward slot). */
-.rl-reward-slot { position: relative; }
 .rl-reward-kb {
   position: absolute;
   top: 4px; left: 4px;

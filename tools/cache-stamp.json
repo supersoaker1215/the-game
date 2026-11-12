@@ -1,35 +1,35 @@
 {
   "style-01-base.css": {
-    "v": 2,
-    "hash": "db0be94b"
+    "v": 3,
+    "hash": "bf281acc"
   },
   "style-02-cards.css": {
-    "v": 2,
-    "hash": "968b6e06"
+    "v": 3,
+    "hash": "8019002e"
   },
   "style-03-feedback.css": {
-    "v": 2,
-    "hash": "4d558b14"
+    "v": 3,
+    "hash": "b66eee75"
   },
   "style-04-codex.css": {
-    "v": 2,
-    "hash": "160e5f06"
+    "v": 3,
+    "hash": "89f92473"
   },
   "style-05-roguelite.css": {
-    "v": 2,
-    "hash": "01597aa1"
+    "v": 3,
+    "hash": "28ff5cd6"
   },
   "style-06-cast-fx.css": {
-    "v": 2,
-    "hash": "1b7fc3e9"
+    "v": 3,
+    "hash": "e4b51620"
   },
   "style-07-playfield.css": {
-    "v": 2,
-    "hash": "a411886a"
+    "v": 3,
+    "hash": "164bc12a"
   },
   "style-08-multiplayer.css": {
-    "v": 2,
-    "hash": "07b43f47"
+    "v": 3,
+    "hash": "a081adde"
   },
   "board-v2.css": {
     "v": 108,

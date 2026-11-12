@@ -503,9 +503,7 @@
    so the box goes click-through and the drop lands on the lane underneath.
    (Its buttons don't matter mid-drag.) */
 body.dragging-trick .tut-callout { pointer-events: none; }
-.tut-callout-body { color: #e6eef6; }
-.tut-callout-body strong { color: #ffffff; }
-.tut-callout-body em { color: var(--theme-accent-bright, #4fc3f7); font-style: normal; font-weight: 600; }
+.tut-callout-body em {   font-weight: 600; }
 /* In-callout play button — the reliable way to fire the trick step. */
 .tut-play-btn {
   display: block; width: 100%; margin-top: 12px;
@@ -3154,7 +3152,6 @@ body.low-fx .legendary-arrival { animation: none !important; }
 }
 
 /* ---- MP taunts: 🔊 button + scrollable character-sound picker --------- */
-.taunt-btn { font-size: 14px; }
 /* The roster can be long, so the taunt picker is a scrollable NAME column
    rather than the emote's single emoji row. */
 .taunt-picker {
@@ -3466,7 +3463,7 @@ body.clb-emote-open .viewport-toggle { display: none !important; }
 .db-pick-grid .db-pick-card { width: 140px; max-width: 140px; }
 /* The deck strip sits above the picker and is mostly empty until cards are
    added — cap it so the picker gets enough height to show a WHOLE card. */
-.db-deck-strip { flex: 0 1 auto; max-height: 15vh; }
+.db-deck-strip { flex: 0 1 auto;  }
 .db-pick-grid .card.hand-card.enc-card {
   min-width: 0;
   width: 132px;
@@ -6165,7 +6162,6 @@ body.low-fx .card-hollow-purple::after { animation: none !important; }
 .mm-mw3 .mm-section-label {
   border-left: none;
   padding-left: 0;
-  margin: 10px auto 6px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -6296,7 +6292,6 @@ body.low-fx .mm-mw3 .mm-hero-img { animation: none; }
    goes up with them, otherwise bigger type would just wrap inside the old strip.
    ============================================================ */
 .mm-mw3 .mm-panel { width: min(760px, 82vw); }
-.mm-mw3 .mm-title { font-size: clamp(30px, 4.4vw, 92px); }
 /* Coefficient raised too, not just the ceiling — this is the one size where the
    vw term was still the binding constraint after the cap came up. At 2000px the
    old 1.7vw gave 34px against an 88px title, a 2.6:1 gap that read as a big
@@ -6304,9 +6299,7 @@ body.low-fx .mm-mw3 .mm-hero-img { animation: none; }
    title-to-item ratio. The 18px floor is untouched, so phones are unchanged. */
 .mm-mw3 .mm-option-label { font-size: clamp(18px, 2.2vw, 48px); }
 .mm-mw3 .mm-section-label { font-size: clamp(11px, 1vw, 22px); }
-.mm-mw3 .mm-option-icon { width: clamp(30px, 2.6vw, 64px); height: clamp(30px, 2.6vw, 64px); }
 .mm-mw3 .mm-svg { width: clamp(22px, 2vw, 48px); height: clamp(22px, 2vw, 48px); }
-.mm-mw3 .mm-option { padding-top: clamp(12px, 1.1vw, 26px); padding-bottom: clamp(12px, 1.1vw, 26px); }
 /* The footer chrome was a flat 11px — fine beside a 30px label, undersized
    beside a 44px one. Scaled the same way, with the same 11px floor. */
 .mm-mw3 .mm-nowplaying { font-size: clamp(11px, 0.75vw, 16px); }
@@ -6503,9 +6496,6 @@ body.low-fx .mm-mw3 .mm-hero-img { animation: none; }
    already split .player-bar / .ai-bar; the fill now matches that shape instead
    of quietly assuming one side. */
 .energy-text::before {
-  background-image: linear-gradient(-45deg,
-    rgba(var(--nrg-tint, var(--gold-rgb)), 0.50) 0 var(--nrg-fill),
-    rgba(0,0,0,0) var(--nrg-fill) 100%);
   transition: background-image 240ms var(--ease-out-soft, cubic-bezier(0.16, 1, 0.3, 1));
 }
 @media (prefers-reduced-motion: reduce) {

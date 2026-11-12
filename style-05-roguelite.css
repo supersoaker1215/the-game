@@ -188,10 +188,6 @@
   background: #000;
   border: var(--panel-border);
   border-radius: var(--panel-radius);
-  box-shadow:
-    0 0 32px var(--theme-glow-inner, rgba(79,195,247,0.30)),
-    0 0 72px var(--theme-glow-outer, rgba(79,195,247,0.14)),
-    inset 0 0 0 1px var(--theme-accent-edge, rgba(79,195,247,0.08));
   overflow-y: auto;
   color: var(--text-body, #e8eef6);
 }
@@ -680,7 +676,6 @@ button:disabled, button[disabled] {
 .audio-audit-panel .aa-summary {
   display: flex; gap: 18px; flex-wrap: wrap;
   padding: 8px 10px; margin: 6px 0 10px;
-  background: rgba(74,170,255,0.06);
   border: 1px solid rgba(74,170,255,0.2);
   border-radius: 4px;
   font-size: 12px; color: #9cf;
@@ -690,18 +685,14 @@ button:disabled, button[disabled] {
   display: flex; gap: 6px; margin-bottom: 8px;
 }
 .audio-audit-panel .aa-tab {
-  background: rgba(74,170,255,0.06);
   color: #9cf;
   border: 1px solid rgba(74,170,255,0.3);
   padding: 6px 12px;
   border-radius: 4px;
   font-family: inherit; font-size: 12px; cursor: pointer;
 }
-.audio-audit-panel .aa-tab:hover { background: rgba(74,170,255,0.18); }
 .audio-audit-panel .aa-tab-active {
-  background: rgba(74,170,255,0.25);
   color: var(--text-dim, #d4ecff);
-  border-color: #4af;
 }
 .audio-audit-panel .aa-controls {
   margin-bottom: 8px;
@@ -714,8 +705,7 @@ button:disabled, button[disabled] {
   font-family: inherit; font-size: 12px;
 }
 .audio-audit-panel .aa-search:focus {
-  outline: none; border-color: #4af;
-  box-shadow: 0 0 0 2px rgba(74,170,255,0.25);
+  outline: none; 
 }
 
 /* ===== Gallery Audit — card-art browser + delete ===== */
@@ -772,7 +762,7 @@ button:disabled, button[disabled] {
 .gal-card-count { font-size: 10px; color: #7d90a2; background: none; border-radius: 0; padding: 0; font-weight: 600; }
 .gal-thumbs { display: flex; flex-wrap: wrap; gap: 26px; }
 .gal-thumb {
-  width: 330px; margin: 0;
+   margin: 0;
   background: none; border: none; border-radius: 0; padding: 0;
   display: flex; flex-direction: column; gap: 8px;
 }
@@ -785,7 +775,7 @@ button:disabled, button[disabled] {
 .gal-crops { display: flex; gap: 14px; }
 .gal-crop-area { width: 150px; display: flex; flex-direction: column; gap: 4px; }
 .gal-crop {
-  position: relative; height: 150px; margin: 0 auto;
+   height: 150px; margin: 0 auto;
   border-radius: 8px; border: none;
   background-color: #000; background-size: cover; background-repeat: no-repeat;
   overflow: hidden;
@@ -799,7 +789,6 @@ button:disabled, button[disabled] {
   position: absolute; left: 6px; bottom: 4px;
   font-size: 9px; letter-spacing: 1px; text-transform: uppercase;
   color: rgba(235,245,255,0.72); background: none; padding: 0; border-radius: 0;
-  text-shadow: 0 1px 3px rgba(0,0,0,0.95), 0 0 6px rgba(0,0,0,0.8);
 }
 .gal-thumb-tools { display: flex; align-items: center; justify-content: space-between; }
 .gal-order { display: flex; align-items: center; gap: 2px; }
@@ -813,7 +802,7 @@ button:disabled, button[disabled] {
 .gal-move { width: 24px; height: 22px; font-size: 11px; padding: 0; }
 .gal-move:hover:not(:disabled) { background: none; color: #fff; transform: scale(1.2);
   text-shadow: 0 0 10px rgba(var(--theme-rgb,79,195,247),0.85); }
-.gal-move:disabled { opacity: 0.25; cursor: default; }
+.gal-move:disabled {  cursor: default; }
 .gal-primary {
   font-size: 9px; font-weight: 700; letter-spacing: 2px; color: #8ef2ad;
   border: none; border-radius: 0; padding: 0; margin-left: 6px;
@@ -850,7 +839,7 @@ button:disabled, button[disabled] {
   text-overflow: ellipsis; flex: 1; text-align: right;
 }
 .gal-note { margin: 0 0 12px; font-size: 11px; color: #7d90a2; line-height: 1.5; }
-.gal-note b { color: #8ef2ad; font-weight: 600; }
+.gal-note b {  font-weight: 600; }
 
 /* Audio splicer — Start / Finish sliders (touch-friendly manual trim) */
 .aa-splicer-ranges { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
@@ -910,13 +899,11 @@ button:disabled, button[disabled] {
   border-bottom: 1px solid rgba(74,170,255,0.08);
   vertical-align: middle;
 }
-.audio-audit-panel .aa-table tbody tr:hover td { background: rgba(74,170,255,0.04); }
 .audio-audit-panel .aa-row-name {
   font-weight: 600; color: var(--text-dim, #d4ecff);
   white-space: nowrap;
   min-width: 160px;
 }
-.audio-audit-panel .aa-empty { text-align: center; color: #7a9; padding: 18px; }
 
 .audio-audit-panel .aa-cell {
   display: flex; align-items: center; gap: 6px;
@@ -1877,7 +1864,6 @@ input[type="number"]::-webkit-outer-spin-button {
   background:
     linear-gradient(135deg, rgba(var(--theme-rgb, 79,195,247),0.10) 0%, transparent 65%),
     #000 !important;
-  box-shadow: inset 0 0 12px rgba(var(--theme-rgb, 79,195,247),0.10) !important;
 }
 
 /* ---- Inset glow stack on .btn family ----
@@ -2045,12 +2031,6 @@ input[type="number"]::-webkit-outer-spin-button {
    what we want for those margins. User spec: "The space to
    the left of lane one and right of lane six I want to be
    black just like the lanes." */
-.board-section {
-  background:
-    linear-gradient(180deg, rgba(var(--theme-rgb, 79,195,247),0.04) 0%, transparent 28%, transparent 72%, rgba(var(--theme-rgb, 79,195,247),0.04) 100%),
-    repeating-linear-gradient(0deg, transparent 0 2px, rgba(var(--theme-rgb, 79,195,247),0.015) 2px 3px),
-    #000000 !important;
-}
 
 /* Main menu panel — was solid #000 background. Switching to
    the same #000000 base + gradient + scanline that settings
@@ -2068,12 +2048,6 @@ input[type="number"]::-webkit-outer-spin-button {
    they feel like part of the same surface as the panel they sit
    in. Lower opacity than the panel itself (0.015 vs 0.025) so
    the button doesn't read as a separate textured slab. */
-.mm-option {
-  background:
-    linear-gradient(180deg, rgba(var(--theme-rgb, 79,195,247),0.025) 0%, transparent 50%),
-    repeating-linear-gradient(0deg, transparent 0 2px, rgba(var(--theme-rgb, 79,195,247),0.015) 2px 3px),
-    #000000 !important;
-}
 
 /* ============================================================
    WAVE A POLISH — user feedback synthesis
@@ -2124,7 +2098,6 @@ input[type="number"]::-webkit-outer-spin-button {
   background-blend-mode: screen, normal !important;
   box-shadow:
     inset 0 0 80px rgba(var(--theme-rgb, 79,195,247), 0.18) !important;
-  animation: rlPhaseWipeSweep 1100ms cubic-bezier(0.65, 0, 0.35, 1) forwards !important;
 }
 
 /* CODEX — left padding fix. Cost diamond on cards extrudes 8px
@@ -3349,17 +3322,6 @@ body > .grid-bg {
    legendaries... that same legendary middle, like, the same
    gradient behind a legendary card. For the middle." Single
    source of truth across the game's color vocabulary. */
-.board-section .lane.occ-both {
-  --lane-mid-color: rgba(var(--gold-rgb), 0.95);
-  border-image: linear-gradient(180deg,
-    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95)   0%,
-    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95)   46%,
-    var(--lane-mid-color) 47%,
-    var(--lane-mid-color) 53%,
-    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 54%,
-    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 100%
-  ) 1 !important;
-}
 
 /* Hover — brighten the middle band to the player theme color
    (the "click to play" affordance). Inset glow only — no outer
@@ -3420,14 +3382,6 @@ body > .grid-bg {
    just gold." The border-image gold band IS the gold signal;
    the interior doesn't need to repeat it. */
 .lane.occ-both::before {
-  background: linear-gradient(180deg,
-    transparent 0%,
-    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.10) 22%,
-    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.10) 46%,
-    transparent 50%,
-    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.10) 54%,
-    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.10) 78%,
-    transparent 100%);
   box-shadow:
     inset 18px 0 30px -20px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.28),
     inset -18px 0 30px -20px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.28),
@@ -4815,15 +4769,10 @@ body.round-tick .board::after {
      Transparent lets the gradient run straight through and the reticle and word
      become the only marks. Set here rather than overridden downstream because
      this ID rule is what every class-level attempt was losing to. */
-  background: transparent;
-  border: 0;
   border-radius: 0;
-  box-shadow: none;
   padding: 11px 30px;
   /* Keeps the 44px touch target the mobile pass established. */
   min-height: 44px;
-  color: rgba(var(--theme-rgb, 79,195,247), 0.95);
-  text-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.45);
   transition: color 0.18s var(--ease-snap), text-shadow 0.18s var(--ease-snap), transform 0.15s var(--ease-spring, var(--ease-snap));
 }
 /* The reticle. Eight hairlines, two per corner, drawn as background gradients
@@ -4851,13 +4800,6 @@ body.round-tick .board::after {
 }
 /* Hover / focus: the reticle opens outward and the word brightens. Grow and
    glow, exactly like the menu's text buttons — never a fill, never a box. */
-#btn-action:hover,
-#btn-action:focus-visible {
-  color: #fff;
-  text-shadow:
-    0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.85),
-    0 0 4px  rgba(var(--theme-rgb, 79,195,247), 0.6);
-}
 #btn-action:hover::before,
 #btn-action:focus-visible::before { inset: 1px; }
 /* This button also carries .tron-fx / .tron-fx-breathe, which is where the box

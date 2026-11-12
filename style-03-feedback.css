@@ -39,7 +39,6 @@
    numbers (no tag) or simulator-derived numbers (with the cyan tag).
    Helps debug edge cases where the sim's verdict feels wrong. */
 .dmg-preview .dp-sim-tag {
-  display: inline-block;
   font-size: 8px; letter-spacing: 1.4px; text-transform: uppercase;
   font-weight: 700;
   /* User feedback May-1: SIM pill stayed cyan even in red/green/silver/
@@ -202,9 +201,6 @@
 .log-drawer {
   position: fixed !important; top: 80px; right: 0; bottom: 80px;
   width: 320px;
-  background: rgba(6,10,18,0.96);
-  border-left: 1px solid rgba(var(--theme-rgb, 79,195,247),0.45);
-  box-shadow: -4px 0 18px rgba(0,0,0,0.6);
   transition: transform 240ms var(--ease-snap);
   /* ABOVE THE GUTTER. Owner: "the log needs to go over the enciroment tab."
      It was 230 against #right-col's 500, so the events rail, the decision panel
@@ -229,7 +225,6 @@
   background: transparent; border: none; color: #7fd0ff;
   font-size: 16px; cursor: pointer; padding: 0 4px;
 }
-.log-close:hover { color: var(--text-body, #f5fbff); }
 .log-drawer.collapsed {
   transform: translateX(100%);
   /* When collapsed (off-screen right), kill the left-side glow so
@@ -245,16 +240,10 @@
   max-height: none; min-height: 0; height: auto;
 }
 .log-drawer-toggle {
-  position: fixed !important; top: 54px; right: 10px; z-index: 125 !important;
-  width: 34px; height: 34px; border-radius: 50%;
-  background: rgba(8,14,22,0.88);
-  border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.45);
+  position: fixed !important;   z-index: 125 !important;
   color: #7fd0ff;
   font-size: 16px; cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: background 0.15s var(--ease-snap), color 0.15s var(--ease-snap);
 }
-.log-drawer-toggle:hover { background: rgba(var(--theme-rgb, 79,195,247),0.18); color: var(--text-body, #f5fbff); }
 
 /* In-match help button — sits just below the battle-log toggle, same chrome.
    44px touch target (the rules/keyword panel was keyboard-only before). */
@@ -604,11 +593,9 @@ body.in-match .cheat-help-toggle { display: flex; }
   font-size: 10px; font-weight: 700;
   letter-spacing: 5px; text-transform: uppercase;
   text-align: center;
-  color: #7fd0ff;
   opacity: 0.82;
   margin-bottom: 8px;
   text-indent: 5px;
-  text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247),0.45);
 }
 
 /* Hairline divider with a neon-diamond tap — reusable separator for
@@ -651,8 +638,6 @@ body.in-match .cheat-help-toggle { display: flex; }
    menu title larger as the one-of-one on the landing page. */
 .md-title,
 .stats-title {
-  font-size: 40px !important;
-  letter-spacing: 10px !important;
   text-indent: 10px;
   line-height: 1;
   color: color-mix(in srgb, var(--theme-accent) 25%, #f5fbff) !important;
@@ -667,9 +652,6 @@ body.in-match .cheat-help-toggle { display: flex; }
    menu list rather than a different component. */
 .mode-option {
   overflow: hidden;
-  background:
-    linear-gradient(90deg, rgba(var(--theme-rgb, 79,195,247),0.06) 0%, rgba(0,0,0,0) 55%),
-    #000;
   padding-left: 22px;
 }
 .mode-option::before {
@@ -677,22 +659,15 @@ body.in-match .cheat-help-toggle { display: flex; }
   position: absolute;
   left: 0; top: 10%; bottom: 10%;
   width: 2px;
-  background: rgba(var(--theme-rgb, 79,195,247),0.60);
-  box-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247),0.55);
   transition: width 0.2s var(--ease-snap), background 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap), top 0.2s var(--ease-snap), bottom 0.2s var(--ease-snap);
   pointer-events: none;
 }
 .mode-option:hover {
   padding-left: 26px;
-  background:
-    linear-gradient(90deg, rgba(var(--theme-rgb, 79,195,247),0.12) 0%, rgba(0,0,0,0) 55%),
-    rgba(var(--theme-rgb, 79,195,247),0.04);
 }
 .mode-option:hover::before {
   width: 3px;
   top: 0; bottom: 0;
-  background: var(--theme-accent-bright, #4fc3f7);
-  box-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247),1), 0 0 18px rgba(var(--theme-rgb, 79,195,247),0.55);
 }
 .mode-option:active {
   transform: translateY(0);
@@ -705,16 +680,12 @@ body.in-match .cheat-help-toggle { display: flex; }
 /* AI-trick toast — the corner brackets I added earlier looked cheap
    in-context; removed per user feedback. Keep the glow halo only. */
 .ai-trick-toast { position: fixed; }
-.ai-trick-toast::before,
-.ai-trick-toast::after { display: none; }
 
 /* Settings rows — subtle input polish so the form feels as sharp as
    the rest of the HUD. Inputs get a tron border + focus glow. */
 .settings-row select:focus,
 .settings-row input[type="checkbox"]:focus {
   outline: none;
-  border-color: rgba(var(--theme-rgb, 79,195,247),0.85);
-  box-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247),0.55), 0 0 14px rgba(var(--theme-rgb, 79,195,247),0.22);
 }
 .settings-row select {
   cursor: pointer;
@@ -756,11 +727,6 @@ body.in-match .cheat-help-toggle { display: flex; }
 
 /* Log drawer — matching top-highlight + subtle brackets so the right-edge
    combat log pane reads as part of the same frame system. */
-.log-drawer {
-  background:
-    linear-gradient(180deg, rgba(var(--theme-rgb, 79,195,247),0.04) 0%, rgba(0,0,0,0) 30%),
-    rgba(6,10,16,0.92);
-}
 
 /* Round-summary heading gets the same brand-tag treatment at the top. */
 .round-summary-panel h2,
@@ -863,50 +829,10 @@ body.in-match .cheat-help-toggle { display: flex; }
 /* Info bars (top red, bottom cyan) — the heavy outer glow that
    bloomed into the board area. Keep the crisp 1px border, drop
    the bleed. */
-.info-bar.ai-bar {
-  box-shadow:
-    inset 0 1px 0 rgba(231,76,60,0.22),
-    inset 0 -1px 0 rgba(231,76,60,0.22);
-}
-.info-bar.player-bar {
-  box-shadow:
-    inset 0 1px 0 rgba(var(--theme-rgb, 79,195,247),0.22),
-    inset 0 -1px 0 rgba(var(--theme-rgb, 79,195,247),0.22);
-}
 /* HP bar outer frame — soften the halo around the health track. */
-.player-bar .health-bar {
-  box-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247),0.30), 0 0 14px rgba(var(--theme-rgb, 79,195,247),0.10);
-}
-.ai-bar .health-bar {
-  box-shadow: 0 0 6px rgba(231,76,60,0.32), 0 0 14px rgba(231,76,60,0.12);
-}
 /* HP fill leading edge — keep the 1px bright cursor that marks
    the boundary, but prune the 20px bloom trailing behind it. */
-.health-fill.player-hp {
-  box-shadow:
-    inset -2px 0 0 0 rgba(168,220,255,1),
-    2px 0 4px rgba(var(--theme-rgb, 79,195,247),0.65),
-    4px 0 10px rgba(var(--theme-rgb, 79,195,247),0.30);
-}
-.health-fill.ai-hp {
-  box-shadow:
-    inset -2px 0 0 0 rgba(255,138,122,1),
-    2px 0 4px rgba(231,76,60,0.70),
-    4px 0 10px rgba(231,76,60,0.32);
-}
 /* Health text — smaller glow radius, same legibility. */
-.health-text.player-color {
-  text-shadow:
-    0 0 3px rgba(var(--theme-rgb, 79,195,247),0.90),
-    0 0 8px rgba(var(--theme-rgb, 79,195,247),0.35),
-    0 1px 2px rgba(0,0,0,0.8);
-}
-.health-text.ai-color {
-  text-shadow:
-    0 0 3px rgba(231,76,60,0.90),
-    0 0 8px rgba(231,76,60,0.35),
-    0 1px 2px rgba(0,0,0,0.8);
-}
 /* Block meter — halve the outer halo, keep the crisp ring. */
 .block-circle {
   box-shadow: 0 0 7px rgba(var(--gold-rgb),0.40), 0 0 14px rgba(var(--gold-rgb),0.14);
@@ -932,18 +858,6 @@ body.round-first-ai .hud-pill-main {
 }
 /* Buttons — keep the ring crisp, drop the haze. .btn-primary (cyan),
    .btn-secondary (white), .btn-danger (red). */
-.btn-primary {
-  box-shadow: 0 0 7px rgba(var(--theme-rgb, 79,195,247),0.30), 0 0 14px rgba(var(--theme-rgb, 79,195,247),0.10);
-}
-.btn-primary:hover {
-  box-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247),0.55), 0 0 20px rgba(var(--theme-rgb, 79,195,247),0.22);
-}
-.btn-secondary {
-  box-shadow: 0 0 7px rgba(255,255,255,0.22), 0 0 14px rgba(255,255,255,0.08);
-}
-.btn-secondary:hover {
-  box-shadow: 0 0 10px rgba(255,255,255,0.50), 0 0 20px rgba(255,255,255,0.18);
-}
 .btn-danger {
   box-shadow: 0 0 7px rgba(231,76,60,0.35), 0 0 14px rgba(231,76,60,0.14);
 }
@@ -951,12 +865,6 @@ body.round-first-ai .hud-pill-main {
   box-shadow: 0 0 10px rgba(231,76,60,0.60), 0 0 20px rgba(231,76,60,0.25);
 }
 /* Settings cog — fixed, top-right. Was particularly bright. */
-.settings-cog {
-  box-shadow:
-    0 0 7px rgba(var(--theme-rgb, 79,195,247),0.40),
-    0 0 14px rgba(var(--theme-rgb, 79,195,247),0.18),
-    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247),0.18);
-}
 .settings-cog:hover {
   box-shadow:
     0 0 10px rgba(var(--theme-rgb, 79,195,247),0.60),
@@ -965,19 +873,6 @@ body.round-first-ai .hud-pill-main {
 }
 /* Round-num badge: secondary halo override targets the ::before
    diamond so it matches the primary spec now living on the diamond. */
-.hud-round #round-num { box-shadow: none; }
-.hud-count-deck b {
-  box-shadow:
-    0 0 5px rgba(var(--theme-rgb, 79,195,247),0.35),
-    0 0 10px rgba(var(--theme-rgb, 79,195,247),0.14),
-    inset 0 0 5px rgba(var(--theme-rgb, 79,195,247),0.08);
-}
-.hud-count-tricks b {
-  box-shadow:
-    0 0 5px rgba(155,89,182,0.40),
-    0 0 10px rgba(155,89,182,0.16),
-    inset 0 0 5px rgba(155,89,182,0.08);
-}
 /* Mini opponent-hand card backs — were stacking per-card for 7+
    cards which blurred the whole top banner. */
 /* Hover gives a brighter inner hairline — subtle "activation" cue */
@@ -1088,7 +983,6 @@ body.round-first-ai .hud-pill-main {
    ============================================================ */
 .trick-card {
   position: relative;
-  background-color: #000;
   /* THE BODY WASH IS THE TRICK'S OWN COLOUR, AT THE CARD'S STRENGTH. Owner:
      "why on tricks does the text glow from the picture, get rid of that make
      them like the cards." Two things made a trick's rules panel glow where a
@@ -1098,24 +992,7 @@ body.round-first-ai .hud-pill-main {
      which is the one part of a trick the art does not cover, so they read as
      the picture bleeding into the rules.
      --cf-rgb is the accent from the trick's own painting, same as its frame. */
-  background-image: linear-gradient(180deg,
-    rgba(var(--cf-rgb, var(--portrait-frame-rgb, 155,89,182)), 0.08) 0%,
-    rgba(var(--cf-rgb, var(--portrait-frame-rgb, 155,89,182)), 0) 55%);
-  outline: 1px solid rgba(155,89,182,0.22);
   outline-offset: -5px;
-  box-shadow:
-    inset 0 0 0 1px rgba(155,89,182,0.14),
-    0 0 8px rgba(155,89,182,0.28),
-    0 0 18px rgba(155,89,182,0.10),
-    0 4px 12px rgba(0,0,0,0.55);
-}
-.trick-card.playable:hover {
-  outline-color: rgba(155,89,182,0.45);
-  box-shadow:
-    inset 0 0 0 1px rgba(155,89,182,0.28),
-    0 0 12px rgba(155,89,182,0.55),
-    0 0 24px rgba(155,89,182,0.22),
-    0 4px 12px rgba(0,0,0,0.55);
 }
 /* Corner brackets (purple) — positioned inside the card so they
    don't clip against the border. Top-left and bottom-right
@@ -1128,24 +1005,10 @@ body.round-first-ai .hud-pill-main {
   inset: 0;
   pointer-events: none;
   border-radius: inherit;
-  background:
-    linear-gradient(rgba(155,89,182,0.70), rgba(155,89,182,0.70)) top    left   / 10px 1px no-repeat,
-    linear-gradient(rgba(155,89,182,0.70), rgba(155,89,182,0.70)) top    left   / 1px 10px no-repeat,
-    linear-gradient(rgba(155,89,182,0.70), rgba(155,89,182,0.70)) top    right  / 10px 1px no-repeat,
-    linear-gradient(rgba(155,89,182,0.70), rgba(155,89,182,0.70)) top    right  / 1px 10px no-repeat,
-    linear-gradient(rgba(155,89,182,0.70), rgba(155,89,182,0.70)) bottom left   / 10px 1px no-repeat,
-    linear-gradient(rgba(155,89,182,0.70), rgba(155,89,182,0.70)) bottom left   / 1px 10px no-repeat,
-    linear-gradient(rgba(155,89,182,0.70), rgba(155,89,182,0.70)) bottom right  / 10px 1px no-repeat,
-    linear-gradient(rgba(155,89,182,0.70), rgba(155,89,182,0.70)) bottom right  / 1px 10px no-repeat;
   z-index: 2;
 }
 /* Trick cost pip — drop the 12/24 halo to match the rest of the
    detuned HUD spec. */
-.trick-cost {
-  box-shadow:
-    0 0 7px rgba(155,89,182,0.45),
-    0 0 14px rgba(155,89,182,0.18) !important;
-}
 
 /* ============================================================
    HUD SHAPE CLEANUP — remove the rotated-square dividers between
@@ -1185,16 +1048,6 @@ body.round-first-ai .hud-pill-main {
   filter: drop-shadow(0 0 6px rgba(255,255,255,0.55));
 }
 /* Trick-draft variant — flip brackets to purple to match chrome. */
-.draft-panel.draft-tricks::before {
-  border-top-color: rgba(155,89,182,0.90);
-  border-left-color: rgba(155,89,182,0.90);
-  filter: drop-shadow(0 0 6px rgba(155,89,182,0.70));
-}
-.draft-panel.draft-tricks::after {
-  border-bottom-color: rgba(155,89,182,0.90);
-  border-right-color: rgba(155,89,182,0.90);
-  filter: drop-shadow(0 0 6px rgba(155,89,182,0.70));
-}
 
 /* Board frame — corner brackets REMOVED per user request.
    Originally drew small 14×14 L-marks at the 4 outer corners of
@@ -1204,7 +1057,6 @@ body.round-first-ai .hud-pill-main {
    inner glow), clipping their full-width insets to a tiny corner
    box. Removing the legacy bracket rules frees up ::before for the
    newer rules to fill the board correctly. */
-.board-section { position: relative; }
 
 /* ============================================================
    NEON THEME SYSTEM — the Settings "Neon Theme" dropdown sets
@@ -1474,106 +1326,10 @@ body, :root {
    (silver vs green/cyan/gold rarity tiers) but within the
    5-color palette so nothing in the game is off-family.
    ============================================================ */
-.trick-card {
-  border-color: rgba(240,245,250,0.85);
-  background-color: #000;
-  background-image: linear-gradient(180deg,
-    rgba(240,245,250,0.12) 0%,
-    rgba(240,245,250,0) 55%);
-  outline: 1px solid rgba(240,245,250,0.22);
-  box-shadow:
-    inset 0 0 0 1px rgba(240,245,250,0.16),
-    0 0 8px rgba(240,245,250,0.26),
-    0 0 18px rgba(240,245,250,0.10),
-    0 4px 12px rgba(0,0,0,0.55);
-}
-.trick-card.playable:hover {
-  outline-color: rgba(240,245,250,0.45);
-  box-shadow:
-    inset 0 0 0 1px rgba(240,245,250,0.30),
-    0 0 12px rgba(240,245,250,0.55),
-    0 0 24px rgba(240,245,250,0.22),
-    0 4px 12px rgba(0,0,0,0.55);
-}
-.trick-card::before {
-  background:
-    linear-gradient(rgba(240,245,250,0.75), rgba(240,245,250,0.75)) top    left   / 10px 1px no-repeat,
-    linear-gradient(rgba(240,245,250,0.75), rgba(240,245,250,0.75)) top    left   / 1px 10px no-repeat,
-    linear-gradient(rgba(240,245,250,0.75), rgba(240,245,250,0.75)) top    right  / 10px 1px no-repeat,
-    linear-gradient(rgba(240,245,250,0.75), rgba(240,245,250,0.75)) top    right  / 1px 10px no-repeat,
-    linear-gradient(rgba(240,245,250,0.75), rgba(240,245,250,0.75)) bottom left   / 10px 1px no-repeat,
-    linear-gradient(rgba(240,245,250,0.75), rgba(240,245,250,0.75)) bottom left   / 1px 10px no-repeat,
-    linear-gradient(rgba(240,245,250,0.75), rgba(240,245,250,0.75)) bottom right  / 10px 1px no-repeat,
-    linear-gradient(rgba(240,245,250,0.75), rgba(240,245,250,0.75)) bottom right  / 1px 10px no-repeat;
-}
-.trick-cost {
-  color: var(--text-body, #e8eef6) !important;
-  border-color: rgba(240,245,250,0.85) !important;
-  box-shadow: 0 0 7px rgba(240,245,250,0.40), 0 0 14px rgba(240,245,250,0.18) !important;
-  text-shadow: 0 0 5px rgba(240,245,250,0.60) !important;
-}
-.trick-name {
-  color: var(--text-body, #e8eef6) !important;
-  border-bottom-color: rgba(240,245,250,0.60) !important;
-  text-shadow: 0 0 8px rgba(240,245,250,0.55), 0 1px 2px rgba(0,0,0,0.85) !important;
-}
-.trick-name::after {
-  background: rgba(240,245,250,0.85) !important;
-  box-shadow: 0 0 4px rgba(240,245,250,0.85), 0 0 8px rgba(240,245,250,0.50) !important;
-}
 /* Trick draft panel + draft card purple → silver. */
-.draft-card.trick-draft {
-  background:
-    linear-gradient(180deg, rgba(240,245,250,0.08) 0%, rgba(240,245,250,0) 45%),
-    #000000 !important;
-  border-color: rgba(240,245,250,0.70) !important;
-  box-shadow:
-    0 0 10px rgba(240,245,250,0.30),
-    0 6px 18px rgba(0,0,0,0.55),
-    inset 0 0 0 1px rgba(240,245,250,0.08) !important;
-}
-.draft-card.trick-draft::before {
-  border-color: rgba(240,245,250,0.18) !important;
-}
-.draft-card.trick-draft::after {
-  background:
-    linear-gradient(rgba(240,245,250,0.65), rgba(240,245,250,0.65)) top    left   / 12px 1px no-repeat,
-    linear-gradient(rgba(240,245,250,0.65), rgba(240,245,250,0.65)) top    left   / 1px 12px no-repeat,
-    linear-gradient(rgba(240,245,250,0.65), rgba(240,245,250,0.65)) top    right  / 12px 1px no-repeat,
-    linear-gradient(rgba(240,245,250,0.65), rgba(240,245,250,0.65)) top    right  / 1px 12px no-repeat,
-    linear-gradient(rgba(240,245,250,0.65), rgba(240,245,250,0.65)) bottom left   / 12px 1px no-repeat,
-    linear-gradient(rgba(240,245,250,0.65), rgba(240,245,250,0.65)) bottom left   / 1px 12px no-repeat,
-    linear-gradient(rgba(240,245,250,0.65), rgba(240,245,250,0.65)) bottom right  / 12px 1px no-repeat,
-    linear-gradient(rgba(240,245,250,0.65), rgba(240,245,250,0.65)) bottom right  / 1px 12px no-repeat !important;
-}
-.draft-card.trick-draft:hover {
-  border-color: rgba(240,245,250,1) !important;
-  box-shadow:
-    0 0 18px rgba(240,245,250,0.55),
-    0 14px 32px rgba(240,245,250,0.20),
-    inset 0 0 0 1px rgba(240,245,250,0.14) !important;
-}
 /* Draft trick brackets on the draft panel — override the earlier
    purple variant to silver. */
-.draft-panel.draft-tricks::before,
-.draft-panel.draft-tricks::after {
-  border-color: rgba(240,245,250,0.90) !important;
-  filter: drop-shadow(0 0 6px rgba(240,245,250,0.70)) !important;
-}
 /* HUD tricks count silver. */
-.hud-count-tricks {
-  color: var(--text-body, #e8eef6) !important;
-}
-.hud-count-tricks b {
-  color: var(--text-body, #e8eef6) !important;
-  border-color: rgba(240,245,250,0.85) !important;
-  box-shadow:
-    0 0 5px rgba(240,245,250,0.35),
-    0 0 10px rgba(240,245,250,0.14),
-    inset 0 0 5px rgba(240,245,250,0.08) !important;
-  text-shadow: 0 0 6px rgba(240,245,250,0.80), 0 0 10px rgba(240,245,250,0.40) !important;
-}
-.drafted-list-trick strong { color: var(--text-body, #e8eef6) !important; }
 
 /* ============================================================
    PURPLE THEME + TRICKS RESTORED TO PURPLE
@@ -1586,7 +1342,6 @@ body.theme-purple, :root.theme-purple { --theme-r: 176; --theme-g: 97; --theme-b
 /* Restore trick chrome to purple (overrides the silver block above
    it since this rule comes later in the cascade). */
 .trick-card {
-  border-color: rgba(155,89,182,0.95);
   background-color: #000;
   /* THE BODY WASH IS THE TRICK'S OWN COLOUR, AT THE CARD'S STRENGTH. Owner:
      "why on tricks does the text glow from the picture, get rid of that make
@@ -1601,11 +1356,6 @@ body.theme-purple, :root.theme-purple { --theme-r: 176; --theme-g: 97; --theme-b
     rgba(var(--cf-rgb, var(--portrait-frame-rgb, 155,89,182)), 0.08) 0%,
     rgba(var(--cf-rgb, var(--portrait-frame-rgb, 155,89,182)), 0) 55%);
   outline: 1px solid rgba(155,89,182,0.25);
-  box-shadow:
-    inset 0 0 0 1px rgba(155,89,182,0.16),
-    0 0 8px rgba(155,89,182,0.32),
-    0 0 18px rgba(155,89,182,0.14),
-    0 4px 12px rgba(0,0,0,0.55);
 }
 .trick-card.playable:hover {
   outline-color: rgba(155,89,182,0.50);
@@ -1678,12 +1428,6 @@ body.theme-purple, :root.theme-purple { --theme-r: 176; --theme-g: 97; --theme-b
 .hud-count-tricks { color: #d7b3e6 !important; }
 .hud-count-tricks b {
   color: #d7b3e6 !important;
-  border-color: rgba(155,89,182,0.95) !important;
-  box-shadow:
-    0 0 5px rgba(155,89,182,0.40),
-    0 0 10px rgba(155,89,182,0.18),
-    inset 0 0 5px rgba(155,89,182,0.10) !important;
-  text-shadow: 0 0 6px rgba(155,89,182,0.85), 0 0 10px rgba(155,89,182,0.45) !important;
 }
 .drafted-list-trick strong { color: #d7b3e6 !important; }
 
@@ -1756,16 +1500,6 @@ body {
 }
 
 /* Player banner — recolour the gradient wash, border + glow to player theme. */
-.info-bar.player-bar {
-  background:
-    linear-gradient(0deg, var(--player-wash-08), transparent 50%),
-    linear-gradient(180deg, #000000, #000000) !important;
-  border-top-color: var(--player-accent-bright) !important;
-  border-bottom-color: var(--player-accent-bright) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(var(--player-r), var(--player-g), var(--player-b), 0.22),
-    inset 0 -1px 0 rgba(var(--player-r), var(--player-g), var(--player-b), 0.22) !important;
-}
 .info-bar.ai-bar {
   background:
     linear-gradient(180deg, var(--enemy-wash-08), transparent 50%),
@@ -1778,10 +1512,6 @@ body {
     inset 0 -1px 0 rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), calc(0.22 + (1 - 0.22) * var(--neon-lift, 0))) !important;
 }
 /* Player health bar + fill */
-.player-bar .health-bar {
-  border-color: var(--player-accent-bright) !important;
-  box-shadow: 0 0 6px var(--player-glow-outer), 0 0 14px var(--player-glow-inner) !important;
-}
 .ai-bar .health-bar {
   border-color: var(--enemy-accent-bright) !important;
   box-shadow: 0 0 6px var(--enemy-glow-outer), 0 0 14px var(--enemy-glow-inner) !important;
@@ -1915,14 +1645,6 @@ body {
 }
 /* Contested centerline — uses the hand-picked --contest-pop mid color
    so the seam saturates instead of muddying. */
-.lane.occ-both .lane-sep::before {
-  background: linear-gradient(90deg,
-    transparent,
-    rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.70) 20%,
-    var(--contest-pop, rgb(255, 60, 200)) 50%,
-    rgba(var(--player-r), var(--player-g), var(--player-b), 0.70) 80%,
-    transparent) !important;
-}
 
 /* ============================================================
    SETTINGS CONTROLS THEMED — dropdowns, checkboxes, Cancel.
@@ -2029,39 +1751,6 @@ body {
    stay, just the chrome gets an upgrade.
    ============================================================ */
 .deckbuilder-overlay { padding: 18px; }
-.db-panel {
-  position: relative;
-  background:
-    linear-gradient(180deg, var(--theme-wash-05) 0%, rgba(0,0,0,0) 40%),
-    #000 !important;
-  border: 1px solid var(--theme-accent-edge);
-  border-radius: 4px;
-  box-shadow:
-    0 0 28px var(--theme-glow-outer),
-    0 0 60px var(--theme-glow-inner),
-    inset 0 0 0 1px var(--theme-wash-08),
-    inset 0 1px 0 var(--theme-accent-edge);
-}
-.db-panel::before,
-.db-panel::after {
-  content: "";
-  position: absolute;
-  width: 18px; height: 18px;
-  pointer-events: none;
-  z-index: 5;
-}
-.db-panel::before {
-  top: -1px; left: -1px;
-  border-top: 2px solid var(--theme-accent);
-  border-left: 2px solid var(--theme-accent);
-  filter: drop-shadow(0 0 6px var(--theme-glow-outer));
-}
-.db-panel::after {
-  bottom: -1px; right: -1px;
-  border-bottom: 2px solid var(--theme-accent);
-  border-right: 2px solid var(--theme-accent);
-  filter: drop-shadow(0 0 6px var(--theme-glow-outer));
-}
 
 
 
@@ -2070,10 +1759,6 @@ body {
    quick summary row; everything else inherits the themed panel
    chrome.
    ============================================================ */
-.stats-summary-chip {
-  border-color: var(--theme-accent-edge) !important;
-  box-shadow: 0 0 10px var(--theme-glow-inner), inset 0 0 0 1px var(--theme-wash-08) !important;
-}
 .stats-summary-label {
   color: color-mix(in srgb, var(--theme-accent) 35%, #d4ecff) !important;
 }
@@ -2257,13 +1942,6 @@ body.turn-ai .hud-phase {
    beat the catch-all base rule lower in the file. */
 body.round-first-player .hud-round {
   color: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 1) !important;
-  text-shadow: 0 0 6px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.55) !important;
-}
-body.round-first-player .hud-round #round-num {
-  color: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 1) !important;
-  text-shadow:
-    0 0 6px  rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 1),
-    0 0 14px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.55) !important;
 }
 body.round-first-player .hud-round #round-num::before {
   border-color: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 1) !important;
@@ -2305,8 +1983,6 @@ body.round-first-ai .hud-pill-main {
   color: color-mix(in srgb, var(--theme-accent) 35%, #d4ecff) !important;
 }
 .hud-count-deck b {
-  color: color-mix(in srgb, var(--theme-accent) 30%, white) !important;
-  border-color: var(--theme-accent-bright) !important;
   box-shadow:
     0 0 5px var(--theme-glow-outer),
     0 0 10px var(--theme-glow-inner),
@@ -2659,29 +2335,6 @@ body.round-first-ai .hud-pill-main {
    Middle stays neutral white for an empty lane; occupancy states
    blend the current through the whole column.
    ============================================================ */
-.lane {
-  border-image: linear-gradient(180deg,
-      var(--enemy-accent-bright)   0%,
-      var(--enemy-accent-bright)   2%,
-      rgba(255,255,255,0.90)       9%,
-      rgba(255,255,255,0.90)       91%,
-      var(--player-accent-bright)  98%,
-      var(--player-accent-bright)  100%
-    ) 1 !important;
-}
-.lane:hover {
-  border-image: linear-gradient(180deg,
-      var(--enemy-accent-bright)   0%,
-      var(--enemy-accent-bright)   2%,
-      var(--player-accent-bright)  9%,
-      var(--player-accent-bright)  91%,
-      var(--player-accent-bright)  98%,
-      var(--player-accent-bright)  100%
-    ) 1 !important;
-  box-shadow:
-    0 0 12px var(--player-glow-outer),
-    0 0 24px var(--player-glow-inner) !important;
-}
 /* AI owns — enemy colour flows the full column with a blend kiss where
    it meets the player banner. */
 .lane.occ-ai {
@@ -2828,7 +2481,6 @@ body.round-first-ai .hud-pill-main {
    inset was painting the extra "left of lane 1" white/red artifact
    the user flagged. */
 .board-section {
-  box-shadow: none !important;
   padding: 0 !important;
 }
 
@@ -2841,7 +2493,6 @@ body.round-first-ai .hud-pill-main {
 }
 .player-hand-section {
   border-top: 1px solid var(--theme-accent-edge) !important;
-  box-shadow: 0 -1px 0 var(--theme-glow-inner) !important;
 }
 
 /* ============================================================
@@ -3169,19 +2820,8 @@ body.round-first-ai .hud-pill-main {
    just fall back to a one-shot animation on .board-section when
    the board re-renders at the top of a round. */
 .board-section::before {
-  content: "";
-  position: absolute; inset: 0;
-  pointer-events: none;
-  z-index: 4;
-  background: linear-gradient(180deg,
-    transparent 0%,
-    var(--theme-wash-08) 48%,
-    color-mix(in srgb, var(--theme-accent) 22%, transparent) 50%,
-    var(--theme-wash-08) 52%,
-    transparent 100%);
   opacity: 0;
   display: block;
-  animation: none;
 }
 body.round-transition .board-section::before {
   animation: roundCurrentSweep 900ms var(--ease-out-soft);
@@ -3343,16 +2983,6 @@ body.round-transition .board-section::before {
     0 0 16px var(--theme-glow-outer) !important;
 }
 /* Combat phase — also themed now (was gold-locked). */
-.phase-banner-text.phase-combat {
-  color: color-mix(in srgb, var(--theme-accent) 25%, white) !important;
-  border-color: var(--theme-accent-bright) !important;
-  box-shadow:
-    0 0 14px var(--theme-glow-outer),
-    0 0 28px var(--theme-glow-inner) !important;
-  text-shadow:
-    0 0 10px var(--theme-accent-bright),
-    0 0 20px var(--theme-glow-outer) !important;
-}
 
 /* Round recap numbers — theme the two side variants so "You" reads
    in the player theme and "Enemy" reads in the enemy theme. Labels
@@ -3579,24 +3209,6 @@ body.round-transition .board-section::before {
      3. Soft trailing shadow — fades out the bar without leaving a
         hard edge.
      4. Scan-line texture — subtle horizontal lines for Tron feel. */
-  background:
-    linear-gradient(90deg,
-      transparent 0%,
-      rgba(0,0,0,0.20) 30%,
-      rgba(var(--theme-rgb, 79,195,247), 0.20) 44%,
-      rgba(var(--theme-rgb, 79,195,247), 0.55) 49%,
-      rgb(var(--theme-rgb, 79,195,247)) 50%,
-      rgba(var(--theme-rgb, 79,195,247), 0.55) 51%,
-      rgba(var(--theme-rgb, 79,195,247), 0.18) 56%,
-      rgba(0,0,0,0.18) 65%,
-      transparent 95%),
-    repeating-linear-gradient(0deg,
-      rgba(var(--theme-rgb, 79,195,247), 0.04) 0 2px,
-      transparent 2px 5px);
-  background-blend-mode: screen, normal;
-  box-shadow:
-    inset 0 0 60px rgba(var(--theme-rgb, 79,195,247), 0.20);
-  animation: rlPhaseWipeSweep 540ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
   will-change: transform;
 }
 /* ---- Boot-up variant: trick-draft → play -------------------
@@ -4508,9 +4120,6 @@ body.theme-purple .board-section {
   max-height: 82vh;
   overflow-y: auto;
   padding: 48px 44px 36px;
-  background:
-    linear-gradient(180deg, var(--theme-wash-05) 0%, rgba(0,0,0,0) 40%),
-    #000;
   border: 1px solid var(--theme-accent-edge);
   border-radius: 4px;
   box-shadow:
@@ -4561,13 +4170,7 @@ body.theme-purple .board-section {
 
 .tutorial-section { margin-bottom: 18px; }
 .tutorial-section-title {
-  font-size: 13px; font-weight: 700;
-  letter-spacing: 3px; text-transform: uppercase;
-  color: color-mix(in srgb, var(--theme-accent) 40%, white);
-  margin-bottom: 6px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid var(--theme-accent-dim);
-  text-shadow: 0 0 6px var(--theme-glow-inner);
+   font-weight: 700;
 }
 .tutorial-section p,
 .tutorial-section li {
@@ -5400,12 +5003,7 @@ body.ai-thinking .ai-thinking-dots { display: inline-flex; }
 
 /* A — Stat-orb counter animation: flip-Y when the ATK or HP value
    changes. Class toggled by ui.js when it diffs the previous render. */
-@keyframes statFlip {
-  0%   { transform: rotateX(0deg); }
-  50%  { transform: rotateX(90deg); filter: brightness(1.6); }
-  100% { transform: rotateX(0deg); }
-}
-.stat-circle.stat-changed { animation: statFlip 360ms var(--ease-out-soft); transform-style: preserve-3d; }
+.stat-circle.stat-changed {  transform-style: preserve-3d; }
 
 /* B — Energy orb spend animation: ring burst outward when a card is
    played (cost consumed). Pseudo-layer so it doesn't disturb layout. */
@@ -5446,7 +5044,6 @@ body.ai-thinking .ai-thinking-dots { display: inline-flex; }
 /* C — Unified focus outline. Earlier rules declared focus rings
    piecemeal; here we normalize a single spec keyed to theme so every
    interactive surface focuses identically. */
-:focus { outline: none; }
 .btn:focus-visible,
 button:focus-visible,
 select:focus-visible,
@@ -5695,7 +5292,6 @@ input:focus-visible,
   background: var(--theme-accent);
   clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
   box-shadow: 0 0 4px var(--theme-accent-bright);
-  opacity: 0.35;
   animation: gameDrift linear infinite;
 }
 @keyframes gameDrift {
@@ -5894,47 +5490,12 @@ input:focus-visible,
    element so it layers behind card content without tinting
    descriptions. */
 .lane::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
   /* Empty lane — faint white vertical wash, brightest at top/bottom
      (meeting the banners) and fading through the middle. Mirrors
      the top-fade gradient on card backgrounds. */
-  background: linear-gradient(180deg,
-    rgba(255,255,255,0.08) 0%,
-    rgba(255,255,255,0.03) 20%,
-    rgba(255,255,255,0.01) 50%,
-    rgba(255,255,255,0.03) 80%,
-    rgba(255,255,255,0.08) 100%);
   opacity: 1;
 }
 .lane > * { position: relative; z-index: 1; }
-.lane.occ-ai::before {
-  background: linear-gradient(180deg,
-    rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.14) 0%,
-    rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.06) 45%,
-    rgba(255,255,255,0) 80%,
-    rgba(255,255,255,0) 100%);
-}
-.lane.occ-player::before {
-  background: linear-gradient(180deg,
-    rgba(255,255,255,0) 0%,
-    rgba(255,255,255,0) 20%,
-    rgba(var(--player-r), var(--player-g), var(--player-b), 0.06) 55%,
-    rgba(var(--player-r), var(--player-g), var(--player-b), 0.14) 100%);
-}
-.lane.occ-both::before {
-  background: linear-gradient(180deg,
-    rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.12) 0%,
-    rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.05) 40%,
-    color-mix(in srgb,
-      rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.06),
-      rgba(var(--player-r), var(--player-g), var(--player-b), 0.06)) 50%,
-    rgba(var(--player-r), var(--player-g), var(--player-b), 0.05) 60%,
-    rgba(var(--player-r), var(--player-g), var(--player-b), 0.12) 100%);
-}
 
 /* Revert hand/draft rarity pips back to rarity-tier color — only
    board (ally/enemy) pips follow the theme. Overrides my earlier
@@ -5983,18 +5544,12 @@ input:focus-visible,
    fully (earlier rule only hit the label + accent bar, not the border). */
 .mode-option {
   border-color: var(--theme-accent-ring) !important;
-  background:
-    linear-gradient(90deg, var(--theme-wash-08) 0%, rgba(0,0,0,0) 55%),
-    #000 !important;
   box-shadow:
     0 0 10px var(--theme-glow-inner),
     inset 0 0 0 1px var(--theme-wash-05) !important;
 }
 .mode-option:hover {
   border-color: var(--theme-accent-bright) !important;
-  background:
-    linear-gradient(90deg, var(--theme-wash-08) 0%, rgba(0,0,0,0) 55%),
-    var(--theme-wash-05) !important;
   box-shadow:
     0 0 20px var(--theme-glow-outer),
     0 0 40px var(--theme-glow-inner),
@@ -6014,13 +5569,6 @@ input:focus-visible,
     0 0 10px var(--theme-glow-outer),
     0 0 22px var(--theme-glow-inner),
     inset 0 0 8px var(--theme-wash-08) !important;
-}
-.draft-quit-btn:hover {
-  background: var(--theme-wash-08) !important;
-  box-shadow:
-    0 0 14px var(--theme-accent-bright),
-    0 0 28px var(--theme-glow-outer),
-    inset 0 0 10px var(--theme-wash-08) !important;
 }
 
 /* Hand + tricks section borders — the thin cyan line at the top of
@@ -6052,7 +5600,7 @@ input:focus-visible,
   box-shadow:
     0 0 7px var(--theme-glow-inner),
     inset 0 0 6px var(--theme-wash-08) !important;
-  display: flex; align-items: center; justify-content: center;
+   align-items: center; justify-content: center;
   transition: border-color 0.15s var(--ease-snap), box-shadow 0.2s var(--ease-snap), color 0.15s var(--ease-snap);
 }
 .log-drawer-toggle:hover {
@@ -6377,9 +5925,8 @@ input:focus-visible,
   max-width: 380px;
 }
 .db-search-icon {
-  position: absolute; left: 10px; top: 50%;
+  position: absolute;  top: 50%;
   transform: translateY(-50%);
-  font-size: 14px;
   color: color-mix(in srgb, var(--theme-accent, rgb(79,195,247)) 45%, #8a96a5);
   pointer-events: none;
   text-shadow: 0 0 6px var(--theme-glow-outer, rgba(79,195,247,0.45));
@@ -6399,13 +5946,6 @@ input:focus-visible,
 .db-search::placeholder {
   color: color-mix(in srgb, var(--theme-accent, rgb(79,195,247)) 25%, #7a8691);
   font-style: italic;
-}
-.db-search:focus:not(:focus-visible) {
-  outline: none;
-  border-color: var(--theme-accent-bright, rgba(79,195,247,1));
-  box-shadow:
-    0 0 10px var(--theme-glow-outer, rgba(79,195,247,0.50)),
-    0 0 20px var(--theme-glow-inner, rgba(79,195,247,0.25));
 }
 .db-search-clear {
   position: absolute; right: 6px; top: 50%;
@@ -6639,17 +6179,12 @@ input:focus-visible,
 }
 .stats-source-btn:hover,
 .stats-view-btn:hover {
-  border-color: var(--theme-accent-bright) !important;
-  color: var(--text-hi, #f5fbff) !important;
   box-shadow: 0 0 10px var(--theme-glow-outer), 0 0 20px var(--theme-glow-inner) !important;
   background: var(--theme-wash-05) !important;
 }
 .stats-source-active,
 .stats-view-active {
-  border-color: var(--theme-accent-bright) !important;
-  color: var(--text-hi, #f5fbff) !important;
   box-shadow: 0 0 10px var(--theme-glow-outer), 0 0 20px var(--theme-glow-inner) !important;
-  background: var(--theme-wash-05) !important;
 }
 .stats-export-btn, .stats-reload-btn {
   border-color: var(--theme-accent-edge) !important;
