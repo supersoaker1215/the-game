@@ -15253,6 +15253,9 @@ const Game = {
     if (typeof callback !== 'function') return callback;
     const owner = this.state && this.state._inTrick ? this.state._trickOwner : null;
     if (!owner) return callback;
+    // The wrapper must be a plain function: it forwards ITS caller's `this`
+    // to the callback, so Game has to be reached through an alias.
+    // deno-lint-ignore no-this-alias
     const self = this;
     return function (...args) {
       const wasIn = self.state._inTrick, wasOwner = self.state._trickOwner;
