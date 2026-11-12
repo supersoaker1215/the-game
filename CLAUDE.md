@@ -131,6 +131,12 @@ pushing.
 
 Headless self-play uses JavaScriptCore (macOS built-in). Node is NOT required. Driver scripts live in `sim/`.
 
+**Linux:** `apt-get install libjavascriptcoregtk-bin` puts `jsc` on PATH. The
+`sim/*.sh` runners and the pre-commit hook find it there automatically
+(`sim/find-jsc.sh`: `$JSC` override → macOS framework → `jsc` on PATH), so
+`./sim/run-tests.sh` and `./sim/run-fuzz.sh` work unmodified. In the commands
+below, use `JSC=jsc`.
+
 ```bash
 JSC=/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Helpers/jsc
 

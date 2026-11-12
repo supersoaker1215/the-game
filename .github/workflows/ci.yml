@@ -32,7 +32,13 @@ jobs:
         run: |
           set -euxo pipefail
           sudo apt-get update
-          if apt-cache show libjavascriptcoregtk-4.1-bin >/dev/null 2>&1; then
+          # Newer Ubuntu (24.04 updates, 26.04 = current ubuntu-latest) ships
+          # jsc only as libjavascriptcoregtk-bin, installed at /usr/bin/jsc.
+          # The versioned -4.x-bin names are gone or transitional dummies.
+          if apt-cache show libjavascriptcoregtk-bin >/dev/null 2>&1; then
+            sudo apt-get install -y libjavascriptcoregtk-bin
+            JSC_BIN=/usr/bin/jsc
+          elif apt-cache show libjavascriptcoregtk-4.1-bin >/dev/null 2>&1; then
             sudo apt-get install -y libjavascriptcoregtk-4.1-bin
             JSC_BIN=/usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/jsc
           else

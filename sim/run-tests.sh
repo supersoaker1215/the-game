@@ -10,9 +10,9 @@
 #   sim/test.js      — mechanic-level unit suite (if present)
 #
 # Usage:  sim/run-tests.sh
-JSC="/System/Library/Frameworks/JavaScriptCore.framework/Versions/A/Helpers/jsc"
 cd "$(dirname "$0")/.." || exit 2
-if [ ! -x "$JSC" ]; then echo "jsc not found at $JSC"; exit 2; fi
+. sim/find-jsc.sh
+if [ ! -x "$JSC" ]; then echo "jsc not found (macOS: built in; Linux: apt-get install libjavascriptcoregtk-bin; or set JSC=/path/to/jsc)"; exit 2; fi
 
 FAIL=0
 run_suite() {
