@@ -402,6 +402,9 @@ run_suite sim/habitat-pair.js
 echo "=== impact-layer.js (heavy hits: hit-stop, contact flash, camera kick) ==="
 run_suite sim/impact-layer.js
 
+echo "=== css-parts.js (the stylesheet is ordered parts, loaded in order) ==="
+run_suite sim/css-parts.js
+
 echo "=== sjw-x-display.js (Sung Jin-Woo prints X until he has an X) ==="
 run_suite sim/sjw-x-display.js
 

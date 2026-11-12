@@ -45,7 +45,7 @@ function check(name, cond, detail) {
 // ============================================================
 // 1. THE CASCADE — which `animation` a stat orb actually resolves to
 // ============================================================
-var CSS = read('style.css').replace(/\/\*[\s\S]*?\*\//g, function (c) { return c.replace(/[^\n]/g, ' '); });
+var CSS = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('')).replace(/\/\*[\s\S]*?\*\//g, function (c) { return c.replace(/[^\n]/g, ' '); });
 
 // Walk the sheet keeping the @media stack, so a rule inside
 // `@media (pointer: coarse)` only applies in the touch environment.

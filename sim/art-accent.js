@@ -32,7 +32,7 @@ function eq(label, actual, expected) {
     __caseMsgs.push(label + ': expected ' + JSON.stringify(expected) + ' got ' + JSON.stringify(actual));
   }
 }
-var CSS_RAW = read('style.css');
+var CSS_RAW = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join(''));
 // COMMENTS OUT FIRST. This suite's own first run failed on the COMMENT that
 // documents the ramp it removed — the text ".card.cost-0..3 green" reads as a
 // rule to any regex. Blanking comment bodies (keeping newlines, so line numbers
@@ -96,7 +96,7 @@ t('AA-2 both renderers stamp it — the card AND the trick', function () {
   // The chain has to be open at every link or the stamp is dead code, which is
   // what happened the first time this was tried: --art-rgb was set while the
   // CSS still pinned --rarity-rgb and --cf-rgb to the purple.
-  var CSS = readOr('style.css', '');
+  var CSS = read('style-parts.txt').trim().split('\n').map(function (f) { return readOr(f, ''); }).join('');   // the stylesheet, in order
   eq('the trick frame reads the chain rather than pinning purple',
      /--cf-rgb:\s*var\(--portrait-frame-rgb, 155, 89, 182\)/.test(CSS), true);
   eq('and so do its frame + rarity vars',

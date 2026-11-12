@@ -31,7 +31,7 @@ var argv = (typeof arguments !== 'undefined') ? arguments : [];
 var VERBOSE = false;
 for (var i = 0; i < argv.length; i++) if (argv[i] === '--verbose') VERBOSE = true;
 
-var SRC = read('style.css');
+var SRC = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join(''));
 
 // Blank comments out rather than deleting them, so every reported line number
 // still matches the real file.

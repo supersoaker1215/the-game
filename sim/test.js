@@ -4700,7 +4700,7 @@ test('Crazy and Insane highlight in body text like every other status', function
       k + ' is in kwLookup (supplies data-kw, hence the tooltip)');
     assert(new RegExp("\\['" + k + "',\\s").test(src), k + ' is in kwMap (does the highlighting)');
   });
-  var css = readFile('./style.css');
+  var css = readFile('./style-parts.txt').trim().split('\n').map(function (f) { return readFile('./' + f); }).join('');   // the stylesheet, in order
   ['crazy', 'insane'].forEach(function (k) {
     assert(css.indexOf('.kw-' + k) > -1, '.kw-' + k + ' has a color rule');
     assert(css.indexOf('--kw-' + k + ':') > -1, '--kw-' + k + ' is a real token');

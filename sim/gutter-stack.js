@@ -45,7 +45,7 @@ function eq(label, actual, expected) {
 }
 
 var UISRC  = read('ui.js');
-var CSSSRC = read('style.css');
+var CSSSRC = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join(''));
 
 function decomment(s) {
   return s.replace(/\/\*[\s\S]*?\*\//g, function (c) { return c.replace(/[^\n]/g, ' '); })

@@ -29,7 +29,7 @@ var argv = (typeof arguments !== 'undefined') ? arguments : [];
 var VERBOSE = false;
 for (var i = 0; i < argv.length; i++) if (argv[i] === '--verbose') VERBOSE = true;
 
-var CSS = read('style.css');
+var CSS = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join(''));
 // Does this class end up INVISIBLE, or merely altered? `forwards` makes any end
 // state persist, but a stuck `brightness(2.5)` is a washed-out card while a
 // stuck mask or opacity:0 is a card you cannot see at all and can still click.

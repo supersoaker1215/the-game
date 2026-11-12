@@ -72,7 +72,7 @@ check('the lift adopts the prepared ghost', /_makeCardDragGhost\(d\.cardEl, t\.c
 check('a tap or cancel throws the unused ghost away', (install.match(/dropPrep\(d\);/g) || []).length === 2);
 var make = strip(body('_makeCardDragGhost(cardEl, px, py, prepared) {'));
 check('only a ghost built from THIS card is adopted', /prepared\._dragSrc === cardEl/.test(make) && /prepared\.isConnected/.test(make));
-var CSS = read('style.css').replace(/\/\*[\s\S]*?\*\//g, '');
+var CSS = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('')).replace(/\/\*[\s\S]*?\*\//g, '');
 check('no style change lands on <body> itself when a drag starts (re-resolved the whole document: ~2.6ms each way)',
   !/body\.mobile-card-dragging\s*\{/.test(CSS));
 

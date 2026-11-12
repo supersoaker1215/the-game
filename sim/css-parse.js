@@ -26,7 +26,7 @@ var argv = (typeof arguments !== 'undefined') ? arguments : [];
 var VERBOSE = false;
 for (var i = 0; i < argv.length; i++) if (argv[i] === '--verbose') VERBOSE = true;
 
-var FILES = ['style.css'];
+var FILES = read('style-parts.txt').trim().split('\n');   // the ordered stylesheet parts
 var pass = 0, fails = [];
 
 function lineOf(s, pos) { return s.slice(0, pos).split('\n').length; }

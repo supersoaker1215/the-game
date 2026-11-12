@@ -37,7 +37,7 @@ var argv = (typeof arguments !== 'undefined') ? arguments : [];
 var VERBOSE = false;
 for (var i = 0; i < argv.length; i++) if (argv[i] === '--verbose') VERBOSE = true;
 
-var CSS = read('style.css');
+var CSS = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join(''));
 // Comments can contain anything that looks like a rule — this file quotes CSS
 // in its own commentary — so they go first. Newlines kept so lines stay true.
 var BARE = CSS.replace(/\/\*[\s\S]*?\*\//g, function (c) {

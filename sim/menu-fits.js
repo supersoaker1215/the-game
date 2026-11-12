@@ -22,7 +22,7 @@
 //   640:0  700:0  720:0  800:0  876:0  982:0  1080:0  1440:0
 // ============================================================
 
-var CSS = read('style.css');
+var CSS = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join(''));
 var BARE = CSS.replace(/\/\*[\s\S]*?\*\//g, function (c) { return c.replace(/[^\n]/g, ' '); });
 
 var pass = 0, fails = [];

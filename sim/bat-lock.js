@@ -133,7 +133,7 @@ t('BL-7 the mark hangs on the WRAPPER — inside .card the grayscale filter eats
   eq('never appended to the card', /el\.appendChild\(mark\)/.test(body), false);
   // And the greying rule this is dodging really does still exist — if it is
   // ever dropped, this test should be revisited rather than silently kept.
-  var css = read('style.css');
+  var css = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join(''));
   eq('.card.unplayable still applies a group filter',
      /\.card\.unplayable\s*\{[^}]*filter:\s*grayscale/.test(css), true);
 });
@@ -142,7 +142,7 @@ t('BL-7 the mark hangs on the WRAPPER — inside .card the grayscale filter eats
 // Comments in this stylesheet quote CSS at length, so they are blanked before
 // anything is matched — same discipline as sim/card-tube.js.
 function bareCss() {
-  return read('style.css').replace(/\/\*[\s\S]*?\*\//g, function (c) {
+  return (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('')).replace(/\/\*[\s\S]*?\*\//g, function (c) {
     return c.replace(/[^\n]/g, ' ');
   });
 }

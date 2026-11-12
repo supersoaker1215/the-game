@@ -198,7 +198,7 @@ t('PC-6 the board cursor light writes on a leaf, not on #board', function () {
 });
 
 t('PC-7 the CSS paints the light on that leaf, with its layer and its gates', function () {
-  var CSS_RAW = read('style.css');
+  var CSS_RAW = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join(''));
   var CSS = CSS_RAW.replace(/\/\*[\s\S]*?\*\//g, function (c) { return c.replace(/[^\n]/g, ' '); });
   eq('.board-cursor-light rule exists', CSS.indexOf('.board-cursor-light {') > 0, true);
   // The cursor-light gradient must NOT be back on the shared pseudo-element —

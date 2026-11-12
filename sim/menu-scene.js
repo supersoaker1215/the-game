@@ -13,7 +13,7 @@
 var __SIM_ROOT_OVERRIDE = '.';
 load('./sim/shim-dom.js');
 load('./menu-scene.js');
-var SRC = read('ui.js'), CSS = read('style.css'), HTML = read('index.html');
+var SRC = read('ui.js'), CSS = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('')), HTML = read('index.html');
 var pass = 0, fails = [];
 function check(name, cond, detail) { if (cond) pass++; else fails.push(name + (detail ? ' — ' + detail : '')); }
 var MS = window.MenuScene;

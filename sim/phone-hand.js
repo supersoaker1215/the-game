@@ -17,7 +17,7 @@
 // ============================================================
 var __SIM_ROOT_OVERRIDE = '.';
 load('./sim/shim-dom.js');
-var CSS = read('style.css');
+var CSS = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join(''));
 var BARE = CSS.replace(/\/\*[\s\S]*?\*\//g, function (c) { return c.replace(/[^\n]/g, ' '); });
 
 var pass = 0, fails = [];

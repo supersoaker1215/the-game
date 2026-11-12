@@ -381,7 +381,7 @@ test('VOICE: a 2v2 room left behind does not keep the panel on the main menu, an
   Game.state.phase = 'main-menu';   // what going back to the menu leaves behind: the room record, still online
   ok(Game.state.twoVTwo && Game.state.twoVTwo.online, 'the stale room record is still marked online');
   eq(Voice._inOnlineMatch(), false, 'on the main menu, voice is not live — so mount() removes the panel');
-  var css = read('style.css');
+  var css = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join(''));
   ok(/body\.on-main-menu \.voice-panel\s*\{\s*bottom:\s*34px/.test(css), 'when both show, VOICE sits above the badge');
   ok(/'voice-gate'/.test(read('ui.js')), 'the voice check runs before the menu screens return');
 });

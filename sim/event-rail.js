@@ -17,7 +17,7 @@
 //     in this game, so a hostile event is orange or purple, never red
 // ============================================================
 
-var CSS = read('style.css');
+var CSS = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join(''));
 var BARE = CSS.replace(/\/\*[\s\S]*?\*\//g, function (c) { return c.replace(/[^\n]/g, ' '); });
 var UI  = read('ui.js');
 // Comments in this file explain what was REMOVED by name, so a plain substring

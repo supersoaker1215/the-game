@@ -13,7 +13,23 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=1728">
+  <!-- THE STYLESHEET, IN ORDER. Split from one 53k-line style.css (2026-11-12)
+       into ordered parts; concatenated they are byte-identical to it, and the
+       cascade across separate sheets in document order is the same as one
+       sheet. ORDER IS LOAD-BEARING (later rules win) — style-parts.txt is the
+       single source of that order; sim/css-parts.js pins these links to it.
+       The parts live BESIDE index.html on purpose: CSS url()s — including the
+       card art ui.js feeds in through custom properties — resolve relative to
+       the stylesheet's folder, so a css/ subfolder sent every art request to
+       css/audio/… (caught by the computed-style diff, 2026-11-12). -->
+  <link rel="stylesheet" href="style-01-base.css?v=1">
+  <link rel="stylesheet" href="style-02-cards.css?v=1">
+  <link rel="stylesheet" href="style-03-feedback.css?v=1">
+  <link rel="stylesheet" href="style-04-codex.css?v=1">
+  <link rel="stylesheet" href="style-05-roguelite.css?v=1">
+  <link rel="stylesheet" href="style-06-cast-fx.css?v=1">
+  <link rel="stylesheet" href="style-07-playfield.css?v=1">
+  <link rel="stylesheet" href="style-08-multiplayer.css?v=1">
   <!-- BOARD V2 — the redesign, off by default. Every rule inside is scoped to
        body.board-v2 so it is inert until BoardV2.set(true). -->
   <link rel="stylesheet" href="board-v2.css?v=108">
