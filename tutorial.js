@@ -1,23 +1,18 @@
 // tutorial.js — v8
-// Fully scripted, on-rails WHOLE GAME tutorial. The player plays a real match
-// on the real engine — real cards, real combat, real draw/phase machinery — but
-// the opponent is scripted to be harmless and the player's board out-scales it,
-// so the match is a guaranteed win by Round 3. Both sides start at 15 HP so the
-// game is short. Every mechanic is explained as it happens, and the player gets
-// to slam down two marquee cards — GODZILLA and THE HULK — for the payoff.
+// Scripted, on-rails whole-game tutorial on the real engine (real cards, combat,
+// draw/phase machinery). The opponent is scripted to be harmless and both sides
+// start at 15 HP, so the match is a guaranteed win by Round 3. The player gets to
+// slam down GODZILLA and THE HULK for the payoff.
 //
 // HOW IT DRIVES A REAL GAME WITHOUT FIGHTING THE ENGINE
-//   • The player is FIRST every round (firstPlayerForRound is pinned to
-//     'player'), so each round runs: player-cards → (Done) → AI cards+tricks →
-//     player-tricks → (Done) → combat → draw → next round. That is the real
-//     phase chain in game.js; we don't reimplement it.
-//   • The AI's DECISIONS are overridden (AI.playCards / playTrickPhaseCards /
-//     playTricks) to place a fixed, weak script for the current round and then
-//     call their onComplete — so the round chain flows exactly as normal.
-//   • Round energy + the per-round AI script are set in a thin wrapper around
-//     Game.startRound; the real startRound still runs, we just top up energy.
-//   • The round summary crossfade and the game-over screen are stubbed while the
-//     tutorial is active so pacing stays in our hands and our own callouts show.
+//   • The player is FIRST every round (firstPlayerForRound pinned to 'player'),
+//     so the real game.js phase chain runs unchanged: player-cards → AI
+//     cards+tricks → player-tricks → combat → draw → next round.
+//   • AI.playCards / playTrickPhaseCards / playTricks are overridden to place a
+//     fixed weak script and then call onComplete, so the round chain flows normally.
+//   • A thin wrapper around Game.startRound tops up energy and loads the AI script.
+//   • The round summary crossfade and game-over screen are stubbed while active
+//     so pacing and callouts stay in our hands.
 // All overrides are saved and restored in complete().
 
 const Tutorial = {
@@ -34,10 +29,9 @@ const Tutorial = {
   _vib: null,
 
   // ── THE SCRIPTED OPPONENT ───────────────────────────────────────────────
-  // What the AI places each round, by round number. Lanes are high (5) so they
-  // never sit in the low lanes the player is guided into. Every entry becomes a
-  // pure stat-stick (all ability hooks nulled, all keyword flags zeroed) via
-  // _vanillaAI, so combat is 100% predictable.
+  // What the AI places each round. Lanes are high (5) so they never sit in the
+  // low lanes the player is guided into. _vanillaAI turns every entry into a pure
+  // stat-stick (hooks nulled, keyword flags zeroed) so combat is predictable.
   //   Round 1: nothing — the pre-placed Gorilla Grodd is the only threat.
   //   Round 2: one weak 1/2 that chips a single point of face damage.
   //   Round 3: nothing — the player closes it out.
@@ -251,13 +245,10 @@ const Tutorial = {
       return ret;
     };
 
-    // GUARANTEE the match reaches Round 3. Combat damage varies (the Block
-    // Meter absorbs a random d3 per hit on both sides), so the AI could drop to
-    // 0 in Round 2 and end the game before the player gets to play their big
-    // finisher. Floor the AI at 1 HP through Rounds 1–2 by capping any damage
-    // dealt to it; Round 3 lifts the cap so the kill lands. This also lets R2
-    // combat fully resolve, so the enemy's chip hit reliably fires the player's
-    // Block Meter demonstration.
+    // Guarantee the match reaches Round 3: Block Meter absorption is a random d3
+    // per hit, so the AI could die in Round 2 before the finisher. Cap damage to
+    // keep the AI at ≥1 HP through Rounds 1–2 (Round 3 lifts it). This also lets R2
+    // combat resolve fully so the enemy's chip hit fires the Block Meter demo.
     Game.damagePlayer = function (owner, amount, isBullseye, source) {
       if (T.active && owner === 'ai' && (this.state.round || 1) < 3) {
         const floor = 1;
@@ -286,13 +277,11 @@ const Tutorial = {
       AI.playTricks         = function (owner, onComplete) { if (onComplete) onComplete(); };
     }
 
-    // Keep the round-summary crossfade and the real game-over screen out of the
-    // way — our own callouts narrate both. Setting showRoundSummary falsy makes
-    // postCombat take the simple, immediate proceed() path. The game-over stub
-    // is ALSO how we reliably reach the victory step: the killing blow flows
-    // through damagePlayer's immediate game-over hook, which bypasses postCombat
-    // (so the 'post-combat' notify never fires on the winning round). Catching
-    // the game-over here instead jumps straight to the finish callout.
+    // Keep the round-summary crossfade and real game-over screen out of the way.
+    // A falsy showRoundSummary makes postCombat take the immediate proceed() path.
+    // The game-over stub is also how we reach the victory step: the killing blow
+    // goes through damagePlayer's immediate game-over hook, which bypasses
+    // postCombat (no 'post-combat' notify on the winning round).
     if (typeof UI !== 'undefined') {
       UI.showRoundSummary   = null;
       UI.showGameOverScreen = function (winner) { T._onGameOver(winner); };
@@ -380,22 +369,18 @@ const Tutorial = {
     const grodd = this._vanillaAI('Gorilla Grodd', 2, 3, 'ai');
     if (grodd) s.lanes[0].ai = grodd;
 
-    // Decks are seeded so the player's draws are deterministic. drawCards pops
-    // from the END of the pile, and each Draw phase the PLAYER draws before the
-    // AI — so the last element is the player's Round-2 card, and so on. The
-    // player draws the two marquee cards they get to slam down: Godzilla (R2)
-    // then Hulk (R3). Both are big AoE bodies with NO targeting prompt, so the
-    // scripted combat stays fully predictable.
+    // Seeded decks make the player's draws deterministic. drawCards pops from the
+    // END of the pile and the PLAYER draws before the AI each Draw phase. The two
+    // marquee cards are big AoE bodies with NO targeting prompt, keeping combat
+    // predictable.
     //   pop order: Godzilla(→P R2), filler(→AI), Hulk(→P R3), filler(→AI)
     const defs = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS : [];
     const def = (n) => defs.find(c => c.name === n);
     const FILLER = def('Hawkeye');            // harmless AI draws
     s.drawPile = [FILLER, FILLER, def('Hulk'), FILLER, def('Godzilla')].filter(Boolean);
-    // Vibranium is handed straight to the trick hand in Round 2 (see
-    // _afterStartRound). The shared trick DRAW pile is kept EMPTY on purpose: a
-    // Block-Meter trigger pulls from it and pops a mid-combat "play free or keep"
-    // modal, which the tutorial doesn't script around — an empty pile means the
-    // block still fires (blocks the hit, resets) with no interrupting modal.
+    // Vibranium goes straight to the trick hand in Round 2 (see _afterStartRound).
+    // The trick DRAW pile stays EMPTY on purpose: a Block-Meter trigger would pop a
+    // mid-combat "play free or keep" modal the tutorial doesn't script around.
     const vib = (typeof TRICK_DEFS !== 'undefined') ? TRICK_DEFS.find(t => t.name === 'Vibranium') : null;
     s.trickDrawPile = [];
     this._vib = vib;
@@ -425,10 +410,8 @@ const Tutorial = {
       if (this._vib && !s.player.trickHand.some(t => t.name === 'Vibranium')) {
         s.player.trickHand.push(Object.assign({}, this._vib));
       }
-      // Prime the Block Meter to 7 so the enemy's chip hit this round pushes it
-      // over 8 and triggers a live block (the fill is a d3 roll per hit, so 7 +
-      // any roll clears the bar). The trick draw pile is empty (see _setupGame),
-      // so the block fires cleanly — hit blocked, meter reset — with no modal.
+      // Prime the Block Meter at 7 so the enemy's chip hit (d3 fill) always clears 8
+      // and triggers a live block; the empty trick pile means no modal follows.
       s.player.blockMeter = 7;
     }
     if (typeof UI !== 'undefined' && UI.render) UI.render();
@@ -560,10 +543,8 @@ const Tutorial = {
       this._positionCorner();
       this._hideArrow();
     } else if (step.type === 'wait') {
-      // Interaction step — the player must reach the board / hand / button, so
-      // the callout MUST NOT cover them. Pin it to the bottom-right corner
-      // (clear of the board and the centered hand + action button) and point
-      // the arrow at whatever they need to touch.
+      // Interaction step — the callout must not cover the board / hand / button the
+      // player needs. Pin it bottom-right and point the arrow at the target.
       if (targetEl) { targetEl.classList.add('tut-target-highlight'); this._prevTarget = targetEl; }
       this._positionCornerBR();
       if (targetEl) this._placeArrow(targetEl, 'top'); else this._hideArrow();
@@ -576,10 +557,8 @@ const Tutorial = {
       this._positionCenter();
       this._hideArrow();
     }
-    // ALWAYS keep the whole callout — and its Next button — on screen. A tall
-    // box positioned near a low target used to run off the bottom, leaving Next
-    // unclickable until you minimized it (which recentres it). Measured after
-    // layout, on the next frame.
+    // Keep the whole callout (and its Next button) on screen; a tall box near a low
+    // target would otherwise run off the bottom. Measured after layout, next frame.
     if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => this._clampOnScreen());
     else this._clampOnScreen();
   },
@@ -604,10 +583,9 @@ const Tutorial = {
     c.style.bottom = 'auto';
   },
 
-  // Play a named trick from the tutorial callout button — the reliable path when
-  // drag-to-play is fiddly. Our wrapped Game.playTrick fires 'trick-played',
-  // which advances the waiting step; if it can't be played, advance anyway so
-  // the tutorial can never dead-end on this screen.
+  // Play a named trick from the callout button (drag-to-play can be fiddly). The
+  // wrapped Game.playTrick fires 'trick-played' to advance the step; if it can't
+  // be played, advance anyway so the tutorial never dead-ends here.
   playStepTrick(name) {
     const s = Game.state;
     const t = (s.player.trickHand || []).find(x => x.name === name);

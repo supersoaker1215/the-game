@@ -3,17 +3,15 @@
 //
 //   jsc sim/menu-scene.js
 //
-// Owner (2026-11-11): "it should be random and the names at the bottom to
-// switch". Measured live at 1600x1000: a fresh load picked Black Hole; the
-// bar read Black Hole* | Event Horizon | Earth | Orbit | Gas Giant; switching
-// to Earth on the start screen did NOT dismiss it; Gas Giant swapped in the
-// playing video (WebGL loop stopped); PRESS START kept Gas Giant in the menu;
-// hiding the overlay stopped the render loop, showing it restarted it.
+// The backdrop is a scene picked at random per visit; a bar of scene names
+// along the bottom switches it, on the start screen and in the menu alike, and
+// picking one never dismisses the start screen. These checks RUN the renderers,
+// the dismiss handler and the canvas sizing.
 // ============================================================
 var __SIM_ROOT_OVERRIDE = '.';
 load('./sim/shim-dom.js');
 load('./menu-scene.js');
-var SRC = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n')), CSS = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('')), HTML = read('index.html');
+var CSS = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('')), HTML = read('index.html');
 var pass = 0, fails = [];
 function check(name, cond, detail) { if (cond) pass++; else fails.push(name + (detail ? ' — ' + detail : '')); }
 var MS = window.MenuScene;
@@ -32,15 +30,62 @@ check('the bar marks the current scene', new RegExp('is-on" data-scene="' + firs
 check('each name switches the scene', /onclick="MenuScene\.set\('blackhole'\)"/.test(bar) && /onclick="MenuScene\.set\('giant'\)"/.test(bar));
 
 check('index.html loads menu-scene.js before ui.js', HTML.indexOf('menu-scene.js?v=') > 0 && HTML.indexOf('menu-scene.js?v=') < HTML.indexOf('ui.js?v='));
-check('the start screen shows the bar', /MenuScene\.barHTML\(\) : ''\}`;\s*this\._mountMenuVideo/.test(SRC));
-check('the menu shows the bar', /_flowOn && typeof MenuScene !== 'undefined' \? MenuScene\.barHTML\(\) : ''/.test(SRC));
-check('picking a scene never dismisses the start screen', /closest\('\.ts-options, \.mm-scene-bar,/.test(SRC));
-check('the shared backdrop mounts the scene', /if \(typeof MenuScene !== 'undefined'\) \{ MenuScene\.mount\(host\); return; \}/.test(SRC));
-check('the bar is boxless (no border/background box)', /\.main-menu-overlay \.mm-scene-opt \{\s*background: none; border: 0;/.test(CSS));
+// ---- the bar is on both screens, and the backdrop is the scene ----------------
+var mounts = [];
+var realMount = MS.mount;
+MS.mount = function (host) { mounts.push(host); };
+var winL = {};
+var realWinAdd = window.addEventListener;
+window.addEventListener = function (t, fn) { (winL[t] = winL[t] || []).push(fn); };
+var ov = document.getElementById('main-menu-overlay');
+try {
+  UI._titleDone = false; UI._titleArmed = false;
+  UI.renderTitleScreen(Game.state);
+  check('the start screen shows the bar', !!ov.querySelector('.mm-scene-bar'), ov.innerHTML.slice(-200));
+  var vh = ov.querySelector('.mm-bgvideo');
+  check('the shared backdrop mounts the scene', mounts.length === 1 && mounts[0] === vh, mounts.length);
+  // Clicking a scene name on the start screen must not dismiss it.
+  var opt = ov.querySelector('.mm-scene-bar').firstChild || ov.querySelector('.mm-scene-bar');
+  var down = winL.pointerdown || [];
+  down.forEach(function (fn) { fn({ type: 'pointerdown', target: opt }); });
+  check('picking a scene never dismisses the start screen', down.length > 0 && UI._titleDone === false, 'listeners ' + down.length + ', done ' + UI._titleDone);
+  var opts = ov.querySelector('.ts-options');
+  down.forEach(function (fn) { fn({ type: 'pointerdown', target: opts }); });
+  check('…nor does Options', UI._titleDone === false);
+  var panel = ov.querySelector('.mm-panel');
+  down.forEach(function (fn) { fn({ type: 'pointerdown', target: panel }); });
+  check('…while a press anywhere else does', UI._titleDone === true);
+} catch (e) { fails.push('start screen threw: ' + (e.message || e)); }
+try {
+  ov.innerHTML = ''; ov.className = 'main-menu-overlay';
+  UI.settings.menuFlow = true;
+  UI.renderMainMenu(Game.state);
+  check('the menu shows the bar', !!ov.querySelector('.mm-scene-bar'));
+  UI.settings.menuFlow = false;
+  ov.innerHTML = '';
+  UI.renderMainMenu(Game.state);
+  check('…and hides it when the animated backdrop is off', !ov.querySelector('.mm-scene-bar'));
+  UI.settings.menuFlow = true;
+} catch (e) { fails.push('menu threw: ' + (e.message || e)); }
+MS.mount = realMount; window.addEventListener = realWinAdd;
 
-var MSRC = read('menu-scene.js');
-check('renders at the real device ratio (HD), not 0.8x', /Math\.min\(window\.devicePixelRatio \|\| 1, 2\) \* \(low \? \.6 : 1\)/.test(MSRC));
-check('…and STARTS there (the placeholder 1 used to stick)', /if \(!this\._scaleSet \|\| this\._scale > this\._scale0\)/.test(MSRC));
+// ---- the canvas renders at the device's real pixel ratio ---------------------
+function sized(dpr, low) {
+  window.devicePixelRatio = dpr; innerWidth = 800; innerHeight = 500;
+  if (low) document.body.classList.add('low-fx'); else document.body.classList.remove('low-fx');
+  MS.cv = { width: 0, height: 0 }; MS.fx = { width: 0, height: 0 }; MS.gl = null;
+  MS._scale = 1; MS._scale0 = 1; MS._scaleSet = false;
+  MS._resize();
+  return MS.cv.width;
+}
+check('renders at the real device ratio (HD), not a fraction of it', sized(2) === 1600, sized(2));
+check('…capped at 2x', sized(3) === 1600, sized(3));
+check('…and lowered on the low-fx tier', sized(2, true) === 960, sized(2, true));
+document.body.classList.remove('low-fx');
+sized(2); MS._scale = 1.4; MS._resize();
+check('the adaptive step-down is kept between resizes (it only resets upward past the target)', MS._scale === 1.4, MS._scale);
+
+check('the bar is boxless (no border/background box)', /\.main-menu-overlay \.mm-scene-opt \{\s*background: none; border: 0;/.test(CSS));
 check('the start screen has no left-side scrim', /#main-menu-overlay\.ts-menulike \.mm-scrim \{ display: none; \}/.test(CSS));
 print('menu-scene: ' + pass + ' passed, ' + fails.length + ' failed');
 fails.forEach(function (f) { print('  FAIL  ' + f); });

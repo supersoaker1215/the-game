@@ -36,40 +36,40 @@
     "hash": "f4ff37ff"
   },
   "cards.js": {
-    "v": 287,
-    "hash": "6f9ed870"
+    "v": 288,
+    "hash": "23747620"
   },
   "tricks.js": {
-    "v": 126,
-    "hash": "4074e4c3"
+    "v": 127,
+    "hash": "ba630c8c"
   },
   "abilities.js": {
-    "v": 520,
-    "hash": "bee6819d"
+    "v": 521,
+    "hash": "d423ed1c"
   },
   "engine/combat.js": {
-    "v": 4,
-    "hash": "70873070"
+    "v": 5,
+    "hash": "93f653d4"
   },
   "decks.js": {
-    "v": 6,
-    "hash": "cd48f8d0"
+    "v": 7,
+    "hash": "09aa0748"
   },
   "game.js": {
-    "v": 832,
-    "hash": "55721389"
+    "v": 833,
+    "hash": "1868a7a4"
   },
   "ai.js": {
-    "v": 78,
-    "hash": "f8824a09"
+    "v": 79,
+    "hash": "45d17cd3"
   },
   "roguelite.js": {
-    "v": 131,
-    "hash": "62a01312"
+    "v": 132,
+    "hash": "c5a6244c"
   },
   "multiplayer.js": {
-    "v": 55,
-    "hash": "0f57f001"
+    "v": 56,
+    "hash": "de000170"
   },
   "card-art-manifest.js": {
     "v": 85,
@@ -80,8 +80,8 @@
     "hash": "9ff1a921"
   },
   "leaderboard.js": {
-    "v": 5,
-    "hash": "512ad529"
+    "v": 6,
+    "hash": "9027111b"
   },
   "fx.js": {
     "v": 3,
@@ -108,20 +108,20 @@
     "hash": "cbc43709"
   },
   "board-v2.js": {
-    "v": 32,
-    "hash": "9ad5e175"
+    "v": 33,
+    "hash": "0bdcf722"
   },
   "voice.js": {
     "v": 7,
     "hash": "0e3f3a96"
   },
   "tutorial.js": {
-    "v": 15,
-    "hash": "cac78c4a"
+    "v": 16,
+    "hash": "998774cc"
   },
   "tournament.js": {
-    "v": 9,
-    "hash": "86ebf609"
+    "v": 10,
+    "hash": "71953254"
   },
   "logger.js": {
     "v": 5,

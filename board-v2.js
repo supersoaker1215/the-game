@@ -1,28 +1,20 @@
 /* ============================================================================
-   BOARD V2 — the redesigned board, built to the owner's reference.
+   BOARD V2 — the redesigned board. Gameplay identical; only the look differs.
    ============================================================================
-   Owner: "build the screenshot from scratch and keep it separate from main —
-   it's a redesign, the board will look different but the gameplay will stay
-   the same."
-
    SEPARATE, AND OFF BY DEFAULT. Flipping it on adds `board-v2` to <body> and
    board-v2.css does the rest. With the flag off this file contributes nothing
    and the original board renders exactly as it did — same DOM, same ids.
 
-   WHY IT RESTYLES RATHER THAN REPLACES. A second renderBoard emitting its own
-   markup quietly breaks a dozen things: most other renderers in ui.js write
-   into specific ids (#player-hp-fill, #ai-hand, #player-energy-display,
-   #btn-action, .hand-cards, the FX layers, the prompt trays), and the combat FX
-   stream targets elements BY ID at animation time. V2 keeps every existing
-   element and id exactly where it is, moves them with CSS grid, and ADDS the
-   few things the reference has that the board does not. Nothing the engine or
-   the FX layer reaches for can go missing — which is what "gameplay stays the
-   same" has to mean in practice.
+   WHY IT RESTYLES RATHER THAN REPLACES. Other renderers in ui.js write into
+   specific ids (#player-hp-fill, #ai-hand, #player-energy-display, #btn-action,
+   .hand-cards, the FX layers, the prompt trays), and the combat FX stream
+   targets elements BY ID at animation time. V2 keeps every existing element and
+   id, moves them with CSS grid, and only ADDS the few missing pieces — so
+   nothing the engine or FX layer reaches for can go missing.
 
    EVERYTHING IT PRINTS IS REAL. Where the reference shows a number this game
-   does not have, this file says so in place rather than inventing one. The
-   reference's turn clock is the example: there is no turn timer in this game,
-   so the slot carries the phase's actual instruction instead of a countdown.
+   does not have (e.g. a turn clock), the slot carries the phase's actual
+   instruction instead of inventing one.
    ========================================================================== */
 const BoardV2 = {
   KEY: 'clb-board-v2',
@@ -45,13 +37,10 @@ const BoardV2 = {
   },
 
   // OFF MUST MEAN OFF, IN THE DOM AND NOT JUST IN THE STYLESHEET.
-  // Scoping every rule to body.board-v2 makes the CSS inert, but the nodes this
-  // file INSERTS survive the class going away, and one of them matters: the
-  // rail adopts #board-aside, which index.html deliberately keeps at BODY level
-  // because #game-area carries a perspective transform and would otherwise
-  // become the containing block for anything position:fixed inside it. Leaving
-  // the aside parented to the rail would quietly misplace it on the shipping
-  // board. So the aside goes home and everything this file added is removed.
+  // Nodes this file INSERTS survive the class going away. The rail adopts
+  // #board-aside, which index.html keeps at BODY level because #game-area's
+  // perspective transform would become the containing block for anything
+  // position:fixed inside it. So the aside goes home and every added node is removed.
   teardown() {
     try {
       const aside = document.getElementById('board-aside');
@@ -72,22 +61,20 @@ const BoardV2 = {
           else home.parent.appendChild(box);
         });
       }
-      // THE HAND AND TRICKS GO HOME BEFORE ANYTHING IS REMOVED. They live
-      // inside #bv2-handrow while V2 is on, and the sweep below deletes every
-      // bv2- node — with the hand still inside it, turning the redesign off
-      // would delete the shipping board's hand. Restored in reverse document
-      // order so each one's recorded next sibling is already back in place.
+      // THE HAND AND TRICKS GO HOME BEFORE ANYTHING IS REMOVED. They live inside
+      // #bv2-handrow while V2 is on, and the sweep below deletes every bv2- node.
+      // Restored in reverse document order so each recorded next sibling is
+      // already back in place.
       [['_tricksHome', '.tricks-section'], ['_handHome', '.player-hand-section']].forEach(([key, sel]) => {
         const home = this[key], node = document.querySelector(sel);
         if (!node || !home || node.parentNode === home.parent) return;
         if (home.next && home.next.parentNode === home.parent) home.parent.insertBefore(node, home.next);
         else home.parent.appendChild(node);
       });
-      // The slot dimensions are inline custom properties on #board — not a
-      // bv2- node, so the sweep below cannot reach them, and left behind they
-      // would size the shipping board's slots too.
-      // The primary button lives inside a bv2- wrapper; the sweep below would
-      // take the button with it.
+      // The slot dimensions are inline custom properties on #board — not a bv2-
+      // node, so the sweep cannot reach them; left behind they'd size the shipping
+      // board's slots too. The primary button lives inside a bv2- wrapper; the sweep
+      // would take the button with it.
       const _btn = document.getElementById('btn-action');
       if (_btn && this._btnHome && _btn.parentNode && _btn.parentNode.id === 'bv2-btn-glow') {
         const h = this._btnHome;
@@ -130,9 +117,8 @@ const BoardV2 = {
     let mine, title, hint;
     const tt = this._tt();
     if (tt && /^2v2-/.test(ph)) {
-      // 2v2 phase names are seat-keyed ('2v2-p3-cards-tricks'), so the 1v1
-      // reading produced "2V2 P1 CARDS TRICKS" on the panel — the raw slug.
-      // Say whose turn it is by NAME, and whether it is yours.
+      // 2v2 phase names are seat-keyed ('2v2-p3-cards-tricks'); say whose turn it
+      // is by NAME, and whether it is yours, instead of the raw slug.
       const m = ph.match(/^2v2-(p[1-4])-(.+)$/);
       const seat = m && m[1];
       const kind = (m && m[2]) || '';
@@ -164,38 +150,26 @@ const BoardV2 = {
       (hint ? '<div class="bv2-phase-hint">' + hint + '</div>' : '');
   },
 
-  // THE SEAT PLATE, BUILT LIKE THE REFERENCE.
-  // Left cluster is [tag] [name over its own health bar] [HP] [TRICKS n/8].
-  // That means the health bar has to live INSIDE the plate, under the name —
-  // in the shipping bar it is a separate full-width cell further along the row.
-  // So the node is MOVED here and put back by teardown(), the same contract the
-  // rail uses for #board-aside. Moving beats rebuilding: #player-hp-fill and
-  // #ai-hp-fill are written to by name from ui.js and the FX layer, so a copy
-  // would go stale the first time either took damage.
+  // THE SEAT PLATE: [tag] [name over its own health bar] [HP] [TRICKS n/8].
+  // The health bar lives INSIDE the plate, so the node is MOVED here and put back
+  // by teardown() (same contract as #board-aside). Moving beats rebuilding:
+  // #player-hp-fill / #ai-hp-fill are written by id from ui.js and the FX layer,
+  // so a copy would go stale on the first hit.
   // ===================== 2v2 AWARENESS =====================
-  // A SIDE IS A TEAM. Everything the redesign prints on a band — the name, the
-  // HP, the hand count, the trick count — is a per-PLAYER fact in 1v1 and a
-  // per-TEAM or per-SEAT fact in 2v2, and s.player / s.ai are combat proxies
-  // that carry neither. These three answer it once so no panel guesses.
+  // A SIDE IS A TEAM. Name, HP, hand count and trick count are per-PLAYER facts
+  // in 1v1 and per-TEAM or per-SEAT in 2v2, and s.player / s.ai are combat
+  // proxies that carry neither. These three answer it once so no panel guesses.
   _tt() { const s = (typeof Game !== 'undefined' && Game.state) || null; return (s && s.twoVTwo && s.twoVTwo.players) ? s.twoVTwo : null; },
   // WHICH TEAM IS ON THIS BAR — FROM THE CHAIR OF WHOEVER IS LOOKING.
   //
   // 'player' and 'ai' name the BOTTOM and TOP bar. Game._2v2TeamSide is the
-  // engine's fixed A->player / B->ai map, which is the right answer for the
-  // ENGINE and the wrong one for a screen: it made the bottom bar always
-  // Team A, so every player on Team B saw their own team on top and the enemy
-  // on the bottom, under their own health bar. (Owner: "so im fd and cortex is
-  // my teammate — my healthbar should be switched.")
+  // engine's fixed A->player / B->ai map — right for the ENGINE, wrong for a
+  // screen: Team B would see their own team on top. And _render2v2OnlineBoard
+  // writes the VIEWER's team health into #player-health, which this plate adopts.
   //
-  // Worse than merely swapped: _render2v2OnlineBoard writes the VIEWER's team
-  // health into #player-health, which this plate adopts, so the bottom bar
-  // carried the enemy's names with your own HP bar inside them.
-  //
-  // Bottom is always MINE. Same rule the dead pile already follows
-  // (_deadPileSideForBar in ui.js) — resolve the bar to a side through the
-  // viewer, never through the engine's map. Online that is the fixed seat; in
-  // pass-and-play it is whoever is on the clock, because that is who is looking
-  // at the screen. With no seat to go on, fall back to the engine's map.
+  // Bottom is always MINE. Same rule as _deadPileSideForBar in ui.js — resolve
+  // through the viewer, never the engine's map. Online that is the fixed seat;
+  // in pass-and-play whoever is on the clock. With no seat, fall back to the map.
   _teamOf(side) {
     const map = (typeof Game !== 'undefined' && Game._2v2TeamSide) || { A: 'player', B: 'ai' };
     const tt = this._tt();
@@ -255,37 +229,18 @@ const BoardV2 = {
       }
       // NEVER REBUILD THIS PLATE WITH innerHTML.
       //
-      // The plate ADOPTS the live .health-container below — the real node, with
-      // #player-health / #player-hp-fill inside it, moved out of the band. So a
-      // wholesale innerHTML rewrite on the next render did not just repaint the
-      // plate, it DELETED those elements from the document. And the signature
-      // that gated the rewrite included the health, so it fired precisely when
-      // someone took damage. After that `bar.querySelector('.health-container')`
-      // found nothing and it could never be re-parked.
-      //
-      // What that cost: the 2v2 renderer writes
-      // `getElementById('player-health').textContent` with no guard, so the very
-      // next 2v2 render threw — and _render2v2OnlineBoard is not wrapped in
-      // _safe, so the throw took the whole rest of the frame with it: the
-      // block-trick modal, the jump offer, the Time Stone intercept, the FX
-      // drain. A blocked player's free trick was armed and never drawn until
-      // some later frame survived. (Owner: "EVERY TIME OUR TEAM BLOCKS MY
-      // TEAMMATE GETS A TRICK TO PLAY AND I DONT, IT SHOWS UP ON MY NEXT TURN".)
+      // The plate ADOPTS the live .health-container (with #player-health /
+      // #player-hp-fill inside). An innerHTML rewrite DELETES those elements; the
+      // 2v2 renderer then writes getElementById('player-health') unguarded and
+      // throws, and _render2v2OnlineBoard is not wrapped in _safe, so the rest of
+      // the frame (block-trick modal, jump offer, Time Stone intercept, FX drain)
+      // never draws.
       //
       // Build the skeleton once, then write text into stable nodes. The adopted
       // health bar sits inside .bv2-id and is never touched again.
       if (!plate.firstChild) {
-        // THE HP NUMBER SITS ON THE NAME'S LINE, AND THE BAR RUNS UNDER BOTH.
-        //
-        // It used to be a third column beside the name, with the health bar
-        // tucked under the name alone — so the bar measured something narrower
-        // than the thing it belonged to, and the number floated off to one side
-        // of it. In the reference the identity is one block: name and HP on one
-        // row, the bar spanning the full width of that row beneath them.
-        // (Owner, pointing at the reference: "the you, the phase, opponent, the
-        // health bar, HP number, the subtle gradient — can we move to the
-        // screenshot redesign.")
-        //
+        // THE HP NUMBER SITS ON THE NAME'S LINE, AND THE BAR RUNS UNDER BOTH — the
+        // identity is one block, name and HP on one row, the bar spanning it beneath.
         // .bv2-id is still the health bar's home, so the adoption below drops it
         // in as the second row without needing to know any of this.
         plate.innerHTML =
@@ -297,9 +252,8 @@ const BoardV2 = {
             '</span>' +
           '</span>';
       }
-      // The LETTERS live in their own node now. This used to write
-      // .textContent straight onto .bv2-tag, which would wipe the face layers
-      // added beside them on the very next render.
+      // The LETTERS live in their own node: writing .textContent onto .bv2-tag
+      // would wipe the face layers beside them on the next render.
       const _tagEl  = plate.querySelector('.bv2-tag-txt');
       const _nameEl = plate.querySelector('.bv2-name');
       const _hpEl   = plate.querySelector('.bv2-hpn');
@@ -321,22 +275,10 @@ const BoardV2 = {
   },
 
   // "HAND 5 / 7" over the hand, "TRICKS 2 / 3" over the tricks — both counts
-  // AND both limits straight off the same objects the engine enforces against.
-  //
-  // The hand read `Game.HAND_LIMIT || 8`, and Game.HAND_LIMIT does not exist —
-  // it never has, anywhere in the codebase — so the caption was always printing
-  // the literal 8 while the rule the engine actually applies is `maxHandSize`,
-  // which is 7. The one case where 8 is right (Mobius Chair and Eye of Agamotto
-  // each raise that seat's cap by one) was the one case it could not show,
-  // because a constant cannot know. (Owner: "the hand should say n/7 and the
-  // tricks should say n/3, n being how many you have currently.")
-  //
-  // The trick caption printed "2 held" and named no limit at all, so the cap
-  // that actually stops you keeping a block reward was invisible.
-  //
-  // Both now read the live value: 7 and 3 normally, 8 the moment a card raises
-  // it, and a hand over its cap (an MC Ballyhoo candy is allowed past 3 on
-  // purpose) reads honestly as 4 / 3 rather than being hidden.
+  // AND both limits read live off the same objects the engine enforces against.
+  // The hand cap is `maxHandSize` (7; Game.HAND_LIMIT does not exist). Mobius
+  // Chair / Eye of Agamotto raise it to 8, and a hand over its cap (an MC
+  // Ballyhoo candy may pass 3 on purpose) reads honestly as 4 / 3.
   _handCapOf(seat, side) {
     const holder = seat || side;
     return (holder && holder.maxHandSize) || 7;
@@ -378,28 +320,15 @@ const BoardV2 = {
     }
   },
 
-  // NO INJECTED LANE CHIP. The separator already contains a `.lane-number`
-  // element that ui.js maintains, so adding a second one produced the doubled
-  // digits on the board. board-v2.css styles the real one to the spec's 22px
-  // chamfered square instead — fewer nodes, and the number stays whatever the
-  // engine says it is.
+  // NO INJECTED LANE CHIP. The separator already has a `.lane-number` that ui.js
+  // maintains (a second one doubles the digits); board-v2.css styles the real one
+  // to the spec's 22px chamfered square instead.
 
-  // TRICKS BELONG BESIDE THE HAND, NOT IN A COLUMN OF THEIR OWN.
-  //
-  // V2 put .tricks-section in the right rail, so the two cards you can actually
-  // play sat 1330px away from the five you were choosing between — at the top of
-  // the screen, level with the enemy's board, while your hand was at the bottom.
-  // The shipping board settled this a while ago and the reasoning still holds:
-  // "have the tricks next to the cards, just at the end." A trick is something
-  // you play on your turn; it reads with the hand or it reads as chrome.
-  // (Owner, on the redesign: "can you place the tricks down like the classic
-  // board.")
-  //
-  // Done the way classic does it — one row holding both, centred as a group, so
-  // the tricks land immediately after the last hand card at every hand size.
-  // The nodes are MOVED and put back by teardown(), the same contract the aside
-  // and the turn tracker already use, because teardown removes every bv2- node
-  // and would otherwise take the hand with it.
+  // TRICKS BELONG BESIDE THE HAND, NOT IN A COLUMN OF THEIR OWN — a trick is
+  // played on your turn, so it reads with the hand. Done the way classic does it:
+  // one row holding both, centred as a group, so the tricks land right after the
+  // last hand card at every hand size. The nodes are MOVED and put back by
+  // teardown(), because teardown removes every bv2- node and would take the hand.
   _ensureHandRow() {
     const ga = document.getElementById('game-area');
     if (!ga) return;
@@ -413,18 +342,12 @@ const BoardV2 = {
     if (tricks.parentNode !== row) row.appendChild(tricks);
   },
 
-  // THE PRIMARY BUTTON'S GLOW WAS BEING CLIPPED OFF THE BUTTON.
+  // THE PRIMARY BUTTON'S GLOW NEEDS AN UNCLIPPED WRAPPER.
   //
-  // #btn-action carries BOTH the chamfer clip-path and the three-stop
-  // drop-shadow. clip-path is applied AFTER filter, so every pixel of that
-  // bloom that fell outside the chamfer — which is all of it, a glow being
-  // entirely outside the shape — was cut away. The button had the right glow
-  // and showed none of it.
-  //
-  // The fix is the one the spec names: the filter goes on a WRAPPER that is
-  // not clipped, and the clipped element sits inside it. Wrapping is safe here
-  // because the click handler is on the button itself, so it travels with the
-  // node.
+  // clip-path is applied AFTER filter, so a drop-shadow on the chamfer-clipped
+  // #btn-action is cut away entirely. The filter goes on a WRAPPER that is not
+  // clipped, with the clipped element inside. Safe because the click handler is
+  // on the button itself, so it travels with the node.
   _ensureButtonGlow() {
     const btn = document.getElementById('btn-action');
     if (!btn) return;
@@ -435,10 +358,9 @@ const BoardV2 = {
       wrap.className = 'bv2-btn-glow';
     }
     if (!wrap.querySelector('.bv2-btn-face')) {
-      // Three stacked clipped shapes, not a shadow: tube, core, fill. They are
-      // SIBLINGS of the button rather than pseudo-elements on it, because
-      // ui.js rewrites the button's label and a pseudo cannot carry a third
-      // layer anyway.
+      // Three stacked clipped shapes, not a shadow: tube, core, fill. SIBLINGS of
+      // the button rather than pseudo-elements, because ui.js rewrites the button's
+      // label and a pseudo cannot carry a third layer anyway.
       const face = document.createElement('i');
       face.className = 'bv2-btn-face';
       face.innerHTML = '<i class="bv2-btn-tube"></i><i class="bv2-btn-core"></i><i class="bv2-btn-fill"></i>';
@@ -460,31 +382,21 @@ const BoardV2 = {
     const ga = document.getElementById('game-area');
     if (!ga) return;
     const left = this._el('bv2-rail-left', 'bv2-rail bv2-rail-left', ga);
-    // The right rail used to BE the trick column — the notice feed was parented
-    // to .tricks-section and inherited its place in the grid. With the tricks
-    // gone to the hand row it needs a column of its own, or the feed (and every
-    // prompt that docks in it) travels down there with them.
+    // With the tricks in the hand row, the notice feed needs a column of its own,
+    // or the feed (and every prompt docked in it) travels down there with them.
     this._el('bv2-rail-right', 'bv2-rail bv2-rail-right', ga);
-    // The existing aside already carries the reference's "if combat resolves
-    // now" block and the last log lines — reuse it rather than building a
-    // second one that could disagree with it.
-    // THE ASIDE IS PAINTED BY THE 1v1 TAIL, WHICH 2v2 NEVER REACHES. Without it
-    // the rail in a 2v2 match held the phase panel and nothing else — a 180px
-    // column of black beside the board, missing both the combat forecast and
-    // the log.
-    //
-    // It has to be painted EVERY 2v2 render, not just when the node is absent.
-    // renderBoardAside hides itself on any phase that is not a live turn and
-    // returns early while hidden, so a one-shot bootstrap that happened to run
-    // during setup left it hidden forever — the node existed, empty, and
-    // nothing ever came back to fill it.
+    // The existing aside already carries the "if combat resolves now" block and the
+    // last log lines — reuse it rather than build a second that could disagree.
+    // THE ASIDE IS PAINTED BY THE 1v1 TAIL, WHICH 2v2 NEVER REACHES, so paint it
+    // here EVERY 2v2 render: renderBoardAside hides itself on non-turn phases and
+    // returns early while hidden, so a one-shot bootstrap during setup would leave
+    // it hidden forever.
     if (this._tt() && typeof UI !== 'undefined' && UI.renderBoardAside) {
       try { UI.renderBoardAside(Game.state); } catch (e) {}
     }
-    // THE TURN-ORDER TRACKER is position:fixed on <body>, so in the redesign it
-    // sat on top of the trick rail and the hand. It belongs in the column that
-    // already answers "what is happening" — moved, not copied, so the 2v2
-    // renderer keeps updating the same node.
+    // THE TURN-ORDER TRACKER is position:fixed on <body>, so it would sit on top of
+    // the trick rail and the hand. It goes in the "what is happening" column —
+    // moved, not copied, so the 2v2 renderer keeps updating the same node.
     const tracker = document.getElementById('twov2-turn-tracker');
     if (tracker && tracker.parentNode !== left) {
       if (!this._trackerHome) this._trackerHome = { parent: tracker.parentNode, next: tracker.nextSibling };
@@ -498,13 +410,9 @@ const BoardV2 = {
     }
   },
 
-  // The two band pieces the spec calls for that the shipping bar has no
-  // element for: the hand STACK's count, and the turn flag.
-  //   "hand stack (three overlapping 30 x 40 chamfered backs plus a count —
-  //    not N loose backs) ... YOUR TURN in green, then the primary button"
-  // The backs themselves are the existing #ai-hand children, overlapped and
-  // trimmed to three by CSS; only the count needs a node, because the real
-  // hand size is not otherwise printed anywhere on that band.
+  // The two band pieces the shipping bar has no element for: the hand STACK's
+  // count, and the turn flag. The backs are the existing #ai-hand children,
+  // overlapped and trimmed to three by CSS; only the count needs a node.
   _renderBandExtras(s) {
     const ah = document.getElementById('ai-hand');
     if (ah && ah.parentNode) {
@@ -513,22 +421,16 @@ const BoardV2 = {
       if (ah.nextSibling !== cnt) ah.parentNode.insertBefore(cnt, ah.nextSibling);
       if (cnt.textContent !== String(n)) cnt.textContent = String(n);
     }
-    // THE TURN FLAG IS GONE. "YOUR TURN" in the band said what the phase panel
-    // in zone 1 already says in larger type two inches away, and what the
-    // primary button says a third time by being lit — three answers to one
-    // question, in one glance. (Owner: "get rid of your turn.")
-    // Any flag left over from a previous render is removed here rather than in
-    // teardown, because the band it was parked on is not a bv2- node.
+    // NO TURN FLAG — the phase panel and the lit primary button already say it.
+    // A leftover flag is removed here rather than in teardown, because the band it
+    // was parked on is not a bv2- node.
     const _old = document.getElementById('bv2-turnflag');
     if (_old) _old.remove();
   },
 
-  // THE ROSTER FAN BECOMES A NUMBER. 2v2 prints one small rectangle per card
-  // each player holds, four players at up to ten cards, inside a band that also
-  // has to carry the seat plate and the primary button — so the button was
-  // being squeezed to fit a picture of a hand size. The count is the
-  // information; the fan was the decoration. Read off the same spans the
-  // renderer just built, so it cannot disagree with them.
+  // THE ROSTER FAN BECOMES A NUMBER. 2v2's one-rectangle-per-card fan (four
+  // players, up to ten cards) squeezes the primary button; the count is the
+  // information. Read off the spans the renderer just built, so it can't disagree.
   _slim2v2Roster() {
     if (!this._tt()) return;
     document.querySelectorAll('.twov2-roster-strip .rc-chip .rc-hand').forEach((h) => {
@@ -543,12 +445,9 @@ const BoardV2 = {
     });
   },
 
-  // BOARD-SPEC FIX 3, second half: "No minus sign. The arrow carries direction
-  // and the colour carries who is dealing; `-3` on top of a down-arrow says the
-  // same thing twice and reads as a negative number."
-  // The engine writes the signed figure; the arrow is added in CSS. So the sign
-  // is stripped for DISPLAY only — the element's own text is what changes, never
-  // the value the engine computed.
+  // No minus sign: the arrow (CSS) carries direction and the colour carries who
+  // is dealing; `-3` on a down-arrow says it twice. The sign is stripped for
+  // DISPLAY only — the element's text changes, never the engine's value.
   _stripForecastSigns() {
     const cells = document.querySelectorAll('#lane-forecast-strip .lf-face');
     cells.forEach(el => {
@@ -558,55 +457,34 @@ const BoardV2 = {
     });
   },
 
-  // FILL THE RAIL'S LOG. renderBoardAside prints the last three lines, which is
-  // right for a floating panel and leaves ~300px of black in a full-height rail.
-  // This repopulates that block with as many lines as the column can show —
-  // measured from its own height, not a guessed count — using the same markup
-  // and classes the aside already uses, so nothing about its styling changes.
-  // Runs AFTER renderBoardAside (BoardV2 is last in the render tail), so it is
-  // rewriting a block that has already been built for this frame.
-  // RETIRED. The left rail used to print its own copy of the last few log
-  // lines; the right rail carries the whole log now (see _paintNotices), and
-  // two panels quoting the same array is the duplication the notice feed was
-  // removed for. renderBoardAside still BUILDS that node — it is the shipping
-  // board's panel and is shared — so board-v2.css hides it rather than this
-  // file deleting it, which keeps that renderer free of a board-v2 special
-  // case. Kept as a no-op so the render tail needs no conditional.
+  // RETIRED. The right rail carries the whole log (see _paintNotices), so the
+  // left rail no longer prints its own copy. renderBoardAside still BUILDS that
+  // node (it is shared with the shipping board), so board-v2.css hides it rather
+  // than this file special-casing that renderer. Kept as a no-op so the render
+  // tail needs no conditional.
   _fillRailLog(s) { return; },
 
-  // Every internal proportion of a card face derives from --card-w. Board V2
-  // sizes the board card with `width: 100%` so it fills its slot, which left
-  // --card-w as the literal string `100%` — and `calc(100% * k)` in a
-  // font-size context resolves against the PARENT font size, not the card. So
-  // the cost numeral computed to 1.37px on board against 8.38px in hand: the
-  // ribbon was drawn, the number inside it was a rounding error tall.
-  //
-  // The slot's width is set by the lane and its own height cap, never by the
-  // card, so measuring it and handing the length back down is not a loop.
+  // Every internal proportion of a card face derives from --card-w. V2 sizes the
+  // board card `width: 100%`, which would leave --card-w as the string `100%`, and
+  // `calc(100% * k)` in font-size resolves against the PARENT font size. The
+  // slot's width is set by the lane and its height cap, never by the card, so
+  // measuring it and handing the length back down is not a loop.
   // THE SLOT IS A CARD-SHAPED HOLE, AT EVERY WINDOW SIZE.
   //
-  // A card renders at a fixed 130 x 257 (measured 1.977, and the hand card holds
-  // it to three decimals at every size). The board slot had no ratio at all —
-  // `aspect-ratio: auto; flex: 1 1 0` — so its WIDTH came from the lane column
-  // and its HEIGHT came from whatever vertical space the grid had left over.
-  // Two independent axes, so the shape moved with the window: measured 2.62 at
-  // 1200x1000, 2.07 at 1278x932, and 0.81 at 1920x780 — where the card came out
-  // 221 wide by 169 tall, LANDSCAPE, because `max-height: 100%` then squashed it
-  // into the hole. (Owner: "the board gets wider but the lanes shrink and change
-  // aspect ratio, that shouldnt happen — this is the aspect ratio i want all
-  // game.")
+  // A card renders at a fixed 130 x 257 (1.977). Without a ratio, slot WIDTH
+  // comes from the lane column and HEIGHT from leftover grid space, so the shape
+  // changes with the window (even going landscape). The aspect ratio must hold
+  // for the whole game.
   //
   // CSS cannot fix this alone: fitting a fixed-ratio box inside a box whose two
-  // dimensions come from a grid `1fr` needs both of those dimensions, and a
-  // pure aspect-ratio version collapses (tried — the lane shrink-wraps a slot
-  // whose width depends on the lane, and the slot came out 66 x 225). So the two
-  // numbers are measured here, once per render, and published for the CSS.
+  // dimensions come from a grid `1fr` needs both dimensions, and a pure
+  // aspect-ratio version collapses (the lane shrink-wraps a slot whose width
+  // depends on the lane). So both numbers are measured once per render and
+  // published for the CSS.
   //
-  // Whichever axis is tighter wins, exactly like the --u scale unit does for the
-  // rest of the design: the card is as large as it can be without ever changing
-  // shape. Spare height on a tall window goes into bigger cards; a short window
-  // narrows the lanes and leaves gutters, which is what the shipping board has
-  // always done (measured there: a 932-wide board in a 1920 window, card 1.978).
+  // Whichever axis is tighter wins, like the --u scale unit: the card is as large
+  // as it can be without changing shape. A short window narrows the lanes and
+  // leaves gutters, as the shipping board always has.
   _CARD_RATIO: 257 / 130,
   _sizeBoardCards() {
     const root = document.getElementById('board');
@@ -641,22 +519,12 @@ const BoardV2 = {
   },
 
   // ===========================================================================
-  // BOX 2 - DECISIONS, in the left rail under the log.
-  // Every card that asks you something (Paul Atreides, Spider-Man, Dr. Strange)
-  // raises the same `#prompt-banner`: the question, the detail line, the opt-out
-  // button and the 30s countdown. ui.js rebuilds that node every render and
-  // parks it across the top of the screen. Here it is MOVED, not copied - one
-  // node, so every listener ui.js attached comes with it and the countdown
-  // keeps ticking against the same element.
-  // ===========================================================================
   // BOX 2 — EVERY POP-UP LANDS HERE, in the right rail.
   //
-  // The jump offer, the block-trick offer, the Time Stone intercept and the
-  // prompt banner were four separate floating panels dropped over the middle of
-  // the board — the thing you are trying to read while answering them. They now
-  // dock in one column. (Owner: "in the 2 box is where all pop ups happen —
-  // jumps, choose cards. it's no longer in the middle of the screen, it's just
-  // here. all pop ups live there.")
+  // The jump offer, the block-trick offer, the Time Stone intercept, the choice
+  // tray and the prompt banner all dock in one column instead of floating over
+  // the board you're trying to read. They are MOVED, not copied — one node, so
+  // every listener ui.js attached comes along and countdowns keep ticking.
   _renderDecision(s) {
     const rail = document.getElementById('bv2-rail-right')
               || this._el('bv2-rail-right', 'bv2-rail bv2-rail-right', document.getElementById('game-area'));
@@ -673,19 +541,13 @@ const BoardV2 = {
     }
     const body = panel.querySelector('.bv2-dec-body');
     const slot = panel.querySelector('.bv2-dec-slot');
-    // ADOPT THE FLOATERS. Each of these builds itself at body level and places
-    // itself over the board; moving the node (rather than copying it) keeps
-    // every listener and countdown ui.js attached to it. Anything that got
-    // built before this panel existed is pulled in on the next frame.
+    // ADOPT THE FLOATERS. Each builds itself at body level over the board; moving
+    // the node (not copying it) keeps every listener and countdown ui.js attached.
+    // Anything built before this panel existed is pulled in on the next frame.
     if (slot) {
-      // #choice-tray is in this list now. It is the "pick one of these cards"
-      // panel — Gorilla Grodd's mind control, Deathstroke's assassinate,
-      // Deadpool's give-back — and it was a bottom-anchored floating sheet with
-      // a backdrop over the middle of the screen. It is the same kind of thing
-      // as the other three and belongs in the same place. (Owner: "you summon
-      // gorilla grodd, who do you mind control — pop up, the text and
-      // everything lives there.") It is rebuilt from scratch each time it is
-      // raised, so this re-adopts by id on every render rather than once.
+      // #choice-tray ("pick one of these cards" — Grodd, Deathstroke, Deadpool) is
+      // rebuilt from scratch each time it is raised, so this re-adopts by id on
+      // every render rather than once.
       ['jump-offer-modal', 'block-trick-modal', 'time-stone-modal', 'choice-tray'].forEach(function (id) {
         const m = document.getElementById(id);
         if (m && m.parentNode !== slot) slot.appendChild(m);
@@ -694,8 +556,7 @@ const BoardV2 = {
     const banner = document.getElementById('prompt-banner');
     if (banner && banner.parentNode !== body) body.appendChild(banner);
 
-    // The echo of the tray's title is gone with it — the tray itself is in the
-    // slot above now, so repeating its heading here would just say it twice.
+    // No echo of the tray's title — the tray itself is in the slot above.
     const note = body.querySelector('.bv2-dec-echo');
     if (note) note.remove();
 
@@ -706,23 +567,18 @@ const BoardV2 = {
 
   // ===========================================================================
   // BOX 1 - NOTICES, in the right rail under the tricks.
-  // "Opponent played a Trick" was a corner toast that appeared, held 4s and
-  // vanished, so the answer to "what just happened?" was gone by the time you
-  // looked. In V2 the toast IS this feed: the corner popup is suppressed and
-  // every announcement lands here as a line that stays.
-  // The full-screen trick REVEAL is a different thing - a cinematic, not a
-  // notice - and is left alone; it logs a line here as it plays.
+  // In V2 the corner toast is suppressed and every announcement lands in the log
+  // as a line that stays. The full-screen trick REVEAL is a cinematic, not a
+  // notice, and is left alone; it logs a line as it plays.
   // ===========================================================================
   _NOTICE_MAX: 8,
   // Kept as a sink so every existing caller (and the toast hook below) still
-  // has somewhere to go — the announcement itself already reaches the log,
-  // which is now the only place it needs to be.
+  // has somewhere to go — the announcement already reaches the log.
   notice(label, name, desc) { return; },
-  // The feed is on the singleton, so it outlives a match unless something
-  // drops it. There is no per-match id to key off — `_leaderboardMatchId` is
-  // null in solo, the state object is REUSED across matches, and the log is
-  // not truncated either, so every passive signal reads "same match". The one
-  // unambiguous event is the call that starts one.
+  // The feed is on the singleton, so it outlives a match unless dropped. No
+  // passive signal distinguishes matches (`_leaderboardMatchId` is null in solo,
+  // state is REUSED, the log isn't truncated); the one unambiguous event is the
+  // call that starts one.
   _clearNotices() {
     this._notices = [];
     const list = document.querySelector('#bv2-notices .bv2-note-list');
@@ -730,15 +586,8 @@ const BoardV2 = {
     const panel = document.getElementById('bv2-notices');
     if (panel) panel.classList.remove('is-live');
   },
-  // THE NOTICE FEED IS GONE — THE LOG IS THE RUNNING COMMENTARY.
-  //
-  // It was a second, shorter history sitting beside the real one, saying the
-  // same things in fewer words ("AI PLAYED A TRICK / Power Stone") while the
-  // log two panels away already had the line. Two feeds competing to be the
-  // answer to "what just happened". (Owner: "get rid of notices bar all
-  // together, that's where the log will be.")
-  //
-  // The rail's log is the full battle log through the viewer filter, newest
+  // THE LOG IS THE RUNNING COMMENTARY — no separate notice feed competing with
+  // it. The rail's log is the full battle log through the viewer filter, newest
   // first, filling whatever height Box 2 is not using.
   _paintNotices() {
     const rail = document.getElementById('bv2-rail-right');
@@ -751,28 +600,17 @@ const BoardV2 = {
         '<span class="bv2-cap-line"></span></div><div class="bv2-log-list"></div>';
     }
     const list = panel.querySelector('.bv2-log-list');
-    // THE LOG STARTS AT THE MATCH, NOT AT THE DRAFT.
-    //
-    // Every draft pick, the "draft complete" line, the round-1 banner and the
-    // event roll sat at the bottom of this panel forever — a fixed block of
-    // setup that never changes and that pushes the lines you are actually
-    // reading up and out. (Owner, X-ing that block out: "get rid of ... the
-    // event bottom right.") They are still in the full drawer, which is where
-    // a record belongs; the rail is for what is happening.
+    // THE LOG STARTS AT THE MATCH, NOT AT THE DRAFT. Draft picks, "draft
+    // complete", the round-1 banner and the event roll stay in the full drawer;
+    // the rail is for what is happening now.
     const _setup = /^\s*\[(DRAFT|EVENT)\]|^\s*---\s*Round 1\s*---/;
     const lines = ((typeof UI !== 'undefined' && UI.readableLog)
       ? UI.readableLog(Game.state && Game.state.log)
       : ((Game.state && Game.state.log) || [])
     ).filter(l => !_setup.test(String(l)));
-    // START GENEROUS, LET THE MEASURE CUT BACK.
-    //
-    // This used to estimate how many lines would fit and take exactly that many
-    // — and the estimate is a guess, because a line is one row or three
-    // depending on where it wraps. Guessing low meant the panel rendered fewer
-    // lines than it had room for and stopped partway down, leaving the bottom
-    // of the box empty. (Owner: "the log can go to the bottom of the box.")
-    // The trim below only ever REMOVES, so the fix is to hand it more than can
-    // fit and let the measurement decide. 60 is a ceiling, not a target.
+    // START GENEROUS, LET THE MEASURE CUT BACK. Line count can't be estimated (a
+    // line wraps to one row or three), and the trim below only ever REMOVES — so
+    // hand it more than can fit. 60 is a ceiling, not a target.
     const want = lines.slice(-60).reverse();
     const sig = want.length + '|' + (want[0] || '');
     if (list.dataset.sig === sig) return;
@@ -781,18 +619,10 @@ const BoardV2 = {
     list.innerHTML = want.map(function (t, i) {
       return '<div class="bv2-log-line' + (i === 0 ? ' is-latest' : '') + '">' + esc(t) + '</div>';
     }).join('');
-    // TRIM TO WHOLE LINES — THE ZONE DOES NOT BLEED.
-    //
-    // How many lines fit cannot be calculated: a log line is one row or three
-    // depending on how its text wraps at this width, so the estimate above
-    // (room / lineHeight) is only ever a starting guess. Left at the guess the
-    // panel rendered more than it could show and overflow:hidden chopped the
-    // last one mid-sentence at the zone's edge. (Owner: "the log is way too
-    // long, it cuts off at the line — remember 4 zones, no bleed.")
-    //
-    // So it is MEASURED instead: drop the oldest line until the content fits
-    // its box. Newest is first, so removing from the end always removes the
-    // least interesting one, and the panel ends on a complete line.
+    // TRIM TO WHOLE LINES — THE ZONE DOES NOT BLEED. Drop the oldest line until
+    // the content fits its box (overflow:hidden would chop the last one
+    // mid-sentence). Newest is first, so removing from the end removes the least
+    // interesting one and the panel ends on a complete line.
     var guard = 0;
     while (list.children.length > 1 && list.scrollHeight > list.clientHeight && guard++ < 200) {
       list.removeChild(list.lastElementChild);
@@ -873,9 +703,8 @@ const BoardV2 = {
 };
 if (typeof window !== 'undefined') {
   window.BoardV2 = BoardV2;
-  // A window drag changes both of the numbers the slot is sized from and does
-  // not necessarily re-render the board, so the slot would keep the shape it
-  // had at the old size until something else happened to repaint.
+  // A window drag changes both numbers the slot is sized from without
+  // necessarily re-rendering the board, so re-measure on resize.
   window.addEventListener('resize', () => {
     if (!BoardV2.enabled()) return;
     BoardV2._slotW = null;                    // force the recompute

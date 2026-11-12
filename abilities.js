@@ -3,32 +3,14 @@
 // Keyed by card name; merged into CARD_DEFS at load time.
 // ============================================================
 
-// AI target picker — picks the highest-threat card from a list.
-// Used as the `aiPicker` callback for damage / destroy / control
-// abilities (Ant-Man's destroy, Bane's debuff, Gamora's execute, etc.)
-// so the AI removes the most impactful threat instead of just the
-// most expensive or highest-ATK one. Threat score factors in armor /
-// evade / invincibility / strategic value (a 4/8 with Armor 2 is
-// worth more to remove than a 7/4 glass cannon).
-//
-// Falls back to a cost+ATK approximation when the AI module isn't
-// loaded yet (defensive — abilities.js loads before ai.js, but the
-// callback only runs at game-time when AI is available).
-// THE ENEMY WORTH REMOVING IS THE ONE THAT IS ABOUT TO DO SOMETHING.
-//
-// AI.threatScore reads a card's own keywords and attack — it never looks at the
-// board, so it cannot tell a swing that kills one of my bodies from one that
-// bounces off an invincible blocker. Both scored the same, and Deathstroke's
-// assassinate took the bigger nameplate: it killed a Wolverine that was already
-// walled off by our own Droideka, while a Joker on the point of killing our
-// Captain America stood untouched. (Owner: "my teammate decided to have the
-// deathstroke kill the enemy wolverine, who had an invincible battle droid in
-// front so he couldn't overdrive — if my teammate kills the joker, my captain
-// america survives and we have energy reduction next round, which is massive.")
-//
-// Game.threatOf is the board-aware one and is already what the trick pickers
-// use; routing this through it makes every ability that shares this picker ask
-// the same question at once. The keyword-only sort stays as the fallback.
+// AI target picker — `aiPicker` callback for damage / destroy / control
+// abilities, so the AI removes the most impactful threat rather than the
+// most expensive or highest-ATK card.
+// Routes through Game.pickBiggestThreat (board-aware: an enemy about to kill
+// one of ours outranks one already walled off by an invincible blocker), the
+// same question the trick pickers ask. AI.threatScore reads only a card's own
+// keywords and attack, so it is the fallback; cost+ATK covers AI not loaded
+// (abilities.js loads before ai.js).
 const _aiThreatPicker = (cards) => {
   if (!cards || !cards.length) return null;
   if (typeof Game !== 'undefined' && Game.pickBiggestThreat && cards[0] && cards[0].owner) {
@@ -66,40 +48,24 @@ const _aiKillPicker = (cards, damage) => {
 // ============================================================
 // HABITAT -> MONSTER, ONCE
 // ============================================================
-// Boiler Room births Freddy, Sewers births Pennywise, Open Water births Jaws,
-// Wetlands births Spinosaurus and the Enclosure lets out the T-Rex. All five do
-// the SAME five things in the same order, and the first four each carry their
-// own ~70-line copy of it — which is how three of them independently acquired
-// the same three bug fixes (clear a corpse before summoning, re-check the ally
-// on prompt resolve, never stamp the monster's stats onto a summon that bailed)
-// and one of them acquired only two.
-//
-// This is that sequence written once. The Enclosure is the only caller today —
-// the other four are working, tested code and are deliberately NOT rewritten in
-// the same change that introduces the helper. They are the obvious next
-// migration, one card at a time, each against the golden suite.
+// Boiler Room → Freddy, Sewers → Pennywise, Open Water → Jaws, Wetlands →
+// Spinosaurus, Enclosure → T-Rex all run the same sequence. Only the Enclosure
+// uses this helper; the other four keep their own copies and are the next
+// migration, one card at a time, against the golden suite.
 //
 //   1. hand the lane back — every habitat is REPLACED by what it births
-//      (Wetlands was the one exception until the shared environment clock made
-//      "how long does it last" a board-wide rule)
 //   2. get the ally in the lane out of the way, or absorb it
 //   3. clear a corpse the death machinery has not swept yet
 //   4. summon, and verify something actually landed before touching its stats
 //   5. announce
 function releaseHabitatMonster(G, o) {
   const owner = o.owner;
-  // WHICH SIDE THE MONSTER JOINS IS NOT THE SIDE THAT OWNS THE HABITAT.
-  // For four of the five it is the same thing — Jaws, Pennywise, Freddy and
-  // Spinosaurus all surface for whoever put the habitat down. The Enclosure is
-  // the exception on purpose: it is a toll, not a nursery, so the thing that
-  // gets out is the OPPONENT's problem.
-  // READ FROM THE CARD, not passed in. The lane backdrop paints an
-  // environment's picture on the half its monster lands on, so the direction
-  // has to be one declaration both of them read — actsOnOpponentSide on the
-  // def — rather than an `into` argument here that the renderer would have to
-  // duplicate by name. `into` is still honoured for a caller that genuinely
-  // needs to override it; everything else in here still belongs to `owner`,
-  // including the env slot being handed back.
+  // The monster's side is not always the habitat owner's: Jaws, Pennywise,
+  // Freddy and Spinosaurus join the owner, the Enclosure (a toll) releases
+  // onto the OPPONENT's side. Read from the def (actsOnOpponentSide), not
+  // passed in, because the lane backdrop paints on the same half and must
+  // read the same declaration. `into` still overrides; everything else here,
+  // including the env slot handed back, belongs to `owner`.
   const side = o.into
     || ((o.habitat && o.habitat.actsOnOpponentSide) ? G.opponent(owner) : owner);
   const laneIdx = o.laneIdx;
@@ -112,23 +78,19 @@ function releaseHabitatMonster(G, o) {
   const def = (typeof CARD_DEFS !== 'undefined')
     ? CARD_DEFS.find(d => d.name === o.name) : null;
   // The card that has to make room is the one on the MONSTER's side of the
-  // lane, which is what "an ally in that lane" means from the monster's point
-  // of view — the same reading for all five, whichever side that turns out
-  // to be.
+  // lane.
   const allyInLane = lane[side];
 
   const finishSpawn = (atk, hp) => {
     // A DEAD OCCUPANT STILL HOLDS THE SLOT. handleDeath defers clearing to
-    // cleanupDead, and can merely QUEUE the death while another is resolving,
-    // so the absorbed card is often still standing here — and summonCard bails
-    // on an occupied lane. Sewers and Wetlands both hit this before it was
-    // understood.
+    // cleanupDead (and may only queue the death), and summonCard bails on an
+    // occupied lane.
     if (lane[side] && lane[side].currentHealth <= 0) lane[side] = null;
     const before = G.state.lanes[laneIdx][side];
     G.summonCard(side, laneIdx, o.name, o.cost || 0, atk, hp, o.abilities || [], def);
     const born = G.state.lanes[laneIdx][side];
-    // VERIFY BEFORE STAMPING. Writing the monster's stats unconditionally is how
-    // Sewers once handed Pennywise's numbers to whatever card was already there.
+    // VERIFY BEFORE STAMPING: never write the monster's stats onto a card
+    // that was already there.
     if (!born || born === before || born.name !== o.name) {
       G.log(`  [${tag}] ${o.name} can't take lane ${laneIdx + 1} — it is still occupied.`);
       return;
@@ -161,14 +123,9 @@ function releaseHabitatMonster(G, o) {
             return;
           }
           // THE DESTINATION IS RE-CHECKED, NOT TRUSTED. openLanes was computed
-          // when the prompt ARMED; this callback runs later, and in between a
-          // summon, a jump or another habitat's release can have taken that
-          // lane. Writing into it regardless is how a card ends up referenced
-          // in two places at once — and events now fire on round 3, 6, 9 …
-          // instead of once a match, so every habitat release, and every
-          // displacement it triggers, happens several times more often than
-          // when this code was written. Measured: 0 duplicate-id states in
-          // 1500 games before that change, 4 in 2700 after.
+          // when the prompt armed; a summon, jump or another release may have
+          // taken that lane since. Writing into it anyway puts one card in two
+          // places (events fire every 3 rounds, so this path is frequent).
           const dest = G.state.lanes[targetLane];
           if (!dest || dest.destroyed || dest[side]) {
             const retry = G.getOpenLanes(side).filter(l => l !== laneIdx);
@@ -207,10 +164,10 @@ if (typeof window !== 'undefined') window.releaseHabitatMonster = releaseHabitat
 // ============================================================
 // COG INVASION — shared Cog combat helpers
 // ============================================================
-// A Cog is a neutral invader seated on one side; it swings automatically (no
-// controller makes the pick), so its signature attack aims at the enemy
-// directly opposite, falling back to any live enemy. Stun is deprecated in this
-// engine — freezeCard IS the Stun/knock-down (see game.js note near tickStun).
+// A Cog is a neutral invader seated on one side; it swings automatically, so
+// its signature attack aims at the enemy directly opposite, falling back to
+// any live enemy. freezeCard IS the Stun/knock-down (Stun is deprecated; see
+// game.js near tickStun).
 function _cogTarget(G, self) {
   const opp = G.opponent(self.owner);
   const lane = G.findCardLane(self);
@@ -289,12 +246,9 @@ const CARD_ABILITIES = {
 
   // ==================== COST 1 ====================
   "Ant-Man": {
-    // DESTROY FIRST, THEN SUMMON. (User: "flip the order — destroy... then
-    // summon for ant man.") The summon opens a LANE PROMPT, so leading with it
-    // put a placement question in front of the player before the automatic
-    // half of the card had resolved: you picked a lane for the Ant, and only
-    // then found out what died. Killing first means the board the player is
-    // placing into is the board they will actually have.
+    // DESTROY FIRST, THEN SUMMON. The summon opens a lane prompt; killing
+    // first means the board the player places the Ant into is the board they
+    // will actually have.
     onPlay(G, self, lane) {
       if (typeof UI !== 'undefined' && UI._fxAntManPym) { try { UI._fxAntManPym(self); } catch (e) {} }
       // _antManAntAtk / _antManAntHp let Text+ bump the summoned Ant
@@ -319,20 +273,14 @@ const CARD_ABILITIES = {
     }
   },
   "Poison Ivy": {
-    // Simplified charm mechanic — picks a random ally each round and
-    // ADDS that ally's current attack to Poison Ivy's attack for this
-    // turn only. Examples (Ivy base 1 ATK):
-    //   • Charms Venom (3 ATK) → Ivy's attack becomes 4 this turn
-    //   • Charms Man-Bat (1 ATK) → Ivy's attack becomes 2 this turn
-    // Uses grantTempBuff(duration=1) so the buff auto-expires in
-    // postCombat via expireGrantedBuffs — no custom cleanup path.
+    // Simplified charm — picks an ally each round and ADDS that ally's
+    // current attack to Ivy's for this turn only (base 1 + Venom's 3 → 4).
+    // grantTempBuff(duration=1) auto-expires in postCombat via
+    // expireGrantedBuffs — no custom cleanup path.
     _charm(G, self) {
-      // Also keep a direct ref on Ivy for the damage-preview UI (reads
-      // _ivyAlly to show "Ivy charm" as a visible bonus). Safe to clear
-      // and re-assign each round without affecting combat logic.
-      // Strip any pre-existing _ivyCharm buff before re-charming — onPlay
-      // and onBeforeTricks can both fire in the same round, so without
-      // this cleanup Ivy's ATK would double-stack from the same source.
+      // Also keep a direct ref on Ivy for the damage-preview UI (_ivyAlly).
+      // Strip any existing _ivyCharm buff before re-charming — onPlay and
+      // onBeforeTricks can both fire in one round and would double-stack.
       if (self._grantedBuffs && self._grantedBuffs.length) {
         const idx = self._grantedBuffs.findIndex(b => b._ivyCharm);
         if (idx >= 0) {
@@ -345,10 +293,9 @@ const CARD_ABILITIES = {
           self._grantedBuffs.splice(idx, 1);
         }
       }
-      // Clear the previous charm target's "_charmedByIvy" tag (if any)
-      // so the badge moves cleanly when we re-pick. The tag mirrors
-      // _ivyAlly/.id so the badge renderer doesn't depend on object
-      // identity (which can break across re-instantiations / saves).
+      // Clear the previous target's _charmedByIvy tag so the badge moves on
+      // re-pick. The tag mirrors _ivyAlly.id so the badge renderer doesn't
+      // depend on object identity (breaks across re-instantiation / saves).
       if (self._ivyAlly && self._ivyAlly._charmedByIvy === self.id) {
         delete self._ivyAlly._charmedByIvy;
       }
@@ -366,30 +313,23 @@ const CARD_ABILITIES = {
         return;
       }
       // Roguelite Text+ override — _ivyChooseHighest copies the strongest
-      // ally's attack instead of a random one. Default random (classic);
-      // Text+ true picks max-attack each round, so a Hulk on the board
-      // means Ivy reliably swings as a Hulk-1.
+      // ally's attack instead of a random one (default random).
       const pick = self._ivyChooseHighest
         ? allies.slice().sort((a, b) => (b.attack || 0) - (a.attack || 0))[0]
         : allies[Math.floor(Game.rng() * allies.length)];
       self._ivyAlly = pick;
       self._ivyCharmedId = pick.id; // tracked so handleDeath can strip the buff
-      // Stamp a direct flag on the charmed ally pointing back at Ivy.
-      // The badge renderer reads this flag — much more reliable than
-      // matching object identity across getAllCardsOnBoard calls. User
-      // report: "the charm status badge isn't on any ally card for ivy
-      // so I can't tell who she's gaining attack from."
+      // Stamp a flag on the charmed ally pointing back at Ivy; the badge
+      // renderer reads it (more reliable than object identity across
+      // getAllCardsOnBoard calls).
       pick._charmedByIvy = self.id;
       // Pheromone bloom on the charmed ally + a vine drawing its strength to Ivy.
       if (typeof UI !== 'undefined' && UI._fxIvyCharm) { try { UI._fxIvyCharm(self, pick); } catch (e) {} }
       const bonus = pick.attack || 0;
       if (bonus > 0) {
-        // Temp buff, auto-expires after 1 turn. Re-charming on the
-        // next round will grant a fresh buff based on whoever's picked
-        // then; the old one is already gone. Mark the buff with
-        // _ivyCharm so handleDeath can find and reverse it if the
-        // charmed ally dies mid-turn (buff is tied to a LIVING target;
-        // if the target dies, the bonus goes with it).
+        // Temp buff, auto-expires after 1 turn. Tagged _ivyCharm so
+        // handleDeath can reverse it if the charmed ally dies mid-turn (the
+        // bonus is tied to a living target).
         G.grantTempBuff(self, { attack: bonus }, 1);
         const last = self._grantedBuffs && self._grantedBuffs[self._grantedBuffs.length - 1];
         if (last) last._ivyCharm = true;
@@ -407,34 +347,24 @@ const CARD_ABILITIES = {
       CARD_ABILITIES['Poison Ivy']._charm(G, self);
     },
     onBeforeTricks(G, self) {
-      // Re-charm at start of the tricks phase. This runs in endPhase2()
-      // after BOTH players have deployed all their cards, so freshly
-      // played allies (e.g. Jango Fett) are in the charm pool. The
-      // chosen target is LOCKED for the rest of the round — combat
-      // doesn't re-pick. User spec: "its set before tricks it cant
-      // change during the combat phase."
+      // Re-charm at start of tricks (endPhase2), after BOTH players have
+      // deployed, so freshly played allies are in the pool. The target is
+      // LOCKED for the rest of the round — combat doesn't re-pick.
       CARD_ABILITIES['Poison Ivy']._charm(G, self);
     },
     onEndOfTurn(G, self) {
-      // Post-combat — if the charmed ally died this round, re-charm
-      // a new living ally so Ivy's CHARMED badge is always visible
-      // on someone (mirrors Joker's onEndOfTurn re-stamp pattern).
+      // Post-combat — if the charmed ally died, re-charm a living ally so the
+      // CHARMED badge is always on someone (mirrors Joker's onEndOfTurn).
       const target = self._ivyAlly;
       const alive = target && target.currentHealth > 0 && G.findCardLane(target) >= 0;
       if (alive) return;
       CARD_ABILITIES['Poison Ivy']._charm(G, self);
     },
     onAnyCardPlayed(G, self) {
-      // Persistent charm coverage during the PLAY phase — when Ivy
-      // enters before any ally lands (or when her current target is
-      // gone), re-charm as soon as a fresh ally arrives so the
-      // CHARMED badge tracks board state in real time. Locked once
-      // tricks/combat begin: the charm is fixed for the round, and
-      // if the target dies during attack phase the buff is gone with
-      // no re-pick. User spec: "no ally can be charmed during the
-      // attack phase, but right when the next turn starts ivy
-      // charms iron man." onEndOfTurn (post-combat) handles the
-      // "next turn starts" re-pick.
+      // During the PLAY phase, re-charm as soon as an ally arrives if Ivy
+      // has no living target, so the badge tracks the board. Once tricks or
+      // combat begin the charm is fixed for the round: if the target dies,
+      // the buff goes with it and there is no re-pick until onEndOfTurn.
       const phase = (G.state && G.state.phase) || '';
       if (phase.indexOf('tricks') >= 0 || phase === 'combat') return;
       const target = self._ivyAlly;
@@ -445,10 +375,8 @@ const CARD_ABILITIES = {
   },
   "Black Widow": {
     onPlay(G, self, lane) {
-      // Roguelite Text+ ("Wide Web") — _blackWidowSplashFreeze freezes
-      // the front enemy AND both adjacent enemies (splash radius)
-      // automatically. Skips the choice prompt since the targets are
-      // fully implied by lane geometry.
+      // Roguelite Text+ ("Wide Web") — _blackWidowSplashFreeze freezes the
+      // front enemy AND both adjacent enemies automatically (no prompt).
       if (self._blackWidowSplashFreeze) {
         const opp = G.opponent(self.owner);
         const targets = [];
@@ -501,15 +429,10 @@ const CARD_ABILITIES = {
   },
   "Man-Bat": {
     _recurringBT: true,
-    // Arrival sting — fires WHEREVER Man-Bat lands, by ANY move mechanism:
-    // his own Start-of-Tricks flight, Magneto's magnetic throw, Gojo's
-    // displacement, Bifrost, hunt chases... moveCard (and every direct-
-    // assignment mover) fires onMoved post-relocation, so the sting always
-    // tracks the LANDING lane. User report: "Magneto moved Man-Bat and his
-    // passive didn't trigger" — the debuff used to live only inside his own
-    // move callback. Bonus fix: the old AI branch applied the debuff even
-    // when moveCard silently REFUSED the move (destination occupied) —
-    // hooking the sting to the actual move kills that too.
+    // Arrival sting — fires wherever Man-Bat lands, by ANY mover (his own
+    // flight, Magneto, Gojo, Bifrost, hunts): moveCard and every direct-
+    // assignment mover fire onMoved after relocation, so the sting tracks the
+    // LANDING lane, and never fires when moveCard refuses the move.
     onMoved(G, self, to) {
       const enemy = G.state.lanes[to] && G.state.lanes[to][G.opponent(self.owner)];
       if (!enemy || enemy.currentHealth <= 0 || enemy.isEnvironment) return;
@@ -522,31 +445,21 @@ const CARD_ABILITIES = {
       G.cleanupDead();
     },
     onBeforeTricks(G, self, lane) {
-      // Stun / freeze gates the whole ability. The arrival debuff now lives
-      // in onMoved (fired by moveCard), so this callback only handles the
-      // flight itself — no explicit debuff here or it would double-sting.
-      // isMoveLocked, not isActionLocked: the freeze/fear lock PLUS Gargantua's
-      // hold (see Game.isMoveLocked). moveCard refuses either way, but asking
-      // HERE is what stops the card offering a move prompt it cannot honour —
-      // a lane picker that does nothing when you answer it. Every self-mover
-      // asks the same question for the same reason; this is the one that
-      // explains it.
+      // Freeze gates the whole ability. The arrival debuff lives in onMoved,
+      // so no debuff here or it would double-sting.
+      // isMoveLocked, not isActionLocked: covers freeze/fear PLUS Gargantua's
+      // hold. moveCard refuses either way, but asking here stops the card
+      // offering a lane prompt it cannot honour. Every self-mover does this.
       if (Game.isMoveLocked(self)) {
         G.log(`  [SKIP] ${self.name} is ${Game.moveLockLabel(self)} — stays put.`);
         return;
       }
       const open = G.getOpenLanes(self.owner).filter(l => l !== lane);
       if (!open.length) return;
-      // Include the current lane as a "stay" option. User direction:
-      // "for moving like man bat and omni man have the choice not to
-      // move." Player can click Man-Bat's own lane to stay put — no move,
-      // no sting.
+      // The player may decline to move — no move, no sting.
       if (Game.isHuman(self.owner)) {
-        // STAY is a BUTTON, not a lane (see promptLaneChoice options.declineLabel).
-        // The old affordance listed Man-Bat's own lane among the choices and
-        // asked the player to click it — but that square is covered by the card
-        // itself, so the click hit the card every time. Owner: "it's hard right
-        // now to click their lane that they are in to stay."
+        // STAY is a BUTTON, not a lane (promptLaneChoice options.declineLabel):
+        // his own lane is covered by the card itself, so it can't be clicked.
         G.promptLaneChoice(self.owner, open, "Man-Bat — Move", "Choose a lane to move to", (to) => {
           G.moveCard(self, lane, to);
         }, null, null, 0, { declineLabel: 'STAY PUT', onDecline: () => G.log(`Man-Bat stays put in lane ${lane + 1}.`) });
@@ -560,23 +473,15 @@ const CARD_ABILITIES = {
     // Fires every Start of Tricks (not just the first) — same re-arm flag
     // Man-Bat / Omni-Man use so beforeTricksFired resets each round.
     _recurringBT: true,
-    // GROWTH IS THE MOVE — ANY move, not just his own flutter. moveCard already
-    // fires this hook for every mover in the game (Bifrost, Magneto, Gargantua's
-    // pull, Gojo's displace, a hunt/chase), so hanging the buff here is what
-    // makes his card text literally true. It used to be stamped inline right
-    // after his own moveCard call, which meant he grew on the one move he makes
-    // himself and rode every other one for free.
-    // Fires on ENEMY-caused moves too, deliberately: shoving him around is the
-    // thing he feeds on.
-    // ...but only for GROUND HE HAS NOT COVERED. He starts 0/1 and keeps a
-    // tally of every lane he has stood in (the "counter on the back of his
-    // card"); reaching a NEW lane is worth +1/+1, and being shuttled back to
-    // somewhere he has already been is worth nothing. Without the tally he was
-    // a 1-cost infinite engine: bounce him 1→2→1→2 forever and he outgrows
-    // anything in the game. Six lanes is therefore his hard ceiling — 5/6 if he
-    // walks the whole board.
-    // The lane he was PLAYED into counts as visited (seeded in onPlay), so the
-    // very first flutter is his first buff, not his second.
+    // GROWTH IS THE MOVE — ANY move, not just his own flutter. moveCard fires
+    // this hook for every mover (Bifrost, Magneto, Gargantua's pull, Gojo,
+    // hunts), so the card text is literally true. Enemy-caused moves count
+    // too, deliberately.
+    // Only NEW ground pays: he tallies every lane he has stood in, and a new
+    // lane is +1/+1 while a revisited one is nothing. Without the tally a
+    // 1→2→1→2 bounce makes him an infinite engine; six lanes caps him at 5/6.
+    // The lane he was PLAYED into is seeded as visited in onPlay, so the
+    // first flutter is his first buff.
     _mothVisited(self) {
       if (!Array.isArray(self._mothLanes)) self._mothLanes = [];
       return self._mothLanes;
@@ -606,13 +511,9 @@ const CARD_ABILITIES = {
         G.log(`  [SKIP] ${self.name} is ${Game.moveLockLabel(self)} — stays put.`);
         return;
       }
-      // "Open" here means EMPTY ON BOTH SIDES — Killer Moth relocates to
-      // unoccupied ground, not into a lane an enemy already holds. User:
-      // "killer moth moved into an occupied lane when he shouldn't." The old
-      // filter used getOpenLanes(self.owner), which only checks the owner's
-      // OWN side, so it let him flutter straight into an enemy-contested lane
-      // (player slot empty, enemy slot full) and pick a fight at random. Now he
-      // only lands where nothing stands on either side.
+      // "Open" means EMPTY ON BOTH SIDES — he relocates to unoccupied ground,
+      // never into an enemy-held lane (getOpenLanes(owner) checks only his own
+      // side, so it isn't enough).
       const empty = [];
       for (let i = 0; i < G.LANE_COUNT; i++) {
         if (i === lane) continue;
@@ -623,11 +524,8 @@ const CARD_ABILITIES = {
         // Always random — no player prompt (unlike Man-Bat / Omni-Man, which
         // let the owner choose or stay). Killer Moth relocates on his own.
         const to = empty[Math.floor(Game.rng() * empty.length)];
-        // The growth is NOT stamped here any more — moveCard fires onMoved and
-        // that is where it lives now. Stamping it at this one call site meant
-        // only HIS OWN flutter paid; being moved by anything else relocated him
-        // for free. User: "i used bifrost on killer moth, bifrost moved killer
-        // moth yet he didnt gain +1/+1."
+        // No growth stamped here — it lives in onMoved so every mover pays,
+        // not just his own flutter.
         G.moveCard(self, lane, to);
       } else {
         // Boxed in. No move, so no growth — he simply sits this round out.
@@ -640,11 +538,9 @@ const CARD_ABILITIES = {
       // Roguelite Text+ override — _harleyDraw scales the draw amount.
       const n = self._harleyDraw || 1;
       // "BOTH PLAYERS DRAW" MEANS EVERY PLAYER. drawCards takes a SIDE, and in
-      // 2v2 a side is a team of two whose proxy is bound to whichever seat is
-      // acting — so this drew one card per TEAM and quietly skipped both
-      // teammates. forEachSeatOnSide routes the draw to each real seat in turn,
-      // and collapses to exactly the old behaviour in 1v1, where a side IS a
-      // player.
+      // 2v2 a side is a team whose proxy is bound to the acting seat, so a
+      // plain call draws once per team. forEachSeatOnSide draws for each real
+      // seat; in 1v1 a side IS a player.
       G.forEachSeatOnSide(self.owner, () => G.drawCards(self.owner, n));
       G.forEachSeatOnSide(G.opponent(self.owner), () => G.drawCards(G.opponent(self.owner), n));
       G.log(`Harley Quinn makes everyone draw ${n}!`);
@@ -653,18 +549,15 @@ const CARD_ABILITIES = {
       // sweep handles subsequent rerolls via the Crazy trait.
       G.rerollCrazyInsane(self);
     },
-    // onTurnStart removed — the Crazy trait is rerolled centrally in
-    // startRound via G.rerollCrazyInsane, so we don't need a per-card
-    // hook here. Keeping a no-op would just double the log line.
+    // No onTurnStart — the Crazy trait is rerolled centrally in startRound
+    // via G.rerollCrazyInsane; a per-card hook would double the log line.
     onBeforeAttack(G, self) {
       G.damagePlayer(self.owner, 1, false);
       G.log(`[HIT] Harley Quinn deals 1 to her own team before attacking!`);
     },
     onDamaged(G, self) {
-      // Roguelite Text+ ("Chaos!") — _harleyBlockOnDmg adds N to the
-      // owner's Block Meter every time Harley takes damage. Default
-      // 0 (classic — no block gain); Text+ sets 3 so the chaos pivots
-      // into a hard-block defensive payoff.
+      // Roguelite Text+ ("Chaos!") — _harleyBlockOnDmg adds N to the owner's
+      // Block Meter whenever Harley takes damage (default 0, Text+ 3).
       const gain = self._harleyBlockOnDmg || 0;
       if (gain <= 0) return;
       const meter = G.getBlockMeter(self.owner);
@@ -673,24 +566,21 @@ const CARD_ABILITIES = {
     }
   },
   "Jango Fett": {
-    // The roguelite "Jetpack Salvo" upgrade below is a Man-Bat-style
-    // relocation, and Man-Bat's recurs. Without the flag the upgrade
-    // moved him exactly once for the whole run.
+    // The roguelite "Jetpack Salvo" upgrade is a Man-Bat-style relocation,
+    // which recurs; without this flag it moved him once per run.
     _recurringBT: true,
     onMoved(G, self, toLane) {
-      // Roguelite Text+ override — _jangoSplashOnMove scales the
-      // arrival splash. Default 1 (classic); Text+ raises to 2 so
-      // moving him hits a wider cone for double the damage.
+      // Roguelite Text+ override — _jangoSplashOnMove scales the arrival
+      // splash (default 1, Text+ 2).
       const dmg = self._jangoSplashOnMove || 1;
       if (typeof UI !== 'undefined' && UI._fxJangoRockets) { try { UI._fxJangoRockets(self, toLane); } catch (e) {} }
       G.splashDamage(toLane, self.owner, dmg, self);
       G.log(`Jango Fett splashes lane ${toLane + 1} for ${dmg} on arrival!`);
     },
     onBeforeTricks(G, self, lane) {
-      // Roguelite Text+ ("Jetpack Salvo") — _jangoMoveLikeManBat gives
-      // Jango a Man-Bat-style relocation at Start of Tricks. The
-      // existing onMoved handler picks up the arrival splash. Classic
-      // Jango has no movement of his own — this hook is gated.
+      // Roguelite Text+ ("Jetpack Salvo") — _jangoMoveLikeManBat gives Jango
+      // a Man-Bat-style relocation at Start of Tricks; onMoved supplies the
+      // splash. Gated — classic Jango doesn't move.
       if (!self._jangoMoveLikeManBat) return;
       // See Man-Bat for why this asks isMoveLocked and not isActionLocked.
       if (Game.isMoveLocked(self)) {
@@ -700,11 +590,8 @@ const CARD_ABILITIES = {
       const open = G.getOpenLanes(self.owner).filter(l => l !== lane);
       if (!open.length) return;
       if (Game.isHuman(self.owner)) {
-        // STAY is a BUTTON, not a lane (see promptLaneChoice options.declineLabel).
-        // The old affordance listed Jango Fett's own lane among the choices and
-        // asked the player to click it — but that square is covered by the card
-        // itself, so the click hit the card every time. Owner: "it's hard right
-        // now to click their lane that they are in to stay."
+        // STAY is a BUTTON, not a lane (promptLaneChoice options.declineLabel):
+        // his own lane is covered by the card itself, so it can't be clicked.
         G.promptLaneChoice(self.owner, open, "Jango Fett — Move", "Choose a lane to move to", (to) => {
           G.moveCard(self, lane, to);
         }, null, null, 0, { declineLabel: 'STAY PUT', onDecline: () => G.log(`Jango Fett holds his position in lane ${lane + 1}.`) });
@@ -716,30 +603,18 @@ const CARD_ABILITIES = {
   },
   "Gorilla Grodd": {
     onPlay(G, self, lane) {
-      // Roguelite rarity variant — cost gate scales with tier. Classic
-      // mode (no _runRarity) defaults to 'rare' → base behavior (≤3).
-      //   common    → cost ≤ 1 (only the smallest threats)
-      //   rare      → cost ≤ 3 (listed)
-      //   special   → cost ≤ 5
-      //   legendary → cost ≤ 9 (anything that isn't a 10-cost titan)
-      // Roguelite Text+ ("Brute Telepath") — _groddMcCostMax overrides
-      // the rarity-tier cost gate with a fixed ceiling (5).
+      // Roguelite rarity variant — cost gate scales with tier (classic, no
+      // _runRarity, = 'rare' ≤3): common ≤1, rare ≤3, special ≤5,
+      // legendary ≤9.
+      // Roguelite Text+ ("Brute Telepath") — _groddMcCostMax overrides the
+      // rarity gate with a fixed ceiling (5).
       const maxCost = self._groddMcCostMax
         ? self._groddMcCostMax
         : G.rarityValue(self, { common: 1, rare: 3, special: 5, legendary: 9 });
-      // JUGGERNAUT PROTECTS HIMSELF AND HIS NEIGHBOURS, NOT THE WHOLE BOARD.
-      // This used to be a board-wide cancel: one Juggernaut anywhere on the
-      // enemy side and Grodd's entire On Play did nothing, silently, even with
-      // other perfectly legal targets standing there. User: "Juggernaut was on
-      // the field ... but there was also an open Gorilla Grodd that I could have
-      // done my mind control on".
-      // His printed text only ever claimed "While Active: Adjacent allies gain
-      // Immunity 1", and he carries Immunity himself — and mindControlCard
-      // already routes through tryApplyDebuff, which is where Immunity is
-      // spent. So the protection was already handled by the normal machinery
-      // and this check was both redundant and wider than the card text.
-      // Now: every enemy under the cost gate is offered, and whoever actually
-      // holds Immunity resists when the control lands and says so.
+      // JUGGERNAUT PROTECTS ONLY WHAT HIS TEXT SAYS (himself + adjacent allies
+      // via Immunity), not the whole board. mindControlCard routes through
+      // tryApplyDebuff, which spends Immunity, so every enemy under the cost
+      // gate is offered and whoever holds Immunity resists when it lands.
       const eligible = G.getEnemiesOf(self.owner)
         .filter(e => (e.baseCost || e.cost) <= maxCost);
       if (!eligible.length) {
@@ -747,8 +622,7 @@ const CARD_ABILITIES = {
         return;
       }
       // Seat declared from the card itself — see promptCardChoice's note on
-      // options.seat. Grodd's own report ("mind control isnt working at all")
-      // is the same shape as every other prompt that reached the wrong client.
+      // options.seat; otherwise the prompt can reach the wrong client.
       G.promptCardChoice(self.owner, eligible,
         "Gorilla Grodd — Mind Control",
         `Choose an enemy with base cost ${maxCost} or less`,
@@ -779,54 +653,39 @@ const CARD_ABILITIES = {
   "Mr. Fantastic": {
     isDiscardEffect: true,
     onDiscard(G, owner, self) {
-      // User spec (May 2026): "the next two cards drawn are reduced
-      // by one energy" + has the "Draw 1" keyword.
-      // Default (classic) = 1 off each of the next 2 draws.
-      // Roguelite Text+ overrides — _fantasticDiscount scales the
-      // per-draw rate; _fantasticCount sets how many draws benefit.
+      // The next two cards drawn cost 1 less, plus the "Draw 1" keyword.
+      // Roguelite Text+ overrides — _fantasticDiscount scales the per-draw
+      // rate; _fantasticCount sets how many draws benefit.
       const disc = (self && self._fantasticDiscount) || 1;
       const count = (self && self._fantasticCount) || 2;
-      // Per-draw rate is the max in flight (multi-Mr.F overlap is rare;
-      // the larger discount wins). Count accumulates so back-to-back
-      // discards still hand out their share of cheaper draws.
-      // WRITE IT WHERE drawCards READS IT. In 1v1 that is the side object and
-      // nothing changes. In 2v2 drawCards resolves a SEAT (_2v2HandTarget) —
-      // because a hand belongs to a person, not to a team — and it reads the
-      // discount off that same seat, while this wrote to the shared side proxy.
-      // So the discount was set somewhere nothing ever looked: the card drawn
-      // by his own "Draw 1" came in at full price, and so did the next one.
-      // (User: "when i discarded mr fantastics the next cards didnt cost 1
-      // less.") `self` is passed so the seat resolves to whoever played HIM,
-      // not to whoever happens to be acting.
+      // Per-draw rate is the max in flight (larger discount wins); count
+      // accumulates so back-to-back discards each hand out their share.
+      // WRITE IT WHERE drawCards READS IT. In 1v1 that is the side. In 2v2
+      // drawCards resolves a SEAT (_2v2HandTarget) and reads the discount off
+      // it; writes to the shared side proxy are never seen. `self` makes the
+      // seat resolve to whoever played HIM, not whoever is acting.
       const tgt = (G._2v2HandTarget ? G._2v2HandTarget(owner, self) : G.state[owner]) || G.state[owner];
       tgt.nextDrawDiscount = Math.max(tgt.nextDrawDiscount || 0, disc);
       tgt.nextDrawDiscountCount = (tgt.nextDrawDiscountCount || 0) + count;
       // Track the Mr. Fantastic instance that set this so drawCards can
       // credit him with actual `statsDiscountValue` at apply time.
       if (self) tgt._nextDrawDiscountSource = self;
-      // "Draw 1" keyword effect — fire the actual draw. Done AFTER
-      // setting the discount above so the drawn card itself benefits
-      // from the cheaper-draw aura (the user's intent: discarding
-      // Mr. F should immediately give them a cheaper card).
+      // "Draw 1" keyword effect — done AFTER setting the discount so the
+      // drawn card itself is cheaper.
       G.drawCards(owner, 1);
     }
   },
   "Pinhead": {
     // Discard trigger, like Mr. Fantastic / Jigsaw / Brainiac — Pinhead is
-    // isDiscardEffect, so he is never seated on the field; discarding him fires
-    // this. He CHAINS two random cards in one enemy hand together (both get the
-    // chain badge, linked by _chainPartnerId): neither can be played alone, and
-    // when one is played the engine drags in its partner too, both entering at
-    // -1/-1 (see Game._playChainedCard). He also drags a section of Block Meter
-    // off the enemy onto your own.
+    // isDiscardEffect, so he is never seated; discarding him fires this. He
+    // CHAINS two cards in one enemy hand (both badged, linked by
+    // _chainPartnerId): neither can be played alone, and playing one drags in
+    // its partner, both at -1/-1 (Game._playChainedCard). He also moves one
+    // Block Meter section from the enemy to you.
     isDiscardEffect: true,
     onDiscard(G, owner, self) {
-      // (A call to UI._fxPinheadChains stood here and was removed: the function
-      // was never written, and could not usefully be. It fired as the FIRST line
-      // of onDiscard, before the two cards are chosen and chained, so there were
-      // no anchors to draw a chain between — and the cards it would link live in
-      // the ENEMY's hand, off-screen. A screen-level "the chains rattle" beat
-      // would work; that is a new effect, not a repair.)
+      // No chain FX here: this runs before the cards are chosen, and they sit
+      // in the ENEMY's hand off-screen, so there is nothing to anchor to.
       const opp = G.opponent(owner);
       // Which hand to raid. 1v1: the opponent's. 2v2: a random ENEMY seat that
       // has ≥2 cards (the two chained cards must share a hand, per "2 random
@@ -838,14 +697,10 @@ const CARD_ABILITIES = {
           || (owner === 'player' ? 'A' : 'B');
         const foes = ['p1', 'p2', 'p3', 'p4'].filter(pk => tt.players[pk] && tt.players[pk].team !== myTeam);
         const withTwo = foes.filter(pk => (tt.players[pk].hand || []).length >= 2);
-        // YOU PICK THE HAND. It used to choose at random, so in a 2v2 the whole
-        // decision — which of two opponents gets bound — was taken away from
-        // the player who paid for the card. (Owner: "for pinhead in 2v2 i never
-        // got to choose whos hand i wanted to target".) Brainiac and Catwoman
-        // already ask through _2v2ChooseEnemySeat; Pinhead now asks the same
-        // way, so the prompt looks and routes identically. It resolves itself
-        // when there is only one legal target, and the AI picker behind it
-        // keeps AI seats from stalling on the question.
+        // THE PLAYER PICKS THE HAND, through _2v2ChooseEnemySeat like
+        // Brainiac and Catwoman, so the prompt looks and routes identically.
+        // It auto-resolves with one legal target, and the AI picker keeps AI
+        // seats from stalling.
         const _pref = withTwo.length ? withTwo : foes;
         let _chosen = null;
         if (G._2v2ChooseEnemySeat && _pref.length > 1) {
@@ -860,14 +715,9 @@ const CARD_ABILITIES = {
       }
 
       // ── Chain the CHEAPEST card to a random one ──
-      // Two random picks were a coin toss that often bound two cards the victim
-      // was not going to play this round anyway. Anchoring on the cheapest hits
-      // where it hurts: the cheap card is the one they were counting on
-      // playing, and it is now hostage to whatever else came up — usually
-      // something they cannot afford in the same turn. (Owner: "make it to
-      // where he chains your lowest cost card with another random card in
-      // hand".) Ties on cost are broken at random so the same card is not
-      // picked every time a hand holds two 1-drops.
+      // The cheap card is the one they were counting on playing; it becomes
+      // hostage to something they usually can't afford the same turn. Cost
+      // ties break at random so the same 1-drop isn't always picked.
       const pool = (victimHand || []).filter(c => c && !c._chained);
       if (pool.length >= 2) {
         const costOf = (c) => (c.baseCost != null ? c.baseCost : (c.cost | 0));
@@ -885,12 +735,8 @@ const CARD_ABILITIES = {
       }
 
       // ── Steal 1 Block Meter from the enemy ──
-      // This was the ONE site in the set that knew the meter lives on the team
-      // in 2v2, and it paid for that with a hand-written 2v2 branch, a manual
-      // team lookup and a manual mirror back onto both proxies. All of that is
-      // getBlockMeter/setBlockMeter's job now, so the card says what it does
-      // ("take one from them, give one to me") in both modes and cannot drift
-      // from the thirteen that were fixed by learning the same lesson.
+      // getBlockMeter/setBlockMeter handle the 2v2 team meter, so no
+      // hand-written 2v2 branch here.
       try {
         const take = Math.min(1, G.getBlockMeter(opp));
         if (take > 0) {
@@ -990,26 +836,16 @@ const CARD_ABILITIES = {
   },
   "Xenomorph": {
     onAnyCardPlayed(G, self, played) {
-      // NOT FED BY ENVIRONMENTS. playCard's environment branch (game.js ~5197)
-      // broadcasts onAnyCardPlayed exactly like the normal branch, so dropping a
-      // Sewers or a Boiler Room was growing him. An environment never enters a
-      // combat slot, never fights and cannot be attacked — it sits in the lane's
-      // _env sub-slot — so counting it as "a card entering the board" is the same
-      // category error the set already refuses elsewhere (Apocalypse will not
-      // hand a keyword to an environment either). Owner: "xenomorph shouldnt grow
-      // from enviroments".
-      //
-      // The played card is the hook's THIRD argument — broadcastHook calls
-      // c[hook](G, c, ...args) with args = [card]. This hook simply never
-      // declared it, which is why it could not tell the difference.
+      // NOT FED BY ENVIRONMENTS. playCard's environment branch broadcasts
+      // onAnyCardPlayed like the normal branch, but an environment never
+      // enters a combat slot (it sits in the lane's _env sub-slot), so it
+      // isn't "a card entering the board" — same rule as Apocalypse.
+      // The played card is the hook's THIRD argument (broadcastHook calls
+      // c[hook](G, c, ...args) with args = [card]).
       if (played && played.isEnvironment) return;
-      // Roguelite rarity variant — buff size scales with tier. Common
-      // drops the +1 HP entirely (just +1 ATK growth) so the card has
-      // a real downside at low rarity. Classic = baseline +1/+1.
-      //   common    → +1 ATK only (no HP growth)
-      //   rare      → +1/+1 (listed)
-      //   special   → +1/+2
-      //   legendary → +2/+2
+      // Roguelite rarity variant — buff size scales with tier (classic +1/+1):
+      // common +1 ATK only (a real downside), rare +1/+1, special +1/+2,
+      // legendary +2/+2.
       const buff = G.rarityValue(self, {
         common:    { atk: 1, hp: 0 },
         rare:      { atk: 1, hp: 1 },
@@ -1032,9 +868,8 @@ const CARD_ABILITIES = {
   // ==================== COST 2 ====================
   "King Shark": {
     // Classic King Shark is a vanilla 3/3 Overdrive — no special hooks.
-    // Roguelite Text+ ("Apex Predator") wires onKill to buff +N/+N
-    // every time he destroys an enemy. The flag is set in apply, so
-    // un-upgraded King Sharks fall through with no buff.
+    // Roguelite Text+ ("Apex Predator") wires onKill to buff +N/+N per kill;
+    // the flag is set in apply, so un-upgraded King Sharks get no buff.
     onKill(G, self) {
       const buff = self._kingSharkKillBuff || 0;
       if (buff <= 0) return;
@@ -1047,9 +882,8 @@ const CARD_ABILITIES = {
       const enemies = G.getEnemiesOf(self.owner).filter(t => G.canEffectLand(t, 'debuff', { owner: self.owner, source: self }) || (t.evadeCharges || 0) > 0);
       if (enemies.length) {
         G.promptCardChoice(self.owner, enemies, "Bane — Weaken", "Choose enemy to remove -1/-1 & all evades", (e) => {
-          // allowKill=true so a 1-HP enemy (e.g. Nightwing) actually dies
-          // from the -1/-1. Previously HP floored at 1 and Bane's debuff
-          // couldn't finish off already-low targets.
+          // allowKill=true so a 1-HP enemy actually dies from the -1/-1
+          // (otherwise HP floors at 1).
           G.debuffCard(e, 1, 1, true, self);
           e.evadeCharges = 0;
           G.log(`Bane strips ${e.name}: -1/-1 & all evades removed!`);
@@ -1070,9 +904,8 @@ const CARD_ABILITIES = {
   },
   "Catwoman": {
     onPlay(G, self, lane) {
-      // Cost-1 1/1 with Bullseye + Evade 1 (def-side). On play she
-      // steals N energy from the opponent next turn — same swing the
-      // old isDiscardEffect Catwoman had, just on a real body now.
+      // Cost-1 1/1 with Bullseye + Evade 1 (def-side). On play she steals N
+      // energy from the opponent next turn.
       // Roguelite Text+ override — _catwomanSteal scales the swing.
       const owner = self && self.owner;
       if (!owner) return;
@@ -1090,9 +923,8 @@ const CARD_ABILITIES = {
         // v3 — credit Catwoman with the energy swing (gain N self, deny N enemy).
         G._creditChain(self, 'statsDiscountValue', n * 2);
       };
-      // 2v2: Catwoman's owner CHOOSES which enemy player to steal from (user:
-      // "she should get to choose which enemy to steal from and then give it to
-      // the player who placed her"). 1v1 has one opponent — resolve immediately.
+      // 2v2: Catwoman's owner CHOOSES which enemy player to steal from, and
+      // the energy goes to the player who placed her. 1v1 resolves immediately.
       if (tt && tt.online) {
         G._2v2ChooseEnemySeat(owner, 'Catwoman — Steal',
           `Choose an enemy to steal ${n} energy from next turn`,
@@ -1151,15 +983,11 @@ const CARD_ABILITIES = {
   })(),
   "Gamora": {
     onPlay(G, self, lane) {
-      // Lone Wolf is a universal engine rule (game.js playCard/summonCard
-      // both apply +1/+1 to any card entering alone). The old bespoke
-      // block here stacked a SECOND +1/+1 on top — that's why Gamora
-      // was gaining (+1/+1) twice after a Bear Trap damage tick. Gamora
-      // now delegates entirely to the universal rule and just does her
-      // execute on entry.
-      // Roguelite Text+ override — _gamoraExecuteThreshold raises the
-      // execute ceiling. Default 2 (classic); Text+ bumps to 4 so mid-
-      // tier targets are also one-shot eligible.
+      // Lone Wolf is a universal engine rule (playCard/summonCard apply +1/+1
+      // to any card entering alone); Gamora must not add her own or it
+      // double-stacks. She only does her execute on entry.
+      // Roguelite Text+ override — _gamoraExecuteThreshold raises the execute
+      // ceiling (default 2, Text+ 4).
       const threshold = self._gamoraExecuteThreshold || 2;
       const targets = G.getEnemiesOf(self.owner).filter(c => c.currentHealth <= threshold && G.canEffectLand(c, 'destroy', { owner: self.owner, source: self }));
       if (targets.length) {
@@ -1180,12 +1008,10 @@ const CARD_ABILITIES = {
   "Ghostface": {
     onPlay(G, self, lane) {
       if (typeof UI !== 'undefined' && UI._fxGhostfaceSlash) { try { UI._fxGhostfaceSlash(self); } catch (e) {} }
-      // Roguelite Text+ ("Mass Hysteria") swaps the classic (2/1)
-      // Bullseye summon for a personal-power upgrade: Overdrive + Evade
-      // 3 (set in apply) plus +1/+1 per card in hand on play. Apply
-      // path already added Overdrive and Evade 3 to the runtime card,
-      // so we only need to handle the hand-count buff here.
-      // Classic path: spawn the (2/1) Bullseye summon (legacy behavior).
+      // Roguelite Text+ ("Mass Hysteria") swaps the classic (2/1) Bullseye
+      // summon for Overdrive + Evade 3 (added in apply) plus +1/+1 per card
+      // in hand on play; only the hand-count buff is handled here.
+      // Classic path: spawn the (2/1) Bullseye summon.
       if (self._ghostfaceHandBuff) {
         const handCount = (G.state[self.owner].hand || []).length;
         if (handCount > 0) {
@@ -1204,34 +1030,25 @@ const CARD_ABILITIES = {
   },
   "Human Torch": {
     onPlay(G, self, lane) {
-      // CAPTURE THE ACTING SEAT NOW, before the arrival splash below. splashDamage
-      // fires other cards' onDamaged/onDeath hooks, and any of those can reassign
-      // G._2v2CurrentActingPlayer — so by the time the Burning prompt is raised
-      // the acting-seat global has drifted off Torch's owner, the prompt goes out
-      // unowned, and the online table stalls waiting on a pick nobody can make.
-      // (User: "played human torch ... was able to blast 2 enemys but is stuck
-      // and the game stalled.") Name the seat explicitly, like Symbiote Spider-Man.
+      // CAPTURE THE ACTING SEAT NOW, before the arrival splash. splashDamage
+      // fires other cards' onDamaged/onDeath hooks, which can reassign
+      // G._2v2CurrentActingPlayer; an unowned Burning prompt stalls the online
+      // table. Name the seat explicitly, like Symbiote Spider-Man.
       const tt = G.state && G.state.twoVTwo;
       const blastSeat = (tt && tt.online)
         ? (self._2v2PlayedBy || G._2v2CurrentActingPlayer || (G._2v2ActivePlayer && G._2v2ActivePlayer()))
         : null;
-      // Flame-on cue — fire Human Torch's ability sound the instant he ignites
-      // (registered in CARD_SFX; matches the Predator / Spider-Man pattern of
-      // firing 'ability' from the card's own onPlay). Guarded so the headless
-      // sim no-ops. User: "add this to human torch ability."
+      // Flame-on cue — fire Human Torch's ability sound (CARD_SFX) from his
+      // own onPlay, like Predator / Spider-Man. Guarded so the sim no-ops.
       if (typeof UI !== 'undefined' && UI.sfx) {
         try { UI.sfx.playCardSfx('Human Torch', 'ability', self); } catch (e) {}
       }
-      // Roguelite Text+ override — _humanTorchBlast scales the targeted
-      // burn. Default 2 (classic); Text+ raises to 4.
-      // Owner: "for human torch have apply 2 burning to an enemy instead of
-      // 2 damage." It is no longer a lump of damage — it sets the target
-      // alight at Burning N, so it ticks N, N-1, … down to 0 on that card's
-      // own lane, through the shared applier every Burning source uses.
+      // Roguelite Text+ override — _humanTorchBlast scales the burn (default
+      // 2, Text+ 4). It applies Burning N (ticks N, N-1, … 0 on the target's
+      // lane) through the shared applier every Burning source uses.
       const blast = self._humanTorchBlast || 2;
-      // Total damage the burn will eventually deal — N + (N-1) + … + 1.
-      // The AI's kill-picker needs the TOTAL, not the first tick, or it would
-      // pass over a target the burn actually finishes.
+      // Total damage the burn will eventually deal — N + (N-1) + … + 1. The
+      // AI kill-picker needs the TOTAL, not the first tick.
       const blastTotal = (blast * (blast + 1)) / 2;
       // _humanTorchArrivalSplash scales the splash on entry. Default 1
       // (classic); Text+ raises to 3.
@@ -1254,10 +1071,9 @@ const CARD_ABILITIES = {
   },
   "Invisible Woman": {
     onPlay(G, self, lane) {
-      // Roguelite Text+ ("Force Field") swaps the classic Evade grant
-      // for Invincibility N turns + (+M/+M). _iwInvincibility / _iwBuffSize
-      // are set by the apply hook; default falls back to the classic
-      // Evade-1 grant scaled by _iwEvadeAmount.
+      // Roguelite Text+ ("Force Field") swaps the classic Evade grant for
+      // Invincibility N turns + (+M/+M) (_iwInvincibility / _iwBuffSize, set
+      // in apply); default is the Evade grant scaled by _iwEvadeAmount.
       const invincN = self._iwInvincibility || 0;
       const buffN = self._iwBuffSize || 0;
       const evadeN = self._iwEvadeAmount || 1;
@@ -1265,10 +1081,8 @@ const CARD_ABILITIES = {
       const grant = (a) => {
         if (typeof UI !== 'undefined' && UI._fxInvisibleWomanField) { try { UI._fxInvisibleWomanField(self, a); } catch (e) {} }
         if (invincN > 0) {
-          // Permanent stat bump (no temp-buff turns) so the +3/+3 sticks
-          // beyond the Invincibility window — matches the Yoda /
-          // Star-Lord buff convention. Invincibility itself uses
-          // grantTempBuff so it expires after N turns.
+          // Permanent stat bump so the +3/+3 outlasts the Invincibility window
+          // (Yoda / Star-Lord convention); Invincibility uses grantTempBuff.
           if (buffN > 0) G.buffCard(a, buffN, buffN);
           G.grantTempBuff(a, { invincibleTurns: invincN }, invincN);
           const tail = buffN > 0 ? ` and (+${buffN}/+${buffN})` : '';
@@ -1291,18 +1105,15 @@ const CARD_ABILITIES = {
   },
   "Nightwing": {
     onPlay(G, self, lane) {
-      // Roguelite Text+ override — _nightwingDebuff scales the ATK strip.
-      // Default 2 (classic); Text+ raises to 3 so big bodies (Hulk, Doom)
-      // get reduced to swingable numbers in one play.
+      // Roguelite Text+ override — _nightwingDebuff scales the ATK strip
+      // (default 2, Text+ 3).
       const debuff = self._nightwingDebuff || 2;
       const enemies = G.getEnemiesOf(self.owner).filter(t => (t.attack || 0) > 0 && G.canEffectLand(t, 'debuff', { owner: self.owner, source: self }));
       if (enemies.length) {
-        // { seat } NAMES the Nightwing owner's seat so the target choice routes
-        // to THEM — an AI owner auto-picks the highest-threat enemy via
-        // _aiThreatPicker (AI.threatScore already values dangerous bodies like
-        // Green Lantern), and only a HUMAN owner is asked. Without it, an
-        // AI-played Nightwing in 2v2 handed the pick to a human TEAMMATE. (User:
-        // "for any card the AI plays, HE should choose, not the human teammate.")
+        // { seat } routes the choice to the Nightwing owner's seat: an AI
+        // owner auto-picks via _aiThreatPicker, only a HUMAN owner is asked.
+        // Without it an AI-played Nightwing in 2v2 hands the pick to a human
+        // teammate — whoever plays the card chooses.
         G.promptCardChoice(self.owner, enemies, "Nightwing — Weaken", `Choose enemy to remove ${debuff} Attack from`, (t) => {
           if (typeof UI !== 'undefined' && UI._fxNightwingStrike) { try { UI._fxNightwingStrike(self, t); } catch (e) {} }
           G.debuffCard(t, debuff, 0, false, self); G.log(`Nightwing weakens ${t.name} by ${debuff} ATK!`);
@@ -1312,9 +1123,8 @@ const CARD_ABILITIES = {
   },
   "Peacemaker": {
     onPlay(G, self, lane) {
-      // Roguelite Text+ override — _peacemakerKillThreshold raises the
-      // ATK ceiling for the eliminate. Default 2 (classic); Text+ to 4
-      // so mid-range threats (Spawn, Wonder Woman) are valid targets.
+      // Roguelite Text+ override — _peacemakerKillThreshold raises the ATK
+      // ceiling for the eliminate (default 2, Text+ 4).
       const threshold = self._peacemakerKillThreshold || 2;
       const targets = G.getEnemiesOf(self.owner).filter(c => c.attack <= threshold && G.canEffectLand(c, 'destroy', { owner: self.owner, source: self }));
       if (targets.length) {
@@ -1349,9 +1159,7 @@ const CARD_ABILITIES = {
     onPlay(G, self, lane) {
       const adj = G.getAdjacentEnemiesInContext(lane, self.owner);
       // Roguelite Text+ override — _flashFreezeAll skips the picker and
-      // freezes BOTH adjacent enemies. Default false (classic — pick 1);
-      // Text+ true (freeze all adj). User direction: Speed Force scaling
-      // — the Flash literally moves twice.
+      // freezes BOTH adjacent enemies (default false — pick 1).
       const freezeAll = !!self._flashFreezeAll;
       if (typeof UI !== 'undefined' && UI._fxFlashDash) { try { UI._fxFlashDash(self, adj[0] || null); } catch (e) {} }
       const freezeTarget = () => {
@@ -1370,13 +1178,10 @@ const CARD_ABILITIES = {
         G.log(`[FLASH] ${G.seatVerb(who, 'go', 'goes')} first next turn.`);
       };
       const chooseFirst = () => {
-        // 2v2 online: "first player" is one of FOUR seats, not a side. Offer the
-        // whole table and rotate NEXT round's turn cycle to start on the picked
-        // seat via _2v2FirstOverride (honored by _2v2ComputePhaseOrder). It sets
-        // only who plays the NEXT turn first — the other three follow in the
-        // usual interleave. (User: "it should give me a prompt for all 4 players
-        // about who I want to go first … and the turn would follow suit"; "it's
-        // just the next card played, not the next card for each player.")
+        // 2v2 online: "first player" is one of FOUR seats. Offer the whole
+        // table; _2v2FirstOverride (read by _2v2ComputePhaseOrder) makes only
+        // NEXT round's first play the picked seat — the other three follow
+        // the usual interleave.
         const tt = G.state && G.state.twoVTwo;
         if (tt && tt.online) {
           const nextRound = (tt.round || 0) + 1;
@@ -1386,14 +1191,10 @@ const CARD_ABILITIES = {
             const tiles = G._2v2SLOTS
               .filter(pk => tt.players[pk] && tt.players[pk].team)
               .map(pk => ({
-                // ALWAYS THE SEAT'S REAL NAME. This said "You" for `tt.you`,
-                // and `tt.you` on the machine that BUILDS these tiles is the
-                // host — so the tray went out with the host's own tile reading
-                // "You" to all four players, while the seat actually answering
-                // (actingSeat, below) was named normally. The picker disagreed
-                // with the turn-order panel sitting right next to it. (User:
-                // "the names were wrong here, fix this to match the names.")
-                // Which tile is yours is already said once, in the desc.
+                // ALWAYS THE SEAT'S REAL NAME, never "You": `tt.you` on the
+                // machine building these tiles is the host, so "You" would
+                // mislabel the host's tile for all four players. Which tile
+                // is yours is said once, in the desc.
                 name: tt.players[pk].name || pk,
                 desc: `Team ${tt.players[pk].team}${pk === actingSeat ? ' · this is you' : ''}`,
                 _seat: pk, _isPlayerTile: true,
@@ -1432,27 +1233,15 @@ const CARD_ABILITIES = {
           setFirst(behind ? self.owner : opp);
         }
       };
-      // WHO GOES FIRST IS NOT PART OF THE FREEZE, AND IT USED TO BE.
-      //
-      // chooseFirst() was called from inside each branch of freezeTarget —
-      // including from inside the freeze prompt's callback — so "Choose who
-      // plays first next turn" only happened if that prompt was answered. His
-      // card prints them as two effects, and they are: the first-player choice
-      // does not read the freeze target, or even whether there was one.
-      //
-      // Same shape as Thor's thunder, and a prompt that is never answered is
-      // not hypothetical: a stall recovery clears pending prompts outright to
-      // unpark combat (`s.pendingCardChoice = null` in _forceEndStalledCombat),
-      // and a 2v2 prompt raised for the wrong seat is answered by nobody.
-      // Either one silently ate the whole first-player choice while the Flash
-      // sat on the board looking like he had resolved.
-      //
-      // AFTER the freeze, not before — unlike Thor. His thunder can kill the
-      // card you are about to be asked to freeze, so it had to land first;
-      // nothing here changes the other half's options, so the two prompts are
-      // simply asked in the order the card prints them. freezeTarget() returns
-      // as soon as it has ARMED its prompt, so this runs either way, and the
-      // prompt queue keeps them in order.
+      // WHO GOES FIRST IS NOT PART OF THE FREEZE. The card prints two
+      // independent effects, so the first-player choice must not wait on the
+      // freeze prompt's callback: a stall recovery can clear pending prompts
+      // (_forceEndStalledCombat), and a 2v2 prompt raised for the wrong seat
+      // is answered by nobody — either would silently drop the choice.
+      // AFTER the freeze (unlike Thor, whose thunder can kill the freeze
+      // target): nothing here affects the other half, so ask in printed order.
+      // freezeTarget() returns once it ARMS its prompt, and the prompt queue
+      // keeps the two in order.
       freezeTarget();
       chooseFirst();
     }
@@ -1461,10 +1250,9 @@ const CARD_ABILITIES = {
   // ==================== COST 3 ====================
   "Ahsoka": {
     onAllyKilled(G, self) {
-      // Queue a bonus attack for every ally death, not just the first one this combat.
-      // Roguelite Text+ override — _ahsokaBonusAttacksPerKill scales the
-      // bonus attacks granted per ally death. Default 1 (classic);
-      // Text+ raises to 2 so a 2-ally trade gives Ahsoka 4 free swings.
+      // Queue a bonus attack for every ally death, not just the first this combat.
+      // Roguelite Text+ override — _ahsokaBonusAttacksPerKill scales bonus
+      // attacks per ally death (default 1, Text+ 2).
       const grant = self._ahsokaBonusAttacksPerKill || 1;
       self.bonusAttack = (typeof self.bonusAttack === 'number' ? self.bonusAttack : 0) + grant;
       if (typeof UI !== 'undefined' && UI._fxAhsokaReady) { try { UI._fxAhsokaReady(self); } catch (e) {} }
@@ -1473,9 +1261,8 @@ const CARD_ABILITIES = {
   "Carnage": {
     onBeforeTricks(G, self, lane) {
       if (self.carnageHealed) return;
-      // Roguelite Text+ ("Bloodbath") — _carnageHealAllCards counts
-      // EVERY card on the board (your allies + opp's enemies).
-      // Classic / no-upgrade path counts only enemies × _carnageHealMul.
+      // Roguelite Text+ ("Bloodbath") — _carnageHealAllCards counts EVERY
+      // card on the board; classic counts only enemies × _carnageHealMul.
       let amount;
       if (self._carnageHealAllCards) {
         amount = G.getAllCardsOnBoard().length;
@@ -1495,8 +1282,7 @@ const CARD_ABILITIES = {
   "Deathstroke": {
     onPlay(G, self, lane) {
       // Roguelite Text+ override — _deathstrokeKillThreshold raises the
-      // assassinate ceiling. Default 3 (classic); Text+ sets to 5 so
-      // mid-tier targets are also one-shot-able.
+      // assassinate ceiling (default 3, Text+ 5).
       const threshold = self._deathstrokeKillThreshold || 3;
       const enemies = G.getEnemiesOf(self.owner);
       const targets = enemies.filter(c => c.currentHealth <= threshold && G.canEffectLand(c, 'destroy', { owner: self.owner, source: self }));
@@ -1504,24 +1290,13 @@ const CARD_ABILITIES = {
         G.promptCardChoice(self.owner, targets, "Deathstroke — Assassinate", `Choose enemy with ${threshold} or less HP to destroy`, (t) => {
           if (typeof UI !== 'undefined' && UI._fxDeathstrokeKill) { try { UI._fxDeathstrokeKill(self, t); } catch (e) {} }
           G.log(`Deathstroke assassinates ${t.name}!`); G.killCard(t, self);
-          // inlineTray — PICK FROM A TRAY, NOT BY HITTING THE CARD ON THE BOARD.
-          // Reported twice as "he never got to kill any of them" / "isn't
-          // working at all". Every link in the board-click path checks out when
-          // driven directly (prompt raised and stamped to the right seat, the
-          // targets render highlighted and clickable on both team perspectives,
-          // the guest's index round-trips through the wire and the host kills
-          // the right card), so rather than keep guessing at the one link that
-          // can't be reproduced here, the choice now goes through the tray —
-          // its own DOM, its own buttons, the same grammar as the Symbiote
-          // shuffle and Deadpool's give-back. A board click is no longer the
-          // only way to answer.
+          // inlineTray — pick from a tray (its own DOM and buttons, same as the
+          // Symbiote shuffle and Deadpool's give-back), so a board click is no
+          // longer the only way to answer.
         }, _aiThreatPicker, { inlineTray: true, seat: self._2v2PlayedBy || null });
       } else {
-        // NEVER FAIL SILENTLY. This branch did not exist: with nothing legal to
-        // hit, Deathstroke landed and said nothing at all, which is
-        // indistinguishable from a broken ability — and that is exactly how it
-        // gets reported. Now the log says which of the two it was, and names
-        // the reason, so "he never got to kill any of them" is answerable.
+        // NEVER FAIL SILENTLY: with nothing legal to hit, log which case it was
+        // and why, so a no-op is distinguishable from a broken ability.
         const low = enemies.filter(c => c.currentHealth <= threshold);
         if (!enemies.length) {
           G.log(`[DEATHSTROKE] No enemy on the field — nobody to assassinate.`);
@@ -1544,12 +1319,10 @@ const CARD_ABILITIES = {
     passive: "extraCurrency"
   },
   "Gizmo": {
-    // When Damaged (once): spawn a Gremlin into any open lane + add Stripe
-    // to hand. Fires on the FIRST hit whether or not it's lethal — a killing
-    // blow still triggers the horde (onDamaged runs before handleDeath in both
-    // the combat and dealDamage paths), so Gizmo dying to the hit still leaves
-    // a Gremlin + Stripe behind. The once-guard lives on the instance so a
-    // revived Gizmo comes back re-armed, matching "played anew" revive semantics.
+    // When Damaged (once): spawn a Gremlin into any open lane + add Stripe to
+    // hand. Fires on the FIRST hit even if lethal (onDamaged runs before
+    // handleDeath in both combat and dealDamage). The once-guard lives on the
+    // instance so a revived Gizmo comes back re-armed ("played anew").
     onDamaged(G, self) {
       if (self._gizmoTriggered) return;
       self._gizmoTriggered = true;
@@ -1567,16 +1340,14 @@ const CARD_ABILITIES = {
     },
   },
   "Gremlin": {
-    // Swarm — +1 ATK per other living Gremlin ON THE FIELD (both sides,
-    // per card text). STRIPE COUNTS AS A GREMLIN for the swarm count
-    // (user rule) — he raises every Gremlin's count but doesn't carry
-    // Swarm himself (his arrival/death bookkeeping lives in his own
-    // onPlay/onDeath). Event-driven additive bookkeeping instead of a
-    // per-tick recalc so buffs from other sources (Padme, Power Stone)
-    // are never clobbered: each arrival buffs itself by the existing
-    // count and every existing Gremlin by +1; each death walks it back.
-    // onPlay fires for spawns too — summonCard runs the summoned card's
-    // own onPlay whenever a full sourceDef is passed (Gizmo/Stripe do).
+    // Swarm — +1 ATK per other living Gremlin ON THE FIELD (both sides).
+    // STRIPE COUNTS AS A GREMLIN for the count but doesn't carry Swarm
+    // himself (his bookkeeping lives in his own onPlay/onDeath).
+    // Event-driven additive bookkeeping, not a per-tick recalc, so buffs from
+    // other sources (Padme, Power Stone) are never clobbered: each arrival
+    // buffs itself by the existing count and every existing Gremlin by +1;
+    // each death walks it back. onPlay fires for spawns too (summonCard runs
+    // the summoned card's onPlay when a full sourceDef is passed).
     onPlay(G, self, lane) {
       const kin = G.getAllCardsOnBoard().filter(c =>
         c.id !== self.id && (c.name === 'Gremlin' || c.name === 'Stripe') && c.currentHealth > 0);
@@ -1599,13 +1370,11 @@ const CARD_ABILITIES = {
     // dies making it. See the deferred-onKill block in resolveLaneCombat.
     onKillWhenDead: true,
     // Jump condition ("either player takes hero damage") lives in
-    // Game.checkJumpConditions under the 'heroDamaged' trigger — fired
-    // from damagePlayer when face damage actually lands.
-    // Swarm kinship: Stripe COUNTS AS a Gremlin for the swarm count, so
-    // his arrival gives every living Gremlin +1 ATK and his death takes
-    // it back. He doesn't carry Swarm himself — no self-buff here; the
-    // new-Gremlin side of the count lives in Gremlin's onPlay (kin
-    // filter includes Stripe).
+    // Game.checkJumpConditions under 'heroDamaged', fired from damagePlayer
+    // when face damage actually lands.
+    // Swarm kinship: Stripe COUNTS AS a Gremlin, so his arrival gives every
+    // living Gremlin +1 ATK and his death takes it back. No self-buff; the
+    // new-Gremlin side lives in Gremlin's onPlay (kin filter includes Stripe).
     onPlay(G, self, lane) {
       const brood = G.getAllCardsOnBoard().filter(c =>
         c.id !== self.id && c.name === 'Gremlin' && c.currentHealth > 0);
@@ -1622,22 +1391,14 @@ const CARD_ABILITIES = {
       });
     },
     onKill(G, self) {
-      // NO "ONLY IF HE SURVIVED" GUARD. Stripe was the only onKill in the game
-      // carrying one (ten others have none), and combat DEFERS onKill so both
-      // sides' simultaneous swings land first — so the moment Stripe traded,
-      // killing the enemy and dying to it in the same exchange, he was already
-      // dead when his own hook ran and it bailed. The kill that most looks like
-      // it should feed the swarm was the exact kill that never did. (User: "for
-      // stripe in 2v2 his on kill ability never fired at all.")
-      // The payload is the swarm's: the Gremlins grow and a new one arrives.
-      // Whether Stripe lived to see it is not the condition — the kill is.
+      // NO "ONLY IF HE SURVIVED" GUARD. Combat DEFERS onKill so both sides'
+      // simultaneous swings land first, so in a trade Stripe is already dead
+      // when this runs. The condition is the kill, not his survival.
       G.log(`[STRIPE] Stripe tears one down — the swarm feeds!`);
       // Kill feed: PERMANENT +1/+1 to every living friendly Gremlin AND
-      // Stripe himself ("add 1/1 to all Gremlins, including Stripe").
-      // Deliberate exception to the 1-turn cross-card buff default —
-      // this is the swarm's growth engine, same permanence as an onKill
-      // self-buff. Buff lands BEFORE the spawn so the newcomer arrives
-      // at base stats (it wasn't on the field for the kill).
+      // Stripe himself — a deliberate exception to the 1-turn cross-card buff
+      // default (the swarm's growth engine). Buff lands BEFORE the spawn so
+      // the newcomer arrives at base stats.
       const brood = G.getAlliesOf(self.owner).filter(c =>
         c.name === 'Gremlin' && c.currentHealth > 0);
       brood.forEach(g => { g.attack += 1; g.maxHealth += 1; g.currentHealth += 1; });
@@ -1650,13 +1411,10 @@ const CARD_ABILITIES = {
     },
   },
   "Spawn": {
-    // Classic Spawn has no special onDeath — he's a vanilla 3/3 with
-    // Bullseye + Overdrive. The Roguelite Text+ ("Hellspawn Rises")
-    // upgrade flips his death into a self-revive with +5/+5 by
-    // setting reviveCharges = 1 and _draxReviveBuff = 5. (Internal
-    // `_draxReviveBuff` name kept for save-data back-compat — the
-    // card was renamed from Drax but the state property name
-    // stays put.)
+    // Classic Spawn has no onDeath — a vanilla 3/3 with Bullseye + Overdrive.
+    // Roguelite Text+ ("Hellspawn Rises") makes death a self-revive with
+    // +5/+5 via reviveCharges = 1 and _draxReviveBuff = 5 (the property keeps
+    // its pre-rename Drax name for save-data back-compat).
     onDeath(G, self, lane) {
       if (!(self.reviveCharges > 0) || !self._draxReviveBuff) return;
       self.reviveCharges--;
@@ -1672,9 +1430,8 @@ const CARD_ABILITIES = {
   "Green Goblin": {
     _recurringBT: true,
     onPlay(G, self, lane) {
-      // Roguelite Text+ override — _goblinBombBoost adds +1 to each
-      // pumpkin-bomb splash. Default 0 (classic 1+2); Text+ sets to 1
-      // so the bombs hit for 2+3 (one extra damage on each splash).
+      // Roguelite Text+ override — _goblinBombBoost adds N to each
+      // pumpkin-bomb splash (default 0 → 1+2; Text+ 1 → 2+3).
       const boost = self._goblinBombBoost || 0;
       if (typeof UI !== 'undefined' && UI._fxGoblinBombs) { try { UI._fxGoblinBombs(self, lane, self.owner); } catch (e) {} }
       G.splashDamage(lane, self.owner, 1 + boost, self);
@@ -1682,9 +1439,8 @@ const CARD_ABILITIES = {
       G.log(`Green Goblin throws pumpkin bombs! Splash ${1 + boost} then Splash ${2 + boost}!`);
     },
     onBeforeTricks(G, self, lane) {
-      // Stun / freeze blocks the move AND the follow-up splash. Same
-      // guard as Man-Bat — moveCard alone isn't enough because the
-      // splash fires after the refused move.
+      // Freeze blocks the move AND the follow-up splash — moveCard alone isn't
+      // enough because the splash fires after a refused move.
       // See Man-Bat for why this asks isMoveLocked and not isActionLocked.
       if (Game.isMoveLocked(self)) {
         G.log(`  [SKIP] ${self.name} is ${Game.moveLockLabel(self)} — stays put.`);
@@ -1704,11 +1460,8 @@ const CARD_ABILITIES = {
       // Stay-option same as Man-Bat / Omni-Man — pick own lane to skip
       // the relocation. Splash also skips since it fires off the move.
       if (Game.isHuman(self.owner)) {
-        // STAY is a BUTTON, not a lane (see promptLaneChoice options.declineLabel).
-        // The old affordance listed Green Goblin's own lane among the choices and
-        // asked the player to click it — but that square is covered by the card
-        // itself, so the click hit the card every time. Owner: "it's hard right
-        // now to click their lane that they are in to stay."
+        // STAY is a BUTTON, not a lane (promptLaneChoice options.declineLabel):
+        // his own lane is covered by the card itself, so it can't be clicked.
         G.promptLaneChoice(self.owner, targetLanes, "Green Goblin — Move", "Choose a lane to move to", (to) => {
           G.moveCard(self, lane, to);
           G.splashDamage(to, self.owner, 1, self);
@@ -1727,10 +1480,8 @@ const CARD_ABILITIES = {
   "Groot": {
     onPlay(G, self, lane) {
       const own = self.owner;
-      // Roguelite Text+ override — _grootProtectsSelf includes Groot
-      // himself in the immunity grant. Default false (classic protects
-      // adjacent allies only); Text+ true so Groot is also untouchable
-      // for the round (3 cards safe instead of 2).
+      // Roguelite Text+ override — _grootProtectsSelf includes Groot in the
+      // immunity grant (default false: adjacent allies only).
       const includeSelf = !!self._grootProtectsSelf;
       const lanes = [lane - 1, lane + 1];
       if (includeSelf) lanes.push(lane);
@@ -1739,13 +1490,11 @@ const CARD_ABILITIES = {
           G.grantTempBuff(G.state.lanes[l][own], { hasDamageImmunity: true });
         }
       });
-      // A LANE SHIELD on the adjacent lanes, exactly like Joker's Playing Card:
-      // lane.protected = own means an UNCONTESTED enemy in that lane can't swing
-      // at Groot's owner this round (resolveUncontestedLane / the bonus-attack
-      // path both honour lane.protected). Reset to null every startRound, so
-      // it's a one-turn shield. (User: "groot also gives the shield thing like
-      // the joker's playing card to the adjacent lanes.") Groot's own lane is
-      // never shielded — adjacent only, matching the immunity grant's shape.
+      // A LANE SHIELD on the adjacent lanes, like Joker's Playing Card:
+      // lane.protected = own stops an UNCONTESTED enemy there swinging at
+      // Groot's owner (resolveUncontestedLane and the bonus-attack path honour
+      // it). Reset every startRound, so one turn. Adjacent only, never his own
+      // lane, matching the immunity grant.
       [lane - 1, lane + 1].forEach(l => {
         if (l >= 0 && l < Game.LANE_COUNT && G.state.lanes[l] && !G.state.lanes[l].destroyed) {
           G.state.lanes[l].protected = own;
@@ -1762,15 +1511,13 @@ const CARD_ABILITIES = {
     }
   },
   "Jigsaw": {
-    // NOT a discard effect any more (owner). Jigsaw is _spawnOnly now and
-    // arrives through the Saw event rather than from a hand, so the discard flag
-    // is gone; the _placeRoom / onDiscard logic below is kept as the basis for
-    // the event-driven rework still being flushed out.
+    // Not a discard effect: Jigsaw is _spawnOnly and arrives through the Saw
+    // event. The _placeRoom / onDiscard logic below is the basis for the
+    // event-driven rework.
     // Environments are normally placed by playCard, which inlines the slot
-    // handling. Nothing exposes it, so this mirrors that block: clear whatever
-    // occupies the sub-slot on EITHER side (a live env left dangling keeps
-    // receiving broadcasts — the replaced-Boiler-Room bug), seat the new room,
-    // announce it, and run its own On Play so it can arm itself.
+    // handling and exposes nothing, so this mirrors that block: clear the
+    // sub-slot on EITHER side (a live env left dangling keeps receiving
+    // broadcasts), seat the new room, announce it, run its own On Play.
     _placeRoom(G, owner, laneIdx, name) {
       const def = (typeof CARD_DEFS !== 'undefined')
         ? CARD_DEFS.find(d => d.name === name) : null;
@@ -1798,14 +1545,11 @@ const CARD_ABILITIES = {
 
       // Step 2: After all traps are placed, move an enemy card to any open lane.
       const moveEnemyStep = () => {
-        // Frozen / stunned enemies can't be dragged either — they're locked
-        // in their lane until the status clears. Filter them out of the
-        // pickable pool so Jigsaw can't move a frozen victim.
+        // Frozen enemies are locked in their lane, so they're not pickable.
         const enemies = G.getEnemiesOf(owner).filter(e => !e.isFrozen && !e.isStunned);
         if (!enemies.length) { G.log("Jigsaw finds no enemy cards left to drag."); return; }
         // Same guard as Gojo / Darth Vader: with no open enemy-side lane there
-        // is no destination for ANY pick, so asking wastes the player's choice
-        // timer on a dead end.
+        // is no destination, so don't spend the player's choice timer.
         if (!G.getOpenLanes(G.opponent(owner)).length) {
           G.log('Jigsaw finds no open lane to drag anyone into — skipping.');
           return;
@@ -1841,11 +1585,9 @@ const CARD_ABILITIES = {
           cards => cards.slice().sort((a, b) => b.attack - a.attack)[0]);
       };
 
-      // ROOMS, NOT TRAPS. Owner: "jigsaw now makes 2 environments." The two
-      // rooms replace the Bear Traps entirely; the relocate step below is kept.
-      // Placed into lanes that are EMPTY ON THE ENEMY SIDE — the same lane test
-      // the traps used, and the same one the rooms need, since both only mean
-      // anything to a card that walks in afterwards.
+      // ROOMS, NOT TRAPS: two environments; the relocate step below is kept.
+      // Placed into lanes EMPTY ON THE ENEMY SIDE, since a room only matters
+      // to a card that walks in afterwards.
       const ROOMS = ['The Bathroom', 'Game Over'];
       const placeRoomStep = (idx) => {
         if (idx >= ROOMS.length) { moveEnemyStep(); return; }
@@ -1854,11 +1596,9 @@ const CARD_ABILITIES = {
         for (let i = 0; i < G.LANE_COUNT; i++) {
           const l = G.state.lanes[i];
           if (l.destroyed || l[opp]) continue;
-          // The cover rule applies to Jigsaw's rooms like anything else: a
-          // room may only land on a lane that already holds an environment
-          // when no free lane is left. Placing the two rooms is sequential,
-          // so the first one seats and the second then sees that lane as
-          // taken — which is the intended reading, not a special case.
+          // Cover rule: a room may land on a lane with an environment only
+          // when no free lane is left. Placement is sequential, so the second
+          // room sees the first's lane as taken — intended.
           if (typeof G.canPlaceEnvironment === 'function' && !G.canPlaceEnvironment(owner, i)) continue;
           // Never stack a room on top of the one just placed.
           if (l._env && l._env[owner]) continue;
@@ -1887,14 +1627,10 @@ const CARD_ABILITIES = {
   },
 
   // ==================== COG INVASION — the four Cogs ====================
-  // 3-cost 4/6 invaders. onBeforeAttack replaces the normal swing with the
-  // Cog's signature and (for three of them) folds in Power Trip. Their VP's
-  // protection (§2.5) is enforced from the damage path in game.js while the VP
-  // lives; here is only what the Cog itself does on its turn.
-  // Cogs now fire their SIGNATURE the moment they land (onPlay), and their
-  // shared Power Trip stays on the combat step (onBeforeAttack) — the Cog also
-  // swings normally, so Power Trip is a bonus rather than a replacement. (Owner:
-  // "the first ability thats not power trip happens when played.")
+  // 3-cost 4/6 invaders. The signature fires on landing (onPlay); the shared
+  // Power Trip runs on the combat step (onBeforeAttack) as a bonus — the Cog
+  // also swings normally. Their VP's protection (§2.5) is enforced from the
+  // damage path in game.js while the VP lives.
   "Mr. Hollywood": {
     onPlay(G, self, lane) {
       const t = _cogTarget(G, self);
@@ -1916,10 +1652,9 @@ const CARD_ABILITIES = {
       G.log(`  [EMBEZZLE] Robber Baron shakes down ${t.name} — 3 damage, steals 1 Energy.`);
       if (typeof UI !== 'undefined' && UI._fxCogStrike) { try { UI._fxCogStrike(self, t, 'embezzle'); } catch (e) {} }
       G.dealDamage(t, 3, self);
-      // Steal 1 Energy. In 2v2 a side is two people with separate energy pools,
-      // so the theft lands on ONE RANDOM player on the victim's team and is
-      // credited to a random player on the Cog's own team (owner rule). In 1v1
-      // it is the plain side-to-side transfer.
+      // Steal 1 Energy. In 2v2 a side has separate energy pools, so it is taken
+      // from ONE RANDOM player on the victim's team and credited to a random
+      // player on the Cog's team. In 1v1 it is side-to-side.
       try {
         const tt = G.state.twoVTwo;
         if (tt && tt.online && G.is2v2 && G.is2v2()) {
@@ -1984,25 +1719,15 @@ const CARD_ABILITIES = {
     // Discard-only, like Mr. Fantastic and Jigsaw — 0/0, isDiscardEffect keeps
     // playCard from ever seating it in a lane. His whole payload is the scan.
     isDiscardEffect: true,
-    // WHAT HE DOES NOW: name one enemy PLAYER and read their HAND, live, for two
-    // rounds — every card in it and every card that arrives in it — and every
-    // card that arrives comes in at −1 ATK. He used to peek the top of the draw
-    // PILE instead: a two-card snapshot of cards nobody held yet, which told you
-    // nothing about what you were actually about to be hit with, and in 2v2 it
-    // surfaced to a whole SIDE rather than the one player who played him.
-    // (User: "the person who played him will get a prompt of whos cards he wants
-    // to see for the next 2 rounds ... and when that player draws a card the
-    // person who played brainiac gets to see and constantly know what card he
-    // has"; "cards that player drew for those 2 rounds they are visible lose
-    // 1/0.")
-    // The window itself lives in Game.setBrainiacSpy — the engine owns it
-    // because it has to survive the round loop, gate the redaction on the wire,
-    // and shave every card that lands in the watched hand.
+    // Name one enemy PLAYER and read their HAND, live, for two rounds — every
+    // card in it and every card that arrives — and each arriving card comes
+    // in at −1 ATK. Only the player who played him sees it (not a whole side).
+    // The window lives in Game.setBrainiacSpy: the engine owns it because it
+    // must survive the round loop, gate redaction on the wire, and shave every
+    // card that lands in the watched hand.
     onDiscard(G, owner, self) {
       // Bank the caster's +1/+1 harvest BEFORE he draws, so the card he draws
-      // right now arrives charged (it used to be banked after this draw, so the
-      // one card that plays immediately never got the buff — "still not giving
-      // the players card the 1/1 buff").
+      // right now arrives charged.
       try { G._brainiacBankHarvest(owner, self); } catch (e) {}
       // He draws for himself on top of the scan.
       try { G.drawCards(owner, 1); G.log('[BRAINIAC] Brainiac draws a card.'); } catch (e) {}
@@ -2012,20 +1737,12 @@ const CARD_ABILITIES = {
         const view = G.brainiacSpiedHand(caster, caster ? null : owner);
         const who = view ? view.name : (G.seatPossessive ? G.seatPossessive(G.opponent(owner)) : 'the opponent');
         G.log(`[BRAINIAC] Brainiac opens ${who}'s hand for ${G.BRAINIAC_SPY_ROUNDS} rounds — everything they draw arrives at −1/−1.`);
-        // NO whole-hand dump on play any more. The reveal now fires per DRAW —
-        // each card the watched hand pulls pops on the caster's screen at its
-        // reduced stats (Game._brainiacRecordDraw), and the persistent scan strip
-        // shows the live hand and reopens the drawn history. (User: "i just want
-        // to see this come up with the card he actually drew ... each time he
-        // draws a card for the next 2 turns.")
-        // ANNOUNCE IT. The scan itself is private — that is the point of the
-        // card — but a two-round window that nobody is told about is
-        // indistinguishable from nothing having happened, and Brainiac is a
-        // DISCARD card so there is no body left on the board to explain it
-        // either. Owner, watching a teammate cast it: "brainiac isnt working,
-        // ryan played him, i didnt see anything — there should be a pop up like
-        // jigsaw / a trick in the middle of the board to let people know."
-        // The reveal carries WHO and WHOSE HAND and nothing else. Every seat
+        // No whole-hand dump: each draw by the watched hand pops on the
+        // caster's screen at reduced stats (Game._brainiacRecordDraw), and the
+        // scan strip shows the live hand and drawn history.
+        // ANNOUNCE IT. Brainiac is a discard card with no body on the board, so
+        // without a reveal the window is indistinguishable from nothing
+        // happening. The reveal carries WHO and WHOSE HAND only — every seat
         // may know a scan is running; only the caster may read the cards.
         const casterName = (tt && tt.online && caster && tt.players[caster] && tt.players[caster].name)
           || (G.seatLabel ? G.seatLabel(owner) : 'Your side');
@@ -2036,10 +1753,9 @@ const CARD_ABILITIES = {
         if (typeof UI !== 'undefined' && UI.showCardReveal) {
           try { UI.showCardReveal('Brainiac', publicDesc, self.cost, localIsCaster, label); } catch (e) {}
         }
-        // ...and over the wire, because in 2v2 online the host runs every seat's
-        // abilities — the guests never execute this and would otherwise see
-        // nothing at all. Same channel the trick reveal and Iron Giant's save
-        // already ride.
+        // ...and over the wire: in 2v2 online the host runs every seat's
+        // abilities, so guests never execute this. Same channel as the trick
+        // reveal and Iron Giant's save.
         if (G.emitFX) {
           G.emitFX('brainiacScan', { name: 'Brainiac', desc: publicDesc, cost: self.cost,
                                      seat: caster || null, label });
@@ -2060,14 +1776,13 @@ const CARD_ABILITIES = {
   },
   "Art the Clown": {
     // Jump ("enemy has more cards on the field") lives in
-    // Game.checkJumpConditions under the 'beforeTricks' trigger, fired at the
-    // start of the trick phase after both sides finish playing cards.
+    // Game.checkJumpConditions under 'beforeTricks', fired at the start of the
+    // trick phase after both sides finish playing.
     //
     // The bag: four weapons, each used at most once until all four are spent,
-    // then Art is a plain body forever. The choice fires ONCE per round — on
-    // play (his first swing) and every round after via onBeforeTricks. Both
-    // funnel through _step, which the per-round guard makes idempotent so the
-    // play-round's own onBeforeTricks pass can't hand out a second weapon.
+    // then Art is a plain body. The choice fires ONCE per round — on play and
+    // via onBeforeTricks after. Both go through _step, whose per-round guard
+    // stops the play-round's own onBeforeTricks handing out a second weapon.
     _recurringBT: true,
     // key drives logic; icon is the "cool symbol" shown on the choice tile and
     // in the swing animation; the strip fields make each weapon render as a
@@ -2098,9 +1813,8 @@ const CARD_ABILITIES = {
       const round = G.state.round || 1;
       if (self._artWeaponRound === round) return;
       const owner = self.owner;
-      // Only weapons that both remain in the bag AND have a legal target this
-      // round are offered — so "no weapon twice" can never strand Art on a
-      // weapon with nothing to hit.
+      // Only weapons that remain in the bag AND have a legal target are
+      // offered, so "no weapon twice" can't strand Art with nothing to hit.
       const remaining = AB.WEAPONS.filter(w => self._artWeaponsUsed.indexOf(w.key) < 0);
       const enemies = G.getEnemiesOf(owner).filter(e => e.currentHealth > 0);
       const hasKeyworded = enemies.some(e => AB._strippable(e).length > 0);
@@ -2112,22 +1826,18 @@ const CARD_ABILITIES = {
         return;
       }
       self._artWeaponRound = round;
-      // Build the picker tiles. Synthetic option cards (like the Upkeep prompt)
-      // — the _artWeaponKey marker is what the callback reads.
-      // No attack/health fields — that keeps them ACTION tiles (not "real
-      // cards"), so the picker renders the neon weapon glyph instead of a 0/1
-      // card face. See UI's choice-tile builder (_artWeaponKey branch).
+      // Synthetic option tiles (like the Upkeep prompt); the callback reads
+      // _artWeaponKey. No attack/health fields keeps them ACTION tiles, so the
+      // picker draws the weapon glyph, not a 0/1 card face (UI's _artWeaponKey
+      // branch).
       const tiles = usable.map(w => ({
         _artWeaponKey: w.key, name: w.name, cost: 0, type: 'horror', desc: w.desc,
       }));
-      // { seat } — Art's weapon choice belongs to the player who PLAYED him, and
-      // it is raised from the before-tricks pass, where no seat is acting and
-      // the seat "in play" is usually somebody on the other team. Left to the
-      // engine's own derivation it fell back to "the first human on Art's team"
-      // — the host — so a guest's Art was armed, every round, by their teammate.
-      // Same failure the Symbiote shuffle had; same cure. _2v2PlayedBy is
-      // stamped on every played card and is the only thing here that survives
-      // the round loop. (Null in 1v1, where the engine's own path is correct.)
+      // { seat } — the weapon choice belongs to whoever PLAYED Art. It is
+      // raised from the before-tricks pass, where no seat is acting, and the
+      // engine's fallback ("first human on Art's team") hands a guest's Art to
+      // the host. _2v2PlayedBy is stamped on every played card and survives
+      // the round loop (null in 1v1, where the engine's path is correct).
       const artSeat = self._2v2PlayedBy || null;
       G.promptCardChoice(owner, tiles,
         'Art the Clown — Pick a Weapon',
@@ -2205,12 +1915,9 @@ const CARD_ABILITIES = {
         });
       } else if (key === 'hacksaw') {
         pickEnemy('Hacksaw', null, (t) => {
-          // Badge lands immediately (driven by _bleedRounds) AND the wound bleeds
-          // NOW rather than waiting for the next round start. (User: "instead of
-          // the start of the next round the bleeding effect happens i want the
-          // badge to happen and effect to happen as soon as he chooses who to
-          // hacksaw.") First tick fires here; tickBleed decrements it to one
-          // remaining tick, which bleeds at the next round start.
+          // Badge lands immediately (driven by _bleedRounds) AND the wound
+          // bleeds NOW. tickBleed then decrements to one remaining tick, which
+          // bleeds at the next round start.
           t._bleedRounds = 2;
           t._bleedAmount = 2;
           t._bleedSourceOwner = owner;
@@ -2283,9 +1990,8 @@ const CARD_ABILITIES = {
   },
   "Loki": {
     onPlay(G, self, lane) {
-      // Block-meter fill % scales with tier. Common: 50%, Rare: 100%
-      // (listed), Special: 100% + 1 random ally gains Evade 1, Legendary:
-      // 100% + ALL allies gain Evade 1.
+      // Block-meter fill % scales with tier: common 50%, rare 100%, special
+      // 100% + 1 random ally Evade 1, legendary 100% + ALL allies Evade 1.
       const fillPct = G.rarityValue(self, { common: 0.5, rare: 1.0, special: 1.0, legendary: 1.0 });
       const allyEvade = G.rarityValue(self, { common: 'none', rare: 'none', special: 'one', legendary: 'all' });
       const fillAmt = Math.floor(Game.BLOCK_MAX * fillPct);
@@ -2303,15 +2009,10 @@ const CARD_ABILITIES = {
     }
   },
   "Moder": (() => {
-    // Fields that get nulled / zeroed on strip. Listed once so the strip
-    // and restore paths can't drift.
-    // EVERY hook createCardInstance can assign. Six were missing —
-    // onBeforeCombat, onLaneCombat, onLaneResolved, onAnyTrickPlayed,
-    // onDiscard, onMoved — so "strips ALL abilities" quietly meant "strips 13
-    // of 19". Reported case: Jack Sparrow played into Moder kept firing Parlay
-    // every combat, because Parlay lives on onBeforeCombat. Voldemort's curses
-    // (onLaneCombat) had the same hole. sim/test.js now fails if game.js gains
-    // a hook that is not listed here.
+    // Fields nulled / zeroed on strip — EVERY hook createCardInstance can
+    // assign, listed once so strip and restore can't drift (e.g. Parlay lives
+    // on onBeforeCombat, Voldemort's curses on onLaneCombat). sim/test.js
+    // fails if game.js gains a hook that is not listed here.
     const STRIP_HOOKS = [
       'onPlay', 'onDeath', 'onDamaged', 'onKill', 'onBeforeTricks',
       'onBeforeAttack', 'onEndOfTurn', 'onAnyCardPlayed', 'onAllyKilled', 'onEnemyKilled',
@@ -2328,23 +2029,18 @@ const CARD_ABILITIES = {
       'isUntrickable',
     ];
     const strip = (card, G) => {
-      // Bug fix: previously a stripped card that returned to hand via
-      // Phantom Zone (or any future bounce) stayed permanently de-fanged
-      // because addToHand had no restore path. Snapshot the original
-      // values so unstrip() can put them back when the card leaves the
-      // board. Only snapshot once — re-stripping shouldn't overwrite the
-      // backup with already-stripped values.
+      // Snapshot the original values so unstrip() can restore them when the
+      // card leaves the board (e.g. bounced to hand by Phantom Zone). Only
+      // snapshot once — re-stripping mustn't overwrite the backup with
+      // already-stripped values.
       if (!card._moderBackup) {
         const backup = {};
         for (const k of STRIP_FIELDS) backup[k] = card[k];
         backup._permanentUntrickable = !!card.permanentUntrickable;
         card._moderBackup = backup;
       }
-      // Driven from STRIP_HOOKS rather than hand-written. The old code listed
-      // the same hooks a SECOND time here, and that copy is the one that fell
-      // behind — the array above already carried the comment "listed once so
-      // the strip and restore paths can't drift" while the drift was six lines
-      // below it.
+      // Driven from STRIP_HOOKS, not a second hand-written list, so it can't
+      // drift.
       for (const h of STRIP_HOOKS) card[h] = null;
       card.evadeCharges = 0; card.armorValue = 0; card.isOverdrive = false;
       card.isBullseye = false; card.immunityCharges = 0; card.hasHunt = false;
@@ -2366,37 +2062,26 @@ const CARD_ABILITIES = {
       G.log(`Moder strips all abilities from ${card.name}!`);
     };
     return {
-      // Exposed so the ENGINE can run the strip at lane-entry time. It used to
-      // fire only from onAnyCardPlayed, which broadcasts AFTER the arriving
-      // card's own onPlay — so a card played into Moder's lane got its When
-      // Played off before losing its abilities, and if that On Play killed
-      // Moder (Human Torch's splash + blast did exactly this) she was off the
-      // board by the time the broadcast reached her and never stripped at all.
-      // Moder's compulsion is a lane trap; it belongs on lane entry, next to
-      // Bear Trap, not in the post-play broadcast.
+      // Exposed so the ENGINE runs the strip at lane-entry time, like Bear
+      // Trap. onAnyCardPlayed broadcasts AFTER the arriving card's own onPlay,
+      // so the card would keep its When Played — and if that killed Moder,
+      // nothing would be stripped at all.
       _strip: (card, G) => strip(card, G),
       onPlay(G, self, lane) {
         const opp = G.opponent(self.owner);
         // Force opponent's next card into Moder's lane. Do NOT strip anyone
         // already there — only the single forced arrival loses abilities.
-        // Roguelite Text+ override — _moderStripCount lets Moder strip
-        // multiple subsequent arrivals. Default 1 (classic); Text+ to 2
-        // so two consecutive enemies coming into his lane both lose
-        // their kits. The forcedLane only fires once per round (engine
-        // limitation), but the strip-pending counter persists until
-        // exhausted, so the SECOND target gets stripped on whichever
-        // round it lands.
+        // Roguelite Text+ override — _moderStripCount lets Moder strip multiple
+        // subsequent arrivals (default 1, Text+ 2). forcedLane fires once per
+        // round, but the strip-pending counter persists until exhausted, so
+        // the second target is stripped on whichever round it lands.
         G.state[opp].forcedLane = lane;
         self._moderStripPending = (self._moderStripCount || 1);
-        // Expose the strip so the engine can neutralize the forced card the
-        // instant it is PULLED into Moder's lane — before its When Played
-        // fires. Deferring to onAnyCardPlayed (post-onPlay) let the forced
-        // card resolve its whole entrance first: it kept its When Played, and
-        // if that onPlay damaged Moder (e.g. Hulk) it killed him before the
-        // strip broadcast ever ran, so nothing got stripped at all. The card
-        // is meant to "lose all abilities and keywords" — including its When
-        // Played — so game.js calls this at redirect time. Stamped on Game
-        // (not state) so it survives serialization; the closure carries strip.
+        // Expose the strip so game.js neutralizes the forced card the instant
+        // it is PULLED into Moder's lane — before its When Played fires, since
+        // the card "loses all abilities and keywords" including that. Stamped
+        // on Game (not state) so it survives serialization; the closure
+        // carries strip.
         if (G && typeof G._moderStripCard !== 'function') {
           G._moderStripCard = (target) => strip(target, G);
         }
@@ -2431,33 +2116,23 @@ const CARD_ABILITIES = {
     passive: "allowCardsInTricksPhase",
     onPlay(G, self, lane) {
       G.log(`Red Skull commands the field — character cards may be deployed during the trick phase while he stands.`);
-      // Buff applies to ANY card, not just villains. User spec: "red
-      // skull should give an ally +2/+2 not just a villain". Lets
-      // hero-leaning decks (e.g. Synergy Swarm) use Red Skull as the
-      // tricks-phase enabler without a type-tax on which card gets the
-      // empower.
-      // Roguelite Text+ override — _redSkullEmpower scales the buff.
-      // Default 2 (classic +2/+2); Text+ raises to 3 (+3/+3) for an
-      // even bigger finisher buff.
+      // Buff applies to ANY card, not just villains, so hero decks can use
+      // Red Skull too.
+      // Roguelite Text+ override — _redSkullEmpower scales the buff (default
+      // 2, Text+ 3).
       const empower = self._redSkullEmpower || 2;
-      // TARGETS THE HAND, AT RANDOM. Owner direction: the empower lands on a
-      // card you have not played yet, not on one already on the board. That
-      // changes what the card IS — it stops being a board-swing finisher you
-      // aim, and becomes a setup card that makes a future play bigger. Random
-      // rather than chosen for the same reason: no prompt, no aiming.
+      // TARGETS THE HAND, AT RANDOM: a setup card that makes a future play
+      // bigger, not an aimed board buff — so no prompt.
       //
       // G.rng(), never Math.random — this is the seeded engine RNG, and the
       // fuzz harness and replay system both depend on the same seed producing
       // the same game.
       const hand = (G.state && G.state[self.owner] && G.state[self.owner].hand) || [];
-      // A CARD WITH NO BODY CANNOT BE EMPOWERED. Jigsaw, Brainiac, Professor X
-      // and Mr. Fantastic are discard effects, Iron Giant is never placeable,
-      // and an environment never fights — none of them ever carry the +2/+2 to
-      // a lane, so rolling one is the ability doing nothing at all. Red Skull's
-      // whole job is making a FUTURE PLAY bigger; there is no future play here.
-      // Game.cardHasBody is the canonical answer to "does this card fight?" —
-      // the same one the renderer uses to decide whether to print stats — so
-      // this cannot drift from what the card visibly is.
+      // A CARD WITH NO BODY CANNOT BE EMPOWERED (discard effects like Jigsaw,
+      // Brainiac, Professor X, Mr. Fantastic; Iron Giant; environments) — the
+      // +2/+2 would never reach a lane. Game.cardHasBody is the canonical
+      // "does this card fight?" test, the same one the renderer uses to print
+      // stats, so this can't drift from what the card visibly is.
       const pool = hand.filter(c => c && c.id !== self.id && G.cardHasBody(c));
       if (pool.length) {
         const pick = pool[Math.floor(G.rng() * pool.length)];
@@ -2479,51 +2154,29 @@ const CARD_ABILITIES = {
     // What she is when there is nothing to copy. Named because the AI's lane
     // picker has to know it too — see AI._asPlacedIn. One number, two readers.
     COPY_FALLBACK: { atk: 3, hp: 4 },
-    // Hex-mirror: when she enters a lane, Scarlet Witch reads the enemy
-    // directly opposite and ADOPTS their ATK and HP for this match.
-    // Her base stats are 0/0 with the `copiesOpposite` flag set, which
-    // tells the renderer to display "?" on her stat orbs while she
-    // sits in hand. The flag is cleared the moment her stats resolve
-    // here so subsequent renders show real numbers.
+    // Hex-mirror: on entering a lane she ADOPTS the ATK and HP of the enemy
+    // directly opposite for this match. Base 0/0 with `copiesOpposite`, which
+    // makes the renderer show "?" stats in hand; the flag is cleared once her
+    // stats resolve here.
     onPlay(G, self, lane) {
       const opp = G.opponent(self.owner);
       const enemy = G.state.lanes[lane] && G.state.lanes[lane][opp];
-      // Roguelite Text+ override — _witchHexBonus adds extra ATK/HP on
-      // top of the copied stats. Default 0 (classic mirrors exactly);
-      // Text+ raises to 2 so Scarlet Witch comes in +2/+2 over her
-      // hex target — turns mirror into outright trade.
+      // Roguelite Text+ override — _witchHexBonus adds ATK/HP on top of the
+      // copied stats (default 0, Text+ 2).
       const bonus = self._witchHexBonus || 0;
-      // A HIDDEN CARD CANNOT BE READ. Invisible Woman's promise is that a
-      // face-down card is unknown and untouchable until it reveals — every
-      // other path honours that (dealDamage, killCard, canEffectLand, every
-      // debuff), but the hex read its stats straight off the object. A
-      // face-down card is carrying its BASE numbers with an HP floor, so
-      // copying one produced nonsense: opposite a hidden Scarlet Witch, ours
-      // came in 0/1. (User: "scarlet witch was played with no one in front and
-      // she spawned in as a 0/1 instead of a 3/4" — from where they sat there
-      // WAS no one in front, only a card back.)
-      // Nothing to read means nothing to copy, so she takes her 3/4 default.
+      // A HIDDEN CARD CANNOT BE READ. A face-down (Invisible Woman) card is
+      // unknown and untouchable until it reveals — every other path honours
+      // that — and it carries BASE numbers with an HP floor, so copying it
+      // gives nonsense. Nothing to read means she takes her 3/4 default.
       if (enemy && enemy.currentHealth > 0 && !enemy.isFaceDown) {
         // SHE ENDS AS AN EXACT MIRROR — AFTER the aura, not before it.
-        //
-        // A While Active aura (Magneto's parity, Luke's) lands on Scarlet Witch
-        // the instant she arrives, one step AFTER this hook. Copying her
-        // target's numbers and stopping meant the aura then moved her OFF the
-        // body she had just copied — and when the target is small and the aura
-        // is hostile, off the board entirely: opposite an enemy Magneto in an
-        // even lane, she copied a 1/1 Doomsday, took -1/-1, and died on entry
-        // without doing anything. Owner: "magneto was on the field and scarlet
-        // witch die on entry in front of doomsday", and the rule they asked
-        // for: "the on play happens first then the passives hit".
-        //
-        // So she copies the target OFFSET BY THE AURA SHE IS ABOUT TO RECEIVE,
-        // and lands on the target's exact stats once it does. Note the aura on
-        // HER is not the aura on her TARGET — they stand on opposite sides, so
-        // Magneto buffing him is the same Magneto debuffing her. Reading the
-        // recorded aura off the target would have got the sign backwards half
-        // the time; asking what SHE is due is the question that actually
-        // matters. auraWantFor shares the engine's own source scan, so any
-        // future aura is mirrored correctly without touching this card.
+        // A While Active aura (Magneto's parity, Luke's) lands on her one step
+        // AFTER this hook (rule: On Play first, then passives), and copying
+        // raw stats would let it push her off the copy — or kill her on entry.
+        // So she copies the target OFFSET BY THE AURA SHE IS ABOUT TO RECEIVE.
+        // That is HER aura, not the target's: they're on opposite sides, so
+        // the same Magneto buffs one and debuffs the other. auraWantFor shares
+        // the engine's source scan, so future auras mirror correctly too.
         const incoming = G.auraWantFor ? G.auraWantFor(self) : { atk: 0, hp: 0 };
         const adoptAtk = Math.max(0, (enemy.attack || 0) - incoming.atk) + bonus;
         const adoptHp  = Math.max(1, (enemy.currentHealth || enemy.maxHealth || 1) - incoming.hp) + bonus;
@@ -2552,11 +2205,10 @@ const CARD_ABILITIES = {
   "Solomon Grundy": {
     onDeath(G, self, lane) {
       if (typeof UI !== 'undefined' && UI._fxGrundyGrave) { try { UI._fxGrundyGrave(self); } catch (e) {} }
-      // Roguelite Text+ ("Born on Monday") replaces the dead-pile draw
-      // with a revive-and-grow loop. _grundyReviveBuff is the per-revive
-      // ATK/HP gain; reviveCharges (set in apply) gates how many times
-      // he can come back. When the upgrade is active we revive him in
-      // place and skip the classic draw entirely.
+      // Roguelite Text+ ("Born on Monday") replaces the dead-pile draw with a
+      // revive-and-grow loop: _grundyReviveBuff is the per-revive ATK/HP gain,
+      // reviveCharges (set in apply) caps the revives. When active, revive in
+      // place and skip the classic draw.
       if (self._grundyReviveBuff && self.reviveCharges > 0) {
         if (G.reviveVoided(self, lane)) return;
         self.reviveCharges--;
@@ -2570,11 +2222,9 @@ const CARD_ABILITIES = {
       }
       // Classic / non-upgraded path — draw from dead pile.
       const draws = self._grundyDeathDraw || 1;
-      // ROGUELITE-ONLY: Grundy scavenges from his OWN dead pile only.
-      // User feedback: "Solomon Grundy is such a broken card because
-      // you just get more card draw" — the cross-side scavenge stacks
-      // with the Lex-block bypass to make Grundy mandatory in roguelite.
-      // Classic Grundy keeps the canonical "shared Dead Pile" text.
+      // ROGUELITE-ONLY: Grundy scavenges from his OWN dead pile only — the
+      // cross-side scavenge stacked with the Lex-block bypass to make him
+      // mandatory. Classic keeps the canonical "shared Dead Pile" text.
       const isRoguelite = G.state.mode && G.state.mode._roguelite;
       const ownDead = G.state[self.owner] && G.state[self.owner].deadPile;
       const oppDead = G.state[G.opponent(self.owner)] && G.state[G.opponent(self.owner)].deadPile;
@@ -2618,48 +2268,28 @@ const CARD_ABILITIES = {
   "Symbiote Spider-Man": {
     onPlay(G, self, lane) {
       if (typeof UI !== 'undefined' && UI._fxSymbioteSurge) { try { UI._fxSymbioteSurge(self); } catch (e) {} }
-      // Each card shuffles back to its OWNER's pile — in Deckbuilder this
-      // is their personal deck, in Classic it's the shared pile (same ref).
-      // HELD BACK UNTIL AFTER THE DRAW. These used to go into the draw pile
-      // immediately, and the very next line shuffled that pile and drew the
-      // replacements from it — so a card you had just chosen to get rid of
-      // could come straight back into your hand, which is the one outcome the
-      // effect exists to prevent. Measured: hand [Bane, Groot, Hawkeye, Thor]
-      // cycled to [Groot, Thor, Iron Giant, Bane]. (User: "you should not be
-      // able to get the same cards back that you choose to redraw.")
-      // Buffered here, inserted by flushShuffleBack AFTER the draw, then
-      // shuffled — so the returns are still randomised into the deck for later
-      // rounds and only THIS draw is protected.
+      // Each card shuffles back to its OWNER's pile — in Deckbuilder their
+      // personal deck, in Classic the shared pile (same ref).
+      // HELD BACK UNTIL AFTER THE DRAW, so a card just chosen to get rid of
+      // can't be drawn straight back. flushShuffleBack inserts them after the
+      // draw, then shuffles — later rounds still see them randomised in.
       const pendingBack = [];
       const shuffleBack = (card, ownerKey) => {
-        // GUARDED. This was an unguarded .push() on whatever getDrawPile
-        // returned, so a missing pile threw from inside the per-seat chain
-        // below — and one seat throwing there stops every seat after it, which
-        // reads as "only one of us redrew". A card that cannot be shuffled back
-        // should cost that seat its cycle, never the rest of the table's.
+        // GUARDED: a throw here stops every seat after this one in the
+        // per-seat chain. A card that can't be shuffled back costs only this
+        // seat its cycle.
         const pile = G.getDrawPile(ownerKey);
         if (!Array.isArray(pile)) {
           G.log(`  [SSM] No draw pile for ${ownerKey} — ${card.name} stays put.`);
           return;
         }
-        // BUILT ON THE REAL DEFINITION, not from scratch. This used to be a
-        // hand-written seven-key literal — name/cost/attack/health/abilities/
-        // type/desc — pushed straight into the draw pile. A CARD_DEFS entry is
-        // that plus its ability hooks (merged at the end of this file), so every
-        // card Symbiote Spider-Man cycled came back as a STATS-ONLY record: draw
-        // it later and createCardInstance stamps 24 null hooks off it, playCard
-        // logs the play, and the When Played silently never fires. Forever, and
-        // for every copy of that card drawn afterwards.
-        //
-        // It is the "abilities get missed in 2v2" bug, and it gets worse the
-        // longer a match runs because more cards have been cycled. Owner:
-        // "groots ability didnt fire" — Groot reproduces in the fuzzer exactly
-        // this way, drawn from a pile Symbiote Spider-Man had written to.
-        //
-        // The live stats are still captured on top (a buffed card goes back
-        // buffed, which is the existing behaviour); the base underneath is what
-        // carries the hooks. Run metadata rides along so a roguelite card keeps
-        // its etches and XP attribution through the cycle.
+        // BUILT ON THE REAL DEFINITION, not a hand-written stats literal. A
+        // CARD_DEFS entry carries its ability hooks (merged at the end of this
+        // file); a stats-only record drawn later gets null hooks from
+        // createCardInstance and its When Played never fires.
+        // The live stats are captured on top (a buffed card goes back buffed);
+        // run metadata rides along so a roguelite card keeps its etches and XP
+        // attribution.
         const _base = (typeof CARD_DEFS !== 'undefined')
           ? CARD_DEFS.find(d => d.name === card.name) : null;
         const _backDef = Object.assign({}, _base, {
@@ -2671,13 +2301,10 @@ const CARD_ABILITIES = {
         if (card._runRarity) _backDef._runRarity = card._runRarity;
         pendingBack.push({ ownerKey, def: _backDef });
       };
-      // Draw the replacements from the deck as it stands — WITHOUT the cards
-      // just chosen — then put those back and shuffle. If the deck could not
-      // supply the full count (it ran dry), the returns go in first and the
-      // shortfall is drawn from them: the card still promises "N back, N up",
-      // and an empty deck must not turn that into "N back, nothing up". So a
-      // returned card can only ever come back when there was literally nothing
-      // else left to give.
+      // Draw the replacements from the deck WITHOUT the cards just chosen,
+      // then put those back and shuffle. If the deck runs dry, the returns go
+      // in first and the shortfall is drawn from them — "N back, N up" must
+      // hold, so a returned card comes back only when nothing else is left.
       const cycleDraw = (ownerKey, n, getHand) => {
         if (n <= 0) { flushShuffleBack(); return; }
         const before = (getHand() || []).length;
@@ -2699,12 +2326,8 @@ const CARD_ABILITIES = {
       const doPlayerShuffle = (p, onDone) => {
         const hand = G.state[p].hand;
         if (hand.length <= 2) {
-          // YOU DRAW WHAT YOU PUT BACK — never more. This branch used to draw a
-          // flat 2 no matter how many cards went back, so an EMPTY hand
-          // shuffled nothing and drew two free cards: the card's whole point is
-          // a wash (2 back, 2 up), and at 0 cards it became pure advantage for
-          // both sides. Owner: "when symbiote spiderman is played and i have 0
-          // cards it draws me 2 cards automatically, that shouldn't happen."
+          // YOU DRAW WHAT YOU PUT BACK — never more. The card is a wash (2
+          // back, 2 up); an empty hand shuffles nothing and draws nothing.
           const back = hand.length;
           hand.splice(0).forEach(c => shuffleBack(c, p));
           if (back > 0) {
@@ -2727,23 +2350,12 @@ const CARD_ABILITIES = {
           if (onDone) onDone();
         } else {
           // Human: picks each card via prompt.
-          // fromHand — YOU PICK OUT OF THE HAND ITSELF. Owner: "for SSM decsion
-          // thats the only one i want thats highlights yur hand yellow and you
-          // choose form there with a decion notice."
-          //
-          // THIS REVERSES AN EARLIER CHANGE, DELIBERATELY, AND KEEPS ITS POINT.
-          // It used to be `inlineTray: true`, which laid the whole hand out as
-          // tiles with a Pick under each, because hand-picking had one real
-          // fault: "a tap on a card is a READ everywhere else in the game, so
-          // committing a shuffle with the same gesture is a trap." True then and
-          // true now — so the tap is NOT the commit any more. A lit hand card
-          // opens the full inspect view like any other hand card, and the Pick
-          // button lives inside it (see UI._handPickIndexOf). Read first,
-          // commit second, at full size.
-          //
-          // What the tray could never fix is that this prompt offers the WHOLE
-          // hand — seven cards, three of which fit across the decision column,
-          // each a smaller duplicate of a card already on screen.
+          // fromHand — the hand itself is highlighted and you pick from it
+          // with a decision notice. A tap on a card is a READ everywhere else,
+          // so the tap does NOT commit: a lit hand card opens the inspect view
+          // and the Pick button lives inside it (UI._handPickIndexOf) — read
+          // first, commit second. A tray can't work here: it would offer the
+          // WHOLE hand as small duplicates of cards already on screen.
           G.promptCardChoice(p, [...hand], "Symbiote Spider-Man — Shuffle", "Choose 1st card to shuffle back into the deck (pick 2 total)", (c1) => {
             const idx1 = hand.findIndex(c => c.id === c1.id);
             if (idx1 >= 0) hand.splice(idx1, 1);
@@ -2761,43 +2373,31 @@ const CARD_ABILITIES = {
       };
       // Process owner first, then opponent, then heal
       const opp = G.opponent(self.owner);
-      // Roguelite Text+ override — _symbioteSkipSelf makes the shuffle
-      // hit only the OPPONENT's hand (your own hand stays put). Default
-      // false (classic shuffles both); Text+ true makes it pure
-      // disruption with no self-cost.
+      // Roguelite Text+ override — _symbioteSkipSelf makes the shuffle hit
+      // only the OPPONENT's hand (default false: both).
       const skipSelf = !!self._symbioteSkipSelf;
       const finish = () => {
-        // Heals ONLY the caster's side (self.owner). The "heals you" wording
-        // fired for all four 2v2 seats regardless of team; healPlayer already
-        // logs a team-accurate [HEAL] line, so this one just names the team.
+        // Heals ONLY the caster's side (self.owner). healPlayer already logs a
+        // team-accurate [HEAL] line, so this one just names the team.
         G.healPlayer(self.owner, 2, self);
         G.log(`Symbiote Spider-Man heals its own team for 2!`);
       };
-      // ANY 2v2, not just an online one. The seat-aware branch below is what
-      // gives each of the four players their OWN hand to cycle and lets an AI
-      // seat auto-pick; the else-branch works on the SIDE proxy, which in a
-      // two-seats-per-side game is whichever teammate synced last, and asks
-      // isHuman(side) — true for a side holding any human — so a bot seat's
-      // shuffle raised a prompt nobody could answer and the table stopped.
-      // (User: "for the AI, when Symbiote Spider-Man is played, he never
-      // chooses a card and just stalls out.") Local 2v2 against bots is exactly
-      // that case, and it was excluded from the fix purely by the `online` test.
+      // ANY 2v2, local or online. The seat-aware branch gives each of the four
+      // players their OWN hand and lets AI seats auto-pick; the else-branch
+      // works on the SIDE proxy and asks isHuman(side), which is true for any
+      // side holding a human, so a bot seat would raise an unanswerable prompt.
       const symIn2v2 = !!(G.is2v2 && G.is2v2() && G.state.twoVTwo);
       if (skipSelf) {
         doPlayerShuffle(opp, finish);
       } else if (symIn2v2) {
-        // 2v2: EVERY player cycles 2 of their own cards (like 1v1's "both
-        // players redraw", extended to all four seats). doPlayerShuffle reads
-        // the SIDE proxy — wrong in a 2-seats-per-side game — so shuffle each
-        // seat's REAL hand, routed to that seat (humans get the pick prompt on
+        // 2v2: EVERY player cycles 2 of their own cards. doPlayerShuffle reads
+        // the SIDE proxy — wrong with 2 seats per side — so shuffle each
+        // seat's REAL hand, routed to that seat (humans get the prompt on
         // their own client; AI seats auto-cycle their 2 lowest-cost cards).
         const tt = G.state.twoVTwo;
-        // EVERY HUMAN CHOOSES. In 2v2 (local or online, human- OR bot-cast)
-        // Symbiote asks each of the four seats to shuffle 2 of its own cards
-        // back and draw 2: AI seats auto-take their lowest, and every HUMAN seat
-        // picks for themselves. The chain hops one seat at a time (single prompt
-        // slot) and is protected by the watchdog below so a lost network answer
-        // can never freeze the table.
+        // EVERY HUMAN CHOOSES, whoever cast it. The chain hops one seat at a
+        // time (single prompt slot) and the watchdog below keeps a lost
+        // network answer from freezing the table.
         const seatShuffle = (seatKey, onDone) => {
           const sp = tt.players[seatKey];
           if (!sp) { onDone && onDone(); return; }
@@ -2817,39 +2417,17 @@ const CARD_ABILITIES = {
             onDone && onDone();
           };
           const lowest = (cards) => cards.slice().sort((a, b) => (a.cost || 0) - (b.cost || 0))[0];
-          // A BOT'S TURN DOES NOT GET TO STOP FOUR PEOPLE TO ASK A QUESTION.
-          //
-          // Owner: "SSM its been a huge issue with the AI ... they should redraw
-          // the 2 lowest cost cards easy thats all they do ... if they are coded
-          // to always redraw the 2 lowest cards then it would be smooth."
-          //
-          // The AI seats always did take their two lowest — traced:
-          //   [SSM] → p2 (Vega, AI) shuffles → "Vega shuffles 2 cards back"
-          //   [SSM] → p1 (I luv Sy, human) shuffles → [PROMPT] … and it stops.
-          // The card asks all four hands in turn, so a BOT casting it parked the
-          // entire table on a human's pick — mid-bot-turn, with that seat's own
-          // AI drive still on the clock. Every recovery in the engine then piles
-          // in on top of it: the 3s stall watchdog, the 12s drive watchdog, and
-          // this card's own 8s nudge / 20s force-complete, all racing one prompt.
-          // If the prompt failed to reach that client for any reason, the table
-          // simply stopped — which is what the owner keeps seeing.
-          //
-          // STALE PARAGRAPH REMOVED: this used to claim "a bot's cast now
-          // resolves entirely on its own", and the condition below has never
-          // looked at who cast the card — `sp.isAI || hand.length <= 2` only
-          // asks about the SEAT. A bot's cast does still prompt human seats,
-          // deliberately (the owner asked for humans to keep choosing), so the
-          // thing that must hold is not "bots resolve silently" but "a human's
-          // pick is never made for them" — which is now enforced in
-          // forceComplete below rather than asserted in a comment.
+          // AI seats always take their two lowest. A bot's cast still prompts
+          // the human seats, deliberately — what must hold is that a human's
+          // pick is never made for them (enforced in forceComplete below).
+          // One prompt is raced by several recoveries (3s stall watchdog, 12s
+          // drive watchdog, this card's nudge/force-complete), which is why
+          // the per-answer clock and human guard below exist.
           if (sp.isAI || hand.length <= 2) {
-            // AI seat (auto-take its 2 lowest — "that's all they do"), or a hand
-            // small enough that the pick is forced. EVERY HUMAN SEAT gets to
-            // choose their own two, no matter who cast the card — that is what the
-            // owner wants ("people get to choose what they want to redraw and for
-            // AI just make it their lowest cost cards"). The human is never
-            // auto-skipped (watchdog leaves human prompts alone), so the pick just
-            // waits for them; each answer drains the chain to the next seat.
+            // AI seat (auto-take its 2 lowest), or a hand small enough that
+            // the pick is forced. Every HUMAN seat chooses their own two; the
+            // watchdog never auto-skips them, so the pick waits and each answer
+            // drains the chain to the next seat.
             for (let i = 0; i < back; i++) {
               const c = lowest(hand); if (!c) break;
               const idx = hand.findIndex(x => x.id === c.id);
@@ -2857,22 +2435,16 @@ const CARD_ABILITIES = {
             }
             finalizeDraw();
           } else {
-            // { seat: seatKey } — NAME the seat instead of leaving the engine to
-            // infer it. This is the card that proves inference cannot work: the
-            // shuffle asks all four hands in turn, so three of the four prompts
-            // are raised for someone whose sub-phase it is NOT, and the engine's
-            // fallback ("the first human on that team") is then guaranteed to
-            // hand a player's own hand to their teammate. Owner, as the guest:
-            // "it auto-clicked one of my cards for me, and i never received a
-            // prompt at all."
+            // { seat: seatKey } — NAME the seat. Three of the four prompts are
+            // raised outside that seat's sub-phase, and the engine's fallback
+            // ("first human on that team") would hand a player's hand to their
+            // teammate.
             G.promptCardChoice(seatSide, [...hand], "Symbiote Spider-Man — Shuffle",
               "Choose 1st card to shuffle back into the deck (pick 2 total)", (c1) => {
                 const i1 = hand.findIndex(c => c.id === c1.id);
                 if (i1 >= 0) { shuffleBack(hand[i1], seatSide); hand.splice(i1, 1); }
-                // EACH ANSWER GETS ITS OWN CLOCK. The stall timer was armed once
-                // per SEAT, but a human owes TWO answers here — so a player who
-                // spent 15s on the first pick had six seconds for the second
-                // before the force-complete fired mid-pair.
+                // EACH ANSWER GETS ITS OWN CLOCK: a human owes TWO answers, so
+                // a per-seat timer would expire mid-pair.
                 if (typeof armTimer === 'function') armTimer();
                 G._2v2CurrentActingPlayer = seatKey;
                 G.promptCardChoice(seatSide, [...hand], "Symbiote Spider-Man — Shuffle",
@@ -2884,45 +2456,29 @@ const CARD_ABILITIES = {
               }, lowest, { seat: seatKey, fromHand: true, pickLabel: 'Shuffle' });
           }
         };
-        // Owner first, then the rest — chained so human pick prompts never
-        // collide (one seat resolves before the next is offered, since there is
-        // only one prompt slot). HUMANS STILL CHOOSE which two cards to shuffle
-        // back; AI seats auto-take their two lowest.
+        // Owner first, then the rest — chained so pick prompts never collide
+        // (one prompt slot). Humans choose; AI seats auto-take their lowest.
         const order = [self._2v2PlayedBy, 'p1', 'p2', 'p3', 'p4']
           .filter((k, i, a) => k && tt.players[k] && a.indexOf(k) === i);
         G.log(`[SSM] Symbiote cycle order: ${order.join(' → ')}`);
         let done = false;
         let idx = 0;
-        // KEEP-ALIVE + LAST-RESORT WATCHDOG. Humans always choose; this never
-        // auto-picks for a responsive player. It exists only so a network hiccup
-        // (a lost pick answer, or a prompt that never rendered on one client)
-        // can't freeze the table forever ("WAITING FOR I LUV SY…"). On a stall it
-        // FIRST re-broadcasts the pending prompt — nudging a client that missed
-        // it, so the human still gets to pick — and only if it is STILL stuck a
-        // second time does it force the remaining seats through, as an absolute
-        // last resort. (Owner: humans choose, no auto, no stall.)
-        // GIVEUP must sit ABOVE the engine's own fair wait for a human prompt
-        // (_2v2_PROMPT_MS, 30s) — at 20s this card was out-racing the game's own
-        // standard and deciding for people who were still inside it.
+        // KEEP-ALIVE + LAST-RESORT WATCHDOG. Never auto-picks for a responsive
+        // player; it exists so a lost answer or unrendered prompt can't freeze
+        // the table. On a stall it FIRST re-broadcasts the pending prompt, and
+        // only if still stuck the second time forces the remaining seats.
+        // GIVEUP must sit ABOVE the engine's fair wait for a human prompt
+        // (_2v2_PROMPT_MS, 30s), or it decides for people still choosing.
         const NUDGE_MS = 8000, GIVEUP_MS = 35000;
         let timer = null, stallStartAt = 0, nudged = false;
         const clearTimer = () => { if (timer && typeof clearTimeout !== 'undefined') { clearTimeout(timer); timer = null; } };
         const finishOnce = () => { if (done) return; done = true; clearTimer(); G.log('[SSM] cycle complete — healing caster.'); try { finish(); } catch (e) { console.error('[SSM] finish threw', e); } };
         const forceComplete = (fromIndex) => {
           // THE SAME RULE AS end2v2Phase: NEVER PICK FOR A LIVE HUMAN.
-          //
-          // This force-complete takes the two lowest cards out of every
-          // remaining hand — including a human's. That is the "it auto-clicked
-          // one of my cards for me" report, and it is a skip by another name:
-          // 20 seconds is a normal amount of time to read four cards and
-          // decide, and the engine's own idea of a fair wait for a human prompt
-          // is 30s (_2v2_PROMPT_MS).
-          //
-          // If the seat we are about to decide for is a live human, we do not.
-          // We keep waiting and re-arm, so the moment they answer the chain
-          // drains normally — and if they are genuinely gone, the drop path
-          // converts the seat (_dropped/isAI) and the next tick completes it
-          // for a bot instead of for a person.
+          // If the seat is a live human, keep waiting and re-arm so their
+          // answer drains the chain normally; if they are genuinely gone, the
+          // drop path converts the seat (_dropped/isAI) and the next tick
+          // completes it for a bot.
           const blocker = order[fromIndex];
           if (blocker && G._2v2SeatIsLiveHuman && G._2v2SeatIsLiveHuman(blocker)) {
             const nm = (tt.players[blocker] && tt.players[blocker].name) || blocker;
@@ -2942,11 +2498,8 @@ const CARD_ABILITIES = {
             const seatKey = order[i]; const sp2 = tt.players[seatKey]; if (!sp2) continue;
             const seatSide2 = G._2v2TeamSide[sp2.team];
             const hand2 = sp2.hand || [];
-            // ALREADY GAVE ONE BACK? Then they owe one, not two. forceComplete
-            // is called with the index of the seat that is mid-pick, so without
-            // this the loop cycles that seat a SECOND time from the top: three
-            // cards shuffled back and only two drawn, and the card that is meant
-            // to be a wash quietly costs them one.
+            // ALREADY GAVE ONE BACK? Then they owe one, not two — otherwise the
+            // mid-pick seat is cycled again from the top (three back, two drawn).
             const already = pendingBack.filter(e => e.ownerKey === seatSide2).length;
             const back2 = Math.max(0, Math.min(2, hand2.length) - already);
             G._2v2CurrentActingPlayer = seatKey;
@@ -3005,9 +2558,8 @@ const CARD_ABILITIES = {
   },
   "Winter Soldier": {
     onPlay(G, self, lane) {
-      // Roguelite Text+ override — promotes destroy threshold from 3
-      // to whatever's in self._wsCostThreshold. Defaults to 3 so classic
-      // mode is unchanged.
+      // Roguelite Text+ override — destroy threshold from
+      // self._wsCostThreshold (default 3).
       const threshold = self._wsCostThreshold || 3;
       const wsEnemies = G.getEnemiesOf(self.owner);
       const targets = wsEnemies.filter(c => c.attack <= threshold && G.canEffectLand(c, 'destroy', { owner: self.owner, source: self }));
@@ -3041,19 +2593,13 @@ const CARD_ABILITIES = {
       G.healPlayer(self.owner, heal, self);
       G.log(`${G.seatVerb(self.owner, 'heal', 'heals')} for ${heal} — Anti-Venom!`);
 
-      // THE CURE CUTS BOTH WAYS (owner, 2026-08-24: "move a card, if it's an
-      // ally gain (+1/+1), if it's an enemy lose (-1/-1)"). The relocation used
-      // to be a favour you did an ally and nothing more; now the move IS the
-      // payload, and it reaches both sides of the board.
-      //
-      // Two consequences worth stating, because both are load-bearing below:
-      //   • the pool is every card, not just allies — so the destination list
-      //     has to be computed PER TARGET, since a card can only slide into an
-      //     empty lane on its OWN side;
-      //   • the stat change hangs off the move LANDING, not off the pick.
-      //     moveCard refuses silently — occupied destination, voided lane,
-      //     frozen/feared, face-down — and a refused move must not pay out.
-      //     Man-Bat's arrival sting learned the same lesson the hard way.
+      // THE CURE CUTS BOTH WAYS: move a card; an ally gains (+1/+1), an enemy
+      // loses (−1/−1).
+      //   • the pool is every card, so destinations are computed PER TARGET —
+      //     a card can only slide into an empty lane on its OWN side;
+      //   • the stat change hangs off the move LANDING, not the pick. moveCard
+      //     refuses silently (occupied, voided lane, frozen/feared, face-down)
+      //     and a refused move must not pay out (same as Man-Bat's sting).
       // Roguelite Text+ hook — _antivenomShift scales both halves together.
       const shift = self._antivenomShift || 1;
 
@@ -3081,25 +2627,21 @@ const CARD_ABILITIES = {
         if (target.currentHealth <= 0 || from < 0) return;
         G.moveCard(target, from, to);
         // READ THE BOARD BACK. moveCard returns nothing and bails silently on
-        // half a dozen conditions, several of which can become true between the
-        // pick and the move (the lane gets taken, the card gets frozen).
+        // several conditions that can become true between pick and move.
         if (G.findCardLane(target) !== to) {
           G.log(`Anti-Venom reaches for ${target.name}, but it holds its lane.`);
           return;
         }
-        // THE ARRIVAL CAN BE FATAL BY ITSELF. moveCard fires onMoved and then
-        // the destination lane's trap before it returns, and a Reverse Bear
-        // Trap routes through killCard — so the card we were about to cure or
-        // burn may already be a corpse standing in the slot. Nothing left to
-        // do to it, and debuffCard would happily kill it a second time.
+        // THE ARRIVAL CAN BE FATAL BY ITSELF: moveCard fires onMoved and the
+        // destination trap before returning (Reverse Bear Trap → killCard), so
+        // the card may already be a corpse; debuffCard would kill it twice.
         if (target.currentHealth <= 0) return;
         if (target.owner === self.owner) {
           G.buffCard(target, shift, shift);
           G.log(`Anti-Venom's cure strengthens ${target.name} (+${shift}/+${shift})`);
         } else {
-          // allowKill=true — a printed (−N/−N) finishes a small card outright
-          // instead of flooring its HP at 1. Same canon as Bane, Man-Bat's
-          // sting and Voldemort's Crucio.
+          // allowKill=true — a printed (−N/−N) finishes a small card instead of
+          // flooring its HP at 1 (same canon as Bane, Man-Bat, Crucio).
           G.debuffCard(target, shift, shift, true, self);
           G.log(`[DEBUFF] Anti-Venom's cure burns ${target.name} (−${shift}/−${shift})`);
           G.cleanupDead();
@@ -3116,28 +2658,17 @@ const CARD_ABILITIES = {
           const lethal = !G.statStripShieldsHp(c) && (c.currentHealth || 0) <= shift;
           // KILLING ONE IS STILL THE BEST OUTCOME — that is unchanged.
           if (lethal) return 1000 + power;
-          // But a non-lethal burn was priced at a flat 20 + the target's stats,
-          // which no ally play could ever beat no matter what it unlocked. A
-          // (−1/−1) on a body that lives is worth the stats it removes and
-          // nothing more; it was being valued like a threat removed. Priced as
-          // what it actually is, so it competes honestly with the ally half
-          // instead of automatically winning.
+          // A non-lethal burn is worth the stats it removes, not a flat
+          // threat-removed price, so it competes honestly with the ally half.
           return shift * 2 + power * 0.25;
         }
-        // FREEING A BLOCKED ALLY IS FACE DAMAGE, and the ally branch could not
-        // see that: it scored raw power, so two bodies of equal stats tied and
-        // the pick fell to board order. The one worth moving is the one being
-        // WASTED — standing in a contested lane, trading with a blocker, when
-        // an unopposed lane is open beside it. Move it there and its whole
-        // swing lands on the health bar instead. (Owner: "he moves groot,
-        // should've moved green lantern … then moved him to an open lane to hit
-        // the frozen health bar. it's these types of plays to make the ai
-        // smarter — deny energy and face damage.")
-        //
-        // Weighted by the attack it would actually land, plus the +N the move
-        // grants it, so a big blocked hitter outranks a small one. aiLaneFor
-        // already sends a moved ally to an unopposed lane, so the two halves
-        // agree without a second search.
+        // FREEING A BLOCKED ALLY IS FACE DAMAGE. Prefer the ally being WASTED —
+        // in a contested lane trading with a blocker while an unopposed lane
+        // is open — since moving it lands its whole swing on the health bar;
+        // raw power alone ties equal bodies and falls to board order.
+        // Weighted by the attack it would land plus the +N the move grants.
+        // aiLaneFor already sends a moved ally to an unopposed lane, so the
+        // two halves agree without a second search.
         const opp2 = G.opponent(self.owner);
         const myLane = G.findCardLane(c);
         const blocker = myLane >= 0 && G.state.lanes[myLane] ? G.state.lanes[myLane][opp2] : null;
@@ -3174,10 +2705,9 @@ const CARD_ABILITIES = {
         G.promptCardChoice(self.owner, pool, "Anti-Venom — Move",
           "Move any card to an empty lane — an ally gains (+1/+1), an enemy loses (−1/−1)",
           (target) => {
-            // Re-check on RESOLVE. There are two separate interactions between
-            // choosing a card and the move landing, and the target can die in
-            // between — the sim cannot show this, because its shim resolves
-            // prompts synchronously.
+            // Re-check on RESOLVE: the target can die between choosing a card
+            // and the move landing. The sim can't show this — its shim
+            // resolves prompts synchronously.
             if (!target || target.currentHealth <= 0 || G.findCardLane(target) < 0) return;
             const lanes = openLanesFor(target);
             if (!lanes.length) return;
@@ -3187,11 +2717,9 @@ const CARD_ABILITIES = {
               { declineLabel: 'LEAVE THEM', onDecline: () => G.log(`${target.name} holds position.`), seat: self._2v2PlayedBy || null });
           },
           aiPickCard,
-          // NAME THE SEAT (2v2). self.owner is the team SIDE, and isHuman(side) is
-          // true for any team holding a human — so a bot's Anti-Venom took this
-          // prompt path but, unstamped, the bot couldn't answer and it wasn't
-          // routed for auto-pick → "Cortex played Anti-Venom and the game stalled".
-          // Same cure as Symbiote / Human Torch: the card knows who played it.
+          // NAME THE SEAT (2v2). self.owner is the team SIDE, and isHuman(side)
+          // is true for any team holding a human, so a bot's prompt would go
+          // unanswered and stall. Same cure as Symbiote / Human Torch.
           { declineLabel: 'MOVE NO ONE', onDecline: () => G.log('Anti-Venom moves no one.'), seat: self._2v2PlayedBy || null });
       } else {
         const target = aiPickCard(pool);
@@ -3205,9 +2733,7 @@ const CARD_ABILITIES = {
       if (typeof UI !== 'undefined' && UI._fxBlackPantherKinetic) { try { UI._fxBlackPantherKinetic(self); } catch (e) {} }
       const hand = G.state[self.owner].hand;
       // Roguelite Text+ override — _blackPantherFreeThreshold raises the
-      // ceiling for free-cast picks. Default 3 (classic); Text+ raises
-      // to 5 so mid-cost cards (Wonder Woman, Superman, etc.) become
-      // free-cast candidates.
+      // free-cast cost ceiling (default 3, Text+ 5).
       const threshold = self._blackPantherFreeThreshold || 3;
       const freeCards = hand.filter(c => (c.baseCost != null ? c.baseCost : c.cost) <= threshold && !c.isDiscardEffect);
       if (freeCards.length) {
@@ -3215,15 +2741,10 @@ const CARD_ABILITIES = {
           const open = G.getOpenLanes(self.owner);
           if (open.length) {
             if (Game.isHuman(self.owner)) {
-              // Pass `freeCard` as previewCard so the lane-placement
-              // damage preview shows the trade math against each lane's
-              // opposing enemy. User report: "you play a card i want
-              // it to be the live simulation... if i were to play
-              // raven it doesnt show anything." Without previewCard,
-              // lc.previewCard is null and makeDamagePreview never
-              // runs in the lane-choice render path. Same fix pattern
-              // as summonCardChoice (which already passes a
-              // synthetic previewCard for Hela / Cyborg / Ant-Man).
+              // Pass `freeCard` as previewCard so the lane-placement damage
+              // preview shows the trade math per lane; without it
+              // makeDamagePreview never runs in the lane-choice render path
+              // (same as summonCardChoice for Hela / Cyborg / Ant-Man).
               G.promptLaneChoice(self.owner, open, `Play ${freeCard.name} free`, `Black Panther plays ${freeCard.name} for free — choose lane`, (l) => {
                 G.playCardFree(self.owner, freeCard, l);
                 G.log(`Black Panther plays ${freeCard.name} free!`);
@@ -3235,42 +2756,23 @@ const CARD_ABILITIES = {
           }
         };
         if (Game.isHuman(self.owner)) {
-          // PICK OUT OF THE HAND, THE WAY YOU PLAY ANY OTHER CARD. Owner: "the
-          // BP decison should be like symbiote where the cards 3 cost or less
-          // are in hand highlighted yellow and you tap to play or drag."
-          //
-          // THIS RETIRES `inlineTray`, AND KEEPS THE POINT THAT PUT IT HERE.
-          // The tray was added because the real cards were being filtered OUT
-          // of it ("already visible on screen") while a synthetic Skip tile
-          // stayed in, so the panel showed only Skip and the free play read as
-          // broken: "he couldn't choose which 3-cost or lower card he wanted to
-          // play and could only skip." Forcing everything into the tray fixed
-          // the missing cards and inherited a worse problem — a full-size
-          // duplicate of a card already painted in the hand, and the Skip tile
-          // pushed below the fold of a 381px panel (measured: it sat at y=636),
-          // so skipping needed a scroll the owner had already ruled out.
-          //
-          // The hand IS the list. Skip stops being a card in that list and
-          // becomes what it always was — a decline — so it renders as a button
-          // in the decision notice and can never be scrolled off.
-          //
-          // `handDrop` is the half Symbiote has no use for: a shuffle has no
-          // lane, but a free PLAY does, so dragging a lit card straight onto a
-          // lane answers both questions in the one gesture cards are played
-          // with everywhere else. Tapping still opens the full face first, with
-          // the commit button inside it — read first, commit second.
+          // PICK OUT OF THE HAND, THE WAY YOU PLAY ANY OTHER CARD: eligible
+          // cards (cost ≤ 3) are highlighted in hand. The hand IS the list —
+          // a tray would duplicate cards already on screen and push Skip
+          // below the fold. Skip is a decline, so it renders as a button in
+          // the decision notice and can't be scrolled off.
+          // `handDrop`: a free PLAY needs a lane, so dragging a lit card onto
+          // a lane answers both questions in one gesture. Tapping opens the
+          // full face first with the commit button inside — read, then commit.
           G.promptCardChoice(self.owner, [...freeCards], "Black Panther — Free Play",
             "Choose a card with base cost 3 or less to play free — or skip", (picked) => {
               playFree(picked);
             },
             cards => cards.slice().sort((a, b) => (b.baseCost || b.cost) - (a.baseCost || a.cost))[0],
             { fromHand: true, handDrop: true, pickLabel: 'Play Free',
-              // The free play is a GIFT, not a demand — the player may be
-              // saving a cheap card (combo piece, jump body) for later. (User:
-              // "i want the player to have the option in case you were saving
-              // that character.") declineLabel also keeps the prompt from
-              // auto-resolving when exactly one card qualifies, which the Skip
-              // tile used to do by padding the list to two.
+              // The free play is optional — the player may be saving a cheap
+              // card. declineLabel also stops the prompt auto-resolving when
+              // exactly one card qualifies.
               declineLabel: 'Skip — Save Your Cards',
               onDecline: () => G.log('Black Panther holds back — no free play.') });
         } else {
@@ -3283,9 +2785,8 @@ const CARD_ABILITIES = {
   },
   "Ghost Rider": {
     onPlay(G, self, lane) {
-      // When Played: Fear 1 a chosen enemy. AI auto-picks the highest-
-      // ATK threat. The Fear ("Feared 1") badge lands on the VICTIM —
-      // Ghost Rider himself carries no persistent Fear badge.
+      // When Played: Fear 1 a chosen enemy. AI auto-picks the highest-ATK
+      // threat. The Fear badge lands on the VICTIM, not Ghost Rider.
       const enemies = G.getEnemiesOf(self.owner).filter(e => e.currentHealth > 0 && !e.isFeared);
       if (!enemies.length) return;
       G.promptCardChoice(self.owner, enemies, "Ghost Rider — Penance Stare",
@@ -3297,11 +2798,9 @@ const CARD_ABILITIES = {
       // Skip the summon if the lane itself was destroyed (Anti-Life Equation / Darkseid Collapse).
       if (G.state.lanes[lane] && G.state.lanes[lane].destroyed) return;
       if (typeof UI !== 'undefined' && UI._fxGhostRiderHellfire) { try { UI._fxGhostRiderHellfire(self); } catch (e) {} }
-      // Classic: random card pulled from your hand and summoned in
-      // Cyborg's slot. Roguelite Text+ ("Replication") sets
-      // _cyborgChooseFromHand so the human player gets to PICK which
-      // card to summon — turning Cyborg into a controllable late-game
-      // closer instead of a roll of the dice.
+      // Classic: random card pulled from your hand and summoned in Cyborg's
+      // slot. Roguelite Text+ ("Replication") sets _cyborgChooseFromHand so
+      // the human picks which card.
       const hand = G.state[self.owner].hand;
       // Clear Cyborg from the slot so the summon can take its place.
       if (G.state.lanes[lane] && G.state.lanes[lane][self.owner] === self) {
@@ -3319,27 +2818,15 @@ const CARD_ABILITIES = {
         const targetLane = pickTargetLane();
         if (targetLane < 0) return;
         G.log(`Ghost Rider's last act: playing ${card.name} from ${G.seatPossessive(self.owner)} hand!`);
-        // PLAYED, NOT SUMMONED. Owner: "that's literally his ability — just make
-        // that he plays a card from hand in his place so it goes normally."
-        //
-        // This used to splice the card out of hand by index and rebuild it
-        // through summonCard with a looked-up def. summonCard fires onPlay only
-        // as a special case of its own, and reproducibly failed to: with a
-        // prompt already armed at the moment Ghost Rider died — the normal
-        // mid-combat state — a Luke Skywalker played this way landed with his
-        // Mind Control silently gone. Not applied, not even queued.
-        //
-        // playCardFree is the door every other free play already walks through
-        // (jumps, Mother Box, Boiler Room), so the card now gets the SAME
-        // treatment as any other play: onPlay via _runOnPlayWithUndoPoint,
-        // the Moder lane strip, the aura ping, trap settling, entrance FX.
-        // It also owns the hand removal, which is why the manual splice is
-        // gone — doing both would have dropped the card twice.
-        //
-        // Its guards come along too, and that is a gain rather than a cost:
-        // Iron Giant can no longer be forced onto the field, an already-placed
-        // card cannot be dealt into a second lane, and a sleeping card stays
-        // asleep. summonCard enforced none of those.
+        // PLAYED, NOT SUMMONED. playCardFree is the door every free play
+        // walks through (jumps, Mother Box, Boiler Room), so the card gets the
+        // normal treatment: onPlay via _runOnPlayWithUndoPoint, the Moder lane
+        // strip, the aura ping, trap settling, entrance FX. summonCard can drop
+        // onPlay when a prompt is already armed (the normal mid-combat state).
+        // playCardFree owns the hand removal — don't splice as well, or the
+        // card is dropped twice. Its guards come along too: Iron Giant can't
+        // be forced onto the field, a placed card can't take a second lane,
+        // and a sleeping card stays asleep.
         G.playCardFree(self.owner, card, targetLane);
       };
       if (self._cyborgChooseFromHand && Game.isHuman(self.owner)) {
@@ -3349,9 +2836,8 @@ const CARD_ABILITIES = {
           summonChoice,
           cards => cards.slice().sort((a, b) => (b.baseCost || b.cost) - (a.baseCost || a.cost))[0]);
       } else {
-        // Classic / AI path — random pick (matches the previous default
-        // behavior; AI can also follow this branch for the upgraded
-        // card since prompting an AI seat for a hand pick has no UX).
+        // Classic / AI path — random pick (an AI seat has no use for a hand
+        // prompt, so the upgraded card takes this branch for AI too).
         const pick = eligible[Math.floor(Game.rng() * eligible.length)];
         summonChoice(pick);
       }
@@ -3372,14 +2858,10 @@ const CARD_ABILITIES = {
       // chain routes to the player who owns Deadpool.
       if (dpIs2v2) G._2v2ActFor(self);
       let deadpoolOwnerSeat = (dpIs2v2 && self._2v2PlayedBy) || G._2v2CurrentActingPlayer || (G._2v2ActivePlayer && G._2v2ActivePlayer());
-      // THE GIVE-BACK COMES FROM DEADPOOL'S OWN HAND — never the enemy's, never a
-      // teammate on the wrong side. deadpoolOwnerSeat drives ownerHand(); if it
-      // landed on a seat that ISN'T on self.owner's side (an unstamped card + a
-      // foreign acting seat while he dies in combat), snap it back to a seat that
-      // actually belongs to his team. Without this, an enemy Deadpool raided the
-      // player's OWN hand for the give-back. (User: "deadpool took Revan from ME
-      // and Thanos from my teammate!" — the give-back was pulling from the wrong
-      // team entirely.)
+      // THE GIVE-BACK COMES FROM DEADPOOL'S OWN HAND — never the enemy's, never
+      // the wrong team's. If deadpoolOwnerSeat landed on a seat NOT on
+      // self.owner's side (unstamped card + foreign acting seat during
+      // combat), snap it back to a seat on his team.
       if (dpIs2v2 && G.state.twoVTwo) {
         const _dtt = G.state.twoVTwo;
         const _onOwnerSide = (pk) => !!(pk && _dtt.players[pk] && G._2v2TeamSide[_dtt.players[pk].team] === self.owner);
@@ -3389,12 +2871,9 @@ const CARD_ABILITIES = {
       }
       G.withChosenOpponent(self.owner, "Deadpool — whose hand?", (opp, victimKey) => {
       const enemyHand = G.state[opp].hand;
-      // 2v2: the give-back must read/splice the DEADPOOL OWNER's own seat hand,
-      // not state[self.owner].hand — during combat that side proxy is bound to
-      // whichever teammate synced last, so the "trade back" was checking (and
-      // giving from) the wrong hand, and often bailed with "nothing to trade
-      // back". (User: "clicked the person to trade with, never got to choose the
-      // face-down card, and wasn't given a choice to give anything back.")
+      // 2v2: the give-back must read/splice the DEADPOOL OWNER's seat hand, not
+      // state[self.owner].hand — during combat that side proxy is bound to
+      // whichever teammate synced last.
       const ownerHand = () => {
         const dtt = G.state.twoVTwo;
         if (dpIs2v2 && deadpoolOwnerSeat && dtt && dtt.players[deadpoolOwnerSeat]) {
@@ -3406,19 +2885,13 @@ const CARD_ABILITIES = {
         G.log("Deadpool's final trick fails — the enemy has no cards in hand!");
         return;
       }
-      // BOTH HALVES OR NEITHER. Owner: "if deadpool doesn't have a card to
-      // trade — like the hand is empty — his ability shouldn't fire."
-      // The give-back was already guarded, but only AFTER the steal had
-      // resolved: you picked a face-down card, it moved into your hand, and
-      // only then did the log say there was nothing to give in return. That
-      // turned a TRADE into a free steal whenever your hand was empty, and it
-      // made you sit through a blind pick to find out.
-      // Checked here, before any prompt is raised, so the ability simply does
-      // not fire. Reads the owner's hand as it stands now — the stolen card
-      // joins that hand and is then excluded from the give-back, so having a
-      // card to trade means having one BEFORE the steal.
-      // Roguelite Text+ ("no give-back") turns Deadpool into a pure thief, and
-      // a thief owes nothing — that mode skips this requirement.
+      // BOTH HALVES OR NEITHER: with no card to trade, the ability doesn't
+      // fire — checked before any prompt, so it never becomes a free steal or
+      // a pointless blind pick. Reads the owner's hand as it stands now (the
+      // stolen card is excluded from the give-back, so the card must exist
+      // BEFORE the steal).
+      // Roguelite Text+ ("no give-back") makes Deadpool a pure thief, so that
+      // mode skips this requirement.
       const _dpSkipGiveBack = !!self._deadpoolNoGiveBack;
       if (!_dpSkipGiveBack && !ownerHand().length) {
         G.log("Deadpool's final trick fails — he has nothing to trade back!");
@@ -3431,16 +2904,12 @@ const CARD_ABILITIES = {
         const j = Math.floor(Game.rng() * (i + 1));
         [faceDownDeck[i], faceDownDeck[j]] = [faceDownDeck[j], faceDownDeck[i]];
       }
-      // Roguelite Text+ override — _deadpoolNoGiveBack skips the trade
-      // step entirely. Default false (classic — give one back); Text+
-      // true makes Deadpool a pure card thief: steal one, no return.
+      // Roguelite Text+ override — _deadpoolNoGiveBack skips the trade step
+      // (default false: give one back).
       const skipGiveBack = _dpSkipGiveBack;
-      // When AI's Deadpool dies, the AI auto-picks both cards in
-      // the trade — the player sees their hand silently change. To
-      // make the swap legible, fire a single AI-trick toast with
-      // both card names once the trade resolves. Only shows when
-      // the human player is the victim (self.owner === 'ai'); a
-      // human Deadpool already chose the cards themselves.
+      // An AI Deadpool auto-picks both cards, so the human's hand changes
+      // silently; fire one AI-trick toast naming both cards once the trade
+      // resolves. Only when the human is the victim (self.owner === 'ai').
       const showVictimToast = (stolenName, givenName) => {
         if (self.owner === 'ai' && typeof UI !== 'undefined' && UI.showAITrickToast) {
           const desc = givenName
@@ -3450,13 +2919,10 @@ const CARD_ABILITIES = {
         }
       };
       // AI-OWNED DEADPOOL — resolve the ENTIRE trade synchronously, no prompts.
-      // The prompt flow schedules the steal and the give-back on two separate
-      // _aiActionDelay setTimeouts during combat; if the round advances (or the
-      // combat watchdog fires) between them, the AI steals but never gives a card
-      // back. Doing both inline here can't be outrun, and the give-back always
-      // picks the LOWEST-cost card. (User: "when the AI steals a card he doesn't
-      // give a card back — if it's a stall issue he should always give the lowest
-      // cost card.") Headless 1v1/2v2 already pass; this hardens the live path.
+      // The prompt flow puts steal and give-back on two separate
+      // _aiActionDelay timeouts, and a round advance or the combat watchdog
+      // between them leaves a steal with no give-back. The give-back always
+      // picks the LOWEST-cost card.
       const _dpOwnerIsAI = dpIs2v2
         ? !!(G.state.twoVTwo && deadpoolOwnerSeat && G.state.twoVTwo.players[deadpoolOwnerSeat] && G.state.twoVTwo.players[deadpoolOwnerSeat].isAI)
         : (self.owner === 'ai' && !(G.isMultiplayer && G.isMultiplayer()));
@@ -3477,11 +2943,8 @@ const CARD_ABILITIES = {
         const gIdx = gHand.indexOf(given);
         if (gIdx >= 0) gHand.splice(gIdx, 1);
         given.owner = opp;
-        // GIVE BACK TO THE SAME PLAYER HE STOLE FROM. Routing by victimKey (not a
-        // bare side) so the card lands in the exact seat Deadpool raided — without
-        // it, addToHand fell back to "first player on that team" and handed the
-        // trade to the WRONG teammate. (User: "he stole from my teammate then gave
-        // ME a card — whoever he steals from he has to give that player a card.")
+        // GIVE BACK TO THE SAME PLAYER HE STOLE FROM: route by victimKey, not a
+        // bare side, or addToHand falls back to "first player on that team".
         G.addToHand(opp, given, null, victimKey ? { _2v2PlayedBy: victimKey } : null, 'Slipped in by Deadpool');
         G.log(`Deadpool slips ${given.name} into the enemy's hand!`); if (typeof UI !== 'undefined' && UI._fxHandSwap) { try { UI._fxHandSwap(self.owner, 'give'); } catch (e) {} }
         showVictimToast(stolen.name, given.name);
@@ -3527,23 +2990,17 @@ const CARD_ABILITIES = {
             },
             cards => cards.slice().sort((a, b) => (a.baseCost || a.cost) - (b.baseCost || b.cost))[0],
             // Show the give-back as the full-card TRAY (same as the Symbiote
-            // Spider-Man redraw) so it is unmistakable and clickable — the plain
-            // hand-highlight was easy to miss, so the trade looked like it never
-            // offered. (Owner: "i could steal a card but i couldnt give one back
-            // … i want the same prompt to show up to give back as the symbiote
-            // spiderman redraw.")
+            // Spider-Man redraw) so it is unmistakable; a hand-highlight is
+            // easy to miss.
             // seat — see promptCardChoice's note: the owning seat is DECLARED,
             // not inferred from a global that any async gap can drop.
             { inlineTray: true, seat: dpIs2v2 ? deadpoolOwnerSeat : null });
       };
       // Step 1: DEADPOOL'S OWNER blind-picks a face-down card from the chosen
-      // enemy's hand — the steal is random to them (the hand is shuffled and
-      // shown face-down). IDENTICAL in 1v1 and 2v2 per owner direction: "deadpool's
-      // selection should work the same in 2v2 as it does in 1v1 … steal a card
-      // from me and random just like 1v1 and then give me 1 back." In 2v2 the
-      // prompt is routed to the Deadpool OWNER's seat (an AI owner auto-picks at
-      // random via stealPicker); withChosenOpponent has already aliased the
-      // chosen victim's hand onto state[opp], so faceDownDeck IS the victim's.
+      // enemy's (shuffled) hand. Same in 1v1 and 2v2: in 2v2 the prompt routes
+      // to the owner's seat (an AI owner picks at random via stealPicker), and
+      // withChosenOpponent has aliased the victim's hand onto state[opp], so
+      // faceDownDeck IS the victim's.
       const stealPicker = cards => cards[Math.floor(Game.rng() * cards.length)];
       if (dpIs2v2) G._2v2CurrentActingPlayer = deadpoolOwnerSeat;
       G.promptCardChoice(self.owner, faceDownDeck, "Deadpool's Final Trick",
@@ -3553,17 +3010,13 @@ const CARD_ABILITIES = {
     }
   },
   "Green Lantern": {
-    // The currencyOnDamage passive is recognized inside Game.applyCombatDamage and
-    // Game.damagePlayer (game.js). Those sites accumulate landed damage on
-    // self._damageDealtThisTurn — only damage that wasn't negated by Evade,
-    // Invincible, Damage Immunity, full-Armor absorption, Mr Freeze health freeze,
-    // or Block Meter. We harvest that total here at end of round.
+    // currencyOnDamage is recognized in Game.applyCombatDamage and
+    // Game.damagePlayer, which accumulate LANDED damage (not negated by Evade,
+    // Invincible, Damage Immunity, full Armor, Mr Freeze, or Block Meter) on
+    // self._damageDealtThisTurn. Harvested here at end of round.
     //
-    // SPEC: bonus energy is applied for the IMMEDIATELY FOLLOWING round only, then
-    // resets to 0. Each round recalculates fresh based only on that round's damage.
-    // Bonus energy must NOT carry over or stack across multiple rounds.
-    //
-    // ENFORCEMENT (three guards):
+    // SPEC: bonus energy applies to the IMMEDIATELY FOLLOWING round only, then
+    // resets; it must NOT carry over or stack. Three guards:
     //   1. Flag harvested + zeroed here at end of round.
     //   2. nextTurnCurrency bucket consumed + zeroed in Game.startRound.
     //   3. Flag defensively re-zeroed at the top of Game.startRound (handles edge
@@ -3573,9 +3026,8 @@ const CARD_ABILITIES = {
       const dmg = self._damageDealtThisTurn || 0;
       self._damageDealtThisTurn = 0;
       if (dmg > 0) {
-        // Roguelite Text+ override — _lanternEnergyBonus adds flat energy
-        // on top of the damage conversion. Default 0 (classic 1:1);
-        // Text+ to 2 so a 4-damage round becomes +6 energy next turn.
+        // Roguelite Text+ override — _lanternEnergyBonus adds flat energy on
+        // top of the damage conversion (default 0, Text+ 2).
         const bonus = self._lanternEnergyBonus || 0;
         const grant = dmg + bonus;
         // Pass SELF: this fires in the end-of-turn sweep, when no seat is
@@ -3585,14 +3037,10 @@ const CARD_ABILITIES = {
         if (typeof UI !== 'undefined' && UI._fxGreenLantern) { try { UI._fxGreenLantern(self); } catch (e) {} }
       }
     },
-    // If Green Lantern dies during combat (e.g. takes lethal damage AFTER
-    // his swing lands), onEndOfTurn in postCombat won't fire for him
-    // because getAllCardsOnBoard() filters out dead cards. Harvest here
-    // so his accumulated damage still banks for next round — the player
-    // spec is explicit: "green lantern isnt gaining the extra energy from
-    // his damage if he dies but he should". The mirror-flag in
-    // onEndOfTurn still zeroes the counter if he survived; only one
-    // path harvests per round.
+    // If Green Lantern dies in combat, onEndOfTurn won't fire for him
+    // (getAllCardsOnBoard filters the dead), so harvest here — his damage
+    // still banks. onEndOfTurn zeroes the counter if he survived, so only
+    // one path harvests per round.
     onDeath(G, self) {
       const dmg = self._damageDealtThisTurn || 0;
       self._damageDealtThisTurn = 0;
@@ -3604,35 +3052,28 @@ const CARD_ABILITIES = {
   },
   "Jason Voorhees": {
     onDeath(G, self, lane) {
-      // Jason revives ONCE PER GAME (not per-instance) by default. If a
-      // prior Jason already revived this game, subsequent plays/jumps
-      // get no revive. Flag lives on the owner's state so a freshly-
-      // played Jason can't "reset" the revive by being a new instance.
-      // Roguelite Text+ override — _jasonNoOnceLimit removes the once-
-      // per-game lock so Jason can revive on every kill (provided he
-      // still has reviveCharges). Default false (classic single-use);
-      // Text+ true makes him a recurring slasher.
+      // Jason revives ONCE PER GAME (not per-instance): the flag lives on the
+      // owner's state so a freshly played Jason can't reset it.
+      // Roguelite Text+ override — _jasonNoOnceLimit removes the lock so he
+      // revives on every kill while reviveCharges last (default false).
       if (!self._jasonNoOnceLimit && G.state[self.owner].jasonReviveUsed) {
         // Once-per-game lock hit — consume the keyword charge so the generic
-        // Revive path in handleDeath can't fire a second full revive behind
-        // our back (double-fire class: a replayed/resurrected/copied Jason
-        // carries a fresh Revive 1 that would bypass this rule). Doomsday
-        // template.
+        // Revive in handleDeath can't fire behind our back (a replayed or
+        // copied Jason carries a fresh Revive 1). Doomsday template.
         self.reviveCharges = 0;
         return; // already used this game
       }
       if (self.reviveCharges > 0) {
-        // A destroyed lane blocks the revive outright — no relocation
-        // (updated rule: "no card can be in a destroyed lane"). Charge and
-        // once-per-game flag stay unspent; Jason dies normally.
+        // A destroyed lane blocks the revive outright — no relocation (no card
+        // can be in a destroyed lane). Charge and once-per-game flag stay
+        // unspent; Jason dies normally.
         if (G.reviveVoided(self, lane)) return;
         self.reviveCharges--;
         if (!self._jasonNoOnceLimit) {
           G.state[self.owner].jasonReviveUsed = true;
         }
-        // Roguelite Text+ ("Crystal Lake Killer") — _jasonReviveBuff
-        // raises the per-revive ATK and HP gain. Default classic
-        // behavior is +1 ATK / +2 HP; Text+ sets +3/+3 each revive.
+        // Roguelite Text+ ("Crystal Lake Killer") — _jasonReviveBuff raises
+        // the per-revive gain (classic +1 ATK / +2 HP; Text+ +3/+3).
         const buff = self._jasonReviveBuff;
         if (buff) {
           self.attack += buff;
@@ -3644,9 +3085,8 @@ const CARD_ABILITIES = {
         self.currentHealth = self.maxHealth;
         G.placeInLane(self.owner, self, lane);
         if (typeof UI !== 'undefined' && UI._fxJasonRevive) { try { UI._fxJasonRevive(self); } catch (e) {} }
-        // Revive bypasses Game.playCard, so the registry-based play cue
-        // wouldn't auto-fire here — call it explicitly so the ki-ki-ki /
-        // ma-ma-ma sting lands on resurrection too.
+        // Revive bypasses Game.playCard, so the registry play cue won't
+        // auto-fire — call it explicitly so the sting lands on resurrection.
         try { if (typeof UI !== 'undefined' && UI.sfx) UI.sfx.playCardSfx('Jason Voorhees', 'play'); } catch (e) {}
         const limitText = self._jasonNoOnceLimit ? '' : ' (once per game)';
         G.log(`Jason Voorhees rises again as ${self.attack}/${self.maxHealth}${limitText}`);
@@ -3660,10 +3100,10 @@ const CARD_ABILITIES = {
       // Peeks the OWNER's pile (Classic = shared, Deckbuilder = personal).
       // (Internally still uses the "kang" prompt keys — the mechanic didn't change.)
       const pile = G.getDrawPile(self.owner);
-      // Lex Luthor blocks this: Paul's keep is an explicit deck draw (it even
-      // sets _kangSkipDraw, standing in for the round's normal draw), but it
-      // hands the card over with addToHand() and so skipped the drawCards()
-      // guard. Gate BEFORE popping so a blocked Paul disturbs nothing.
+      // Lex Luthor blocks this: Paul's keep is a deck draw (it sets
+      // _kangSkipDraw in place of the round's draw) but uses addToHand(),
+      // which skips the drawCards() guard. Gate BEFORE popping so a blocked
+      // Paul disturbs nothing.
       if (!G.canDrawToHand(self.owner, 'Paul Atreides')) return;
       if (pile.length < 2) {
         G.drawCards(self.owner, Math.min(2, pile.length));
@@ -3673,21 +3113,14 @@ const CARD_ABILITIES = {
       const card1 = pile.pop();
       const card2 = pile.pop();
       // The "keep this one" resolution — shared by the AI auto-pick, the 2v2
-      // human choice below, AND the 1v1 modal in ui.js (kangChoicePick), which
-      // used to carry its own copy of the whole thing. The copies had drifted:
-      // 1v1 asked which lane to free-play into, 2v2 dropped the card in the
-      // lowest open lane without asking. Owner: "i chose solomon grundy from
-      // paul atredies, and the game automaticlly played it in lane 2 for me no
-      // option to play it in a lane from my choosing which is what i want."
-      // One door now, so the two modes cannot disagree again.
+      // human choice below, AND the 1v1 modal in ui.js (kangChoicePick). One
+      // door, so the modes can't disagree (e.g. on asking for the lane).
       const keepCard = (pick) => CARD_ABILITIES['Paul Atreides']._keepOne(
         G, self.owner, pick, (pick === card1 ? card2 : card1), self);
-      // 2v2 HUMAN: the special pendingKangChoice modal had no 2v2 render path,
-      // so Paul silently auto-kept the higher-cost card — the player never got
-      // to choose. Route through promptCardChoice's inlineTray instead, which
-      // has full 2v2 routing (stamped to the owning seat, rendered by
-      // renderInlineChoiceFallback, resolved via 2v2CardChoiceResult). (User: "i
-      // played paul atreides i never got a choice on the card i wanted.")
+      // 2v2 HUMAN: the pendingKangChoice modal has no 2v2 render path, so route
+      // through promptCardChoice's inlineTray, which has full 2v2 routing
+      // (stamped to the owning seat, renderInlineChoiceFallback,
+      // 2v2CardChoiceResult).
       if (Game.isHuman(self.owner) && G.is2v2()) {
         if (G.state && G.state._silentSim) { keepCard(card1.cost >= card2.cost ? card1 : card2); return; }
         G.promptCardChoice(self.owner, [card1, card2],
@@ -3698,23 +3131,19 @@ const CARD_ABILITIES = {
           { inlineTray: true });
         return;
       }
-      // 2v2 has no render/resolution path for this keep-one modal (the board
-      // returns before the shared Kang render), and isHuman(side) is true for
-      // BOTH teams there — so it armed the prompt + a 30s auto-pick even for an
-      // AI seat, stalling the turn. Auto-pick immediately in 2v2 (keep the
-      // higher-cost card — exactly what the timeout would have chosen).
+      // 2v2 has no render/resolution path for this modal, and isHuman(side) is
+      // true for BOTH teams there, so an AI seat would stall on the prompt +
+      // 30s auto-pick. Auto-pick immediately (keep the higher-cost card, as the
+      // timeout would).
       if (Game.isHuman(self.owner) && !G.is2v2()) {
         G.state.pendingKangChoice = { owner: self.owner, cards: [card1, card2], kangCard: self };
         // A silent forecast sim (previewPlacement clones the state and runs
-        // onPlay to preview a placement) must NOT drive the UI or arm a real
-        // prompt timer — the kept card goes to hand and never touches the board
-        // the forecast measures, and every hover would otherwise re-fire this.
-        // Bail once the choice is recorded on the clone.
+        // onPlay on every hover) must NOT drive the UI or arm a real prompt
+        // timer. Bail once the choice is recorded on the clone.
         if (G.state && G.state._silentSim) return;
-        // 1v1 online: the guest's Kang (owner==='ai') is resolved on the guest's
-        // client. Broadcast the pending choice (so the guest renders/forwards it)
-        // but skip the host's render + 30s auto-pick — that timeout was
-        // auto-keeping a card and free-playing it into open[0] for the guest.
+        // 1v1 online: the guest's Kang (owner==='ai') resolves on the guest's
+        // client. Broadcast the pending choice but skip the host's render + 30s
+        // auto-pick, which would choose and free-play for the guest.
         // Host applies the result via _mpApplyAction promptResolve choiceType:'kang'.
         if (G.isMultiplayer() && G.mp.role === 'host' && self.owner === 'ai') {
           if (typeof G._mpBroadcast === 'function') G._mpBroadcast();
@@ -3751,15 +3180,12 @@ const CARD_ABILITIES = {
       // disagreed here as well, and this one asks canPlaceEnvironment.
       const open = card.isEnvironment ? G.openEnvLanes(owner) : G.getOpenLanes(owner);
       if (!open.length) return;
-      // THE LANE IS THE PLAYER'S, AND SO IS THE DECISION. This was
-      // `playCardFree(owner, card, open[0])` — the lowest open lane, no prompt.
-      // The card's own text asks for both halves: "If the kept card costs <= 2,
-      // you MAY play it for free." It was neither optional nor placed.
-      //
-      // An AI seat keeps the old behaviour: promptLaneChoice would auto-pick
-      // for it anyway, and going straight there keeps the turn off the prompt
-      // plumbing. A silent forecast sim (previewPlacement clones the state and
-      // runs onPlay on every hover) must never raise a prompt either.
+      // THE LANE IS THE PLAYER'S, AND SO IS THE DECISION: "If the kept card
+      // costs <= 2, you MAY play it for free" — optional, and placed by the
+      // player.
+      // An AI seat goes straight to the lowest open lane (promptLaneChoice
+      // would auto-pick anyway). A silent forecast sim must never raise a
+      // prompt either.
       if (!Game.isHuman(owner) || (G.state && G.state._silentSim)) {
         G.playCardFree(owner, card, open[0]);
         return;
@@ -3794,10 +3220,9 @@ const CARD_ABILITIES = {
       // Copy all callbacks and passive from CARD_ABILITIES (authoritative source)
       const abilityDef = CARD_ABILITIES[dead.name];
       if (abilityDef) {
-        // Full canonical hook list — every hook name any def uses. A hook
-        // missing here is a copy that silently loses part of the ability
-        // (user report: Manhunter-as-Ivy charmed once then never again —
-        // the once-per-round machinery wasn't copied).
+        // Full canonical hook list — every hook name any def uses. A missing
+        // hook silently drops part of the copied ability (e.g. Ivy's
+        // once-per-round re-charm).
         ['onPlay_SKIP', 'onDeath', 'onDamaged', 'onKill', 'onBeforeTricks',
          'onBeforeAttack', 'onBeforeCombat', 'onLaneCombat', 'onEndOfTurn', 'onAnyCardPlayed',
          'onAnyTrickPlayed', 'onAllyKilled', 'onEnemyKilled', 'onEvade',
@@ -3838,31 +3263,20 @@ const CARD_ABILITIES = {
   },
   "Optimus Prime": {
     // DO NOT SPEND THE FREE SWING ON SOMETHING ALREADY DYING.
-    //
-    // Both picks used to be `[0]`: the first adjacent ally, and the enemy
-    // OPPOSITE Optimus if it was alive. On the reported board that sent Green
-    // Goblin into a 3/1 The Thing — which Optimus himself, at 4 ATK, was going
-    // to kill in the very next combat anyway — while a 3/6 Solomon Grundy stood
-    // untouched beside them. (Owner: "he had GG attack the thing, not the right
-    // play, he should have had GG attack solomon grundy so they can trade.
-    // optimus was already going to win the trade vs the thing.")
-    //
-    // A free attack is worth what it CHANGES. So each candidate is scored by
-    // that, not by where it happens to stand:
+    // A free attack is worth what it CHANGES, so each candidate is scored by
+    // that, not by board position:
     //   • a kill this swing lands that would NOT have happened otherwise: best
     //   • a kill on something our own body was already going to finish: nearly
-    //     worthless, and it is exactly what the old `[0]` kept choosing
+    //     worthless
     //   • no kill: chip the biggest real threat (Game.threatOf, so a feared
     //     enemy hurting itself is not treated as a target)
     _targetScore(G, self, ally, t) {
       if (!t || t.currentHealth <= 0) return -1;
       const tl = G.findCardLane(t);
       const facing = tl >= 0 && G.state.lanes[tl] ? G.state.lanes[tl][self.owner] : null;
-      // ARMOR COUNTS. A raw `attack >= currentHealth` reads a 3-ATK swing as
-      // lethal against The Thing's 1 remaining HP — but Armor 2 turns that
-      // swing into 1 damage and he lives. Scoring a kill that cannot happen is
-      // how a "best play" becomes a wasted one. (Caught by AT-9 before it
-      // shipped.)
+      // ARMOR COUNTS: a 3-ATK swing into 1 HP with Armor 2 deals 1 and doesn't
+      // kill, so a raw `attack >= currentHealth` would score an impossible kill.
+      // (Pinned by AT-9.)
       const effective = (atkr) => Math.max(0, (atkr && atkr.attack || 0) - (t.armorValue || 0));
       // Is one of OUR bodies already positioned to finish it this combat?
       const alreadyDoomed = !!(facing && facing.currentHealth > 0
@@ -3910,26 +3324,17 @@ const CARD_ABILITIES = {
     onPlay(G, self, lane) {
       const own = self.owner;
       const adj = [];
-      // A LOCKED ALLY CANNOT BE COMMANDED. Owner: "SS shouldnt be able to bonus
-      // attack with optimus due to fear stun."
-      //
-      // Optimus's swing is an EXTRA action, exactly like a queued bonus attack —
-      // and that path has refused frozen / stunned / feared / mind-controlled
-      // cards for a long time (_drainBonusAttacks, "same lock that stops them
-      // acting in normal combat and moving"). This one took any adjacent body
-      // that existed, so a feared Silver Surfer was ordered to attack while the
-      // same fear was stopping him swinging in combat two seconds later.
-      //
-      // isActionLocked is that shared predicate, so the two cannot drift: add a
-      // fifth lock to it and Optimus honours it for free. Checked on the ALLY,
-      // not on Optimus — he is fine, it is the body being told to move that is
-      // not.
+      // A LOCKED ALLY CANNOT BE COMMANDED. Optimus's swing is an EXTRA action,
+      // like a queued bonus attack (_drainBonusAttacks refuses frozen /
+      // stunned / feared / mind-controlled cards). isActionLocked is that
+      // shared predicate, so a new lock is honoured here for free. Checked on
+      // the ALLY being commanded, not on Optimus.
       const canCommand = (a) => !!a && !G.isActionLocked(a);
       if (lane > 0 && canCommand(G.state.lanes[lane-1][own])) adj.push(G.state.lanes[lane-1][own]);
       if (lane < Game.LANE_COUNT-1 && canCommand(G.state.lanes[lane+1][own])) adj.push(G.state.lanes[lane+1][own]);
       if (!adj.length) {
         // Say so rather than failing silently — a card that visibly did nothing
-        // is the report this came in as.
+        // looks broken.
         const blocked = [G.state.lanes[lane-1] && G.state.lanes[lane-1][own],
                          G.state.lanes[lane+1] && G.state.lanes[lane+1][own]].filter(Boolean);
         if (blocked.length) {
@@ -3937,31 +3342,18 @@ const CARD_ABILITIES = {
         }
       }
       if (adj.length) {
-        // Wrap the chain attack so an Overdrive ally (Michael Myers,
-        // King Shark, Wolverine post-revive, etc.) still gets its
-        // "attack again on kill" bonus when the kill came from
-        // Optimus's command rather than the normal combat phase.
-        //
-        // User report: "I played Optimus Prime on Michael Myers, and
-        // he killed somebody in front of him. He has Overdrive. So
-        // technically he should attack again and hit face."
-        //
-        // The vanilla combat path (Game.resolveCombatLane) already
-        // calls handleOverdrive after combat damage when a kill
-        // happens (game.js:2799-2800). dealDamage doesn't — it has
-        // no concept of "this was an attack." So when the chain
-        // damage finishes off the target, we manually fire
-        // handleOverdrive at the ally's lane. handleOverdrive picks
-        // its own next target (post-cleanup opposite-lane enemy or
-        // face damage) and recurses on subsequent kills, matching
-        // the in-combat behavior exactly.
+        // Wrap the chain attack so an Overdrive ally (Michael Myers, King
+        // Shark, Wolverine post-revive…) still gets "attack again on kill"
+        // when the kill came from Optimus's command. resolveCombatLane calls
+        // handleOverdrive after a combat kill, but dealDamage has no concept
+        // of an attack — so on a chain kill we fire handleOverdrive at the
+        // ally's lane manually. It picks its own next target and recurses on
+        // further kills, matching in-combat behaviour.
         const chainAttack = (ally, target) => {
           const targetHpBefore = target.currentHealth;
           G.dealDamage(target, ally.attack, ally);
-          // Determine if THIS specific dealDamage landed the kill —
-          // can't just check ally.currentHealth or target.currentHealth
-          // alone since the target could already be dead from another
-          // ability earlier this frame.
+          // Determine if THIS dealDamage landed the kill — HP alone isn't
+          // enough, the target may already be dead from an earlier ability.
           const killed = targetHpBefore > 0 && target.currentHealth <= 0;
           if (killed && ally.isOverdrive && ally.currentHealth > 0) {
             const allyLane = G.findCardLane(ally);
@@ -3987,11 +3379,8 @@ const CARD_ABILITIES = {
             G.log(`Optimus commands ${ally.name} to attack ${pick.name} for ${ally.attack}!`);
           }
         };
-        // Roguelite Text+ override — _optimusCommandsBoth makes him
-        // command BOTH adjacent allies to attack instead of just one.
-        // Default false (classic — pick one); Text+ true (skip the
-        // pick, fire both). User direction: scaling that fits the
-        // Autobot-leader fantasy.
+        // Roguelite Text+ override — _optimusCommandsBoth commands BOTH
+        // adjacent allies (no pick). Default false (pick one).
         if (self._optimusCommandsBoth) {
           adj.forEach(ally => doAttack(ally));
         } else if (Game.isHuman(self.owner)) {
@@ -4004,11 +3393,9 @@ const CARD_ABILITIES = {
     }
   },
   "Predator": {
-    // Trophy buff applied on every Predator kill — the body shape is
-    // shared between the on-play strike that finishes off the target
-    // and the generic onKill that fires when Predator wins a normal
-    // combat exchange. Classic = +1/+0; Text+ "_predatorTrophyBuff"
-    // bumps to +N/+N (apply-side default 2).
+    // Trophy buff on every Predator kill — shared by the on-play strike and
+    // the generic onKill. Classic +1/+0; Text+ "_predatorTrophyBuff" +N/+N
+    // (apply-side default 2).
     _claimTrophy(G, self) {
       const atk = self._predatorTrophyBuff || 1;
       const hp  = self._predatorTrophyBuff || 0;
@@ -4016,9 +3403,8 @@ const CARD_ABILITIES = {
       G.log(`Predator claims a trophy! +${atk}/+${hp} → ${self.attack}/${self.currentHealth}`);
     },
     onPlay(G, self, lane) {
-      // Roguelite Text+ override — _predatorStrikeDamage scales the
-      // initial strike. Default 3 (classic); Text+ raises to 5 so
-      // bigger targets eat the opener.
+      // Roguelite Text+ override — _predatorStrikeDamage scales the initial
+      // strike (default 3, Text+ 5).
       const dmg = self._predatorStrikeDamage || 3;
       const enemies = G.getEnemiesOf(self.owner).filter(t => G.canEffectLand(t, 'damage', { owner: self.owner, source: self }));
       if (enemies.length) {
@@ -4042,9 +3428,8 @@ const CARD_ABILITIES = {
     onPlay(G, self, lane) {
       const allies = G.getAlliesOf(self.owner).filter(a => a.id !== self.id && a.currentHealth > 0);
       if (!allies.length) {
-        // Roguelite Text+ override — _myersAloneBuff scales the lone-
-        // wolf reward. Default 1 (classic +1/+1); Text+ raises to 2
-        // so the stalker fantasy hits harder when isolation pays off.
+        // Roguelite Text+ override — _myersAloneBuff scales the lone-wolf
+        // reward (default +1/+1, Text+ +2/+2).
         const buff = self._myersAloneBuff || 1;
         G.buffCard(self, buff, buff);
         G.log(`Michael Myers stalks alone — +${buff}/+${buff}!`);
@@ -4071,13 +3456,10 @@ const CARD_ABILITIES = {
         G.dealDamage(target, 3, self);
       };
       const live = (id) => G.getAllCardsOnBoard().find(c => c && c.id === id && c.currentHealth > 0);
-      // WHOEVER WOKE HIM IS A CHOICE, NOT A SORT ORDER. _deathWokeBy carries
-      // every card that had stood long enough to raise him — each one a legal
-      // answer — so the pick belongs to the player. One candidate needs no
-      // modal; an AI owner, and an unanswered prompt, both fall back to the
-      // longest-standing card, which is what the engine used to decide on its
-      // own. (Owner: "when death is played the user get to choose who to jump
-      // in front of.")
+      // WHOEVER WOKE HIM IS A CHOICE: _deathWokeBy holds every card that had
+      // stood long enough to raise him, each a legal answer, so the player
+      // picks. One candidate needs no modal; an AI owner or unanswered prompt
+      // falls back to the longest-standing card.
       const choices = (Array.isArray(wokeIds) ? wokeIds : [tId])
         .map(live).filter(c => c && c.id !== self.id);
       if (choices.length <= 1) { reap(choices[0] || live(tId)); return; }
@@ -4114,9 +3496,8 @@ const CARD_ABILITIES = {
     onPlay(G, self, lane) {
       if (typeof UI !== 'undefined' && UI._fxRavenSoul) { try { UI._fxRavenSoul(self); } catch (e) {} }
       const opp = G.opponent(self.owner);
-      // Capture the opp's meter BEFORE zeroing so the Text+ steal path
-      // can transfer it to the player. _ravenStealsBlock = true sets
-      // the steal mode; default is just-drain.
+      // Capture the opp's meter BEFORE zeroing so the Text+ steal path can
+      // transfer it.
       const drainedAmount = G.getBlockMeter(opp);
       G.setBlockMeter(opp, 0);
       if (drainedAmount > 0) G.emitFX('blockDrain', { owner: opp, amount: drainedAmount });
@@ -4128,9 +3509,8 @@ const CARD_ABILITIES = {
         a.frozenTurns  = 0; a.isFrozen  = false;
       });
       G.log("Raven cleanses all allies!");
-      // Roguelite Text+ override — _ravenStealsBlock converts the
-      // drain into a transfer. Default false (classic just zeroes
-      // opp); Text+ pours the drained amount into your own meter.
+      // Roguelite Text+ override — _ravenStealsBlock turns the drain into a
+      // transfer into your own meter (default false: just zero the opp).
       if (self._ravenStealsBlock && drainedAmount > 0) {
         G.addBlockMeter(self.owner, drainedAmount);
         G.log(`Raven steals ${drainedAmount} block from the opponent!`);
@@ -4153,15 +3533,10 @@ const CARD_ABILITIES = {
         G.log(`The Grinch finds nothing to steal — stats tripled! ${self.attack}/${self.currentHealth}`);
         return;
       }
-      // A FULL TRICK HAND NO LONGER KILLS THE STEAL. It used to: keep() called
-      // addToTrickHand, which DISCARDS and returns false at maxTrickHandSize, so
-      // the trick was destroyed by a prompt with no valid outcome — the fix then
-      // just skipped the whole steal and tripled. But the owner still wants the
-      // trick: keep() now routes through _gainTrickWithTrade, which offers a
-      // trade (swap one of your current tricks for the stolen one) when full, or
-      // gives it back + triples if you decline. (User: "when i play grinch and my
-      // tricks are at max it won't offer me — i should be offered and be able to
-      // trade one out.") So no early-out here; the normal keep/give-back flow runs.
+      // A FULL TRICK HAND DOESN'T KILL THE STEAL: keep() routes through
+      // _gainTrickWithTrade, which offers a trade when full (addToTrickHand
+      // would discard at maxTrickHandSize), or gives it back + triples on
+      // decline. So no early-out here.
       // Two choices in sequence, each gated on a different seat's isHuman:
       //   1. OPP picks which trick to give up (human → prompt; AI → lowest cost)
       //   2. Grinch OWNER picks keep-or-give-back (human → prompt; AI → threshold)
@@ -4169,24 +3544,19 @@ const CARD_ABILITIES = {
         // Back to the OWNER for the keep/give-back decision (the victim only
         // chose which trick to surrender).
         if (G.state.twoVTwo && G.state.twoVTwo.online) G._2v2CurrentActingPlayer = grinchOwnerSeat;
-        // Remove the EXACT object that was chosen, not the first same-named
-        // one — decks can hold 2 copies of a trick (COPY_MAX=2), and a
-        // name-based findIndex would splice the wrong copy when they differ in
-        // mutated state. Matches the identity pattern used everywhere else
-        // (Deadpool indexOf(stolen), game.js trick removal indexOf(trick)).
+        // Remove the EXACT chosen object, not the first same-named one — decks
+        // hold up to 2 copies (COPY_MAX=2) that can differ in mutated state.
+        // Same identity pattern as Deadpool and game.js trick removal.
         const idx = th.indexOf(chosen);
         if (idx >= 0) th.splice(idx, 1);
         // Roguelite Text+ override — _grinchKeepCostBump scales the cost
-        // penalty on kept tricks. Default 1 (classic); Text+ sets to 0
-        // so kept tricks are completely free.
+        // penalty on kept tricks (default 1, Text+ 0).
         const keepBump = (self._grinchKeepCostBump != null) ? self._grinchKeepCostBump : 1;
         const keep = () => {
-          // Route through _gainTrickWithTrade so a FULL hand offers a trade
-          // (swap one of your tricks for the stolen one) instead of silently
-          // discarding it — and if you decline the trade, giveBack() runs (the
-          // trick returns and the Grinch triples). The keep cost bump is applied
-          // to the copy that actually LANDS in hand (negative Text+ bumps floor
-          // at 0), so a declined trade never leaves a bumped trick behind.
+          // Via _gainTrickWithTrade: a FULL hand offers a trade; declining runs
+          // giveBack() (trick returns, Grinch triples). The cost bump applies
+          // to the copy that actually LANDS (negative bumps floor at 0), so a
+          // declined trade never leaves a bumped trick behind.
           const grinchIs2v2 = !!(G.state.twoVTwo && G.state.twoVTwo.online);
           G._gainTrickWithTrade(self.owner, chosen, {
             seat: grinchIs2v2 ? grinchOwnerSeat : null,
@@ -4275,9 +3645,8 @@ const CARD_ABILITIES = {
     },
     onBeforeTricks(G, self, lane) {
       if (self.venomHealed) return;
-      // Roguelite Text+ ("Symbiote Bond") — _venomHealAllCards counts
-      // every card on board (your allies + opp's). Classic path heals
-      // ally count × _venomHealMul.
+      // Roguelite Text+ ("Symbiote Bond") — _venomHealAllCards counts every
+      // card on board; classic heals ally count × _venomHealMul.
       let amount;
       if (self._venomHealAllCards) {
         amount = G.getAllCardsOnBoard().length;
@@ -4311,17 +3680,12 @@ const CARD_ABILITIES = {
         self.reviveCharges--;
         self.attack = 6; self.currentHealth = 5; self.maxHealth = 5;
         self.isOverdrive = true;
-        // NOTE: no `justResurrected` stamp. It existed only to switch this
-        // Overdrive off for the rest of the combat phase he came back in —
-        // see the comment at the Overdrive check in resolveLaneCombat for why
-        // that is gone. Nothing else in the engine ever read it.
+        // No `justResurrected` stamp — see the Overdrive check in
+        // resolveLaneCombat; nothing reads it.
         // While-Active passive (onDamaged "destroy attacker cost ≤ 7") is
-        // intentionally DISABLED on revive. User spec: "Wolverine's
-        // while active needs to disable upon revive." Trade-off: he
-        // comes back with raw 6/5 Overdrive stats but no retaliation
-        // retort, so the second life is offensive-only — no more
-        // double-dipping his "any attacker dies" passive across two
-        // bodies in the same match.
+        // intentionally DISABLED on revive: the second life is raw 6/5
+        // Overdrive with no retaliation, so the passive can't be used across
+        // two bodies in one match.
         self.onDamaged = null;
         G.placeInLane(self.owner, self, lane);
         if (typeof UI !== 'undefined' && UI._fxWolverineRage) { try { UI._fxWolverineRage(self); } catch (e) {} }
@@ -4332,8 +3696,8 @@ const CARD_ABILITIES = {
   },
   "Wonder Woman": {
     onPlay(G, self, lane) {
-      // Roguelite Text+ — _wwStunSize scales the freeze duration. Default
-      // 1 (classic); Text+ sets 2. (Stun merged into Freeze 2026-07-24.)
+      // Roguelite Text+ — _wwStunSize scales the freeze duration (default 1,
+      // Text+ 2). Stun is merged into Freeze.
       const freezeN = self._wwStunSize || 1;
       const e = G.state.lanes[lane] ? G.state.lanes[lane][G.opponent(self.owner)] : null;
       if (e) { G.freezeCard(e, self, freezeN); }
@@ -4354,16 +3718,13 @@ const CARD_ABILITIES = {
       const opp = G.opponent(self.owner);
       const target = G.state.lanes[myLane][opp];
       if (!target || target.currentHealth <= 0) return;
-      // ...and only if that swing actually CONNECTS. If the front target
-      // Evades / is Invincible / Damage-Immune, Wonder Woman's whole strike
-      // (lasso included) whiffs. (User: "WW attacks Spider-Man, he evades,
-      // she can't chain.") Armor doesn't block the chain — the hit still lands.
+      // ...and only if that swing CONNECTS. Evade / Invincible / Damage
+      // Immunity on the front target whiffs the whole strike, lasso included.
+      // Armor doesn't block the chain — the hit still lands.
       const canDodge = !target.isStunned && !target.isFrozen && !self.ignoresEvade;
       if (G._classifyAbsorb(target, canDodge)) return;
-      // Roguelite Text+ ("Lasso of Truth") — _wwChainAllAdj fires the
-      // chain at BOTH adjacent enemies simultaneously (no direction
-      // prompt). Classic path keeps the single-direction chain so the
-      // human picks left or right.
+      // Roguelite Text+ ("Lasso of Truth") — _wwChainAllAdj chains BOTH
+      // adjacent enemies (no direction prompt). Classic picks left or right.
       if (self._wwChainAllAdj) {
         const both = [];
         for (const dir of [-1, 1]) {
@@ -4377,9 +3738,8 @@ const CARD_ABILITIES = {
         both.forEach(t => G.dealDamage(t, chainDmg, self));
         return;
       }
-      // ONE chained enemy, not the whole consecutive run (owner call). She still
-      // picks left or right when both sides have a body — the direction is the
-      // decision, the chain just stops after the first one.
+      // ONE chained enemy, not the whole consecutive run. She still picks left
+      // or right when both sides have a body; the chain stops after the first.
       G.log(`Wonder Woman's lasso chains — ${chainDmg} chain damage!`);
       G.autoChainDamage(self.owner, myLane, chainDmg, 0, null, "LASSO CHAIN", 1);
     }
@@ -4388,12 +3748,10 @@ const CARD_ABILITIES = {
   // ==================== COST 5 ====================
   "Davy Jones": {
     onPlay(G, self, lane) {
-      // Roguelite Text+ override — _aquamanCreatureAtkBump and
-      // _aquamanCreatureHpBump scale the summoned Kraken above its
-      // 5/3 base. Default 0/0 (classic 5/3); Text+ sets +4/+6 (9/9)
-      // so the summon is a real threat. (Roguelite property names
-      // kept as `_aquaman*` for save-data compatibility — the card
-      // is functionally the same, just rebranded to Davy Jones.)
+      // Roguelite Text+ override — _aquamanCreatureAtkBump /
+      // _aquamanCreatureHpBump scale the Kraken above its 5/3 base (default
+      // 0/0, Text+ +4/+6 → 9/9). The `_aquaman*` names are kept for save-data
+      // compatibility (card rebranded to Davy Jones).
       const atkBump = self._aquamanCreatureAtkBump || 0;
       const hpBump  = self._aquamanCreatureHpBump  || 0;
       if (typeof UI !== 'undefined' && UI._fxDavyKraken) { try { UI._fxDavyKraken(self); } catch (e) {} }
@@ -4402,13 +3760,10 @@ const CARD_ABILITIES = {
   },
   "Captain America": {
     onPlay(G, self, lane) {
-      // Cost reduction is now LIVE — no card.cost mutation here.
-      // Game.getCardCost subtracts the discount per active CA at
-      // query time, so the moment Cap dies the discount vanishes
-      // automatically. This onPlay only handles the Invincible
-      // grant on an ally. User-facing log message is fired here
-      // (one-time at play) so the player still gets the "Cap
-      // rallied the team" feedback at the play moment.
+      // Cost reduction is LIVE — no card.cost mutation here. Game.getCardCost
+      // subtracts the discount per active CA at query time, so it vanishes
+      // when Cap dies. This onPlay only grants Invincible to an ally and logs
+      // the rally once.
       const disc = G.rarityValue(self, { common: 1, rare: 1, special: 2, legendary: 2 });
       const count = G.state[self.owner].hand.filter(c => c.cost > 0).length;
       G.log(`Captain America rallies the team — ${count} card${count === 1 ? '' : 's'} in hand cost ${disc} less!`);
@@ -4442,33 +3797,19 @@ const CARD_ABILITIES = {
     }
   },
   "Joker": {
-    // Joker has Insane (his own ATK rolls 2-7 each turn — handled by the
-    // Crazy/Insane reroll sweep in game.startRound) and stamps Crazy on
-    // the highest-ATK enemy. The Crazy stamp is persistent on that enemy
-    // for as long as Joker is alive — a per-round sweep handles re-rolls.
-    //
-    // STAMP TIMING (user spec): the per-round stamp fires at Start of
-    // Tricks, NOT Start of Round. Two reasons:
-    //   1. The play phase happens AFTER start-of-round, so a stamp at
-    //      onTurnStart picks the top-ATK enemy *before* the AI plays any
-    //      new threats this round. Moving to onBeforeTricks ensures the
-    //      stamp lands on the strongest enemy ON THE BOARD AT THE TIME
-    //      tricks resolve — which is what the player actually faces.
-    //   2. The user wants Joker to ALWAYS have a Crazy target on the
-    //      board while he's alive. We also re-stamp at onEndOfTurn so
-    //      that if the current target dies in combat, the next-highest
-    //      enemy gets the stamp before the player sees the next round's
-    //      board — no "no-target" gaps.
-    //
-    // _recurringBT lets onBeforeTricks fire EVERY round (not just the
-    // round Joker entered). Without this flag, beforeTricksFired locks
-    // the hook to one trigger per instance and the per-round stamp
-    // would only land once.
+    // Joker has Insane (his ATK rolls 2-7 each turn, via the reroll sweep in
+    // game.startRound) and stamps Crazy on the highest-ATK enemy, persisting
+    // while Joker lives.
+    // STAMP TIMING: at Start of Tricks, not Start of Round — the play phase
+    // comes after round start, so this lands on the strongest enemy actually
+    // on the board when tricks resolve. Also re-stamped at onEndOfTurn so a
+    // target dying in combat leaves no "no-target" gap.
+    // _recurringBT lets onBeforeTricks fire EVERY round; otherwise
+    // beforeTricksFired locks it to one trigger per instance.
     _recurringBT: true,
     onPlay(G, self, lane) {
-      // Fear cost gate scales with tier. Common: ≤2, Rare: ≤4 (listed),
-      // Special: ≤6, Legendary: ≤9. Joker stays a chaos enabler at all
-      // tiers — the Crazy stamp on top-ATK enemy fires regardless.
+      // Fear cost gate scales with tier: common ≤2, rare ≤4, special ≤6,
+      // legendary ≤9. The Crazy stamp fires regardless of tier.
       const fearGate = G.rarityValue(self, { common: 2, rare: 4, special: 6, legendary: 9 });
       const eligible = G.getEnemiesOf(self.owner).filter(e => (e.baseCost || e.cost) <= fearGate);
       if (eligible.length) {
@@ -4491,33 +3832,19 @@ const CARD_ABILITIES = {
       CARD_ABILITIES.Joker._stampTopEnemyCrazy(G, self);
     },
     onEndOfTurn(G, self) {
-      // Post-combat — if the previous Crazy target died in this round's
-      // combat, immediately stamp the next-highest enemy so Joker's
-      // While Active never has a "no target" gap. No-op if a target
-      // already carries Crazy (the _stampTopEnemyCrazy guard handles it).
+      // Post-combat — if the Crazy target died this round, stamp the next-
+      // highest enemy so there's never a "no target" gap. No-op if a target
+      // already carries Crazy (_stampTopEnemyCrazy guard).
       CARD_ABILITIES.Joker._stampTopEnemyCrazy(G, self);
     },
     onDeath(G, self) {
-      // When Joker dies, strip the Crazy stamp from any enemies he had
-      // infected AND restore their pre-Crazy ATK (which Game.applyCrazyToCard
-      // snapshotted onto `_preCrazyAttack` when the trait was applied).
-      //
-      // User bug report 2026-05-19: "Joker died, but Dormammu's stats
-      // stayed at whatever debuff he rolled for the crazy. That's not
-      // how it works. He should now get his stats back to what they
-      // were previously because he no longer has the crazy status
-      // trait." Previously this hook only stripped the flag and left
-      // the rolled value pinned — fixed by restoring the snapshot.
-      // Falls back to baseAttack if for some reason the snapshot is
-      // missing (e.g. a card that got Crazy'd before the snapshot
-      // logic shipped). Restoration also clears the per-roll memory
-      // so a future re-Crazy (different Joker enters play later)
-      // starts fresh.
-      // EVERYWHERE, not just the board. This swept getAllCardsOnBoard(), so a
-      // victim that happened to be off-board at the instant Joker died — in the
-      // dead pile, mid-revive, bounced to hand — kept the stamp with nothing
-      // alive left to clear it. Mahoraga hit this constantly because dying and
-      // coming back IS his card.
+      // When Joker dies, strip Crazy from his victims AND restore their
+      // pre-Crazy ATK (snapshotted to `_preCrazyAttack` by
+      // Game.applyCrazyToCard), falling back to baseAttack. Clears the
+      // per-roll memory so a later re-Crazy starts fresh.
+      // EVERYWHERE, not just the board: a victim off-board when Joker dies
+      // (dead pile, mid-revive, in hand — Mahoraga constantly) would keep the
+      // stamp with nothing left to clear it.
       G._allCardsAnywhere().forEach(c => {
         if (c._crazyAppliedBy) {
           const wasAtk = c.attack;
@@ -4529,31 +3856,24 @@ const CARD_ABILITIES = {
       });
     },
     _stampTopEnemyCrazy(G, self) {
-      // Feared enemies can never hold Crazy (user spec) — they're skipped
-      // outright so the stamp falls to the next-highest eligible enemy
-      // instead of silently whiffing inside applyCrazyToCard.
+      // Feared enemies can never hold Crazy — skipped so the stamp falls to
+      // the next-highest eligible enemy instead of whiffing in
+      // applyCrazyToCard.
       const enemies = G.getAllCardsOf(G.opponent(self.owner))
         .filter(e => e.currentHealth > 0 && !e.isEnvironment
           && !e.isFeared && !((e.fearedTurns || 0) > 0));
       if (!enemies.length) return;
-      // Rank by EFFECTIVE attack, not current. A card that already carries
-      // Joker's Crazy has its ATK suppressed to a 1-4 roll, so ranking on the
-      // live value let a genuinely weaker enemy outscore the real top threat and
-      // steal the stamp every round (user: "Manhattan has 9 ATK — the highest —
-      // but Crazy jumped off him onto Luke"). For the current Crazy target we
-      // read its pre-Crazy snapshot so it's compared at true strength; everyone
-      // else uses their live ATK.
+      // Rank by EFFECTIVE attack: the current Crazy target's ATK is
+      // suppressed to a 1-4 roll, so compare it by its pre-Crazy snapshot or a
+      // weaker enemy steals the stamp. Everyone else uses live ATK.
       const effAtk = (c) => (c.isCrazy && c._preCrazyAttack != null)
         ? c._preCrazyAttack : (c.attack || 0);
       const top = enemies.slice().sort((a, b) => effAtk(b) - effAtk(a))[0];
       if (!top) return;
       if (top.isCrazy) return; // already the stamped target — sweep rerolls it
-      // EXCLUSIVE stamp — exactly ONE enemy carries Joker's Crazy. The old
-      // code never un-stamped the previous target, so every past top-ATK
-      // enemy kept its badge and the debuff accumulated across the board
-      // (user: "I'm not sure the crazy status badge is being applied
-      // correctly"). Strip + restore the old target before re-stamping;
-      // the stamp then rolls over round-to-round until this re-check moves it.
+      // EXCLUSIVE stamp — exactly ONE enemy carries Joker's Crazy. Strip +
+      // restore the old target before re-stamping; the stamp rolls over
+      // round-to-round until this re-check moves it.
       G.getAllCardsOnBoard().forEach(c => {
         if (c._crazyAppliedBy && c.id !== top.id) {
           c.isCrazy = false;
@@ -4577,11 +3897,7 @@ const CARD_ABILITIES = {
     isDiscardEffect: true,
     // Pre-play gate — read by playCard's discard branch BEFORE the card and
     // energy are consumed. Prof X needs BOTH a convertible enemy AND an open
-    // lane on the caster's side to place the convert. With a full board the
-    // old flow consumed the card, lifted the target off its lane, found no
-    // space, and stranded it in limbo (user MP report: "played Prof X on
-    // Grinch but his board was full — the Grinch just [vanished]; Prof X
-    // can't be played when there's no space").
+    // lane on the caster's side, or the lifted target is stranded in limbo.
     canDiscard(G, owner, self) {
       const maxCost = (self && self._profXConvertCost) || 4;
       const hasTarget = G.getEnemiesOf(owner).some(e => (e.baseCost != null ? e.baseCost : e.cost) <= maxCost);
@@ -4595,17 +3911,15 @@ const CARD_ABILITIES = {
     },
     onDiscard(G, owner, self) {
       const opp = G.opponent(owner);
-      // Roguelite Text+ override — _profXConvertCost raises the cost
-      // ceiling for convertible enemies. Default 4 (classic); Text+
-      // to 6 so even Iron Man / Captain America are valid targets.
+      // Roguelite Text+ override — _profXConvertCost raises the cost ceiling
+      // for convertible enemies. Default 4 (classic); Text+ 6.
       const maxCost = (self && self._profXConvertCost) || 4;
       const enemies = G.getEnemiesOf(owner).filter(e => (e.baseCost != null ? e.baseCost : e.cost) <= maxCost);
       if (!enemies.length) return;
       G.promptCardChoice(owner, enemies, "Professor X — Convert", `Choose enemy with base cost ${maxCost} or less to permanently join your team`, (t) => {
         // Re-check space at RESOLVE time (a lane can fill while the prompt is
-        // open) and BEFORE the target is lifted off its lane. The old order
-        // removed it, flipped its owner, then discovered no open lane and
-        // returned — leaving the card in limbo: off-board, in no hand, no pile.
+        // open) and BEFORE the target is lifted off its lane, or it ends up
+        // off-board, in no hand, no pile.
         if (!G.getOpenLanes(owner).length) {
           G.log(`[PROF X] No open lane to place ${t.name} — the conversion fizzles; ${t.name} stays put.`);
           return;
@@ -4639,13 +3953,10 @@ const CARD_ABILITIES = {
           t.isFaceDown = false;
           delete t._faceDownOriginals;
         }
-        // THE CONVERT IS NOW YOURS — INCLUDING ITS PROMPTS. t still carried the
-        // provenance of the player who originally played it, so every choice it
-        // raised afterwards (Han Solo's "take the shot", any onPlay it re-runs)
-        // was routed by that stale stamp instead of to the person who converted
-        // it. (User: "i professor x'd han solo and my teammate got to take the
-        // shot not me.") Same move Batman Who Laughs already makes when it
-        // steals a card: wipe the old provenance, then stamp the new owner.
+        // The convert is now yours, including its prompts: wipe the original
+        // player's provenance and stamp the new owner, or later choices (Han
+        // Solo's shot, re-run onPlays) route to the wrong seat. Same move
+        // Batman Who Laughs makes when it steals a card.
         G._clearProvenance(t);
         delete t._mcSeat;
         const casterSeat = (self && self._2v2PlayedBy)
@@ -4662,25 +3973,16 @@ const CARD_ABILITIES = {
           if (G._stampProvenance) G._stampProvenance(t, owner);
           G.log(`${t.name} joins ${G.seatPossessive(owner)} side in lane ${l + 1}!`);
           // Entering a lane by ANY mechanism must spring a waiting Bear Trap —
-          // this direct assignment bypassed checkLaneTrap, so a converted card
-          // placed onto an enemy Jigsaw trap sailed in unharmed. User report:
-          // "played Prof X on Man-Bat, then placed Man-Bat in a Jigsaw trap
-          // and it didn't trigger." Also reconcile Magneto's parity aura for
-          // the lane he landed in.
+          // direct lane assignment bypasses checkLaneTrap. Also reconcile
+          // Magneto's parity aura for the lane he landed in.
           G.checkLaneTrap(t, l);
           G.applyMagnetoDebuffs();
           if (t.currentHealth <= 0) { G.cleanupDead(); return; }  // trap killed the arrival
-          // "Its abilities reactivate" — re-fire When Played first,
-          // THEN sweep sibling reactions (onAnyCardPlayed) and the
-          // cardPlayedBuff passive. Order matters: cards like Scarlet
-          // Witch (copiesOpposite) start at 0/0 placeholder stats and
-          // resolve real stats inside their own onPlay. If sibling
-          // auras (Luke Skywalker -1/-1) fire FIRST, they kill her
-          // at 0/0 before she can copy the enemy. User report: "I
-          // [used] Professor X [on] a Scarlet Witch which was 0/1,
-          // tried to place her in front of Dormammu, but they had
-          // Luke Skywalker on the board. It should copy the stats
-          // of Dormammu, not die."
+          // "Its abilities reactivate" — re-fire When Played first, THEN sweep
+          // sibling reactions (onAnyCardPlayed) and the cardPlayedBuff passive.
+          // Order matters: copiers like Scarlet Witch start at 0/0 and resolve
+          // real stats inside onPlay; sibling auras (Luke −1/−1) firing first
+          // would kill her before she copies.
           G._runHook(t, 'onPlay', G, t, l);
           G.broadcastHook('onAnyCardPlayed', t, []);
           G.getAllCardsOf(owner).forEach(c => {
@@ -4700,20 +4002,16 @@ const CARD_ABILITIES = {
     }
   },
   "Red Hulk": {
-    // 4th param `actual` is the damage that actually landed (after
-    // armor / reductions) — matches the desc "Splash THAT damage
-    // back" rather than the attacker's raw stat. dealDamage passes
-    // it as the 4th arg. Falls back to attacker.attack if actual
-    // wasn't supplied (e.g. legacy callers).
+    // 4th param `actual` is the damage that actually landed (after armor /
+    // reductions) — matches "Splash THAT damage back". Falls back to
+    // attacker.attack when a caller doesn't supply it.
     onDamaged(G, self, attacker, actual) {
       let dmg = (typeof actual === 'number' && actual > 0)
         ? actual
         : (attacker ? attacker.attack : 1);
       if (dmg <= 0) return;
-      // Roguelite Text+ override — _redHulkRetaliateBonus adds extra
-      // damage to the splash AND block-meter add. Default 0 (classic);
-      // Text+ sets to 2 so a 3-damage hit triggers a 5-damage splash
-      // and 5 block meter — the rage feedback loop scales harder.
+      // Roguelite Text+ override — _redHulkRetaliateBonus adds extra damage to
+      // the splash AND block-meter add. Default 0 (classic); Text+ 2.
       const bonus = self._redHulkRetaliateBonus || 0;
       dmg += bonus;
       G.addBlockMeter(self.owner, dmg);
@@ -4741,10 +4039,9 @@ const CARD_ABILITIES = {
       }
     },
     onEvade(G, self) {
-      // Roguelite Text+ overrides — _spiderManEvadeBuff scales the
-      // grow buff (default +1/+1, Text+ +2/+2); _spiderManRegainChance
-      // raises the chance of getting another evade charge back
-      // (default 0.5, Text+ 0.75).
+      // Roguelite Text+ overrides — _spiderManEvadeBuff scales the grow buff
+      // (default +1/+1, Text+ +2/+2); _spiderManRegainChance is the chance to
+      // regain an evade charge (default 0.5, Text+ 0.75).
       const buff = self._spiderManEvadeBuff || 1;
       const regain = (typeof self._spiderManRegainChance === 'number') ? self._spiderManRegainChance : 0.5;
       G.buffCard(self, buff, buff);
@@ -4759,13 +4056,10 @@ const CARD_ABILITIES = {
   },
   "The Batman Who Laughs": {
     onPlay(G, self, lane) {
-      // Every BWL play arms a fresh intercept. The previous once-per-
-      // owner-per-game lock (bwlInterceptUsed) was removed per user
-      // direction — running multiple BWLs in a deck is a legitimate
-      // synergy and each copy should fire its hex independently. The
-      // `bwlInterceptUsed` state field is left in place (still flipped
-      // by _resolveBwlIntercept) so save data / multiplayer sync stays
-      // schema-compatible, but it no longer gates new plays.
+      // Every BWL play arms a fresh intercept — multiple BWLs each fire
+      // independently. `bwlInterceptUsed` is still flipped by
+      // _resolveBwlIntercept for save/MP schema compatibility but no longer
+      // gates new plays.
       G.state[G.opponent(self.owner)].nextCardStolen = true;
       G.log("Batman Who Laughs lurks... next enemy card will be intercepted!");
       if (typeof UI !== 'undefined' && UI._fxBWLHex) { try { UI._fxBWLHex(self); } catch (e) {} }
@@ -4781,22 +4075,13 @@ const CARD_ABILITIES = {
       //   special   → 2 zombies, 2 dead-pile draws
       //   legendary → 3 zombies, 2 dead-pile draws
       const zombies = G.rarityValue(self, { common: 1, rare: 2, special: 2, legendary: 3 });
-      // User spec: "if there's only two open spaces, I shouldn't have
-      // to place the warriors. They should be placed for me." When
-      // open-lane count is ≤ zombies-to-summon, every choice is
-      // forced — the warriors are identical 3/1 tokens, no
-      // meaningful strategic differentiation. Auto-place all in
-      // order without prompting. If there are MORE open lanes than
-      // zombies, the player still gets prompted for each one (since
-      // they're choosing WHERE to place each warrior among multiple
-      // candidates).
+      // When open lanes ≤ zombies to summon, every choice is forced (identical
+      // 3/1 tokens), so auto-place without prompting. With more open lanes
+      // than warriors, prompt for each placement.
       const openLanes = G.getOpenLanes(self.owner);
       if (openLanes.length <= zombies) {
-        // Auto-place: fill each open lane in order with one warrior.
-        // If zombies > openLanes, only openLanes-many actually summon
-        // (no choice, no overflow). The remainder is silently
-        // dropped — same outcome as the prompt path returning
-        // early when no lanes remain.
+        // Auto-place: fill each open lane in order with one warrior; any
+        // warriors beyond the open-lane count are silently dropped.
         const _helaWarriors = [];
         // Marked: several bodies into lanes chosen up front, synchronously.
         G._withSummonLoop(() => {
@@ -4820,14 +4105,11 @@ const CARD_ABILITIES = {
       if (typeof UI !== 'undefined' && UI._fxHelaRaise) { try { UI._fxHelaRaise(self, []); } catch (e) {} }
       G.summonCardChoice(self.owner, "Undead Warrior", 1, 3, 1, [], doSummon);
     },
-    // WHEN DESTROYED — the dead-pile draw, moved here from her On Play.
-    // Owner: "make hela's draw just like solomon grundy when she dies." Built
-    // to match Grundy's onDeath deliberately: the same shared pile (both sides'
-    // dead piles concatenated), the same canDrawToHand gate so Lex Luthor
-    // blocks it — addToHand bypasses the drawCards() guard, which is why the
-    // check has to be explicit — and the same one-card-per-pull loop. Her count
-    // still scales with rarity, which is the one thing she keeps over Grundy's
-    // flat 1.
+    // WHEN DESTROYED — the dead-pile draw, deliberately matching Solomon
+    // Grundy's onDeath: the same shared pile (both sides' dead piles), the
+    // same canDrawToHand gate so Lex Luthor blocks it (addToHand bypasses the
+    // drawCards() guard, so the check must be explicit), one card per pull.
+    // Her count scales with rarity, unlike Grundy's flat 1.
     onDeath(G, self, lane) {
       const pulls = G.rarityValue(self, { common: 1, rare: 1, special: 2, legendary: 2 });
       if (!G.canDrawToHand(self.owner, 'Hela')) return;
@@ -4851,23 +4133,13 @@ const CARD_ABILITIES = {
       const allies = G.getAlliesOf(self.owner).filter(a => a.id !== self.id).sort((a, b) => a.cost - b.cost);
       if (!allies.length) return;
 
-      // Per-mode targeting through the canonical gate instead of a hand-rolled
-      // filter. The old one excluded anything with evadeCharges > 0 from BOTH
-      // modes, which is wrong twice over:
-      //
-      //   DESTROY — canEffectLand('destroy') is blocked by Invincible and
-      //   nothing else. Evade dodges an ATTACK; it has no say in a destroy
-      //   effect, and the card text ("destroy an enemy with cost <= that ally's
-      //   cost") does not mention it. This is the reported bug: Predator has
-      //   Evade 1, so a 4-cost sacrifice could destroy 4-cost Jason but not
-      //   4-cost Predator.
-      //
-      //   DAMAGE — Evade should ABSORB the hit and spend a charge when it
-      //   lands, which dealDamage already does. Removing the card from the
-      //   list entirely made it untargetable, a rule no other ability applies.
-      //
-      // The gate also catches what the hand-rolled version missed: environments,
-      // face-down cards, already-dead cards and 10-cost source immunity.
+      // Per-mode targeting through the canonical gate (canEffectLand):
+      //   DESTROY — blocked by Invincible only. Evade dodges an ATTACK, not a
+      //   destroy effect, so Evade cards stay valid destroy targets.
+      //   DAMAGE — Evade cards stay targetable; dealDamage spends the charge
+      //   to absorb the hit.
+      // The gate also excludes environments, face-down cards, already-dead
+      // cards and 10-cost source immunity.
       const enemiesFor = (kind) => G.getEnemiesOf(self.owner)
         .filter(e => G.canEffectLand(e, kind, { owner: self.owner, source: self }));
       const damageableEnemies = () => enemiesFor('damage');
@@ -4951,11 +4223,8 @@ const CARD_ABILITIES = {
             return;
           }
           const victim = picked;
-          // Roguelite Text+ override — _homelanderDmgBonus adds flat
-          // damage on top of the sacrificed ally's cost. Default 0
-          // (classic = ally cost); Text+ to 3 so a 2-cost sacrifice
-          // does 5 damage / destroys ≤5 cost. Cheap allies become a
-          // viable currency for big trades.
+          // Roguelite Text+ override — _homelanderDmgBonus adds flat damage on
+          // top of the sacrificed ally's cost. Default 0 (classic); Text+ 3.
           const homeBonus = self._homelanderDmgBonus || 0;
           const dmg = (victim.baseCost || victim.cost) + homeBonus;
           // Step 2 — Damage vs Destroy. Both are synthetic choice tiles.
@@ -4978,9 +4247,8 @@ const CARD_ABILITIES = {
           const validDestroyTargets = destroyableEnemies()
             .filter(e => (e.baseCost || e.cost || 0) <= dmg);
           // Bail only when NEITHER mode has a target — an enemy that is
-          // destroyable but not damageable (Damage Immunity) still deserves the
-          // prompt, and the old early-return on the damage list alone threw the
-          // whole ability away in that case.
+          // destroyable but not damageable (Damage Immunity) still deserves
+          // the prompt.
           if (!enemies.length && !validDestroyTargets.length) return;
           const modeChoices = [];
           if (enemies.length) modeChoices.push(damageOpt);
@@ -5019,9 +4287,8 @@ const CARD_ABILITIES = {
   "Hulk": {
     onPlay(G, self, lane) {
       if (typeof UI !== 'undefined' && UI._fxHulkLanding) { try { UI._fxHulkLanding(self); } catch (e) {} }
-      // Roguelite Text+ override — _hulkSmashDamage scales the SMASH
-      // sweep. Default 2 (classic, hits all enemies for 2); Text+
-      // raises to 4 for a board-clearing alpha strike.
+      // Roguelite Text+ override — _hulkSmashDamage scales the SMASH sweep.
+      // Default 2 (classic); Text+ 4.
       const smashDmg = self._hulkSmashDamage || 2;
       // Hulk's Splash always equals his LIVE ATK — flag it so buffCard/debuffCard
       // keep splashRange synced whenever anything (Pym Particles, Nightwing,
@@ -5082,12 +4349,9 @@ const CARD_ABILITIES = {
       // (not frozen/stunned) and has an open lane on its own side to slide into.
       const candidates = () => [...G.getAlliesOf(self.owner), ...G.getEnemiesOf(self.owner)]
         // findCardLane >= 0 as well as HP > 0: getAlliesOf/getEnemiesOf read
-        // the lane slots and do NOT filter the dead, so a card killed earlier
-        // in this same resolution — Magneto's own parity aura does this, and
-        // so does anything that ran before cleanupDead — could still be listed
-        // and OFFERED. finishMove already refuses to move a corpse, but the
-        // player was being shown one as a choice. User: "magneto shouldn't
-        // move dead cards like the grinch."
+        // lane slots and do NOT filter the dead, so a card killed earlier in
+        // this resolution (e.g. by Magneto's own parity aura, before
+        // cleanupDead) must not be offered.
         .filter(c => c && c !== self && c.currentHealth > 0 && G.findCardLane(c) >= 0
                      && !c.isFrozen && !c.isStunned
                      && !moved.includes(c) && openLanesFor(c).length > 0);
@@ -5110,26 +4374,16 @@ const CARD_ABILITIES = {
         return best;
       };
       const finishMove = (target, to) => {
-        // RE-VALIDATE AT THE MOMENT OF THE MOVE. The pool is filtered for
-        // currentHealth > 0 when the picker opens, but each completed move runs
-        // moveCard -> applyMagnetoDebuffs -> recomputeAuras, and Magneto's own
-        // parity aura can KILL an enemy it pushes into an even lane. Between
-        // choosing a card and the move landing there are two separate player
-        // interactions, so the target can die in between — and the sim cannot
-        // show this, because its shim resolves prompts synchronously.
-        // Without the check, moveCard is handed a corpse whose findCardLane is
-        // already -1. User: "magneto is forced to move a person he killed with
-        // his passive."
+        // RE-VALIDATE AT THE MOMENT OF THE MOVE. Each completed move runs
+        // moveCard -> applyMagnetoDebuffs -> recomputeAuras, and the parity
+        // aura can KILL an enemy pushed into an even lane, so the target can
+        // die between pick and move (two separate interactions — the sim
+        // can't show this, its shim resolves prompts synchronously).
         const from = G.findCardLane(target);
         if (!target || target.currentHealth <= 0 || from < 0) {
-          // The target died before the move landed — Magneto's OWN parity aura
-          // does this when a prior move shoves an enemy into an even lane. Do
-          // NOT count it: re-run step() to offer another LIVING card so Magneto
-          // still gets his full two moves. candidates() already excludes the
-          // dead (currentHealth > 0), so it can never be re-offered — no loop,
-          // no consumed slot. (User: "if you kill an enemy card because of his
-          // lane manipulation the game makes you waste a move on a dead
-          // character … so he doesnt waste his 2 moves.")
+          // The target died before the move landed. Do NOT count it: re-run
+          // step() to offer another LIVING card so Magneto still gets both
+          // moves. candidates() excludes the dead, so no loop.
           G.log(`  [MAGNETO] ${target && target.name ? target.name : 'That card'} is already gone — Magneto reaches for another.`);
           step();
           return;
@@ -5148,16 +4402,12 @@ const CARD_ABILITIES = {
         moved.push(target);
         step();
       };
-      // Declared once, used by every prompt below — see promptCardChoice's note
-      // on options.seat. Magneto chains card pick -> lane pick -> card pick, and
-      // a chain is exactly where a derived seat goes stale. (User: "my guest
-      // buddy played magneto and his move ability never even fired.")
-      // _2v2PlayedBy alone is not enough: an AI seat's plays are not always
-      // tagged, and an untagged Magneto left every prompt in this chain
-      // ownerless — which is how a bot's Magneto ended up asking the human
-      // teammate to pick. _2v2SeatOwning derives the seat from the card's own
-      // side when the stamp is missing, and refuses a stale stamp from a card
-      // that has changed hands.
+      // Declared once, used by every prompt below — see promptCardChoice's
+      // note on options.seat. A card->lane->card chain is exactly where a
+      // derived seat goes stale. _2v2PlayedBy alone is not enough (AI seats'
+      // plays aren't always tagged, leaving prompts ownerless); _2v2SeatOwning
+      // derives the seat from the card's side when the stamp is missing and
+      // refuses a stale stamp from a card that changed hands.
       const magSeat = self._2v2PlayedBy
         || (Game._2v2SeatOwning && Game._2v2SeatOwning(self))
         || null;
@@ -5176,13 +4426,10 @@ const CARD_ABILITIES = {
           return;
         }
         if (Game.isHuman(self.owner)) {
-          // ONE CANDIDATE IS NOT A CHOICE, AND IT WAS BEING TAKEN FOR YOU.
-          // promptCardChoice skips the tray entirely for a single-option list,
-          // so once Magneto's own aura thinned the board — which it does, since
-          // every move re-runs it and can kill what it shoves into an even lane
-          // — the last move resolved with no say at all. Offer it instead.
-          // Deliberately ONLY at 1: with two or more real options the move
-          // stays mandatory, because then it IS a decision.
+          // One candidate is not a choice: promptCardChoice skips the tray for
+          // a single-option list, so offer an explicit confirm instead.
+          // Deliberately ONLY at 1 — with two or more options the move stays
+          // mandatory, because then it IS a decision.
           if (pool.length === 1) {
             const only = pool[0];
             G.promptCardChoice(self.owner, [
@@ -5233,14 +4480,10 @@ const CARD_ABILITIES = {
       self.tauntTurns = Math.max(self.tauntTurns, 999);
       G.log(`Obi-Wan stands as the wall — Taunt active and damage from other lanes will be reflected.`);
     },
-    // ONE REFLECT, TWO DOORS IN.
-    // He reflects damage he TOOK (onDamaged) and damage that was ABSORBED before
-    // it could reach him (onAbsorbedHit). The second door is the one that was
-    // missing: Nth Metal, or any Invincible, made dealDamage return before
-    // _afterDamage — so shielding Obi-Wan switched his entire ability off, which
-    // is the exact opposite of what shielding a reflecting wall should do.
-    // (Owner: "obi wan had nth metal and he didnt reflect the damage back at the
-    // attackers, he should reflect.")
+    // ONE REFLECT, TWO DOORS IN: damage he TOOK (onDamaged) and damage
+    // ABSORBED before it reached him (onAbsorbedHit). Nth Metal / Invincible
+    // make dealDamage return before _afterDamage, so without the second door
+    // shielding Obi-Wan would switch his ability off.
     _reflect(G, self, attacker, dmg) {
       if (!attacker || !dmg || dmg <= 0) return;
       if (self._obiWanReflecting) return;
@@ -5248,10 +4491,8 @@ const CARD_ABILITIES = {
       const atkLane = G.findCardLane(attacker);
       if (selfLane < 0 || atkLane < 0 || atkLane === selfLane) return;
       self._obiWanReflecting = true;
-      // Roguelite Text+ override — _obiWanReflectMul scales the reflect
-      // damage. Default 1 (classic 1:1); Text+ to 2 so a 5-damage hit
-      // bounces back as 10. Big bodies that swing across lanes pay
-      // double for the trade.
+      // Roguelite Text+ override — _obiWanReflectMul scales the reflect damage.
+      // Default 1 (classic 1:1); Text+ 2.
       const mul = self._obiWanReflectMul || 1;
       const reflectDmg = dmg * mul;
       G.log(`  [REFLECT] Obi-Wan deflects ${reflectDmg} damage back to ${attacker.name}!`);
@@ -5282,10 +4523,8 @@ const CARD_ABILITIES = {
   "Ultron": {
     onDeath(G, self, lane) {
       const open = G.getOpenLanes(self.owner);
-      // Roguelite Text+ override — _ultronReplicateStats bumps each
-      // replica's stats. Default { atk: 5, hp: 3 } (classic); Text+
-      // sets to { atk: 7, hp: 5 } so the replication line is closer
-      // to a fresh Ultron each time.
+      // Roguelite Text+ override — _ultronReplicateStats bumps each replica's
+      // stats. Default { atk: 5, hp: 3 } (classic); Text+ { atk: 7, hp: 5 }.
       const repAtk = (self._ultronReplicateAtk != null) ? self._ultronReplicateAtk : 5;
       const repHp  = (self._ultronReplicateHp  != null) ? self._ultronReplicateHp  : 3;
       if (open.length >= 1) G.summonCard(self.owner, open[0], "Ultron", 6, repAtk, repHp, []);
@@ -5305,8 +4544,7 @@ const CARD_ABILITIES = {
     onPlay(G, self, lane) {
       const owner = self.owner;
       const summonDoombot = () => {
-        // Doombot rebalanced to 5/5 (was 6/5) — matches Dr. Doom's new
-        // 5/5 line so the doppelganger token visually mirrors the boss.
+        // Doombot is 5/5 to mirror Dr. Doom's own 5/5 line.
         G.summonCardChoice(owner, "Doombot", 5, 5, 5, []);
         if (typeof UI !== 'undefined' && UI._fxDoomConjure) { try { UI._fxDoomConjure(self); } catch (e) {} }
       };
@@ -5325,18 +4563,11 @@ const CARD_ABILITIES = {
           // Build a fresh hand instance from the original card definition (so onPlay/passives survive)
           const def = (typeof CARD_DEFS !== 'undefined' && CARD_DEFS.find(d => d.name === picked.name)) || picked;
           const card = G.createCardInstance(def, owner);
-          // Permanent -3 cost reduction (clamped to 0). Applies only to the revived card.
-          // baseCost stays at the card's ORIGINAL cost — it drives the
-          // rarity tier (common / uncommon / rare / legendary) which
-          // shouldn't change just because Doom dropped the play cost.
-          // User report: "Wolverine costs 4 normally; Doom revived him
-          // for 1 and his card chrome flipped from blue (uncommon) to
-          // green (common). The cost should drop but the rarity should
-          // stay blue." Bug was reducing baseCost too — fixed by only
-          // touching `cost`.
-          // Roguelite Text+ override — _doomReviveDiscount scales the
-          // cost cut on revive. Default 3 (classic); Text+ raises to 5
-          // so even legendary revives drop to a reasonable curve cost.
+          // Permanent -3 cost reduction (clamped to 0), revived card only.
+          // Touch `cost` only — baseCost drives the rarity tier, which must not
+          // change just because Doom dropped the play cost.
+          // Roguelite Text+ override — _doomReviveDiscount scales the cut.
+          // Default 3 (classic); Text+ 5.
           const reviveCut = self._doomReviveDiscount || 3;
           card.cost = Math.max(0, card.cost - reviveCut);
           G.addToHand(owner, card, self, null, 'Revived by Dr. Doom');
@@ -5358,11 +4589,8 @@ const CARD_ABILITIES = {
       const moveEnemy = (afterMove) => {
         if (!enemies.length) { afterMove(); return; }
         // NOWHERE TO MOVE THEM = DO NOT ASK. The destination set is the same
-        // for every candidate (enemy-side lanes that are empty and not
-        // destroyed), so if it is empty this prompt cannot lead anywhere. It
-        // used to ask anyway, burn the full choice timer, then log "No open
-        // lanes" and move on — user report: a board with all six enemy lanes
-        // occupied still popped "Gojo — Move Enemy" with a 23s countdown.
+        // for every candidate (empty, undestroyed enemy-side lanes), so if it
+        // is empty the prompt cannot lead anywhere.
         if (!G.getOpenLanes(opp).length) {
           G.log('Gojo finds no open lane to move an enemy into — skipping.');
           afterMove();
@@ -5374,20 +4602,10 @@ const CARD_ABILITIES = {
           for (let i = 0; i < Game.LANE_COUNT; i++) {
             if (i !== fromLane && !G.state.lanes[i][opp] && !G.state.lanes[i].destroyed) openLanes.push(i);
           }
-          // CONE LANES FIRST, ALWAYS — not just for the AI.
-          //
-          // Ordering the list costs a human nothing: every lane is still
-          // offered, in the same picker, and they choose freely. What it fixes
-          // is every path that does NOT choose — the 30s prompt timeout, the
-          // stall watchdog, the force-recovery — all of which take lanes[0].
-          // Gated on isHuman, those fallbacks moved the enemy to whatever lane
-          // happened to sort first, which is how a Gojo ended up shoving a
-          // 15-ATK Doomsday to the far side of the board and then stripping the
-          // ATK off an empty cone. (Owner: "he played gojo in 1 which is good
-          // but he moved doomsday 5 and didn't have his attack reduced to 0.")
-          // A destination inside the cone is the only one that makes the second
-          // half of the card do anything, so it is the right default for
-          // everyone.
+          // CONE LANES FIRST, ALWAYS — not just for the AI. A human still sees
+          // every lane; but every path that does NOT choose (30s timeout, stall
+          // watchdog, force-recovery) takes lanes[0], and a destination inside
+          // the cone is the only one that makes the ATK strip do anything.
           const cone = new Set([lane - 1, lane, lane + 1]);
           openLanes.sort((a, b) => (cone.has(a) ? 0 : 1) - (cone.has(b) ? 0 : 1));
           if (openLanes.length) {
@@ -5438,10 +4656,8 @@ const CARD_ABILITIES = {
       });
     },
     // Hollow Purple — fires the moment Gojo's OWN lane finishes combat on his
-    // 2nd round. Moved here from onEndOfTurn so the destruction lands
-    // mid-combat, before the other lanes resolve — enemies in opposite-parity
-    // lanes die before they get to swing that same turn (matches the card's
-    // "Unlimited Void" flavor: time freezes while the spell resolves).
+    // 2nd round, so the destruction lands mid-combat: enemies in the erased
+    // lanes die before they swing that same turn.
     onLaneResolved(G, self, laneIdx) {
       if (self._gojoFired) return;
       if (self._gojoCombats === undefined) return;
@@ -5451,21 +4667,14 @@ const CARD_ABILITIES = {
       self._gojoCombats++;
       if (self._gojoCombats < 2) return;
       self._gojoFired = true;
-      // Hollow Purple cue — fires only when the ability ACTUALLY resolves
-      // (not when Gojo enters play). User spec: "the hollow purple cue is
-      // off, it's being played when gojo is played; it should fire when
-      // his ability goes off."
+      // Hollow Purple cue — fires only when the ability ACTUALLY resolves, not
+      // when Gojo enters play.
       try { if (typeof UI !== 'undefined' && UI.sfx) UI.sfx.playCardSfx('Gojo', 'ability', self); } catch (e) {}
       const opp = G.opponent(self.owner);
       const gojoLane = G.findCardLane(self);
       if (gojoLane < 0) return;
-      // THREE RANDOM LANES. Was opposite-parity, which is also exactly three
-      // lanes (1/3/5 or 2/4/6) — so this keeps the reach identical and only
-      // makes WHICH three unpredictable. Owner: "have gojo when he purples
-      // destroy 3 random lanes."
-      // Parity was learnable: put your board on Gojo's own parity and Hollow
-      // Purple hit nothing. Random cannot be dodged by placement, which is the
-      // point of a card that erases things.
+      // THREE RANDOM LANES — same reach as the old opposite-parity rule (three
+      // lanes) but cannot be dodged by placement.
       // G.rng(), never Math.random — the match seed drives replay and fuzz, and
       // an unseeded call desyncs host and guest into different results.
       const LANES = [];
@@ -5489,18 +4698,16 @@ const CARD_ABILITIES = {
           G.log(`  Gojo destroys ${who} in lane ${i + 1}!`);
         }
       }
-      // ON THE RECORD. The three lanes are rolled from the seeded RNG and the
-      // whole thing resolves mid-combat, so without this the only answer to
-      // "which lanes did it hit" was a log line nobody has open.
+      // Record the strike: the lanes are seeded-random and resolve mid-combat,
+      // so this is the only clear answer to "which lanes did it hit".
       G.noteLaneStrike(self, 'Hollow Purple', picked, erased);
     }
   },
   "Gorr": {
     onPlay(G, self, lane) {
       // Kill the highest-cost card in BOTH players' hands and show the victims.
-      // Roguelite Text+ override — _gorrEnemyOnly limits the devour to
-      // the OPPONENT'S hand (skips your own). Default false (classic
-      // hits both); Text+ true makes the play purely punitive.
+      // Roguelite Text+ override — _gorrEnemyOnly limits the devour to the
+      // OPPONENT'S hand. Default false (classic hits both); Text+ true.
       const enemyOnly = !!self._gorrEnemyOnly;
       const killed = { player: null, ai: null };
       if (typeof UI !== 'undefined' && UI._fxNecrosword) { try { UI._fxNecrosword(self); } catch (e) {} }
@@ -5531,13 +4738,10 @@ const CARD_ABILITIES = {
         if (dd) G.summonCardChoice(self.owner, dd.name, dd.cost, dd.attack, dd.health, dd.abilities || [], null, null, dd);
         return;
       }
-      // 2v2: the side proxy only ever holds the ACTIVE player's hand, so
-      // reading G.state[opponentSide].hand devoured from a stale/foreign list
-      // (usually empty) instead of a real opponent. withChosenOpponent aliases
-      // one chosen enemy PLAYER's hand onto that proxy for the duration, which
-      // is how every other hand-reaching card (Mace Windu, Freddy, Deadpool,
-      // The Grinch, Lasso of Truth) already stays correct in 2v2. In 1v1 it
-      // resolves instantly to the only opponent, so behavior there is unchanged.
+      // 2v2: the side proxy only holds the ACTIVE player's hand, so
+      // withChosenOpponent aliases one chosen enemy PLAYER's hand onto it for
+      // the duration — same bridge as every hand-reaching card (Mace Windu,
+      // Freddy, Deadpool, The Grinch, Lasso of Truth). 1v1 resolves instantly.
       const devourFrom = (p) => {
         const hand = (G.state[p] && G.state[p].hand) || [];
         if (!hand.length) return;
@@ -5563,13 +4767,11 @@ const CARD_ABILITIES = {
       G.withChosenOpponent(self.owner, 'Gorr — whose hand?', (opp) => {
         devourFrom(opp);
       }, { autoPick: true });
-      // Stash a banner payload for the UI so the player sees exactly which cards
-      // died. STRUCTURED PER SEAT, not a baked sentence: the wording is built on
-      // each client at render time from Game.seatLabel, so (a) an online match
-      // names the actual players instead of "You lost / AI lost", and (b) the
-      // GUEST reads it in ITS OWN perspective — a host-baked "You lost" would
-      // have named the host's card on the guest's screen. _mpFlipPerspective
-      // swaps the two seat keys for the guest.
+      // Stash a banner payload so the player sees which cards died. STRUCTURED
+      // PER SEAT, not a baked sentence: each client words it at render time via
+      // Game.seatLabel, so online matches name real players and the guest reads
+      // its own perspective. _mpFlipPerspective swaps the two seat keys for the
+      // guest.
       if (killed.player || killed.ai) {
         G.state._gorrBanner = {
           player: killed.player ? { name: killed.player.name, cost: killed.player.cost } : null,
@@ -5578,12 +4780,9 @@ const CARD_ABILITIES = {
         };
         if (typeof UI !== 'undefined' && UI.render) { try { UI.render(); } catch (e) {} }
       }
-      // Pull from the shared summon deck. With duplicates now allowed
-      // (user spec: "if you summon Ant-Man from Mother Box you could
-      // still have Ant-Man in hand"), we no longer need the in-play
-      // exclusion that previously kept Gorr from re-conjuring a
-      // hand-held card. Filter: cost 2-9, attack > 0, not a discard-
-      // effect card.
+      // Pull from the shared summon deck. Duplicates of cards in hand are
+      // allowed, so no in-play exclusion. Filter: cost 2-9, attack > 0, not a
+      // discard-effect card.
       const d = G.drawFromSummonDeck(c => !c.isDiscardEffect && c.cost >= 2 && c.cost <= 9 && (c.attack || 0) > 0);
       if (d) {
         G.summonCardChoice(self.owner, d.name, d.cost, d.attack, d.health, d.abilities || [], null, null, d);
@@ -5596,9 +4795,9 @@ const CARD_ABILITIES = {
       if (self.reviveCharges > 0) {
         if (G.reviveVoided(self, lane)) return;
         self.reviveCharges--;
-        // Roguelite Text+ ("Adaptive Wheel") — _mahoragaReviveBuff
-        // adds +N/+N on top of base stats at revive. Falls back to
-        // explicit revAtk/revHp legacy flags, then to classic 7/9.
+        // Roguelite Text+ ("Adaptive Wheel") — _mahoragaReviveBuff adds +N/+N
+        // on top of base stats at revive. Falls back to explicit revAtk/revHp
+        // flags, then to classic 7/9.
         let revAtk, revHp;
         if (self._mahoragaReviveBuff) {
           const buff = self._mahoragaReviveBuff;
@@ -5628,20 +4827,15 @@ const CARD_ABILITIES = {
     }
   },
   "Omni-Man": {
-    // _recurringBT lets onBeforeTricks fire every round (not just the
-    // round Omni-Man entered) — same plumbing Man-Bat uses for his
-    // recurring move. Without this flag, beforeTricksFired locks the
-    // hook to one trigger per instance.
+    // _recurringBT lets onBeforeTricks fire every round (not just the entry
+    // round) — same plumbing as Man-Bat's recurring move. Without it,
+    // beforeTricksFired locks the hook to one trigger per instance.
     _recurringBT: true,
     onPlay(G, self, lane) {
       // Roguelite Text+ override — _omniManSweep scales the AOE damage.
-      // Default 3 (classic); Text+ raises to 5 so the entry sweep clears
-      // 5-HP bodies and softens up everything else.
-      //
-      // Effects-as-data migration: the entry sweep is now expressed as a
-      // declarative step and run through G.runEffect (the DSL foundation),
-      // instead of a hand-written getEnemiesOf().forEach. Identical result
-      // (deal `sweep` to every living enemy) — proven by golden RG-16.
+      // Default 3 (classic); Text+ 5.
+      // Effects-as-data: the sweep runs as a declarative step through
+      // G.runEffect (deal `sweep` to every living enemy) — pinned by golden RG-16.
       const sweep = self._omniManSweep || 3;
       // Capture the enemy row BEFORE the AoE removes any it kills, so the
       // flight-streak's blood bursts land on every struck card.
@@ -5652,11 +4846,9 @@ const CARD_ABILITIES = {
       );
     },
     // Mobility hook — same shape as Man-Bat's. Start of Tricks, Omni-Man
-    // relocates to an empty ally lane (if one exists). Stun/freeze
-    // gates the move identically. Per balance pass: "give Omni-Man a
-    // move just like Man-Bat." Unlike Man-Bat, no -1/-1 debuff lands
-    // on the destination's opposite enemy — Omni-Man is already an
-    // AOE damage threat on entry; the move is purely repositioning.
+    // relocates to an empty ally lane (if one exists); stun/freeze gates the
+    // move identically. Unlike Man-Bat, no -1/-1 lands on the destination's
+    // opposite enemy — the move is purely repositioning.
     onBeforeTricks(G, self, lane) {
       // See Man-Bat for why this asks isMoveLocked and not isActionLocked.
       if (Game.isMoveLocked(self)) {
@@ -5665,15 +4857,11 @@ const CARD_ABILITIES = {
       }
       const open = G.getOpenLanes(self.owner).filter(l => l !== lane);
       if (!open.length) return;
-      // Include the current lane as a "stay" option — same affordance
-      // as Man-Bat. Player can pick Omni-Man's own lane to skip the
-      // relocation entirely.
+      // The player may decline to stay in place.
       if (Game.isHuman(self.owner)) {
-        // STAY is a BUTTON, not a lane (see promptLaneChoice options.declineLabel).
-        // The old affordance listed Omni-Man's own lane among the choices and
-        // asked the player to click it — but that square is covered by the card
-        // itself, so the click hit the card every time. Owner: "it's hard right
-        // now to click their lane that they are in to stay."
+        // STAY is a BUTTON, not a lane (see promptLaneChoice
+        // options.declineLabel) — Omni-Man's own lane square is covered by the
+        // card itself, so it can't be reliably clicked.
         G.promptLaneChoice(self.owner, open, "Omni-Man — Move", "Choose a lane to move to", (to) => {
           G.moveCard(self, lane, to);
         }, null, null, 0, { declineLabel: 'STAY PUT', onDecline: () => G.log(`Omni-Man stays put in lane ${lane + 1}.`) });
@@ -5683,9 +4871,8 @@ const CARD_ABILITIES = {
       }
     },
     onKill(G, self) {
-      // Roguelite Text+ ("Viltrumite Pride") — _omniManBlockOnKill
-      // scales the per-kill block meter add. Default 1 (classic);
-      // Text+ raises to 2.
+      // Roguelite Text+ ("Viltrumite Pride") — _omniManBlockOnKill scales the
+      // per-kill block meter add. Default 1 (classic); Text+ 2.
       const gain = self._omniManBlockOnKill || 1;
       G.addBlockMeter(self.owner, gain);
       G.log(`Omni-Man adds ${gain} Block Meter!`);
@@ -5694,10 +4881,9 @@ const CARD_ABILITIES = {
   "Silver Surfer": {
     onPlay(G, self, lane) {
       // Roguelite Text+ overrides — _surferDebuff scales the ATK strip
-      // (default 3 / Text+ 4); _surferTargets sets how many enemies
-      // get hit (default 1 / Text+ 2). The cost-bump passive uses
-      // _surferCostBump (default 1 / Text+ 2) read in game.js's
-      // enemyCostIncrease site.
+      // (default 3 / Text+ 4); _surferTargets sets how many enemies get hit
+      // (default 1 / Text+ 2). _surferCostBump (default 1 / Text+ 2) is read
+      // in game.js's enemyCostIncrease site.
       const debuff = self._surferDebuff || 3;
       const targets = self._surferTargets || 1;
       const debuffed = new Set();
@@ -5742,11 +4928,9 @@ const CARD_ABILITIES = {
     },
     onAllyKilled(G, self, dead) {
       if (self.currentHealth <= 0) return;
-      // HIS OWN FALLEN, NOT THE TEAM'S. A side in 2v2 is a team of two, so this
-      // counted the teammate's losses as well and Mace grew at twice the rate
-      // his text describes. (Owner: "for mace and doomsday in 2v2 it only counts
-      // for your own cards, not teammates … they get too big, this is a nerf.")
-      // _2v2SameSeat is always true in 1v1, so that mode is unchanged.
+      // HIS OWN FALLEN, NOT THE TEAM'S. A 2v2 side is a team of two; counting
+      // the teammate's losses would grow Mace at twice his printed rate.
+      // _2v2SameSeat is always true in 1v1.
       if (dead && G._2v2SameSeat && !G._2v2SameSeat(self, dead)) return;
       self.maxHealth     = (self.maxHealth     || 0) + 2;
       self.currentHealth = (self.currentHealth || 0) + 2;
@@ -5762,11 +4946,9 @@ const CARD_ABILITIES = {
   // ==================== COST 8 ====================
   "Apocalypse": {
     onPlay(G, self, lane) {
-      // A HORSEMAN ARRIVES FIRST (owner, 2026-08-09). Pulled from the shared
-      // summon deck rather than a fixed token, so the body is a real 1-cost
-      // card with its own abilities — same lottery Bat Signal and Mother Box
-      // draw from, same exclusions (no discard-effect cards, nothing with 0
-      // ATK, which would be a body that cannot fight).
+      // A HORSEMAN ARRIVES FIRST — pulled from the shared summon deck, so the
+      // body is a real 1-cost card with its own abilities. Same exclusions as
+      // Bat Signal / Mother Box (no discard-effect cards, no 0-ATK bodies).
       const horseman = G.drawFromSummonDeck(c =>
         !c.isDiscardEffect && (c.cost || 0) === 1 && (c.attack || 0) > 0);
       if (horseman) {
@@ -5775,11 +4957,8 @@ const CARD_ABILITIES = {
         G.log(`Apocalypse raises ${horseman.name}!`);
       }
       const KEYWORDS = ["Armor 1", "Evade 1", "Bullseye", "Overdrive"];
-      // WHOSE hand? In 1v1 there is only one answer. In 2v2 a team is two
-      // people holding two separate hands, so the empowerment is a real choice
-      // the caster gets to make — and handing it to BOTH seats would be a
-      // different, much stronger card than the one printed. (User: "make sure
-      // for apocalypse you can choose whos hand to buff, not both.")
+      // WHOSE hand? In 2v2 a team holds two separate hands, so the caster
+      // chooses one — buffing BOTH would be a much stronger card than printed.
       // seatKey is null outside 2v2 online, where the side proxy IS your hand.
       const empower = (seatKey) => {
         const tt = G.state && G.state.twoVTwo;
@@ -5789,16 +4968,11 @@ const CARD_ABILITIES = {
         // auto-Untrickable, so Doomsday (skipAutoUntrickable) still
         // qualifies despite his 12 starting cost.
         (holder.hand || []).filter(card =>
-          // A combat keyword only means something on a card that fights. This
-          // read `!card.isEnvironment`, which is the right idea applied to a
-          // third of the cases: it let Armor / Evade / Bullseye / Overdrive
-          // land on Jigsaw, Brainiac, Professor X, Mr. Fantastic and Iron
-          // Giant, none of which ever reach a lane. cardHasBody is the whole
-          // rule — environments included — and it is the same predicate the
-          // renderer uses to decide whether a card even shows stats.
-          // (applyAbilities refuses environments too, but filtering here also
-          // keeps the phantom entry out of card.abilities and stops the log
-          // claiming a grant that never happened.)
+          // A combat keyword only means something on a card that fights.
+          // cardHasBody is the whole rule (environments and bodiless cards like
+          // Jigsaw / Brainiac / Prof X excluded) — the same predicate the
+          // renderer uses to decide whether a card shows stats. Filtering here
+          // also keeps phantom entries out of card.abilities and the log.
           G.cardHasBody(card) &&
           (card.skipAutoUntrickable || (card.baseCost || card.cost || 0) < 10)
         ).forEach(card => {
@@ -5837,13 +5011,11 @@ const CARD_ABILITIES = {
   "Darth Vader": {
     onPlay(G, self, lane) {
       const opp = G.opponent(self.owner);
-      // Short-hand for per-ability SFX — silent in the headless sim (no UI)
-      // and silent if no file is registered in CARD_SFX['Darth Vader'].abilities.
-      // GUARDED. This runs FIRST in each of Vader's three steps, before he
-      // touches the board — so an exception in the audio layer took the move,
-      // the fear AND the chain with it, silently, because _runHookBody catches
-      // whatever an onPlay throws. The sfx bridge now catches this too; both,
-      // because a sound is never worth an ability.
+      // Short-hand for per-ability SFX — silent in the headless sim (no UI) and
+      // if no file is registered in CARD_SFX['Darth Vader'].abilities.
+      // GUARDED: it runs first in each of Vader's three steps, and
+      // _runHookBody would silently swallow a throw along with the rest of the
+      // ability. A sound is never worth an ability.
       const absfx = (key) => {
         try { if (typeof UI !== 'undefined' && UI.sfx) UI.sfx.playCardAbility('Darth Vader', key); }
         catch (e) { console.error('[Darth Vader sfx]', e); }
@@ -5952,20 +5124,12 @@ const CARD_ABILITIES = {
   },
   "Luke Skywalker": {
     onPlay(G, self, lane) {
-      // Apply aura FIRST so the -1/-1 debuff lands and any 1-HP enemies
-      // die before the MC choice prompt opens. Otherwise Luke would
-      // offer dead cards as MC targets while live survivors went
-      // missing from the list (they hadn't been captured yet but the
-      // dead ones were). User report: "Luke mind controls an enemy
-      // but the choices shown are the ones he killed, not the live
-      // ones on the board."
+      // Apply aura FIRST so the -1/-1 lands and 1-HP enemies die before the MC
+      // prompt opens — otherwise dead cards get offered as MC targets.
       // Roguelite Text+ override — _lukeAuraSize scales the buff/debuff
-      // magnitude. Default 1 (classic +1/+1 / -1/-1); Text+ raises to
-      // 2 so a 2-ally board jumps +4/+4 in one play and 1-HP enemies
-      // get cleared by the aura alone.
-      // Presence-based since the aura recompute pass: Game.recomputeAuras
-      // reads living Lukes off the board and reconciles every card's
-      // recorded aura to match — no per-card stamp flags to unwind.
+      // magnitude. Default 1 (classic); Text+ 2.
+      // Presence-based: Game.recomputeAuras reads living Lukes off the board
+      // and reconciles every card's recorded aura — no stamp flags to unwind.
       const auraSize = self._lukeAuraSize || 1;
       G.recomputeAuras();
       G.log(`Luke Skywalker inspires allies (+${auraSize}/+${auraSize}) and weakens enemies (-${auraSize}/-${auraSize})!`);
@@ -6003,12 +5167,10 @@ const CARD_ABILITIES = {
     _recurringBT: true,
     onPlay(G, self, lane) {
       const opp = G.opponent(self.owner);
-      // Let the player pick where the freeze lands — was hardcoded to the
-      // lane-opposite enemy. AI fallback picks the highest-threat unfrozen
-      // enemy so the CPU still plays Thor competently.
-      // Roguelite Text+ override — _thorThunderDamage scales the lane-
-      // adjacent strike. Default 5 (classic); Text+ raises to 7 for a
-      // crushing 3-lane finisher.
+      // The player picks where the freeze lands; the AI picks the
+      // highest-threat unfrozen enemy.
+      // Roguelite Text+ override — _thorThunderDamage scales the lane-adjacent
+      // strike. Default 5 (classic); Text+ 7.
       const thunderDmg = self._thorThunderDamage || 5;
       // ONCE, whoever calls it. The burst is 15 damage across three lanes; a
       // second call from a future refactor would be a silent doubling.
@@ -6028,32 +5190,14 @@ const CARD_ABILITIES = {
           }
         });
       };
-      // THE THUNDER IS NOT PART OF THE FREEZE, AND IT USED TO BE.
-      //
-      // splashBurst() lived INSIDE the freeze prompt's callback, so Thor's
-      // "Deal 5 damage to the enemy opposite and both adjacent enemies" only
-      // happened if that prompt was answered. His card prints them as two
-      // effects, and they are: the damage does not read the freeze target, or
-      // even whether there was one.
-      //
-      // A prompt that is never answered is not hypothetical here. A stall
-      // recovery clears pending prompts outright to unpark combat
-      // (`s.pendingCardChoice = null` in _forceEndStalledCombat — "drop every
-      // blocker"), and a 2v2 prompt raised for the wrong seat is answered by
-      // nobody. Either one silently ate the whole 5-damage burst while Thor sat
-      // on the board looking like he had resolved. Owner: "thor didnt fire his
-      // splash on reveal when i leaped silver surfur with SSS."
-      //
-      // So the burst fires here, unconditionally, once. The freeze is then just
-      // a prompt that freezes — if it is dropped, one Freeze 1 is lost instead
-      // of 15 damage across three lanes.
-      //
-      // BEFORE the freeze, deliberately. With a synchronous resolve (an AI
-      // seat, the headless sim) the old order was freeze-then-thunder; with an
-      // async one the player would otherwise be asked to freeze a card the
-      // thunder is about to kill. Picking a freeze target after seeing the
-      // thunder land is strictly better information, and Freeze is
-      // Unresistible either way, so nothing about the freeze changes.
+      // THE THUNDER IS NOT PART OF THE FREEZE. The card prints two independent
+      // effects: the damage doesn't read the freeze target. A prompt can go
+      // unanswered (stall recovery clears pending prompts in
+      // _forceEndStalledCombat; a 2v2 prompt raised for the wrong seat), so
+      // the burst fires here, unconditionally, once — a dropped prompt loses
+      // one Freeze 1, not 15 damage.
+      // BEFORE the freeze, deliberately: the player picks a freeze target after
+      // seeing what the thunder killed. Freeze is Unresistible either way.
       splashBurst();
       const unfrozen = G.getEnemiesOf(self.owner).filter(e => !e.isFrozen && e.currentHealth > 0);
       if (unfrozen.length) {
@@ -6074,15 +5218,11 @@ const CARD_ABILITIES = {
     }
   },
   "Revan": {
-    // 2026-05-26 — Revan rebuilt at cost 7 (6/8) per user spec:
-    // "Give another ally card Revive 1." The previous Revan
-    // (cost 8, 6/5 Evade/Immunity/Splash empower) is now Yoda
-    // (entry below). Revan now reads as a defensive enabler —
-    // sacrifices nothing immediately but lets a chosen ally
-    // come back swinging once if it dies.
+    // Revan: cost 7 (6/8) — "Give another ally card Revive 1." A defensive
+    // enabler: lets a chosen ally come back once if it dies.
     onPlay(G, self, lane) {
       // Revive grant is capped to allies of cost <= 9 — 10-cost titans can't
-      // be handed a revive (user cap 2026-07-13).
+      // be handed a revive.
       const allies = G.getAlliesOf(self.owner).filter(a => a.id !== self.id && a.currentHealth > 0 && (a.baseCost || a.cost || 0) <= 9);
       const grant = (a) => {
         // Stack with any existing Revive charges. Cards born with
@@ -6105,20 +5245,14 @@ const CARD_ABILITIES = {
     }
   },
   "Voldemort": {
-    // THE UNFORGIVABLE CURSES. Before every combat while he stands, Voldemort
-    // casts one of three — and never the same one twice running, so the round
-    // he kills is a round he cannot stun, and the round he stuns is a round he
-    // cannot take a body. The rotation IS the card: each curse is strong enough
-    // to be a whole turn's play, and being denied last round's answer is what
-    // keeps him from being three cards at once.
-    //
-    // Every curse routes through the engine's existing door for its effect —
-    // killCard, debuffCard + stunCard, mindControlCard — so each one inherits
-    // the rules that already govern it: Invincible refuses the kill, Immunity
-    // refuses Crucio and Imperio unless the caster is Unresistible, Juggernaut
-    // shrugs the mind control, and a card taken by Imperio is released by the
-    // same end-of-round sweep that releases every other Mind Control. Nothing
-    // here re-implements any of that.
+    // THE UNFORGIVABLE CURSES. Each curse is strong enough to be a whole
+    // turn's play; spending each only once is what keeps him from being three
+    // cards at once.
+    // Every curse routes through the engine's existing door — killCard,
+    // debuffCard, mindControlCard — so it inherits the rules that govern it:
+    // Invincible refuses the kill, Immunity refuses Crucio and Imperio unless
+    // the caster is Unresistible, Juggernaut shrugs the mind control, and the
+    // end-of-round sweep releases Imperio like any Mind Control.
     _CURSES: [
       { id: 'ak', name: 'Avada Kedavra', desc: 'Destroy an enemy with cost \u2264 6. No damage — death.' },
       { id: 'cr', name: 'Crucio',        desc: 'An enemy takes (\u22124/\u22124) permanently. This can destroy it.' },
@@ -6142,11 +5276,7 @@ const CARD_ABILITIES = {
     },
 
     // onLaneCombat, not onBeforeCombat: the curse fires when HIS lane comes up,
-    // not at the top of the attack phase (owner, 2026-08-09). It matters — by
-    // the time a late lane fights, the earlier ones have resolved, and a curse
-    // aimed at a board four lanes ago is aimed at a board that no longer
-    // exists. Casting in sequence also lets him answer what he can actually
-    // see, which is the whole point of a once-each choice.
+    // so it targets the board as it stands after earlier lanes resolved.
     onLaneCombat(G, self, lane) {
       if (self.currentHealth <= 0) return;
       // A silenced Dark Lord casts nothing — same lock every other
@@ -6156,10 +5286,8 @@ const CARD_ABILITIES = {
         return;
       }
       const defs = CARD_ABILITIES['Voldemort'];
-      // ONCE EACH, EVER (owner, 2026-08-09). Stronger than the rotation it
-      // replaces: he casts at most three times in a whole game, so every choice
-      // spends a curse permanently and the last round he matters is the round
-      // his third one goes. Stored per instance, so two Voldemorts have their
+      // ONCE EACH, EVER: at most three casts per game, so every choice spends
+      // a curse permanently. Stored per instance, so two Voldemorts have their
       // own three and a revived one starts clean.
       const used = self._usedCurses || (self._usedCurses = []);
       const available = defs._CURSES
@@ -6187,13 +5315,9 @@ const CARD_ABILITIES = {
             G.killCard(t, self);
           } else if (curse.id === 'cr') {
             G.log(`[VOLDEMORT] Crucio — ${t.name} writhes.`);
-            // allowKill TRUE (owner, 2026-08-11): "I want Crucio to be able to
-            // kill the enemy if it has 4 or less health and not leave them at
-            // 1." So the (-4/-4) now finishes a small card outright instead of
-            // flooring its HP at 1 — same allowKill path Pym Particles uses.
-            // The Stun rider was removed (owner, 2026-08-09): a (-4/-4) that
-            // ALSO took the card's turn was doing two curses' work, which left
-            // Imperio with nothing of its own to offer.
+            // allowKill TRUE: the (-4/-4) finishes a card with ≤4 HP outright
+            // instead of flooring it at 1 — same allowKill path Pym Particles
+            // uses. No Stun rider, so Imperio keeps a role of its own.
             G.debuffCard(t, 4, 4, true, self);
           } else {
             G.mindControlCard(t, self, () => {
@@ -6231,10 +5355,8 @@ const CARD_ABILITIES = {
     }
   },
   "Jack Sparrow": {
-    // Parlay, renegotiated (user direction): instead of a one-shot
-    // "all uncontested enemies can't attack this round" on play, Jack
-    // picks ONE uncontested enemy lane right before every combat while
-    // he's active — that enemy sits the round out.
+    // Parlay: right before every combat while he's active, Jack picks ONE
+    // uncontested enemy lane — that enemy sits the round out.
     onBeforeCombat(G, self, lane) {
       if (Game.isActionLocked(self) || self.currentHealth <= 0) return;
       const opp = G.opponent(self.owner);
@@ -6260,13 +5382,10 @@ const CARD_ABILITIES = {
       };
       if (Game.isHuman(self.owner)) {
         // NAME THE SEAT. This fires from resolveCombat's before-combat pass,
-        // which is the one moment in a 2v2 round when NO seat is taking a turn —
-        // so the acting-seat global the engine would otherwise infer from is
-        // exactly the thing that has drifted or been cleared, and the fallback
-        // ("the first human on that team") hands one player's decision to their
-        // teammate. Symbiote Spider-Man and Human Torch both needed this same
-        // stamp for the same reason; a combat-time prompt has to carry its own
-        // owner. The card knows who played it and that survives everything.
+        // when NO 2v2 seat is taking a turn, so the acting-seat global is
+        // unreliable and the fallback ("first human on that team") would hand
+        // the decision to the teammate. A combat-time prompt must carry its own
+        // owner (same as Symbiote Spider-Man and Human Torch).
         const _seat = self._2v2PlayedBy || self._mcSeat || null;
         G.promptLaneChoice(self.owner, lanes,
           'Jack Sparrow — Parlay',
@@ -6282,11 +5401,8 @@ const CARD_ABILITIES = {
         parley(lanes[0]);
       }
     },
-    // THE DEAL DIES WITH HIM. Ryan: "Jack Sparrow's parlay stays after he dies."
-    // onBeforeCombat already refuses to fire once he is down, but the flag he
-    // stamped EARLIER in the round outlived him — nothing cleared it until the
-    // next round start (game.js, "Clear Parlay"), so a dead Jack kept an enemy
-    // benched for the rest of the round and left a Parlay badge on it.
+    // THE DEAL DIES WITH HIM. The flag he stamped earlier in the round would
+    // otherwise outlive him until next round start (game.js, "Clear Parlay").
     // Only HIS parlays are lifted, by id, so a second Jack keeps his own.
     // Returns nothing: a truthy onDeath means "this death was PREVENTED".
     onDeath(G, self) {
@@ -6302,9 +5418,8 @@ const CARD_ABILITIES = {
   "Han Solo": {
     onPlay(G, self) {
       // First Strike — Han takes his shot at the very START of combat, before
-      // the lane-by-lane exchange, no matter which lane he's in. Read by
-      // Game._resolveFirstStrikes(). User: "han solo attacks first no matter
-      // what lane he is in, so start of combat he attacks first."
+      // the lane-by-lane exchange, whatever lane he's in. Read by
+      // Game._resolveFirstStrikes().
       self.attacksFirst = true;
       if (typeof UI !== 'undefined' && UI._fxHanBlaster) { try { UI._fxHanBlaster(self); } catch (e) {} }
     },
@@ -6321,9 +5436,8 @@ const CARD_ABILITIES = {
 
       const choices = [lane, ...redirectLanes];
       // When Han's own lane is uncontested, "staying" strikes the enemy hero
-      // directly — there's no card opposite. Flag that lane so the board labels
-      // it "STRIKE HERO" instead of drawing a reticle on an empty lane (which
-      // read as "targeting nothing").
+      // directly. Flag that lane so the board labels it "STRIKE HERO" instead
+      // of drawing a reticle on an empty lane.
       const ownEnemy = G.state.lanes[lane][opp];
       const ownUncontested = !(ownEnemy && ownEnemy.currentHealth > 0);
       if (Game.isHuman(self.owner)) {
@@ -6346,29 +5460,14 @@ const CARD_ABILITIES = {
         }
       } else {
         // THE BOT SCORES THE SHOT, AND IT SCORES STAYING TOO.
-        //
-        // This used to sort the REDIRECT lanes by raw `attack * currentHealth`
-        // and take the top one — two mistakes at once. (Owner, after a match
-        // that hinged on it: "the right play to survive is shooting apocalypse
-        // with han. he shot gorr and they lost, terrible play, fix this.")
-        //
-        //   1. His own lane was never a candidate. A redirect sets
-        //      _skipNormalAttack, so choosing another lane means the enemy
-        //      opposite him is not hit BY ANYONE this combat — the shot is moved,
-        //      not added. Never comparing the two meant Han redirected away from
-        //      a better target roughly whenever anything at all stood elsewhere.
-        //   2. atk * hp is not what a first strike is for. Striking BEFORE the
-        //      exchange only earns anything when it KILLS: a corpse does not
-        //      swing back. Chip damage on the biggest stat block pre-empts
-        //      nothing, and atk*hp happily prefers a 3/7 wall it cannot kill
-        //      over a 4/5 threat it can — which is the shape of the reported
-        //      board.
-        //
-        // So: every lane he could shoot, his own included, scored kill-first and
-        // then by AI.threatScore — the same canonical "which enemy is worth
-        // removing" the rest of the bot's targeting already uses (it reads
-        // armor / evade / invincibility / strategic value, none of which atk*hp
-        // can see). Ties keep the lowest lane so the choice stays deterministic.
+        //   1. His own lane is a candidate: a redirect sets _skipNormalAttack,
+        //      so the enemy opposite him is not hit by anyone this combat — the
+        //      shot is moved, not added.
+        //   2. A first strike only earns anything when it KILLS (a corpse
+        //      doesn't swing back), so score kill-first, then by
+        //      AI.threatScore (which sees armor / evade / invincibility /
+        //      strategic value). Raw atk*hp would prefer an unkillable wall.
+        // Ties keep the lowest lane so the choice stays deterministic.
         const score = (i) => {
           const e = G.state.lanes[i][opp];
           if (!e || e.currentHealth <= 0) {
@@ -6429,20 +5528,18 @@ const CARD_ABILITIES = {
     }
   },
   "Yoda": {
-    // The reported bug. His gifts are explicitly re-chosen every Trick
-    // phase (the hook clears the prior mark first) and the Invincible he
-    // hands out lasts "this turn" — both only make sense if it recurs.
+    // His gifts are re-chosen every Trick phase (the hook clears the prior
+    // mark first) and the Invincible he hands out lasts "this turn" — both
+    // only make sense if it recurs.
     _recurringBT: true,
     passive: 'yodaShield',
     onPlay(G, self, lane) {
-      // Activate the half-damage shield passive on entry (kept). The
-      // combined-force strike and the random hero-hit badge are gone — Yoda's
-      // active gift is now Master's Apprentice, handed out each Trick phase.
+      // Activate the half-damage shield passive on entry. Yoda's active gift
+      // is Master's Apprentice, handed out each Trick phase.
       // NOTHING TO STAMP. The shield is derived from the board by
-      // Game.yodaShieldCount — his `passive: 'yodaShield'` above IS the source
-      // of truth. The old counter here had to be unwound in onDeath, and every
-      // exit that skipped onDeath (Super Soldier Serum's killCardSilent,
-      // devour-to-void, bounce, a Moder strip) left it on forever.
+      // Game.yodaShieldCount — `passive: 'yodaShield'` IS the source of truth,
+      // so exits that skip onDeath (killCardSilent, devour, bounce, Moder
+      // strip) can't leave it stuck on.
       G.log('[YODA] The Force is with you — this side takes half combat damage.');
     },
     onBeforeTricks(G, self) {
@@ -6453,13 +5550,10 @@ const CARD_ABILITIES = {
       //   2. The Force shield to a DIFFERENT ally — Invincible for 1 turn.
       // Both are re-chosen every Trick phase, so clear the prior mark first.
       if (self.currentHealth <= 0) return;
-      // Clear only THIS Yoda's own prior apprentice, keyed by his id. The old
-      // code wiped EVERY _mastersApprentice mark on the side first, so with two
-      // Yodas the second one's onBeforeTricks erased the first's gift and only
-      // one apprentice survived. (Owner: two Yodas from Knull "should be able to
-      // give out 2 ... masters guidance not just one".) _mastersApprenticeBy is
-      // a plain id-map so it survives the 2v2 state serialize; _mastersApprentice
-      // stays as the derived boolean every combat path already reads.
+      // Clear only THIS Yoda's own prior apprentice, keyed by his id, so two
+      // Yodas each keep their own gift. _mastersApprenticeBy is a plain id-map
+      // so it survives the 2v2 state serialize; _mastersApprentice stays as the
+      // derived boolean every combat path reads.
       G.getAllCardsOf(self.owner).forEach(a => {
         if (a._mastersApprenticeBy) {
           delete a._mastersApprenticeBy[self.id];
@@ -6528,18 +5622,14 @@ const CARD_ABILITIES = {
     }
   },
   "Darth Maul": {
-    // 2026-05-26 — onPlay draws a Trick at -1 cost; passive grants
-    // +2/+0 each time a Trick is played by EITHER player. The
-    // per-trick buff fires via the global onAnyTrickPlayed hook
-    // (game.js dispatches it from playTrick) — Maul's
-    // `_maulSawTricks` flag could track triggers for cooldown but
-    // we just buff straight on each event.
+    // onPlay draws a Trick at -1 cost; passive grants +2/+0 each time a Trick
+    // is played by EITHER player, via the global onAnyTrickPlayed hook
+    // (game.js dispatches it from playTrick).
     onPlay(G, self, lane) {
       if (typeof UI !== 'undefined' && UI._fxMaulSaber) { try { UI._fxMaulSaber(self); } catch (e) {} }
-      // Draw a trick from THIS owner's trick pile. Must use getTrickPile(owner)
-      // — reading state.trickDrawPile directly is empty in Deckbuilder mode
-      // (the real pile is per-player there), so Maul's draw silently did
-      // nothing for saved-deck games.
+      // Draw from THIS owner's trick pile via getTrickPile(owner) —
+      // state.trickDrawPile is empty in Deckbuilder mode (the real pile is
+      // per-player there).
       const tdraw = G.getTrickPile(self.owner) || [];
       if (!tdraw.length) {
         G.log(`Darth Maul finds no Tricks to draw.`);
@@ -6555,9 +5645,7 @@ const CARD_ABILITIES = {
       if (self.currentHealth <= 0) return;
       if (owner !== self.owner) return;
       // 2v2: ONLY the seat that played Maul fuels him — not a teammate sharing
-      // the same side. (Owner: "he should only grow 2/0 when the person who
-      // played him plays a trick not the other ally.") In 1v1 there are no seats,
-      // so the side check above is the whole rule and this is skipped.
+      // the side. In 1v1 the side check above is the whole rule.
       if (G.is2v2 && G.is2v2() && self._2v2PlayedBy) {
         const seat = trickSeat || G._2v2CurrentActingPlayer || (G._2v2ActivePlayer && G._2v2ActivePlayer());
         if (seat && seat !== self._2v2PlayedBy) return;
@@ -6574,18 +5662,16 @@ const CARD_ABILITIES = {
   "Sung Jin-Woo": {
     scalesWithEnergy: true,
     commandsShadows: true,
-    // Owner's odds, by the revived card's printed cost.
+    // Revive odds, by the revived card's printed cost.
     reviveChance(cost) { const c = cost | 0; return c <= 6 ? 1 : (c <= 8 ? 2 / 3 : 1 / 3); },
     onPlay(G, self, lane) {
       const owner = self.owner;
       if (typeof UI !== 'undefined' && UI._fxSungArise) { try { UI._fxSungArise(self, self.attack); } catch (e) {} }
       const here = (lane != null && lane >= 0) ? lane : G.findCardLane(self);
-      // 1. ARISE — Igris first, then Beru, each into a lane the PLAYER picks
-      //    (owner: "he summons igris 1st in any lane and beru in any lane he
-      //    chooses"). Chained through onComplete so Beru's prompt only opens
-      //    once Igris stands, and the revive only once both do. The lane list
-      //    is ordered nearest-first: a human sees every open lane either way,
-      //    and every path that does NOT choose (the AI, the prompt timeout,
+      // 1. ARISE — Igris first, then Beru, each into a lane the PLAYER picks.
+      //    Chained through onComplete so Beru's prompt only opens once Igris
+      //    stands, and the revive only once both do. Lanes are ordered
+      //    nearest-first, so every path that does NOT choose (AI, timeout,
       //    one open lane) takes the nearest.
       const nearest = () => G.getOpenLanes(owner)
         .sort((a, b) => (Math.abs(a - here) - Math.abs(b - here)) || (a - b));
@@ -6690,17 +5776,15 @@ const CARD_ABILITIES = {
     isShadow: true,
     shadowAtkOffset: 4,
   },
-  // Grievous's escort. The FIRST token with an entry here — until now a
-  // CARD_ABILITIES entry named after a token was inert, because summonCard's
-  // token branch built a pure-data def with no hooks on it (fixed at that
-  // branch, so any future token inherits the same way).
+  // Grievous's escort — a token with a CARD_ABILITIES entry; summonCard's
+  // token branch merges hooks onto token defs, so any token can have one.
   //
   // `tokenDesc` — the text the SUMMONED body carries. Tokens normally ship an
   // empty desc so the badge row is not duplicated in prose, but "grows when it
-  // comes back" is not a keyword and the Revive 2 badge cannot say it. It is a
-  // separate key from `desc` on purpose: the merge below copies this object
-  // onto the SUMMON_TOKEN_DEFS entry, and a `desc` here would overwrite the
-  // codex entry's own line (which also names who summons it).
+  // comes back" is not a keyword the Revive 2 badge can say. It is a separate
+  // key from `desc` on purpose: the merge copies this object onto the
+  // SUMMON_TOKEN_DEFS entry, and a `desc` here would overwrite the codex
+  // entry's own line (which also names who summons it).
   "Battle Droid": {
     tokenDesc: 'When Revived: Add (+1/+1) permanently.',
     onRevive(G, self) {
@@ -6718,12 +5802,9 @@ const CARD_ABILITIES = {
     // number — his first round is always shields-up regardless of when he lands.
     //   odd count  → shields UP: Damage Immunity, takes no damage.
     //   even count → shields DOWN: no immunity, overcharged ATK when he attacks.
-    // THE MULTIPLIER LIVES HERE AND NOWHERE ELSE. It used to be written as a
-    // literal 3 in two separate places — _cardEffectiveAtk (which paints the
-    // ATK orb) and _computeIncomingDamage (which deals the damage) — so the
-    // number the card showed and the number it hit for were two independent
-    // copies of the same rule, free to drift. Owner asked for double instead of
-    // triple; both readers now take it from here.
+    // THE MULTIPLIER LIVES HERE AND NOWHERE ELSE: both _cardEffectiveAtk (the
+    // ATK orb) and _computeIncomingDamage (the damage dealt) read it, so the
+    // shown and dealt numbers can't drift.
     ATK_MULT: 2,
     _apply(G, self) {
       const shieldsUp = (self._droidekaRound % 2) === 1;
@@ -6756,20 +5837,16 @@ const CARD_ABILITIES = {
     },
   },
   "General Grievous": {
-    // REDESIGNED 2026-08-09 (owner), twice. The Block-Meter strangle is gone,
-    // and so is the board-wide Bullseye grant that briefly replaced it. He is a
-    // duelist now: Evade 1 and Overdrive on the body (both keywords, so they
-    // carry their own badges and stay out of the card text), a droid escort on
-    // arrival, and a trophy taken off every kill and handed to someone else.
+    // A duelist: Evade 1 and Overdrive on the body (keywords, so they carry
+    // their own badges), a droid escort on arrival, and a trophy taken off
+    // every kill and handed to someone else.
     onPlay(G, self, lane) {
       if (typeof UI !== 'undefined' && UI._fxGrievousSabers) { try { UI._fxGrievousSabers(self); } catch (e) {} }
       G.summonCardChoice(self.owner, 'Battle Droid', 2, 1, 1, ['Revive 2']);
     },
-    // ANOTHER ALLY GETS THE TROPHY, NEVER HIM. Same principle as the Bullseye
-    // grant he used to have: what he does, he does for the board. A self-buff
-    // would also double up with Overdrive, which already pays him for killing.
-    // Environments are excluded — a (+1/+1) on a card that never fights is a
-    // stat nobody reads.
+    // ANOTHER ALLY GETS THE TROPHY, NEVER HIM — a self-buff would double up
+    // with Overdrive, which already pays him for killing. Environments are
+    // excluded — a (+1/+1) on a card that never fights is a stat nobody reads.
     onKill(G, self) {
       const allies = G.getAllCardsOf(self.owner)
         .filter(c => c.id !== self.id && c.currentHealth > 0 && !c.isEnvironment);
@@ -6788,10 +5865,9 @@ const CARD_ABILITIES = {
     onPlay(G, self, lane) {
       const opp = G.opponent(self.owner);
       // Lock the opponent's highest-cost hand card for their NEXT round.
-      // Store the start round (always round + 1) and the inclusive end
-      // round (round + lockTurns). Classic Text+ defaults to 1 turn so
-      // start === end; "Dark Knight" Text+ sets lockTurns = 2 for a
-      // two-round lock.
+      // Stores the start round (round + 1) and the inclusive end round
+      // (round + lockTurns). Classic = 1 turn (start === end); "Dark Knight"
+      // Text+ sets lockTurns = 2.
       const lockTurns = self._batmanLockTurns || 1;
       const start = (G.state.round || 0) + 1;
       const until = (G.state.round || 0) + lockTurns;
@@ -6801,10 +5877,8 @@ const CARD_ABILITIES = {
       if (typeof UI !== 'undefined' && UI._fxBatmanLockdown) { try { UI._fxBatmanLockdown(self); } catch (e) {} }
       const enemies = G.getEnemiesOf(self.owner);
       if (!enemies.length) return;
-      // Roguelite Text+ override — _batmanStrikeDamage scales each of
-      // the two batarang strikes. Default 2 (classic); Text+ raises to
-      // 3 so a feared enemy + 3 + 3 = 6 damage / play. The lockout +
-      // fear sequence stays unchanged.
+      // Roguelite Text+ override — _batmanStrikeDamage scales each of the two
+      // batarang strikes. Default 2 (classic); Text+ 3.
       const strikeDmg = self._batmanStrikeDamage || 2;
       const pickThreat = cards => cards.slice().sort((a, b) => AI.threatScore(b) - AI.threatScore(a))[0];
       const pickDamage = cards => {
@@ -6868,17 +5942,14 @@ const CARD_ABILITIES = {
         G.killCard(G.state.lanes[i][self.owner], self);
         G.killCard(G.state.lanes[i][opp], self);
         // A death save (Yoda shield, revive, Iron Giant guard) can leave a card
-        // alive inside the void. Anti-Life already threw survivors clear;
-        // Darkseid didn't, stranding them in a lane that doesn't exist for 3
-        // rounds — untargetable but still swinging. Shared helper now.
+        // alive inside the void — throw survivors clear so none is stranded
+        // untargetable but still swinging.
         G.evictVoidSurvivors(i);
         G.log(`Darkseid destroys lane ${i + 1}!`);
       };
-      // Purge redesign (2026-07-16, user direction): "destroy up to 3
-      // contested lanes, not odd/even based." The parity gate is gone —
-      // ANY contested lane except Darkseid's own is eligible, capped at
-      // 3 destructions. Roguelite Text+ ("Apokoliptan Legion") keeps an
-      // upgrade meaning: it lifts the 3-lane cap entirely.
+      // Purge: ANY contested lane except Darkseid's own is eligible (no
+      // parity gate), capped at 3 destructions. Roguelite Text+
+      // ("Apokoliptan Legion") lifts the cap entirely.
       const purgeCap = self._darkseidAnyContested ? Infinity : 3;
       let purgedCount = 0;
       const pickLanes = () => {
@@ -6888,11 +5959,9 @@ const CARD_ABILITIES = {
           const mineC = G.state.lanes[i][self.owner];
           const theirsC = G.state.lanes[i][opp];
           if (!mineC || !theirsC) continue;
-          // An Invincible / Damage-Immune occupant PROTECTS its whole lane
-          // from the purge — the option must not even exist (user: "if it's
-          // invincibility the lane cannot be destroyed, the option shouldn't
-          // exist"). Matches the devour precedent: destruction-class effects
-          // respect Invincibility outright.
+          // An Invincible / Damage-Immune occupant PROTECTS its whole lane from
+          // the purge — the option must not even exist. Matches devour:
+          // destruction-class effects respect Invincibility outright.
           const laneProtected = [mineC, theirsC].some(c =>
             c && ((c.invincibleTurns || 0) > 0 || c.hasDamageImmunity));
           if (laneProtected) continue;
@@ -6900,14 +5969,9 @@ const CARD_ABILITIES = {
         }
         if (!eligible.length) { G.log(`Darkseid finds no purgeable contested lanes (Invincible cards protect their lanes).`); return; }
         if (!Game.isHuman(self.owner)) {
-          // Only destroy lanes where the trade is favorable — the AI loses
-          // its own card too, so collapsing a Hulk-vs-1/1 trades Hulk for
-          // nothing. Trade is "good" when enemy threat ≥ our card's threat
-          // plus a small margin. Parademon (just summoned, threat ~2) is
-          // expendable so its lane is almost always worth purging.
-          // Score every eligible lane, then destroy the BEST trades first,
-          // stopping at the purge cap. Destroy when the trade is even or
-          // favorable, the enemy is otherwise unkillable, our body is a
+          // The AI loses its own card too, so only destroy favorable trades.
+          // Score every eligible lane, destroy the BEST trades first up to the
+          // cap: destroy when the trade is even or favorable, our body is a
           // Parademon/low-value token, or the enemy out-costs us by 2+.
           const scored = [];
           eligible.forEach(i => {
@@ -6917,7 +5981,7 @@ const CARD_ABILITIES = {
             const mine = AI.threatScore(myCard);
             const theirs = AI.threatScore(enemy);
             // (Invincible/immune lanes never reach here — excluded from
-            // `eligible` above, so the old unkillable-enemy bonus is gone.)
+            // `eligible` above.)
             const sacrificeBody = myCard.name === 'Parademon' || mine <= 2;
             const costDelta = (enemy.baseCost || enemy.cost || 0) - (myCard.baseCost || myCard.cost || 0);
             if (theirs - mine >= 0.5 || sacrificeBody || costDelta >= 2) {
@@ -6949,22 +6013,12 @@ const CARD_ABILITIES = {
           });
           choices.push({ name: "Done", desc: "Stop destroying lanes" });
           const left = purgeCap === Infinity ? '' : ` (${purgeCap - purgedCount} left)`;
-          // AUTO-PICK CONTINUES THE PURGE — it does NOT stop at "Done". This is a
-          // multi-step prompt: the player picks a lane, it collapses, and the NEXT
-          // lane is offered from inside this callback. Each of those steps is its
-          // own prompt, and in 2v2 online each is a separate network round-trip
-          // with its own 30s timeout and stall-watchdog. When ANY one of them was
-          // interrupted — a dropped/late broadcast of the re-prompt, a timeout, a
-          // watchdog force-recovery — the fallback used to be `Done`, which
-          // abandoned the rest of Darkseid's payload. So a 9-cost bomb that reads
-          // "destroy up to 3 contested lanes" blew up exactly one and quit.
-          // (User: "i only got to blow up 1 lane when every lane was contested and
-          // wanted to blow up more.")
-          // The fallback now picks the best remaining TRADE (highest enemy threat
-          // over our own body, same scoring the AI arm uses) so an interrupted
-          // chain still delivers the full up-to-cap purge instead of stopping at
-          // one. A human who genuinely wants to stop early still clicks Done; this
-          // only fires when nobody answered.
+          // AUTO-PICK CONTINUES THE PURGE — it does NOT stop at "Done". Each
+          // lane is its own prompt (in 2v2 online, its own round-trip, 30s
+          // timeout and stall watchdog), so when one goes unanswered the
+          // fallback picks the best remaining TRADE (same scoring as the AI arm)
+          // and the chain still delivers the full purge. A human who wants to
+          // stop early still clicks Done; this only fires when nobody answered.
           const autoPick = (cs) => {
             const laneOpts = cs.filter(o => o && o._lane != null);
             if (!laneOpts.length) return cs[cs.length - 1]; // only Done left
@@ -6991,7 +6045,7 @@ const CARD_ABILITIES = {
         pickNext();
       };
       // Purge step is wrapped in a function so it fires AFTER the Parademon
-      // summon resolves. No odd/even prompt anymore — straight to lane picks.
+      // summon resolves.
       const startPurge = () => pickLanes();
 
       // Step 1: Summon Parademon(s). Roguelite Text+ ("Apokoliptan
@@ -7062,8 +6116,7 @@ const CARD_ABILITIES = {
       // calls: the first pick filters out of the pool for the second so the
       // same enemy can't be picked twice. AI picks the top two threat scores.
       // Roguelite Text+ override — _supermanBlast scales the heat-vision
-      // damage. Default 5 (classic); Text+ raises to 8 so a Doom or
-      // Hulk eats one nuke instead of needing chip first.
+      // damage. Default 5 (classic); Text+ 8.
       const blastDmg = self._supermanBlast || 5;
       // _supermanFreezeSize raises the freeze duration on each Freeze
       // pick. Default 1 (classic); Text+ sets 2.
@@ -7101,22 +6154,12 @@ const CARD_ABILITIES = {
   "Thanos": {
     trickPhasePlayable: true,
     onPlay(G, self, lane) {
-      // HALF THE BOARD, WHATEVER THE BOARD IS. The count derives from
-      // LANE_COUNT rather than being written down: 3 of 6 in 1v1, 4 of 8 in
-      // 2v2. (User: "change thanos to devour enemies in half the total number
-      // of lanes — same thing, but in 2v2 its 8 lanes so it works there as
-      // well.") That is the "half of all life" fantasy stated once instead of
-      // hard-coded per mode, and a future board size inherits it for free.
-      //
-      // This replaces a flat ladder (2/3/4/5 by tier) plus a separate 2v2
-      // branch. The roguelite ladder survives as an OFFSET above half, which
-      // is why every existing case lands on exactly the number it did before:
-      //   classic 1v1   half 3 + 0 = 3   (was 3, rarityValue defaults to rare)
-      //   classic 2v2   half 4 + 0 = 4   (was 4, via the old 2v2 branch)
-      //   rogue special half 3 + 1 = 4   (was 4)
-      //   rogue legend  half 3 + 2 = 5   (was 5)
-      // ...and 2v2 roguelite now scales off the bigger board instead of being
-      // pinned flat, which the old branch could not express.
+      // HALF THE BOARD, WHATEVER THE BOARD IS: the count derives from
+      // LANE_COUNT (3 of 6 in 1v1, 4 of 8 in 2v2), so any board size inherits
+      // it. The roguelite rarity ladder is an OFFSET above half:
+      //   classic       half + 0
+      //   rogue special half + 1
+      //   rogue legend  half + 2
       // Roguelite Text+ ("Reality Snap") still pins an absolute count.
       const halfBoard = Math.floor(G.LANE_COUNT / 2);
       const numRolls = self._thanosLanes
@@ -7137,13 +6180,11 @@ const CARD_ABILITIES = {
             // Dust the card away before it's removed, so the clone captures
             // the live portrait (killCard sweeps the element on next render).
             if (typeof UI !== 'undefined' && UI._fxThanosDust) { try { UI._fxThanosDust(e); } catch (err) {} }
-            // DEVOUR, not destroy (user, 2026-08-08): the snap erases you from
-            // existence — void pile, no dead pile, no When Destroyed trigger,
-            // no revive. devourCard is the canonical door for that, so the
-            // snap inherits every rule devour already has (Invincible refuses
+            // DEVOUR, not destroy: the snap erases from existence — void pile,
+            // no dead pile, no When Destroyed, no revive. devourCard is the
+            // canonical door, so the snap inherits its rules (Invincible refuses
             // it, Damage Immunity does not, kill credit still lands).
-            // Named before the devour, for the same reason Gojo's is: the card
-            // is gone from the board a statement later.
+            // Named before the devour — the card is gone a statement later.
             const who = e.name;
             erased.push({ lane: r, name: who });
             G.devourCard(e, self); killed++; G.log(`Thanos snaps lane ${r + 1}: ${who} erased from existence!`);
@@ -7151,18 +6192,14 @@ const CARD_ABILITIES = {
         }
       }
       G.log(`Thanos snaps! Lanes ${[...rolled].map(n => n + 1).sort().join(', ')} — ${killed} enemies erased!`);
-      // ON THE RECORD, same as Hollow Purple. The lane flash below is 2.6
-      // seconds; the card is read long after that.
+      // Record the strike, same as Hollow Purple — the 2.6s lane flash is
+      // gone long before the card is read.
       G.noteLaneStrike(self, 'Snap', [...rolled], erased);
       try { if (typeof UI !== 'undefined' && UI.sfx) UI.sfx.playCardSfx('Thanos', 'ability', self); } catch (e) {}
       // Flash the rolled lanes so the player can SEE which 3 lanes got hit
-      // (some may have had no target to kill, which the log line alone
-      // doesn't make obvious — the flash surfaces the roll transparently).
-      // GUARDED, like every other presentation call in card code. This is the
-      // LAST statement of Thanos's onPlay, so a throw here cost nothing
-      // observable — the snap had already resolved — but it still aborted the
-      // hook, and "the effect happens to be finished" is not a safety property.
-      // Anything added after it would silently never run.
+      // (some may have had no target).
+      // GUARDED, like every presentation call in card code: a throw would abort
+      // the hook, and anything added after it would silently never run.
       if (typeof UI !== 'undefined' && UI.flashLanes) {
         try { UI.flashLanes([...rolled], 'lane-thanos-snap', 2600); } catch (e) {}
       }
@@ -7172,10 +6209,9 @@ const CARD_ABILITIES = {
   // ==================== COST 10 ====================
   "Anakin Skywalker": {
     onPlay(G, self, lane) {
-      // When Played: deal 10 damage to a chosen enemy. Anakin is a
-      // 10-cost, so pass {source:self} — the engine's "tens can't
-      // target tens" rule drops other 10-cost titans from the picker.
-      // (Draw 1 fires separately via the `Draw 1` keyword → drawOnPlay.)
+      // When Played: deal 10 damage to a chosen enemy. Pass {source:self} —
+      // the engine's "tens can't target tens" rule drops other 10-cost titans
+      // from the picker. (Draw 1 fires separately via the `Draw 1` keyword.)
       const enemies = G.getEnemiesOf(self.owner, { source: self }).filter(t => G.canEffectLand(t, 'damage', { owner: self.owner, source: self }));
       if (!enemies.length) return;
       G.promptCardChoice(self.owner, enemies, "Anakin — Strike",
@@ -7190,9 +6226,8 @@ const CARD_ABILITIES = {
         G.log(`  [SKIP] ${self.name} is ${Game.moveLockLabel(self)} — stays put.`);
         return;
       }
-      // Roguelite Text+ ("Twin Strike") — _anakinDoubleMove lets Anakin
-      // move TWICE per turn, queueing a bonus attack each time. Classic
-      // is single-move.
+      // Roguelite Text+ ("Twin Strike") — _anakinDoubleMove lets Anakin move
+      // TWICE per turn, queueing a bonus attack each time. Classic is single.
       const moveCount = self._anakinDoubleMove ? 2 : 1;
       const opp = G.opponent(self.owner);
       const eligibleNow = () => {
@@ -7218,9 +6253,7 @@ const CARD_ABILITIES = {
         const eligible = eligibleNow();
         if (!eligible.length) {
           // No open lane to move to — the bonus attack STILL fires, in
-          // Anakin's current lane. User direction: "if Anakin can't move
-          // during the 1st trick phase his bonus attack should still
-          // happen." Decouples the strike from the move.
+          // Anakin's current lane. The strike is decoupled from the move.
           self.bonusAttack = (typeof self.bonusAttack === 'number' ? self.bonusAttack : 0) + 1;
           const cur = G.findCardLane(self);
           const e = cur >= 0 ? G.state.lanes[cur][opp] : null;
@@ -7279,29 +6312,21 @@ const CARD_ABILITIES = {
       const enemies = G.getEnemiesOf(self.owner, { source: self });
       if (!enemies.length) return;
       self.dormammuDrained = true;
-      // Roguelite Text+ override — _dormammuDrainMax raises the drain
-      // ceiling. Default 3 (classic); Text+ to 5 so the full board
-      // can be drained when Dormammu lands on a packed lane.
+      // Roguelite Text+ override — _dormammuDrainMax raises the drain ceiling.
+      // Default 3 (classic); Text+ 5.
       const drainCap = self._dormammuDrainMax || 3;
       const drainCount = Math.min(drainCap, enemies.length);
       const drainChain = (remaining, picked) => {
-        // Previously this stopped when `picked` was empty — which is the
-        // STARTING state, so the chain returned immediately on the first
-        // call and Dormammu never drained anyone. Guard on `remaining`
-        // only; `available.length === 0` below handles the "nothing left
-        // to drain" exit.
+        // Guard on `remaining` only — `picked` is empty at the start, and
+        // `available.length === 0` below handles "nothing left to drain".
         if (remaining <= 0) return;
         const available = enemies.filter(e => e.currentHealth > 0 && !picked.includes(e.id));
         if (!available.length) return;
-        // ALWAYS prompt the human player — even when only 1 target remains.
-        // Matches Galactus's devour and the user's general spec: "the user
-        // always chooses". The single-target prompt confirms intent and
-        // makes the targeting visible.
-        // AI picker: target highest threat, not raw ATK. Threat score
-        // factors armor / evade / invincibility / strategic value (a
-        // 4/8 with Armor 2 is worth more to drain than a 7/4 glass
-        // cannon). Drain steals stats — taking from the highest-threat
-        // enemy yields the biggest swing in the AI's favor.
+        // ALWAYS prompt the human player, even for 1 target (same as
+        // Galactus's devour) — the user always chooses.
+        // AI picker: highest threat, not raw ATK — threatScore factors armor /
+        // evade / invincibility / strategic value, and stealing from the
+        // highest threat is the biggest swing.
         const threatPicker = (cards) => cards.slice().sort((a, b) =>
           (AI && AI.threatScore ? (AI.threatScore(b) - AI.threatScore(a))
                                 : (b.attack || 0) - (a.attack || 0)))[0];
@@ -7331,8 +6356,7 @@ const CARD_ABILITIES = {
   "Dr. Manhattan": {
     onPlay(G, self, lane) {
       // Roguelite Text+ override — _manhattanHeal scales the heal-on-play.
-      // Default 5 (classic); Text+ raises to 10 so a single play double-
-      // dips on the run-HP economy.
+      // Default 5 (classic); Text+ 10.
       const heal = self._manhattanHeal || 5;
       if (typeof UI !== 'undefined' && UI._fxManhattan) { try { UI._fxManhattan(self, self.owner); } catch (e) {} }
       G.healPlayer(self.owner, heal, self);
@@ -7343,14 +6367,9 @@ const CARD_ABILITIES = {
   "Galactus": {
     onBeforeTricks(G, self, lane) {
       if (self.galactusDevoured) return;   // fires exactly once per instance
-      // Pass {source: self} so getEnemiesOf strips 10-cost enemies
-      // from the devour menu — Galactus can't pick Dr. Manhattan
-      // (or another Galactus, Knull, Trigon, Anakin). User
-      // direction 2026-05-19: "you can't target tens with other
-      // tens abilities. So even if Galactus' devour doesn't work
-      // on Manhattan, you shouldn't even have the option to target
-      // Manhattan." Engine-level is10CostImmune still backs this
-      // up if a trick or future code path slips through.
+      // Pass {source: self} so 10-cost enemies are stripped from the devour
+      // menu — tens can't target tens, so they must not even be offered.
+      // Engine-level is10CostImmune still backs this up for other paths.
       const enemies = G.getEnemiesOf(self.owner, { source: self });
       if (!enemies.length) return;
       self.galactusDevoured = true;
@@ -7363,29 +6382,21 @@ const CARD_ABILITIES = {
       const devourCount = Math.min(baseDevour, enemies.length);
       const devourChain = (remaining, picked) => {
         if (remaining <= 0) return;
-        // 'destroy', not 'damage'. Devour consumes the card into the void pile
-        // — it deals no damage — so the gate that matters is the anti-
-        // DESTRUCTION one (Invincible). The 'damage' kind also excludes
-        // hasDamageImmunity, which quietly filtered damage-immune enemies out
-        // of the devour menu, so Galactus couldn't even pick them.
+        // 'destroy', not 'damage': devour deals no damage, so the gate that
+        // matters is the anti-DESTRUCTION one (Invincible). 'damage' would also
+        // exclude damage-immune enemies, which devour can take.
         const available = enemies.filter(e => e.currentHealth > 0 && !picked.includes(e.id) && G.findCardLane(e) >= 0 && G.canEffectLand(e, 'destroy', { owner: self.owner, source: self }));
         if (!available.length) return;
-        // AI picker: devour highest threat. Cost-based picking missed
-        // cards like Captain America (7-cost, modest stats but huge
-        // strategic impact via shield) — threatScore captures that.
-        // For 10-cost titans like Galactus, the goal is to remove the
-        // most threatening piece; raw cost is a poor proxy.
+        // AI picker: devour highest threat — threatScore captures strategic
+        // impact (e.g. Captain America's shield) that raw cost misses.
         const threatPicker = (cards) => cards.slice().sort((a, b) =>
           (AI && AI.threatScore ? (AI.threatScore(b) - AI.threatScore(a))
                                 : (b.cost || 0) - (a.cost || 0)))[0];
         if (Game.isHuman(self.owner)) {
           // Auto-resolve when the choice is forced: if every remaining
-          // candidate will be devoured anyway (available <= remaining
-          // devours), which one you pick first can't change the outcome, so
-          // skip the modal (user: "if there are only 2 or less enemies it
-          // should happen automatically"). options.forced routes through the
-          // engine's shared auto-resolve. When there ARE more targets than
-          // devours, the choice is real and still prompts.
+          // candidate will be devoured anyway (available <= remaining), the
+          // pick can't change the outcome, so skip the modal (options.forced).
+          // With more targets than devours, the choice is real and prompts.
           G.promptCardChoice(self.owner, available, `Galactus — Devour (${remaining} left)`,
             `Choose enemy to devour (${remaining} remaining)`, (t) => {
               G.devourCard(t, self);
@@ -7418,13 +6429,9 @@ const CARD_ABILITIES = {
   },
   "Knull": {
     onPlay(G, self, lane) {
-      // Floor raised 1 -> 2 (owner, 2026-08-09): a 10-cost lottery that could
-      // roll a 1-cost body in every empty lane was paying out chaff on the
-      // most expensive card in the game.
-      // Roguelite Text+ override — _knullCostFloor raises the minimum
-      // cost of the random pull pool further. Default 2 (classic); Text+ sets
-      // to 4 so the lottery skips the mid tier as well and only pulls
-      // high-cost cards (Wonder Woman, Carnage, Doom, etc.).
+      // Floor of 2 so the 10-cost lottery never pays out 1-cost chaff.
+      // Roguelite Text+ override — _knullCostFloor raises the minimum cost of
+      // the pull pool. Default 2 (classic); Text+ 4.
       const minCost = self._knullCostFloor || 2;
       // _knullCostCeiling raises the upper bound from 9 to 10 with Text+
       // ("God of Symbiotes") so the lottery can roll 10-cost titans.
@@ -7435,13 +6442,11 @@ const CARD_ABILITIES = {
       G._withSummonLoop(() => G.getOpenLanes(self.owner).filter(l => l !== lane).forEach(l => {
         // RE-CHECK LIVE: the open-lane list is a snapshot, but a summoned card's
         // own On Play can claim lanes mid-loop (Hela raising Undead Warriors).
-        // Check BEFORE drawing so we don't burn a card out of the shared summon
-        // deck on a lane we can no longer fill — Knull simply summons that many
-        // fewer, which is the intended interaction.
+        // Check BEFORE drawing so we don't burn a summon-deck card on a lane we
+        // can no longer fill — Knull summons that many fewer, by design.
         const ln = G.state.lanes[l];
         if (!ln || ln.destroyed || ln[self.owner]) return;
-        // Pull from the shared summon deck so Knull's lottery spreads
-        // across the full 95-card pool. Filter: cost minCost-maxCost,
+        // Pull from the shared summon deck. Filter: cost minCost-maxCost,
         // attack > 0, not a discard-effect card.
         const d = G.drawFromSummonDeck(c => !c.isDiscardEffect && c.cost >= minCost && c.cost <= maxCost && (c.attack || 0) > 0);
         if (d) {
@@ -7497,9 +6502,8 @@ const CARD_ABILITIES = {
       // belong in the target list or the "freezes N enemies" count.
       const targets = G.getEnemiesOf(self.owner, { source: self }).filter(e => e.currentHealth > 0);
       if (!targets.length) {
-        // Mark the freeze as fired anyway so a re-summoned Trigon
-        // doesn't snap-freeze the field after a Lazarus / reanimation
-        // re-deploy. "Once per instance" = once, period.
+        // Mark the freeze as fired anyway so a re-summoned Trigon (Lazarus /
+        // reanimation) doesn't snap-freeze the field. Once per instance.
         self.trigonFrozen = true;
         return;
       }
@@ -7509,22 +6513,18 @@ const CARD_ABILITIES = {
       G.log(`Trigon freezes ${targets.length} enem${targets.length === 1 ? 'y' : 'ies'}!`);
     },
     onBeforeTricks(G, self, lane) {
-      // Mass-freeze ALL enemies — Start of Tricks (once). Fires in the
-      // SAME beat as Galactus's devour and Anakin's move (all routed
-      // through runBeforeTricks at endPhase2). The once-flag prevents
-      // a re-summoned Trigon (Hela / Lazarus Pit) from re-freezing
-      // every round.
+      // Mass-freeze ALL enemies — Start of Tricks (once), in the same beat as
+      // Galactus's devour and Anakin's move (runBeforeTricks at endPhase2).
+      // The once-flag stops a re-summoned Trigon re-freezing every round.
       CARD_ABILITIES.Trigon._massFreezeOnce(G, self);
     },
     onKill(G, self) {
       // Passive: each kill triggers one bonus random kill. Re-entry guard
       // prevents the bonus kill from spawning another bonus kill.
       if (self._trigonChaining) return;
-      // The titan test is canEffectLand's job (it calls is10CostImmune, which
-      // honors skipAutoUntrickable). A hand-rolled `cost < 10` in front of it
-      // was a second, WRONG copy of that rule: it swept in Doomsday, who prints
-      // at 12 but is explicitly not a titan — the exact bug the user has called
-      // out twice. killCard already allowed the hit; only this filter hid him.
+      // The titan test is canEffectLand's job (via is10CostImmune, which
+      // honors skipAutoUntrickable). Don't add a hand-rolled `cost < 10` —
+      // it would wrongly exclude Doomsday, who prints at 12 but is not a titan.
       const targets = G.getEnemiesOf(self.owner).filter(
         e => e.currentHealth > 0
           && G.canEffectLand(e, 'destroy', { owner: self.owner, source: self })
@@ -7538,46 +6538,28 @@ const CARD_ABILITIES = {
     }
   },
   "Boiler Room": {
-    // BOILER ROOM BURNS WITH THE SAME BURNING AS EVERYONE ELSE.
-    // It used to run its own private version of the status: a flat 1 damage on
-    // onBeforeAttack, forever, no decay. That made one printed word mean two
-    // different rules depending on who applied it, which is why the card had to
-    // spend a sentence explaining itself. Now it goes through the shared
-    // applier at Burning 1, so the keyword's tooltip is true here too and the
-    // sentence could be dropped.
-    // Damage per turn is unchanged (see the re-stoke in onTurnStart). The one
-    // behavioural difference, accepted deliberately: it ticks before the card's
-    // LANE fights rather than before that card ATTACKS, so a burning card with
-    // no one to swing at now still burns.
+    // BOILER ROOM BURNS WITH THE SAME BURNING AS EVERYONE ELSE: it goes
+    // through the shared applier at Burning 1, so one keyword means one rule.
+    // Damage per turn is kept by the re-stoke in onTurnStart. It ticks before
+    // the card's LANE fights rather than before that card ATTACKS, so a
+    // burning card with no one to swing at still burns.
     _markBurning(card, boilerRoom) {
       if (!card || card.isEnvironment) return;
       // isBurning, the ignite one-shot FX and the decaying counter all live in
       // _ignite. Its first arg (G) is unused, hence null.
       CARD_ABILITIES['Godzilla']._ignite(null, card, 1);
-      // _brDeathHooked is now only a "this Boiler Room has already lit you"
-      // marker, read by onAnyCardPlayed so a cleansed card is not silently
-      // re-lit. It no longer carries the spawn — see _watchBurningDeath.
+      // _brDeathHooked is only a "this Boiler Room has already lit you" marker,
+      // read by onAnyCardPlayed so a cleansed card is not silently re-lit. The
+      // spawn lives in _watchBurningDeath.
       if (boilerRoom) card._brDeathHooked = true;
     },
-    // ANY CARD THAT DIES BURNING, WHOEVER LIT IT.
-    // The spawn used to ride a per-card onDeath hook that only existed on cards
-    // THIS Boiler Room had marked — so a card set alight by anything else
-    // (Godzilla's Atomic Breath, Knull, Freddy's own passive) could die burning
-    // with the Boiler Room sitting right there and nothing would happen. Owner:
-    // "godzilla gev juggernaiut burning, boiler room on the field, juggernauth
-    // dies freddy didnt spawn he should, doesnt matter if the buring didnt come
-    // form the boiler room the passive is any card that dies with buring freddy
-    // spawns."
-    //
-    // So the Boiler Room watches the board instead of tagging bodies. One rule
-    // in one place: it is asked about every death, from either side, through the
-    // hooks the engine already broadcasts — which also means a future burn
+    // ANY CARD THAT DIES BURNING, WHOEVER LIT IT (Godzilla, Knull, Freddy's
+    // own passive...). The Boiler Room watches every death, from either side,
+    // through the hooks the engine already broadcasts — so a future burn
     // source inherits this without knowing the Boiler Room exists.
-    //
-    // Death-PREVENTION is still respected: these hooks fire only after
-    // handleDeath has run the dying card's own onDeath and seen it not cancel,
-    // so a burning card that revives cannot also raise Freddy off the death it
-    // just refused.
+    // Death-PREVENTION is respected: these hooks fire only after handleDeath
+    // ran the dying card's own onDeath and it didn't cancel, so a card that
+    // revives cannot also raise Freddy.
     _watchBurningDeath(G, self, dead) {
       if (!dead || !dead.isBurning) return;
       if (self._brSpawned || self.currentHealth <= 0) return;
@@ -7625,13 +6607,9 @@ const CARD_ABILITIES = {
             `Freddy needs this lane. Move ${allyInLane.name} to another lane.`,
             (targetLane) => {
               // RE-CHECK ON RESOLVE, not just on arm. The ally was alive when
-              // this prompt opened, but a prompt is answered LATER — and the
-              // effect that spawned Freddy can still be killing things in the
-              // meantime. Reported case: Boiler Room's lane held Sabertooth and
-              // Nightwing, Soul Stone killed BOTH, Freddy rose off Sabertooth's
-              // death while Nightwing was still standing, and by the time the
-              // player picked a lane Nightwing was dead — so this callback
-              // placed a corpse back on the board and resurrected him.
+              // the prompt opened, but the effect that spawned Freddy can still
+              // be killing things meanwhile (e.g. Soul Stone) — without this
+              // the callback would place a corpse back on the board.
               const stillThere = allyInLane
                 && allyInLane.currentHealth > 0
                 && lane[owner] === allyInLane;
@@ -7701,14 +6679,11 @@ const CARD_ABILITIES = {
         G.log(`[BURN] Boiler Room spreads — ${c.name} in lane ${G.findCardLane(c) + 1} is now burning!`);
       });
 
-      // RE-STOKE. Boiler Room never re-marks a card it has already lit (the
-      // spread pass above deliberately skips anything already burning, and
-      // onAnyCardPlayed skips anything already hooked), which was harmless
-      // while the burn was a permanent flat hook. A decaying counter would
-      // instead tick once and go out. Re-stoking every currently-burning enemy
-      // back to 1 each turn is what keeps the damage at the old 1-per-turn.
-      // _ignite takes the HIGHER number, so a Godzilla's Burning 3 sitting in
-      // this lane is not dragged down to 1.
+      // RE-STOKE. Boiler Room never re-marks a card it already lit (the spread
+      // pass and onAnyCardPlayed both skip those), so a decaying counter would
+      // tick once and go out. Re-stoking every burning enemy back to 1 each
+      // turn keeps the damage at 1 per turn. _ignite takes the HIGHER number,
+      // so a Godzilla's Burning 3 in this lane is not dragged down to 1.
       G.getAllCardsOf(opp).forEach(c => {
         if (c.isBurning && c.currentHealth > 0) CARD_ABILITIES['Godzilla']._ignite(null, c, 1);
       });
@@ -7722,27 +6697,16 @@ const CARD_ABILITIES = {
   },
   "Godzilla": {
     // ATOMIC BREATH — a decaying burn held as a COUNTER, not a queue.
-    //
-    // The number IS the damage: Burning 3 deals 3 and decays to Burning 2,
-    // which deals 2 and decays to Burning 1, which deals 1 and goes out. Owner:
-    // "burning 3 so they take 3 damage then next turn it goes to burning 2 they
-    // take 2 damage next turn burning 1." The old shape was a [3,1,1] queue —
-    // three ticks, but 3/1/1 rather than 3/2/1, and with no number to show.
-    //
+    // The number IS the damage: Burning 3 deals 3 → Burning 2 deals 2 →
+    // Burning 1 deals 1 and goes out.
     // TIMING: it ticks on onLaneCombat, so a card burns immediately BEFORE ITS
-    // OWN LANE fights — not at the top of the phase with every other lane.
-    // Owner: "they take burning damage right before their lane not at the
-    // beginning of the attack phase." That is the same hook and the same
-    // reasoning Voldemort already uses; onBeforeCombat (the previous home) fires
-    // for the whole board before lane 1 has swung, which is exactly what was
-    // wrong. onBeforeAttack is NOT an option: it only fires for cards that
+    // OWN LANE fights — not at the top of the phase (same hook and reasoning as
+    // Voldemort). onBeforeAttack is NOT an option: it only fires for cards that
     // actually swing, so a burning card with no target would never tick.
     BURN_START: 3,
-    // THE SHARED BURNING APPLIER. It lives under Godzilla for historical
-    // reasons (he was the first source) but every card that sets a card
-    // alight goes through here, so Burning means exactly one thing no matter
-    // who lit the match — the same reason the keyword's tooltip can now carry
-    // the rule instead of each card reprinting it.
+    // THE SHARED BURNING APPLIER. It lives under Godzilla (the first source)
+    // but every card that sets a card alight goes through here, so Burning
+    // means exactly one thing no matter who lit it.
     // `stacks` is the starting number; omit it for Godzilla's own 3.
     // NOTE: the outer G is unused — the only G referenced below belongs to the
     // onLaneCombat hook, which takes its own. Callers without one may pass null.
@@ -7907,8 +6871,7 @@ const CARD_ABILITIES = {
       self._triggerNextRound = false;
       // 2v2: bite the specific enemy SEAT that wasted the most Energy last round
       // (captured when Freddy woke). Energy is per-seat there, so drain that
-      // seat's freshly-granted Energy directly. (User: "drain from whoever left
-      // more.")
+      // seat's freshly-granted Energy directly.
       const tt = G.state && G.state.twoVTwo;
       if (tt && tt.players && self._freddyDrainSeat && tt.players[self._freddyDrainSeat]) {
         const seat = tt.players[self._freddyDrainSeat];
@@ -7922,8 +6885,8 @@ const CARD_ABILITIES = {
         return;
       }
       const opp = G.opponent(self.owner);
-      // Drain only — the opponent loses 1, Freddy's side gains NOTHING
-      // (user direction: "no gain, like Catwoman").
+      // Drain only — the opponent loses 1, Freddy's side gains NOTHING (like
+      // Catwoman).
       if (G.state[opp].currency > 0) {
         const before = G.state[opp].currency;
         G.state[opp].currency = Math.max(0, before - 1);
@@ -7953,45 +6916,27 @@ const CARD_ABILITIES = {
       self.reviveCharges = 0;
       self.currentHealth = self.maxHealth;
       // Rising immune has to CLEAR what's already on him, not just block what
-      // comes next. The _doomsdayRevived guard in tryApplyDebuff /
-      // freezeCardUnresistible only refuses NEW Stun/Freeze, so a Doomsday who
-      // was stunned or frozen when he died came back still stunned and frozen
-      // — the counters rode straight through the revive. User report: "when
-      // doomsday revived he was still getting stunned and frozen which he
-      // should be immune to."
+      // comes next: the _doomsdayRevived guard in tryApplyDebuff /
+      // freezeCardUnresistible only refuses NEW Stun/Freeze, so counters from
+      // before his death would ride through the revive.
       self.stunnedTurns = 0; self.isStunned = false;
       self.frozenTurns  = 0; self.isFrozen  = false;
-      // NO TAUNT ON THE REVIVE (see the block below). The revive path never
-      // re-arms Taunt, but it also wasn't CLEARING it — a Doomsday who died
-      // while his arrival Taunt was still ticking (tauntTurns > 0) rose still
-      // taunting, forcing enemies onto him for another turn. Taunt is his
-      // one-time arrival keyword, spent on landing; the revive wipes any
-      // leftover so he comes back without it. (User: "doomsday's taunt should
-      // not be on him when he revives.")
+      // NO TAUNT ON THE REVIVE: Taunt is his one-time arrival keyword, spent on
+      // landing. The revive never re-arms it, and also wipes any leftover
+      // tauntTurns from dying mid-Taunt.
       self.tauntTurns = 0; self.permanentTaunt = false;
-      // He rises with IMMUNITY, the real keyword — not a Doomsday-shaped
-      // lookalike. The _doomsdayRevived guard only ever refused Stun and
-      // Freeze, so everything else a debuff can do (ATK/HP strip, Fear, Mind
-      // Control) still landed on the thing the log called unstoppable. Owner:
-      // "when doomsday revives give him immunity". Immunity is the game's
-      // existing answer to "blocks all debuffs", it shows the badge every
-      // surface already knows how to draw, and canEffectLand honours it
-      // without this card teaching anything new.
+      // He rises with IMMUNITY, the real keyword — the _doomsdayRevived guard
+      // only covers Stun/Freeze, while Immunity blocks all debuffs, shows the
+      // standard badge, and canEffectLand already honours it.
       self.immunityCharges = Math.max(self.immunityCharges || 0, 1);
       self.permanentImmunity = true;
-      // UNTRICKABLE TOO (owner, 2026-08-09). Immunity refuses status debuffs;
-      // Untrickable refuses enemy TRICKS outright, which is the other half of
-      // "cannot be stopped" — without it a Phantom Zone or an Anti-Life still
-      // removed the thing the log calls unstoppable. skipAutoUntrickable stays
-      // set, so this is a flag he EARNS by rising, not one his cost hands him.
+      // UNTRICKABLE TOO. Immunity refuses status debuffs; Untrickable refuses
+      // enemy TRICKS outright (Phantom Zone, Anti-Life). skipAutoUntrickable
+      // stays set, so this is a flag he EARNS by rising, not one his cost hands
+      // him.
       self.isUntrickable = true;
-      // NO TAUNT ON THE REVIVE. Reversed 2026-08-14 (owner struck "and Taunt"
-      // off the revive line on a screenshot). It was briefly re-armed here on
-      // the reasoning that Taunt 1 is printed on the def and tauntTurns decays
-      // to 0 long before he dies — but that IS the intended shape: Taunt is his
-      // arrival keyword, spent once, not something the revive refreshes. The
-      // printed "Taunt 1" keyword stays on the def and still arms when he
-      // lands; it simply does not come back with him.
+      // The printed "Taunt 1" keyword stays on the def and still arms when he
+      // lands; it simply does not come back with him (see above).
       G.log(`[DOOMSDAY] Cannot be stopped — Doomsday rises with Immunity and Untrickable.`);
       if (typeof UI !== 'undefined' && UI._fxDoomsdayRise) { try { UI._fxDoomsdayRise(self); } catch (e) {} }
       return true; // prevent death
@@ -8016,9 +6961,8 @@ const CARD_ABILITIES = {
       card.onDeath = function(G2, dying, laneIdx) {
         // Propagate the wrapped card's death-prevention result — a custom
         // reviver (Jason/Wolverine/Mahoraga/Doomsday, Text+ Grundy/Spawn)
-        // returns truthy to CANCEL the death. Dropping it here made the
-        // reviver burn its charge, restore HP, then die anyway AND spawn
-        // Jaws off a death that never happened.
+        // returns truthy to CANCEL the death. Dropping it would let the reviver
+        // restore HP, die anyway AND spawn Jaws off a death that never happened.
         const prevented = origDeath ? origDeath.call(this, G2, dying, laneIdx) : false;
         if (prevented) return true;
         if (!self._owSpawned) {
@@ -8133,25 +7077,13 @@ const CARD_ABILITIES = {
   "The Bathroom": {
     // "Enters this lane" uses the SEWERS pattern: record who is standing
     // opposite when the room lands, then watch for a DIFFERENT card showing up.
-    // Reusing the established idiom rather than inventing a second definition of
-    // "entered" is what keeps the two rooms consistent with Sewers and Open
-    // Water instead of subtly disagreeing about what an arrival is.
+    // Reusing that idiom keeps the rooms consistent with Sewers and Open Water
+    // about what an arrival is.
     //
-    // REWRITTEN 2026-09-14 to the owner's wording: "for the bathroom just say
-    // when enemy cards enter this lane they take (-2/-2) and are chained,
-    // losing (-1/-1) every turn they stay."
-    //
-    // What that replaced: the room held exactly TWO victims, Chained meant "if
-    // you move, pay another (−2/−2)", and the room drained away when the SECOND
-    // of the two died. Three separate clocks — an intake count, a move penalty
-    // and a bespoke death-driven lifetime — for a card whose whole idea is "do
-    // not stand here". Now there is one: the room chains everything that walks
-    // in, and standing there costs (−1/−1) a round.
-    //
-    // NO CAP, so nothing counts victims any more, and with no "second body"
-    // there is nothing for the old drain to key on — the room simply runs the
-    // standard environment clock (ENV_TURNS) like every other room, which is
-    // also what the lane's countdown pip has always been showing.
+    // Rule: enemy cards that enter this lane take (−2/−2) and are chained,
+    // losing (−1/−1) every turn they stay. No victim cap; the room runs the
+    // standard environment clock (ENV_TURNS), which the lane's countdown pip
+    // shows.
     onPlay(G, self, lane) {
       const opp = G.opponent(self.owner);
       const existing = G.state.lanes[lane][opp];
@@ -8161,18 +7093,11 @@ const CARD_ABILITIES = {
       // off anything else would break a card this room never touched.
       // Set BEFORE the chain below, which pushes into it.
       self._bathroomChained = [];
-      // A ROOM THAT OPENS UNDER A CARD HAS THAT CARD. Owner: "if the bathroom
-      // spawns on a card for the enmy the debuff is applied sma efor
-      // graganta" — the black hole catches whoever is standing in it, and so
-      // does this.
-      //
-      // It used to only RECORD the occupant, as "not an arrival", so a room
-      // that landed on a body did nothing at all until some later card walked
-      // in. That made the placement roll decide the card: land on empty ground
-      // and it works, land on a body and it is blank. Boiler Room and Open
-      // Water both already take the occupant on arrival; this is the room that
-      // did not. (Sewers is deliberately left alone — its trigger is a SPAWN,
-      // not a debuff, and "the first NEW enemy to enter" is its printed rule.)
+      // A ROOM THAT OPENS UNDER A CARD HAS THAT CARD — like Gargantua's black
+      // hole, Boiler Room and Open Water, it takes the occupant on arrival, so
+      // the placement roll doesn't decide whether the card works. (Sewers is
+      // deliberately different — its trigger is a SPAWN, and "the first NEW
+      // enemy to enter" is its printed rule.)
       if (existing && existing.currentHealth > 0 && !existing.isEnvironment) {
         self._bathroomTracked = existing.id;
         CARD_ABILITIES['The Bathroom']._chain(G, self, existing, lane);
@@ -8184,13 +7109,12 @@ const CARD_ABILITIES = {
       if (!self._bathroomChained) self._bathroomChained = [];
       if (self._bathroomChained.indexOf(victim.id) === -1) self._bathroomChained.push(victim.id);
       // THE CHAIN ICON. A visible status, not just an invisible flag — the
-      // owner has to be able to see which cards the room owns.
+      // player has to be able to see which cards the room owns.
       victim._chained = true;
       // (−2/−2) applied with the CANONICAL shield rule — the same
       // statStripShieldsHp predicate checkLaneTrap and debuffCard use, so
       // Invincible / Damage Immunity blocks the health loss while the ATK strip
-      // still lands. Re-implementing that rule is exactly how the Bear Trap
-      // once ended up shielding a card that Pym Particles did not.
+      // still lands. Don't re-implement that rule here.
       const D = 2;
       const hpShielded = G.statStripShieldsHp(victim);
       victim.attack = Math.max(0, victim.attack - D);
@@ -8204,14 +7128,12 @@ const CARD_ABILITIES = {
         : `  [THE BATHROOM] ${victim.name} wakes up chained! −${D}/−${D} → ${victim.attack}/${victim.currentHealth}`);
       G.log(`  [THE BATHROOM] ${victim.name} is Chained — every round it stays costs another (−1/−1).`);
       // A chain that drops the victim to 0 is lethal — route through the
-      // canonical death path so it cannot sit as a 0-HP zombie. Same reasoning
-      // (and same bug class) as checkLaneTrap.
+      // canonical death path so it cannot sit as a 0-HP zombie (same as
+      // checkLaneTrap).
       if (victim.currentHealth <= 0) G.handleDeath(victim, laneIdx, null);
     },
-    // STAYING COSTS. The old Chained was a toll on MOVING, which meant the
-    // correct play against the room was to stand still and ignore it. Reversing
-    // that is the whole point of the rewrite: the clock runs while you are in
-    // there, and leaving is the answer.
+    // STAYING COSTS: the clock runs while you are in there, and leaving is the
+    // answer.
     onTurnStart(G, self) {
       const laneIdx = G.findCardLane(self);
       if (laneIdx < 0) return;
@@ -8277,10 +7199,8 @@ const CARD_ABILITIES = {
       if (laneIdx < 0) return;
       const lane = G.state.lanes[laneIdx];
       const AB = CARD_ABILITIES['Game Over'];
-      // ENEMY bodies only (owner spec: "the 1st enemy card to die in this
-      // lane"). This hooked BOTH sides, so the room would also raise one of
-      // your own dead — which reads as the room helping the wrong player and
-      // spends it on a body you did not want back.
+      // ENEMY bodies only ("the 1st enemy card to die in this lane") — the room
+      // must not raise one of your own dead.
       [G.opponent(self.owner)].forEach(side => {
         const c = lane[side];
         if (!c || c.isEnvironment || c.currentHealth <= 0 || c._revealHooked) return;
@@ -8294,14 +7214,12 @@ const CARD_ABILITIES = {
       });
     },
     _rise(G, self, dead, laneIdx) {
-      // ONE BODY, THEN THE ROOM IS SPENT. This is not a tidiness rule, it is
-      // the difference between a card and an infinite loop: _rise summons into
-      // the lane, the summon broadcasts onAnyCardPlayed, that re-hooks the body
-      // it just raised, and if that body dies in the same cascade it rises
-      // again — forever. The full-match tests hung on exactly that. Sewers and
-      // Open Water are one-shot transformations for the same reason.
-      // Set BEFORE the summon, so the broadcast it triggers already sees a
-      // spent room rather than racing it.
+      // ONE BODY, THEN THE ROOM IS SPENT — otherwise an infinite loop: _rise
+      // summons into the lane, the summon broadcasts onAnyCardPlayed, that
+      // re-hooks the raised body, and if it dies in the same cascade it rises
+      // again forever (the full-match tests hang). Sewers and Open Water are
+      // one-shot for the same reason. Set BEFORE the summon, so the broadcast
+      // it triggers already sees a spent room.
       if (self._revealSpent) return;
       // The room has to still be standing — Jigsaw's rooms can be replaced or
       // cleared, and a dead room must not keep raising bodies.
@@ -8312,15 +7230,10 @@ const CARD_ABILITIES = {
       const lane = G.state.lanes[laneIdx];
       // Clear a dead occupant of OUR side first — handleDeath defers slot
       // clearing to cleanupDead, so the corpse is still in the slot here and
-      // summonCard would see the lane as occupied and bail. Sewers had exactly
-      // this bug ("Pennywise never destroyed the card that was there").
+      // summonCard would see the lane as occupied and bail (same as Sewers).
       if (lane[owner] && lane[owner].currentHealth <= 0) lane[owner] = null;
 
-      // AN ALLY MOVES TO MAKE ROOM — the Sewers idiom, deliberately reused
-      // rather than re-derived. Owner: "for the reveal just like sewers an
-      // ally will move to make room." Previously the rise simply gave up if
-      // your own card was standing there, which made the room a coin-flip on
-      // board state rather than an effect you could plan around.
+      // AN ALLY MOVES TO MAKE ROOM — the Sewers idiom, deliberately reused.
       // Sewers' handling of the pending-prompt window is copied too: the ally
       // can DIE while the lane choice is open (a death cascade keeps resolving
       // underneath it), so the callback re-checks before moving it.
@@ -8351,13 +7264,12 @@ const CARD_ABILITIES = {
             if (_ally.onMoved) _ally.onMoved(G, _ally, targetLane);
             CARD_ABILITIES['Game Over']._finishRise(G, self, _riser, laneIdx);
           },
-          // ASK THE PERSON WHOSE ROOM IT IS. Without a seat the derivation
-          // falls through _2v2AbilityOwner — which on a death cascade names the
-          // seat of the card that just DIED, i.e. an opponent — is rejected by
-          // the cross-team guard, and lands on "lowest-numbered human on the
-          // team". So the wrong teammate was asked to move their own ally out
-          // of a lane. The room knows who played it; _2v2SeatOwning reads that
-          // stamp (and re-checks it against the side the card is on now).
+          // ASK THE PERSON WHOSE ROOM IT IS. Without a seat, the derivation
+          // via _2v2AbilityOwner names the seat of the card that just DIED (an
+          // opponent), gets rejected by the cross-team guard, and falls to the
+          // "lowest-numbered human on the team" — possibly the wrong teammate.
+          // _2v2SeatOwning reads the room's stamp and re-checks it against the
+          // side the card is on now.
           null, null, null,
           { forced: openLanes.length <= 1, seat: (G._2v2SeatOwning && G._2v2SeatOwning(self)) || null }
         );
@@ -8377,12 +7289,9 @@ const CARD_ABILITIES = {
       }
       const realDef = (typeof CARD_DEFS !== 'undefined')
         ? CARD_DEFS.find(d => d.name === dead.name) : null;
-      // Summon from a def COPY carrying the (2/2), rather than summoning the
-      // real card and stamping the stats afterwards. Stamping looked right —
-      // the body read 1/1 the instant it rose — and was then reverted to the
-      // def's base stats later in the same death cascade, which re-derives from
-      // the def. Handing the summon the stats up front means there is nothing
-      // to re-derive back to. Spread, never JSON: a JSON clone of a def strips
+      // Summon from a def COPY carrying the (2/2), rather than stamping stats
+      // after the summon — the death cascade re-derives stats from the def and
+      // would revert a stamp. Spread, never JSON: a JSON clone of a def strips
       // its ability hooks.
       const def = realDef ? Object.assign({}, realDef, { attack: 2, health: 2 }) : null;
       const before = lane[owner];
@@ -8392,12 +7301,9 @@ const CARD_ABILITIES = {
         G.log(`  [GAME OVER] ${dead.name} does not get up.`);
         return;
       }
-      // NOTE: no post-summon stat stamp. The def copy above is what sets the
-      // (1/1); a stamp here would run BEFORE summonCard's arrival step drains,
-      // so it could not be what holds anyway. And the body may legitimately
-      // leave this method at more than (1/1) — Lone Wolf gives +1/+1 to a
-      // summon that enters with no other allies, which is a real rule and
-      // applies to a body that gets up alone just as it does to any summon.
+      // NOTE: no post-summon stat stamp — it would run BEFORE summonCard's
+      // arrival step drains, so it couldn't hold anyway. The body may
+      // legitimately exceed the def stats (Lone Wolf's +1/+1 to a lone summon).
       // The room is used up — clear the sub-slot so the board shows it is done,
       // the way Sewers hands its lane over to Pennywise.
       if (lane._env && lane._env[owner] === self) lane._env[owner] = null;
@@ -8422,16 +7328,14 @@ const CARD_ABILITIES = {
         // Clear a DEAD occupant first. handleDeath defers slot clearing to
         // cleanupDead (and returns early on death-saves), so the absorbed card
         // is still sitting in the lane here — summonCard would see an occupied
-        // lane and bail. Open Water/Jaws already did this; Sewers didn't.
+        // lane and bail.
         if (lane[owner] && lane[owner].currentHealth <= 0) lane[owner] = null;
         const before = G.state.lanes[laneIdx][owner];
         G.summonCard(owner, laneIdx, 'Pennywise', 4, atk, hp, [], def);
         const pennywise = G.state.lanes[laneIdx][owner];
         // Only stamp stats if the summon actually placed a NEW Pennywise. When
         // summonCard bails on an occupied lane the slot still holds the old
-        // card, and writing here handed IT Pennywise's stats — user report:
-        // "pennywise never destroyed the card that was there and the other
-        // card stayed and gained the stats".
+        // card, and writing here would hand IT Pennywise's stats.
         if (!pennywise || pennywise === before || pennywise.name !== 'Pennywise') {
           G.log(`  [SEWERS] Pennywise can't rise in lane ${laneIdx + 1} — the lane is still occupied.`);
           return;
@@ -8476,15 +7380,9 @@ const CARD_ABILITIES = {
           G.log(`  [ABSORB] Pennywise absorbs ${allyInLane.name} (+${extraAtk}/+${extraHp})!`);
           // Absorbed = genuinely dead. Zero it BEFORE handleDeath so the card
           // can't be read as alive, then free the slot ourselves.
-          //
           // handleDeath does NOT reliably clear the lane: if another death is
-          // already resolving (THE STACK gate, _stackResolving) it merely
-          // QUEUES this one and returns, leaving the card standing. Sewers
-          // fires from onAnyCardPlayed, so any on-play effect that killed
-          // something puts us in exactly that state. summonCard then saw an
-          // occupied lane, bailed, and Pennywise's stats got stamped onto the
-          // surviving card — user report: "pennywise never destroyed the card
-          // that was there and the other card stayed and gained the stats".
+          // already resolving (THE STACK gate, _stackResolving) it only QUEUES
+          // this one — and Sewers fires from onAnyCardPlayed, often mid-death.
           allyInLane.currentHealth = 0;
           G.handleDeath(allyInLane, laneIdx, null);
           if (lane[owner] === allyInLane) lane[owner] = null;
@@ -8497,20 +7395,12 @@ const CARD_ABILITIES = {
     onPlay(G, self, lane) {
       const opp = G.opponent(self.owner);
       const existing = G.state.lanes[lane][opp];
-      // A ROOM THAT OPENS UNDER AN ENEMY HAS ITS FIRST ENEMY. Owner: "do the
-      // same for sewers all all enviroments."
-      //
-      // This used to RECORD the occupant instead, as "not a new arrival", which
-      // made the placement roll decide whether the card did anything: land on
-      // bare ground and it works, land on a body and it sits inert until some
-      // later card happens to walk in. Boiler Room, Open Water, Game Over and
-      // The Bathroom all take the occupant on arrival; this was the last room
-      // that did not.
-      //
+      // A ROOM THAT OPENS UNDER AN ENEMY HAS ITS FIRST ENEMY — like every
+      // other environment, it takes the occupant on arrival so the placement
+      // roll doesn't decide whether the card does anything.
       // TRIGGERED IS LATCHED BEFORE THE SPAWN, not after — _spawnPennywise
       // summons, the summon broadcasts onAnyCardPlayed, and that re-enters this
-      // card's own onAnyCardPlayed. Game Over's note calls this out as "the
-      // difference between a card and an infinite loop".
+      // card's own onAnyCardPlayed (an infinite loop otherwise; see Game Over).
       if (existing && existing.currentHealth > 0 && !existing.isEnvironment) {
         self._sewersTrackedEnemy = existing.id;
         self._sewersTriggered = true;
@@ -8559,11 +7449,8 @@ const CARD_ABILITIES = {
   },
 
   // ===================== WETLANDS / SPINOSAURUS =====================
-  // The third habitat environment. It used to be the one that did NOT consume
-  // itself — it stayed underneath Spinosaurus and drained when he died, so the
-  // lane kept reading "this is his water" while he stood. That exception is
-  // gone: every environment now runs on the shared four-round clock and every
-  // habitat is replaced by what it births.
+  // The third habitat environment. Like every environment it runs on the
+  // shared four-round clock and is replaced by what it births.
   //
   // Its clock is the BLOCK METER, not a card entering or dying: every time
   // either side's meter fills and eats a hit, the swamp loses 1 Power. Starting
@@ -8575,30 +7462,19 @@ const CARD_ABILITIES = {
   // ---- THE ENCLOSURE ----------------------------------------
   // ============================================================
   // The only habitat with a PRICE rather than a trigger, and the only one whose
-  // monster is not a reward. Boiler Room waits for a burning card to die,
-  // Sewers and Open Water wait for someone to walk in or fall over, Wetlands
-  // waits for a Block Meter — every one of them is a clock you cannot stop, and
-  // every one of them hands the thing that comes out to the side that owns the
-  // habitat. The gate is the opposite on both counts: it opens the moment you
-  // stop paying, and what gets out is pointed at YOU.
-  //
-  // Owner: "welcome to jurassic park event where you have to give energy to the
-  // park, if you dont a T rex will spawn against you" — and, on reviewing the
-  // first pass which followed the four siblings instead: "it should be flipped."
-  // So `into` is the opponent: the paddock is the gate owner's, the T-Rex is
-  // their problem.
+  // monster is not a reward: the other habitats hand their monster to the
+  // owner; the gate opens the moment you stop paying, and what gets out is
+  // pointed at YOU. So `into` is the opponent: the paddock is the gate
+  // owner's, the T-Rex is their problem.
   //
   // It rides the SAME upkeep queue as Gargantua (state._pendingUpkeep, drained
   // by _resolveUpkeepPrompts before phase 1), which is what makes "pay 1 Energy
   // or skip" a real prompt in every mode instead of a second private one.
   "Enclosure": {
-    // ONE CLOCK, NOT TWO. The paddock used to have no life at all — the toll
-    // came round every turn forever, the bot pays while it can afford to, and
-    // energy refills before upkeep runs, so on the AI's side the gate never
-    // opened and never left. It now runs down on the SHARED environment clock
-    // (Game.ENV_TURNS, ticked in postCombat), rather than counting its own
-    // tolls: a second counter here would drift from the pip the lane prints the
-    // moment anything seated it mid-round.
+    // ONE CLOCK, NOT TWO. The paddock runs down on the SHARED environment
+    // clock (Game.ENV_TURNS, ticked in postCombat) — without a lifetime the
+    // AI would pay forever and the gate would never leave; a private toll
+    // counter would drift from the lane's pip.
     // Refusing still lets the T-Rex out at any point in those rounds.
     onTurnStart(G, self) {
       if (self._encReleased) return;
@@ -8609,9 +7485,7 @@ const CARD_ABILITIES = {
       if (!G.state._pendingUpkeep) G.state._pendingUpkeep = [];
       G.state._pendingUpkeep.push({
         card: self, owner: self.owner, label: 'Enclosure',
-        // Its own copy. The resolver's defaults are Gargantua's, and inheriting
-        // them had this gate asking "Pay 1 Energy to pull all enemies 1 lane
-        // closer, or skip."
+        // Its own labels — the resolver's defaults are Gargantua's.
         payLabel: 'Pay the Park',
         payDesc: lastToll
           ? 'The last toll — the park closes at the end of this round.'
@@ -8621,14 +7495,11 @@ const CARD_ABILITIES = {
         promptDesc: lastToll
           ? 'The final toll. Pay 1 Energy and the park closes for good, or refuse and let the T-Rex out against you.'
           : 'Pay 1 Energy to keep the gate shut, or refuse and let the T-Rex out against you.',
-        // NO aiPrefer. The resolver's default — pay while you can afford it — is
-        // the right play now that the T-Rex is a punishment rather than a prize,
-        // and it is what a bot should do with a toll. It does mean the gate only
-        // opens when a HUMAN refuses or a side is genuinely broke: energy is
-        // refilled at the top of the round (game.js, `state[o].currency = cur`)
-        // BEFORE upkeep runs, so a bot can always find the 1. That is the card
-        // working as written, not a branch going unreached — the decision was
-        // always the player's.
+        // NO aiPrefer: the resolver's default (pay while affordable) is right
+        // for a toll. Energy refills at the top of the round (game.js,
+        // `state[o].currency = cur`) BEFORE upkeep runs, so a bot always pays —
+        // the gate only opens when a HUMAN refuses or a side is broke. That is
+        // intended.
         onPay() {
           G.log(lastToll
             ? '  [ENCLOSURE] The last toll is paid. The park closes for good.'
@@ -8639,7 +7510,7 @@ const CARD_ABILITIES = {
           // SKIP ONCE AND IT IS OUT. The latch is set before the release because
           // the release can prompt (ally displacement) and a second decline
           // resolving against a still-standing gate would let out a second
-          // T-Rex — the same trap Wetlands records against a second Block Meter.
+          // T-Rex — same trap as Wetlands' second Block Meter.
           if (self._encReleased) return;
           const laneIdx = G.findCardLane(self);
           if (laneIdx < 0) return;
@@ -8654,10 +7525,7 @@ const CARD_ABILITIES = {
         owner, laneIdx, habitat,
         // No `into` — the direction lives on the card (actsOnOpponentSide),
         // so the release and the lane backdrop read the same declaration.
-        // REPLACED, NOT KEPT. Its own text says the T-Rex is released HERE and
-        // says nothing about the paddock outliving him — unlike Wetlands, which
-        // keeps its habitat underneath the monster for whatever is left of the
-        // shared environment clock.
+        // REPLACED, NOT KEPT: the paddock does not outlive the T-Rex.
         clearEnv: true,
         tag: 'ENCLOSURE',
         name: 'T-Rex', cost: 5, atk: 3, hp: 7,
@@ -8674,13 +7542,10 @@ const CARD_ABILITIES = {
 
   "T-Rex": {
     onMoved(G, self, to) {
-      // ONE HOOK, EVERY MOVER. moveCard fires onMoved for every relocation in
-      // the game — the T-Rex's own Hunt chase, a Bifrost, a Magneto pull,
-      // Gojo's displace, a shove from the enemy — so hanging the roar here is
-      // what makes "each time the T-Rex moves to another lane" literally true.
-      // Killer Moth's growth sits on the same hook for the same reason, and the
-      // note there records what happens without it: the card fires on the one
-      // move it makes itself and rides every other one for free.
+      // ONE HOOK, EVERY MOVER. moveCard fires onMoved for every relocation
+      // (Hunt chase, Bifrost, Magneto, Gojo, enemy shoves), so hanging the roar
+      // here makes "each time the T-Rex moves" literally true — same as
+      // Killer Moth's growth.
       const opp = G.opponent(self.owner);
       const targets = [];
       for (let i = 0; i < G.LANE_COUNT; i++) {
@@ -8693,11 +7558,10 @@ const CARD_ABILITIES = {
       const pick = targets[Math.floor(G.rng() * targets.length)];
       G.log(`  [T-REX] The roar carries down the lanes — ${pick.name} freezes.`);
       // freezeCard is the canonical door: it runs tryApplyDebuff, so Immunity
-      // and Untrickable refuse this exactly as they refuse any other freeze
-      // instead of it becoming a quieter second path around them.
+      // and Untrickable refuse this like any other freeze.
       // FREEZE, NOT STUN — stunCard() is a one-line alias for freezeCard() and
-      // nothing sets isStunned any more, so a "Stun" here would print one word
-      // and log another.
+      // nothing sets isStunned, so a "Stun" here would print one word and log
+      // another.
       G.freezeCard(pick, self, 1);
     },
   },
@@ -8730,24 +7594,14 @@ const CARD_ABILITIES = {
         AB._release(G, self.owner, laneIdx, self);
       }
     },
-    // (No onTurnStart. It used to be a self-heal for a habitat that outlived its
-    // own release: Spinosaurus could leave the board without DYING — Phantom
-    // Zone bounces him to a hand, Devour voids him past handleDeath — and the
-    // drained swamp would then sit in the lane with nothing in it forever. The
-    // habitat is consumed at release now, so there is no such state to
-    // reconcile.)
+    // (No onTurnStart self-heal needed: the habitat is consumed at release, so
+    // Spinosaurus leaving without dying (bounce, devour) can't strand it.)
     _release(G, owner, laneIdx, habitat) {
       const lane = G.state.lanes[laneIdx];
-      // THE HABITAT IS CONSUMED, like all four of its siblings. It used to be
-      // the one exception — it stayed underneath Spinosaurus and drained when
-      // he died — and that exception cost it three pieces of private
-      // machinery: this clear, a self-heal on onTurnStart for the ways he can
-      // leave without dying, and an onDeath on Spinosaurus himself. All of it
-      // existed to answer "how long does the swamp last", which the shared
-      // environment clock now answers for every environment on the board.
-      // (Owner: "just change wetlands to fit the global rule and the wording.")
+      // THE HABITAT IS CONSUMED, like all its siblings — the shared environment
+      // clock answers "how long does the swamp last".
       // Cleared up front rather than on a successful spawn, matching
-      // releaseHabitatMonster: the other four hand the lane back before they
+      // releaseHabitatMonster: the others hand the lane back before they
       // summon, so a blocked spawn leaves the same board either way.
       if (lane._env && lane._env[owner] === habitat) {
         lane._env[owner] = null;
@@ -8761,8 +7615,7 @@ const CARD_ABILITIES = {
 
       // The enemy standing in this lane is taken the instant he surfaces.
       // Routed through canEffectLand so Invincible / Damage Immunity refuse it
-      // like any other instant-destroy (shield canon) rather than this being a
-      // second, quieter kill path that ignores them.
+      // like any other instant-destroy (shield canon).
       const enemy = lane[opp];
       if (enemy && enemy.currentHealth > 0) {
         if (G.canEffectLand(enemy, 'destroy', { owner, source: habitat })) {
@@ -8779,14 +7632,13 @@ const CARD_ABILITIES = {
         // Clear a DEAD occupant first — handleDeath defers slot clearing to
         // cleanupDead (and can merely QUEUE the death when another is already
         // resolving), so the absorbed card is still standing here and
-        // summonCard would see an occupied lane and bail. Same trap Sewers hit.
+        // summonCard would see an occupied lane and bail. Same as Sewers.
         if (lane[owner] && lane[owner].currentHealth <= 0) lane[owner] = null;
         const before = G.state.lanes[laneIdx][owner];
         G.summonCard(owner, laneIdx, 'Spinosaurus', 5, atk, hp, [], def);
         const spino = G.state.lanes[laneIdx][owner];
-        // Only stamp stats if a NEW Spinosaurus actually landed. Writing
-        // unconditionally is how Sewers once handed Pennywise's stats to the
-        // card that was already standing there.
+        // Only stamp stats if a NEW Spinosaurus actually landed — otherwise
+        // they'd land on the card already standing there.
         if (!spino || spino === before || spino.name !== 'Spinosaurus') {
           G.log(`  [WETLANDS] Spinosaurus can't surface in lane ${laneIdx + 1} — the lane is still occupied.`);
           return;
@@ -8847,36 +7699,22 @@ const CARD_ABILITIES = {
 
   "Spinosaurus": {
     METER_MAX: 3,
-    // THE START-OF-ROUND STALK IS GONE. He carried a bespoke onTurnStart that
-    // walked him toward the opponent's last-played lane — a second, private
-    // movement mechanic that happened to be called "Hunt" while not being the
-    // Hunt keyword. Owner: "just add Hunt like jason and jango to spino, that
-    // easy." He now prints the real `Hunt` keyword instead, so he chases through
-    // the same _resolveHuntChase path Jason and Jango already use, and there is
-    // one movement rule on this card rather than two that share a name.
+    // Movement is the real `Hunt` keyword (same _resolveHuntChase path as
+    // Jason and Jango), not a bespoke start-of-round stalk.
     // HUNT METER — every damage instance anywhere on the field, from the one
-    // post-damage notifier. Its OWN rampage is excluded: the sweep hits every
-    // occupied lane, which is 3-6 damage instances in a single swing, so
-    // counting them would refill the meter to full the moment it emptied and
-    // the card would rampage every round forever — a meter that is always
-    // full is not a meter. Ordinary combat swings still feed it.
+    // post-damage notifier.
     onAnyCardDamaged(G, self, damaged) {
       if (self.currentHealth <= 0) return;
       if (self._spinoHuntSpent) return;          // meter already cashed in
-      // ENEMY damage feeds the meter. Owner spec 2026-08-14: "hunt meter goes
-      // up each time an enemy is damaged." It previously counted ALLY damage —
-      // a revenge meter — which is the opposite reading, so the trigger is
-      // inverted rather than widened. Every instance counts, no per-round cap.
+      // ENEMY damage feeds the meter ("hunt meter goes up each time an enemy
+      // is damaged"). Every instance counts, no per-round cap.
       if (!damaged || damaged.owner === self.owner) return;
       const AB = CARD_ABILITIES['Spinosaurus'];
       self._spinoMeter = (self._spinoMeter | 0) + 1;
       if (self._spinoMeter >= AB.METER_MAX) {
-        // THE METER IS SPENT, NOT RESET. It used to cap, arm, fire a
-        // whole-board rampage and refill forever. Now it pays out ONCE and
-        // stops existing: the counter is cleared, the badge stops rendering
-        // (_spinoHuntSpent gates it), and Overdrive is granted permanently.
-        // Owner: "when hunt meter gains 3 remove hunt meter and permanently
-        // gain overdrive."
+        // THE METER IS SPENT, NOT RESET: it pays out ONCE — the counter is
+        // cleared, the badge stops rendering (_spinoHuntSpent gates it), and
+        // Overdrive is granted permanently.
         self._spinoMeter = 0;
         self._spinoHuntSpent = true;
         self._spinoArmed = false;
@@ -8888,36 +7726,15 @@ const CARD_ABILITIES = {
         }
       }
     },
-    // THE RAMPAGE IS GONE. onBeforeCombat used to fire a whole-board sweep the
-    // moment the meter armed, then reset it to refill. The meter now pays out
-    // once as permanent Overdrive (see onAnyCardDamaged), so nothing ever sets
-    // _spinoArmed and this hook could only ever be dead code. Deleted rather
-    // than left guarded: a hook that can never fire is a trap for the next
-    // person reading the card, and _skipNormalAttack with it — he no longer
-    // spends his swing on anything.
-    // (No onDeath. Its only job was draining the Wetlands he was standing in,
-    // and the swamp is consumed the moment he surfaces now — there is nothing
-    // left under him to take with him.)
+    // (No rampage hook and no onDeath: the meter pays out as permanent
+    // Overdrive, and the swamp is consumed the moment he surfaces.)
   },
 
   // ==================== GARGANTUA ====================
-  // Owner: "theres 1 gargantua lane that spawns and theres no energy energy pay
-  // for either player it wil pull cards in for 3 rounds, and pull them closer at
-  // the start of the round like before, insted of fghting each other a card
-  // pulled into the black hole 1st turn loses -3/-3 2nd turn dies thats all
-  // simple."
-  //
-  // WHAT CHANGED, AND WHY EACH PIECE WENT:
-  //   · THE TOLL. It used to push an optional upkeep — "Pay 1 Energy to pull
-  //     all enemies 1 lane closer, or skip" — which made a board-wide hazard
-  //     into a purchase one side made. A black hole is weather; nobody buys it.
-  //   · WHOSE CARDS. It pulled only the OPPONENT's, because it was seated as a
-  //     player's environment. It is one lane belonging to neither side now, so
-  //     it pulls everything.
-  //   · THE COLLISION. A card arriving in the lane used to trade ATK with
-  //     whoever was standing there, with a whole branch for who takes the lane
-  //     afterwards. Replaced by the two-step the owner asked for: the hole
-  //     weakens, then it kills.
+  // One neutral lane, no Energy toll, for 3 rounds. At the start of each round
+  // it pulls every card (both sides) 1 lane closer. A card in the hole loses
+  // (−3/−3) its first turn there and is destroyed its second. A black hole is
+  // weather — nobody buys it, and it belongs to neither side.
   //
   // ONE LANE, TWO INSTANCES. The event seats Gargantua on BOTH sides of its
   // lane (see _ONE_LANE_EVENTS) so the whole lane reads as the hole, which
@@ -8925,25 +7742,16 @@ const CARD_ABILITIES = {
   // what keeps that one event rather than two — without it the board is pulled
   // two lanes a round and every card inside takes −6/−6.
   "Gargantua": {
-    // THE HOLE CATCHES WHOEVER IS ALREADY STANDING IN IT. The crush ran only at
-    // onTurnStart, so a card in the lane when the singularity opened got a free
-    // round before it felt anything — and the card's own text says "a card in
-    // this lane loses (−3/−3), and is destroyed if it is still here at the
-    // start of the next round", which is a clock that should start the moment
-    // the hole is there. (Owner, using Gargantua as the reference for every
-    // other room: "the debuff is applied sma efor graganta".)
-    //
-    // THE ROUND STAMP IS LOAD-BEARING HERE, not tidiness. Gargantua is seated
-    // TWICE — once per side of its one lane (_ONE_LANE_EVENTS, keepOpposite) —
-    // so without it the second call would find the mark the first one just set
-    // and kill the occupant outright instead of weakening it. It is the same
-    // stamp onTurnStart uses, so the round the hole opens does not also crush
-    // again a moment later.
+    // THE HOLE CATCHES WHOEVER IS ALREADY STANDING IN IT — the clock starts
+    // the moment the hole is there, not at the next onTurnStart.
+    // THE ROUND STAMP IS LOAD-BEARING: Gargantua is seated TWICE (once per side
+    // of its lane, _ONE_LANE_EVENTS, keepOpposite), so without it the second
+    // call would find the first call's mark and kill the occupant outright.
+    // It is the same stamp onTurnStart uses, so the opening round doesn't
+    // crush again a moment later.
     onPlay(G, self, laneIdx) {
-      // CRUSH ONLY, NOT PULL. "Every card on the board is pulled 1 lane closer"
-      // is a start-of-round beat; dragging the whole board the instant the hole
-      // lands would be an extra pull the card does not print — and the pull for
-      // the opening round still runs from onTurnStart as it always did.
+      // CRUSH ONLY, NOT PULL. The pull is a start-of-round beat; the opening
+      // round's pull still runs from onTurnStart.
       CARD_ABILITIES['Gargantua']._crush(G, laneIdx);
       if (typeof UI !== 'undefined' && UI.render) { try { UI.render(); } catch (e) {} }
     },
@@ -8957,9 +7765,8 @@ const CARD_ABILITIES = {
       lane._gargRound = r;
       const AB = CARD_ABILITIES['Gargantua'];
       // A CARD THAT GOT OUT IS OUT. The hold is a fact about standing in the
-      // hole, not a scar you carry — something else can move a card clear
-      // (Magneto, Bifrost, a Hunt chase, the Enclosure's release), and without
-      // this it would keep the mark and be destroyed the instant the pull
+      // hole — a card moved clear (Magneto, Bifrost, Hunt, the Enclosure's
+      // release) loses the mark, or it would be destroyed the instant the pull
       // dragged it back, skipping its weakened round.
       for (let i = 0; i < G.LANE_COUNT; i++) {
         if (i === laneIdx) continue;
@@ -8977,21 +7784,17 @@ const CARD_ABILITIES = {
       if (typeof UI !== 'undefined' && UI.render) { try { UI.render(); } catch (e) {} }
     },
 
-    // Everything standing in the hole, resolved in the order the owner gave:
-    // first round inside it loses (−3/−3), second round inside it is gone.
+    // Everything standing in the hole: first round inside loses (−3/−3),
+    // second round inside it is gone.
     _crush(G, laneIdx) {
       const lane = G.state.lanes[laneIdx];
       if (!lane) return;
       // ONCE A ROUND PER LANE, WHOEVER ASKS. Two callers can reach this in the
-      // same round — onPlay fires TWICE (Gargantua seats both sides of its one
-      // lane), and onTurnStart follows on the round it opens. Unguarded, the
-      // second pass finds the _gargHeld mark the first one set and kills the
-      // occupant outright, turning "loses (−3/−3), destroyed NEXT round" into
-      // "destroyed on arrival".
-      //
-      // Its OWN stamp, not the one onTurnStart uses: that one exists to stop
-      // the two seats both running the whole beat, and sharing it here would
-      // also cancel the PULL on the round the hole opens.
+      // same round — onPlay fires TWICE (both seats of its one lane), and
+      // onTurnStart follows on the round it opens. Unguarded, the second pass
+      // finds the _gargHeld mark and kills the occupant on arrival.
+      // Its OWN stamp, not onTurnStart's: sharing that one would also cancel
+      // the PULL on the round the hole opens.
       const r = G.state.round | 0;
       if (lane._gargCrushRound === r) return;
       lane._gargCrushRound = r;
@@ -9007,21 +7810,11 @@ const CARD_ABILITIES = {
       });
     },
 
-    // THE HOLE CATCHES YOU WHEN YOU WALK IN, not at the next round tick.
-    // _crush runs once a round per lane, over whoever is standing there at that
-    // moment — so a card that arrived LATER in the round was simply never seen.
-    // Owner: "i played red hulk into gargantua, he should lose 3/3, and
-    // predator moved in he should also lose 3/3." Measured before: Red Hulk
-    // played in stayed at his printed 4/5 and Predator moved in stayed 3/4,
-    // neither marked.
-    //
-    // This hangs off onAnyCardPlayed because that is the door the engine
-    // ALREADY knocks on for exactly this: checkLaneTrap pokes every room in a
-    // lane a card just settled in, and it is reached from the play path AND
-    // from _trapOnSettle on the move path (which is why a card dragged into
-    // The Bathroom gets chained). Gargantua simply was not listening. Nothing
-    // new is wired — no second definition of "entered", no per-mover patching.
-    //
+    // THE HOLE CATCHES YOU WHEN YOU WALK IN (played or moved in), not at the
+    // next round tick.
+    // Hangs off onAnyCardPlayed because checkLaneTrap already pokes every room
+    // in a lane a card settled in, from the play path AND from _trapOnSettle on
+    // the move path. No second definition of "entered", no per-mover patching.
     // The broadcast also fires for cards played in OTHER lanes, which is
     // harmless: _catch is a no-op on anything already held.
     onAnyCardPlayed(G, self) {
@@ -9080,8 +7873,7 @@ const CARD_ABILITIES = {
         const targetLane = curLane + dir;
         const dest = G.state.lanes[targetLane];
         // A destroyed (voided) lane blocks the pull — there is no lane to stand
-        // in for its remaining rounds, so the card holds position. (User
-        // report: Gargantua dragged a Doombot into an Anti-Life void.)
+        // in for its remaining rounds, so the card holds position.
         if (dest && dest.destroyed) {
           G.log(`[GARGANTUA] ${card.name} braces against the void in lane ${targetLane + 1} — the pull fails.`);
           return;
@@ -9091,12 +7883,10 @@ const CARD_ABILITIES = {
           G.log(`[GARGANTUA] ${card.name} is blocked — lane ${targetLane + 1} is occupied.`);
           return;
         }
-        // CLEAR BY IDENTITY, FROM A FRESH READ. curLane was taken at the top of
-        // this iteration, and the hooks fired between moves (a habitat release
-        // displacing a card, a Hunt chase, a bounce) can move THIS card. Nulling
-        // a stale index leaves the card where it actually is AND writes it into
-        // the destination: one object, two lanes. Caught in the fuzz once as
-        // "duplicate id 8 on lane: Trigon + Trigon".
+        // CLEAR BY IDENTITY, FROM A FRESH READ. Hooks fired between moves
+        // (habitat release, Hunt chase, bounce) can move THIS card, so nulling
+        // the stale curLane index would leave one object in two lanes (fuzz
+        // caught "duplicate id on lane").
         const now = G.findCardLane(card);
         if (now >= 0 && G.state.lanes[now][side] === card) G.state.lanes[now][side] = null;
         dest[side] = card;
@@ -9121,12 +7911,9 @@ CARD_DEFS.forEach(card => {
   if (ab) Object.assign(card, ab);
 });
 
-// …and into the SUMMON TOKEN defs, on the same terms. These are a separate
-// list because tokens are not draftable, but they are still card definitions
-// and anything built from one (the codex entry, a test instance) must carry
-// the same hooks a drafted card would. Battle Droid's grow-on-revive was the
-// first token ability, and without this it existed only on the instance
-// summonCard happens to build — the def itself was inert.
+// …and into the SUMMON TOKEN defs, on the same terms. Tokens are not
+// draftable, but anything built from their def (codex entry, test instance)
+// must carry the same hooks a drafted card would.
 if (typeof SUMMON_TOKEN_DEFS !== 'undefined') {
   SUMMON_TOKEN_DEFS.forEach(tok => {
     const ab = CARD_ABILITIES[tok.name];

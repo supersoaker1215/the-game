@@ -1,11 +1,10 @@
 // ============================================================
 // ROGUELITE MODE — Slay-the-Spire-shaped run with lane combat.
 // ============================================================
-// Architecture: a thin overlay UI + state machine that lives next to
-// the main game. Each "fight" inside a run uses the existing
-// Game.startMatch combat engine; this module handles everything
-// outside combat: run state, map progression, rewards, hp carry-over,
-// future shop/rest/boss nodes.
+// Architecture: a thin overlay UI + state machine next to the main game.
+// Each fight uses the existing Game.startMatch combat engine; this module
+// owns everything outside combat: run state, map progression, rewards,
+// HP carry-over, shop/rest/boss nodes.
 //
 // Run state lives at `Game.state.roguelite` so a save/restore cycle
 // (refresh, reload) can pick up where the player left off.
@@ -19,7 +18,7 @@
 // Combat itself runs through the existing 'player-cards' / 'ai-cards'
 // phases; the run phase resumes once Game.state.gameOver flips true.
 //
-// Per the design discussion:
+// Design rules:
 //   - HP carries across fights (run HP = player HP), heals between
 //     fights via rest sites and event rewards
 //   - Energy ramps 1→3→5→7→9 (faster pacing)
@@ -32,15 +31,11 @@
 
 const Roguelite = {
   // ----- Data: starter cards (Tier 0 vanilla bodies) -----
-  // Plain stat-line goons. Designed so Act 1 feels like climbing OUT of
-  // weakness rather than starting strong. These don't exist in CARD_DEFS;
-  // the runtime card builder (buildRunCard below) checks here first.
+  // Plain stat-line goons so Act 1 feels like climbing OUT of weakness. Not in
+  // CARD_DEFS; the runtime card builder (buildRunCard below) checks here first.
   // ----- Curse cards (the "deck pollution" mechanic) -----
-  // Bad cards that get added to your deck via events. They occupy a
-  // hand slot and do nothing (or worse). Removable only via the
-  // Merchant's "remove a card" service. User direction: "Curses /
-  // Wound cards — bad cards that get added via events, removable at
-  // the Merchant. Adds deck-thinning depth."
+  // Bad cards added to your deck via events. They occupy a hand slot and do
+  // nothing (or worse); removable only via the Merchant's "remove a card" service.
   //
   // Marked `_isCurse: true` so the engine can show the dim purple
   // tint + the deck-thinning hint in the UI.
@@ -96,18 +91,15 @@ const Roguelite = {
       _isStarter: false,
       _isCurse: true,
     });
-    // Curse-warning toast — purple tint, ✕ glyph + descending dissonant
-    // SFX cue. Audit finding: curse acquisition was silent.
+    // Curse-warning toast — purple tint, ✕ glyph + descending dissonant SFX cue,
+    // so curse acquisition is never silent.
     this.showToast(`<span class="rl-toast-glyph">✕</span><span class="rl-toast-text"><b>${pick.name}</b><span class="rl-toast-sub">CURSE ADDED</span></span>`, 'curse');
     if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.play) {
       try { UI.sfx.play('curseAcquire'); } catch (e) {}
     }
-    // First-curse intro modal — explains what curses are. Audit
-    // finding: no in-game tooltip / banner explained the curse
-    // mechanic, so new roguelite players hit a weird card with no
-    // context. The flag persists on the run object so subsequent
-    // curses just toast (no repeat banner). Defer the modal one tick
-    // so the toast lands first and the player sees the cause-effect.
+    // First-curse intro modal explains the mechanic once; the flag persists on the
+    // run so later curses just toast. Deferred one tick so the toast lands first
+    // and the player sees cause then effect.
     if (!run._curseIntroSeen) {
       run._curseIntroSeen = true;
       setTimeout(() => {
@@ -127,28 +119,15 @@ const Roguelite = {
     return pick.name;
   },
 
-  // Hide roguelite-only cards from Classic mode (codex, deckbuilder,
-  // draft pile, summon pool). User report: "brute goon and thug made
-  // its way to the game, not just the roguelike — they need to be
-  // removed there and only in the roguelike." STARTER_DEFS get injected
-  // into CARD_DEFS at boot so the engine can name-resolve them during
-  // a run; this helper lets every classic-mode pool filter them back
-  // out without touching the def store. Same treatment for the AI
-  // vanilla bodies (Soldier / Mercenary / Operator) and curses
-  // (Wound / Doubt / Regret).
-  // NEVER OFFERABLE. `_spawnOnly` is the engine's existing "this card is placed
-  // by another card, not drafted" flag — cards.js carries it on eight defs, and
-  // classic mode, both 2v2 draft paths and the summon deck all filter on it.
-  // Roguelite was the one mode that never did: `grep _spawnOnly roguelite.js`
-  // returned nothing, so every roguelite pool could hand you one.
-  //
-  // Owner: "the bathroom and game over should be out of the pool in roguelike,
-  // they are tied to jigsaw" — abilities.js:1500 is the proof, a literal
-  // `const ROOMS = ['The Bathroom', 'Game Over']` inside Jigsaw. But the leak
-  // is not two cards, it is eight: Gremlin, Stripe, Freddy Krueger, Pennywise,
-  // Jaws and Spinosaurus were all offerable too, and Pennywise and Jaws print
-  // "(Spawned only by Sewers.)" / "(Spawned by Open Water.)" in their own rules
-  // text — a card whose description contradicts how you got it.
+  // Hide roguelite-only cards from Classic mode (codex, deckbuilder, draft pile,
+  // summon pool). STARTER_DEFS are injected into CARD_DEFS at boot so the engine
+  // can name-resolve them during a run; this helper lets every classic pool
+  // filter them back out without touching the def store. Same for the AI vanilla
+  // bodies (Soldier / Mercenary / Operator) and curses (Wound / Doubt / Regret).
+  // NEVER OFFERABLE. `_spawnOnly` is the engine's "placed by another card, not
+  // drafted" flag (eight defs in cards.js, e.g. Jigsaw's rooms, Pennywise from
+  // Sewers, Jaws from Open Water); classic mode, both 2v2 draft paths and the
+  // summon deck all filter on it, and every roguelite pool must too.
   //
   // Deliberately NOT folded into isRogueliteOnlyName, which reads as the
   // obvious home: that set is load-bearing in the OPPOSITE direction — game.js
@@ -177,20 +156,17 @@ const Roguelite = {
   },
 
   STARTER_DEFS: [
-    // The 3 vanilla starter bodies. User spec: "I just want Goon, who's
-    // a one energy 1/1. Thug, two energy 2/2. Brute, three energy 3/4.
-    // I want three of each." Predictable like Strike/Defend in StS;
-    // starter cards do NOT receive the Common -1/-1 tier penalty
-    // (`_isStarter` flag flows through buildRunCard) — they sit at
-    // their face stats so the early game has a stable read.
+    // The 3 vanilla starter bodies: Goon 1-cost 1/1, Thug 2-cost 2/2, Brute 3-cost
+    // 3/4, three of each. Predictable like Strike/Defend in StS; starters do NOT
+    // take the Common -1/-1 tier penalty (`_isStarter` flows through buildRunCard)
+    // so the early game has a stable read.
     //
     // Each starter has a small ability so they're not pure stat-sticks:
     //   • Goon  — While Active: +1/+1 per other Goon ally on board.
     //              Synergy bait — 3 Goons = 3/3 each.
     //   • Thug  — When Played: deal 1 damage to a chosen enemy.
     //              Tempo poke — kills 1-HP threats on arrival.
-    //   • Brute — Armor 1, Taunt 1. The wall — taunts intercept for
-    //              1 turn, armor blunts chip damage.
+    //   • Brute — Taunt 1. The wall — taunts intercept for 1 turn.
     {
       name: 'Goon',  cost: 1, attack: 1, health: 1, type: 'villain',
       abilities: [], passive: 'goonHive',
@@ -203,28 +179,20 @@ const Roguelite = {
     },
     {
       name: 'Brute', cost: 3, attack: 3, health: 4, type: 'villain',
-      // User direction: "Armor 1 on Brute is pretty good — remove it.
-      // Make sure all Brutes have Taunt 1." Keeping Taunt 1 keeps the
-      // wall identity (intercepts a hit per turn) without the chip
-      // mitigation that made Brute too dominant on Act 1.
+      // Taunt 1 only, no Armor: keeps the wall identity without the chip mitigation
+      // that made Brute too dominant in Act 1.
       abilities: ['Taunt 1'],
       desc: '',
     },
   ],
 
   // ----- Data: etch pool (status modifiers by rarity tier) -----
-  // Each etch is an object { id, name, apply }. apply mutates the runtime
-  // card instance; abilities array gets the keyword pushed so the card
-  // renderer shows the badge. User direction: "really cut back on the
-  // rarity of edges. A lot of them should be common." So commons are
+  // Each etch is an object { id, name, apply }. apply mutates the runtime card
+  // instance and pushes the keyword so the renderer shows the badge. Commons are
   // the bulk of the pool — simple stat bumps + basic keywords.
-  // Helper: bump a stackable counter keyword to a new total. Replaces
-  // an existing "Keyword N" badge with "Keyword <total>" so etching
-  // Splash 1 onto a card that already has Splash 4 reads as a single
-  // Splash 5 badge instead of two stacked rows. User report:
-  // "Deathstroke base Splash 4 + Splash 1 etch should just be Splash 5,
-  // not two badges." Same logic applies to Evade, Armor, Taunt,
-  // Discount, Splash, etc. — anything with a "<Keyword> N" form.
+  // Helper: bump a stackable counter keyword to a new total, replacing an
+  // existing "Keyword N" badge with "Keyword <total>" (Splash 4 + Splash 1 etch
+  // reads as one Splash 5 badge, not two rows). Applies to any "<Keyword> N" form.
   _bumpKw(c, keyword, total) {
     if (!c || !Array.isArray(c.abilities)) return;
     const re = new RegExp('^' + keyword + '(\\s+\\d+)?$', 'i');
@@ -234,11 +202,9 @@ const Roguelite = {
     else c.abilities.push(badge);
   },
 
-  // Display-name map for rarity labels. Internal tier strings are
-  // common/rare/special/legendary (kept stable so we don't break
-  // RARITY_DESCS keys, ETCHES tiers, save state, etc.). User direction:
-  // "the naming of green is common, blue is uncommon, white is rare,
-  // and gold is legendary." So the labels we SHOW the player are:
+  // Display-name map for rarity labels. Internal tier strings stay
+  // common/rare/special/legendary (RARITY_DESCS keys, ETCHES tiers, save state
+  // depend on them). Labels SHOWN to the player:
   //   common    → "Common"
   //   rare      → "Uncommon"
   //   special   → "Rare"
@@ -259,9 +225,8 @@ const Roguelite = {
     common: [
       { id: 'plus1-atk',     name: '+1 ATK',    apply: c => { c.attack += 1; } },
       { id: 'plus1-hp',      name: '+1 HP',     apply: c => { c.health += 1; c.maxHealth += 1; c.currentHealth += 1; } },
-      // plus1-atk-hp moved to rare tier — audit finding: a single
-      // common etch worth two stat picks was rare-tier value at common
-      // pricing. The combined +1/+1 now lives at rare alongside +2/+2.
+      // plus1-atk-hp lives in the rare tier: two stat points in one etch is
+      // rare-tier value.
       { id: 'evade-1',       name: 'Evade 1',   apply: c => { c.evadeCharges = (c.evadeCharges || 0) + 1; Roguelite._bumpKw(c, 'Evade', c.evadeCharges); } },
       { id: 'bullseye',      name: 'Bullseye',  apply: c => { c.isBullseye = true; if (!c.abilities.includes('Bullseye')) c.abilities.push('Bullseye'); } },
       { id: 'splash-1',      name: 'Splash 1',  apply: c => { c.splashRange = (c.splashRange || 0) + 1; Roguelite._bumpKw(c, 'Splash', c.splashRange); } },
@@ -271,26 +236,22 @@ const Roguelite = {
       { id: 'discount-1',    name: 'Discount 1', apply: c => { const before = c.baseCost || c.cost || 0; c.cost = Math.max(0, (c.cost || 0) - 1); c.baseCost = Math.max(0, (c.baseCost || before) - 1); c._discountTotal = (c._discountTotal || 0) + 1; Roguelite._bumpKw(c, 'Discount', c._discountTotal); } },
       { id: 'taunt-1',       name: 'Taunt 1',   apply: c => { c.tauntTurns = Math.max(c.tauntTurns || 0, 0) + 1; Roguelite._bumpKw(c, 'Taunt', c.tauntTurns); } },
       // Crazy + Insane intentionally NOT in the etch pool — they're
-      // ATK-randomizers (debuff-shaped), not upgrades. User: "kinda
-      // like debuffs to the cards, just get those out of there."
+      // ATK-randomizers (debuff-shaped), not upgrades.
     ],
     rare: [
       { id: 'plus2-atk',     name: '+2 ATK',    apply: c => { c.attack += 2; } },
       { id: 'plus2-hp',      name: '+2 HP',     apply: c => { c.health += 2; c.maxHealth += 2; c.currentHealth += 2; } },
       { id: 'plus2-atk-hp',  name: '+2/+2',     apply: c => { c.attack += 2; c.health += 2; c.maxHealth += 2; c.currentHealth += 2; } },
-      // Promoted from common — audit finding: +1/+1 in one etch was
-      // rare-tier value. Stays at +1/+1 (not bumped to +1.5/+1.5);
-      // serves as the early/mid rare stat pick alongside +2/+2.
+      // +1/+1 in one etch is rare-tier value; the early/mid rare stat pick
+      // alongside +2/+2.
       { id: 'plus1-atk-hp',  name: '+1/+1',     apply: c => { c.attack += 1; c.health += 1; c.maxHealth += 1; c.currentHealth += 1; } },
       { id: 'evade-2',       name: 'Evade 2',   apply: c => { c.evadeCharges = (c.evadeCharges || 0) + 2; Roguelite._bumpKw(c, 'Evade', c.evadeCharges); } },
       { id: 'overdrive',     name: 'Overdrive', apply: c => { c.isOverdrive = true; if (!c.abilities.includes('Overdrive')) c.abilities.push('Overdrive'); } },
       { id: 'splash-2',      name: 'Splash 2',  apply: c => { c.splashRange = (c.splashRange || 0) + 2; Roguelite._bumpKw(c, 'Splash', c.splashRange); } },
       { id: 'armor-2',       name: 'Armor 2',   apply: c => { c.armorValue = (c.armorValue || 0) + 2; Roguelite._bumpKw(c, 'Armor', c.armorValue); } },
       { id: 'fear-1',        name: 'Fear 1',    apply: c => { c.hasFear = (c.hasFear || 0) + 1; Roguelite._bumpKw(c, 'Fear', c.hasFear); } },
-      // Freeze etch (rare) — symmetric to Fear 1. When this card is
-      // played, it freezes a chosen enemy for 1 turn. Audit finding:
-      // Fear had a scalable etch but Freeze didn't, leaving cold-deck
-      // builds without a parallel etch lever.
+      // Freeze etch (rare) — symmetric to Fear 1: when played, freezes a chosen
+      // enemy for 1 turn. Gives cold-deck builds a parallel etch lever.
       { id: 'freeze-1',      name: 'Freeze 1',  apply: c => { c.hasFreeze = (c.hasFreeze || 0) + 1; Roguelite._bumpKw(c, 'Freeze', c.hasFreeze); } },
       { id: 'immunity-1',    name: 'Immunity 1', apply: c => { c.immunityCharges = (c.immunityCharges || 0) + 1; Roguelite._bumpKw(c, 'Immunity', c.immunityCharges); } },
       { id: 'draw-1',        name: 'Draw 1',    apply: c => { c.drawOnPlay = (c.drawOnPlay || 0) + 1; Roguelite._bumpKw(c, 'Draw', c.drawOnPlay); } },
@@ -299,8 +260,8 @@ const Roguelite = {
       // MC 1 (rare) — on play, mind-control 1 enemy this turn.
       // Symmetric with Fear 1 / Freeze 1 at the same tier.
       { id: 'mc-1',          name: 'MC 1',      apply: c => { c.hasMc = (c.hasMc || 0) + 1; Roguelite._bumpKw(c, 'MC', c.hasMc); } },
-      // (Cantrip removed — its effect was identical to Draw 1; merged.)
-      // (Steady moved to _INTERNAL — used only by save-compat lookup.)
+      // (Cantrip is identical to Draw 1, so it isn't a separate etch.)
+      // (Steady lives in _INTERNAL — used only by save-compat lookup.)
     ],
     special: [
       { id: 'plus3-atk',     name: '+3 ATK',    apply: c => { c.attack += 3; } },
@@ -323,9 +284,8 @@ const Roguelite = {
       // Mark (special) — adjacent allies gain Bullseye on this card's
       // play. Aura-style support for splash / direct-damage builds.
       { id: 'mark',          name: 'Mark',      apply: c => { c.hasMark = (c.hasMark || 0) + 1; if (!c.abilities.includes('Mark')) c.abilities.push('Mark'); } },
-      // (Berserker / Zealot moved to _INTERNAL — boss decks still
-      // reference these via BOSS_DECK_ETCHES; level-up roller iterates
-      // TIERS only and so won't draft them.)
+      // (Berserker / Zealot live in _INTERNAL — boss decks still reference them via
+      // BOSS_DECK_ETCHES; the level-up roller iterates TIERS only and won't draft them.)
     ],
     legendary: [
       { id: 'plus4-atk',     name: '+4 ATK',    apply: c => { c.attack += 4; } },
@@ -334,29 +294,22 @@ const Roguelite = {
       { id: 'splash-4',      name: 'Splash 4',  apply: c => { c.splashRange = (c.splashRange || 0) + 4; Roguelite._bumpKw(c, 'Splash', c.splashRange); } },
       { id: 'evade-4',       name: 'Evade 4',   apply: c => { c.evadeCharges = (c.evadeCharges || 0) + 4; Roguelite._bumpKw(c, 'Evade', c.evadeCharges); } },
       { id: 'phoenix',       name: 'Phoenix',   apply: c => { c.hasPhoenix = (c.hasPhoenix || 0) + 1; if (!c.abilities.includes('Phoenix')) c.abilities.push('Phoenix'); } },
-      // (Echo moved to _INTERNAL — heavily used in BOSS_DECK_ETCHES
-      // signatures (Hela, Galactus, Trigon, Loki, etc.). Removed from
-      // the legendary draft pool so players can't roll it from level-
-      // ups, but boss decks still look it up via _findEtch.)
+      // (Echo lives in _INTERNAL — heavily used in BOSS_DECK_ETCHES signatures
+      // (Hela, Galactus, Trigon, Loki, etc.). Not in the legendary draft pool, so
+      // players can't roll it from level-ups; boss decks look it up via _findEtch.)
       { id: 'discount-4',    name: 'Discount 4', apply: c => { const before = c.baseCost || c.cost || 0; c.cost = Math.max(0, (c.cost || 0) - 4); c.baseCost = Math.max(0, (c.baseCost || before) - 4); c._discountTotal = (c._discountTotal || 0) + 4; Roguelite._bumpKw(c, 'Discount', c._discountTotal); } },
       // ----- TEXT etch -----
-      // Scales this card's printed ability up by one rarity tier when
-      // Game.rarityValue() resolves it. So a Rare Hawkeye with a Text+
-      // etch reads its Splash value at the Special tier (Splash 2),
-      // and a Black Widow with Text+ freezes 2 instead of 1. User
-      // direction: "the text etch should effect the scalar on the
-      // text ability — like Hawkeye's 'When played: Splash 1' becomes
-      // 'When played: Splash 2'. The text tech is the Legendary quality
-      // upgrade so it's rare to get." Lives in the legendary tier so
-      // it only drops on big promotions.
+      // Scales this card's printed ability up one rarity tier when Game.rarityValue()
+      // resolves it (a Rare Hawkeye with Text+ reads Splash at the Special tier,
+      // Splash 2; Black Widow freezes 2 instead of 1). Legendary tier, so it only
+      // drops on big promotions.
       { id: 'text-upgrade', name: 'Text+', apply: c => { c.textTierBumps = (c.textTierBumps || 0) + 1; if (!c.abilities.includes('Text+')) c.abilities.push('Text+'); } },
     ],
     // ----- Internal-only etches -----
-    // Defined here so `_findEtch` can still resolve them (boss decks
-    // reference these via BOSS_DECK_ETCHES, and saved decks built
-    // before the keyword pruning may still carry them). NOT in the
-    // TIERS list, so the level-up bucket roller and rarity coloring
-    // never see them — players can't draft these from picks.
+    // Defined so `_findEtch` can still resolve them (boss decks via
+    // BOSS_DECK_ETCHES, and older saved decks may still carry them). NOT in the
+    // TIERS list, so the level-up roller and rarity coloring never see them —
+    // players can't draft these.
     _internal: [
       { id: 'echo',          name: 'Echo',      apply: c => { c.hasEcho = (c.hasEcho || 0) + 1; if (!c.abilities.includes('Echo')) c.abilities.push('Echo'); } },
       { id: 'berserker',     name: 'Berserker', apply: c => { c.hasBerserker = (c.hasBerserker || 0) + 1; if (!c.abilities.includes('Berserker')) c.abilities.push('Berserker'); } },
@@ -431,26 +384,18 @@ const Roguelite = {
   RELICS: [
     // ----- Common (event + shop) -----
     // ----- STARTER-RELIC BALANCE -----
-    // User feedback (paraphrased): "Battery and Old Manuscript are
-    // broken — I just choose those every time. Crimson Cuirass and
-    // Lucky Coin are weak. Lucky Coin should give +10g per win, not 5."
-    //
-    // Slay-the-Spire-style: each starter relic should be a distinct
-    // playstyle anchor at roughly equivalent power, not a power-creep
-    // ladder. So:
-    //   • Cuirass    → bigger HP buffer (+10 max + 10 heal). Survival anchor.
-    //   • Lucky Coin → +10g/win (was 5). Economy anchor.
+    // Each starter relic is a distinct playstyle anchor at roughly equal power,
+    // not a power-creep ladder:
+    //   • Cuirass    → +10 max HP. Survival anchor.
+    //   • Lucky Coin → +10g/win. Economy anchor.
     //   • Manuscript → ROUND-1 ONLY +1 draw. Burst anchor.
     //   • Battery    → ROUND-1 ONLY +1 energy. Burst anchor.
     // The two "burst" relics give a tempo lead in round 1 without
     // free-rolling +1 energy/draw every round of every fight.
     {
       id: 'crimson-cuirass', name: 'Crimson Cuirass', rarity: 'common',
-      // User direction: "Crimson Cuirass is at the beginning of the
-      // run, so you don't need to heal on pickup." The "heal 10" was
-      // a no-op when the player was already at full HP at run start.
-      // Now just bumps both max HP and current HP by 10 — clean
-      // survival-anchor messaging.
+      // No heal on pickup: Cuirass is taken at run start (already full HP), so it
+      // just bumps max and current HP by 10.
       desc: '+10 max HP.',
       onAcquire(run) {
         run.maxHp += 10; run.hp += 10;
@@ -494,18 +439,12 @@ const Roguelite = {
       desc: 'All your cards gain Armor 1.',
       onCardBuild(run, card) { card.armorValue = (card.armorValue || 0) + 1; if (!card.abilities.includes('Armor 1')) card.abilities.push('Armor 1'); },
     },
-    // Slay-the-Spire-inspired additions. Each one slots a distinct
-    // playstyle nudge so the common pool isn't just six survival
-    // anchors. User direction: "Maybe there should be more relics in
-    // the game. We can just add some. Just take inspiration from Slay
-    // the Spire."
+    // Slay-the-Spire-inspired additions, each a distinct playstyle nudge so the
+    // common pool isn't just survival anchors.
     {
       id: 'anchor', name: 'Anchor', rarity: 'common',
       desc: '+2 HP-loss reduction every fight (passive).',
-      // Passive damage reduction relic. The previous Iron Maiden (rare)
-      // also touched _dmgReduction but pinched the player's max HP as a
-      // trade — Iron Maiden has been removed, so Anchor is now the
-      // unambiguous DR pick with no downside.
+      // Passive damage reduction with no downside — the sole DR pick.
       onAcquire(run) { run._dmgReduction = (run._dmgReduction || 0) + 2; },
     },
     {
@@ -537,10 +476,8 @@ const Roguelite = {
       desc: 'All your cards gain Lifesteal 1.',
       onCardBuild(run, card) { card.hasLifesteal = (card.hasLifesteal || 0) + 1; if (!card.abilities.includes('Lifesteal')) card.abilities.push('Lifesteal'); },
     },
-    // Iron Maiden removed per user direction. Same reasoning as the
-    // ascension-2 player-HP nerf: trade-relics that pinch the player's
-    // max HP feel like punishment, not strategy. Anchor (common) covers
-    // the "passive HP loss reduction" niche without the maxHp penalty.
+    // No trade-relics that pinch the player's max HP (they feel like punishment,
+    // not strategy); Anchor (common) covers passive HP-loss reduction.
     {
       id: 'phoenix-feather', name: 'Phoenix Feather', rarity: 'rare',
       desc: 'Once per run, revive from lethal HP loss to 1 HP.',
@@ -563,11 +500,8 @@ const Roguelite = {
     },
     {
       id: 'smiling-mask', name: 'Smiling Mask', rarity: 'rare',
-      // Broadened from starter-only → cost-1 → cost-≤3 per user
-      // direction. Cost-1 stays relevant but the buff was hitting too
-      // narrow a slice; cost-≤3 covers the common-rarity body bracket
-      // (Goon, Thug, Brute, Penguin, Black Cat, Joker, etc.) without
-      // touching the high-cost finishers. Re-tune ATK if it overshoots.
+      // Cost-≤3 covers the common-rarity body bracket (Goon, Thug, Brute, Penguin,
+      // Black Cat, Joker, etc.) without touching high-cost finishers.
       desc: '+2 ATK on all cost-3 or lower cards.',
       onCardBuild(run, card) {
         if ((card.baseCost || card.cost || 0) <= 3) {
@@ -579,10 +513,9 @@ const Roguelite = {
     // ----- Boss (act-clear rewards) -----
     {
       id: 'mirror-shard', name: 'Mirror Shard', rarity: 'boss',
-      // Capped to cost ≤ 5 — applying Echo to a Galactus / Dr. Manhattan /
-      // Knull / 10-cost crusher made one relic auto-win the run. The
-      // intended swarm-doubling fantasy still works on every cheap and
-      // mid-cost body, just without the late-game double-tap.
+      // Capped to cost ≤ 5 — Echo on a Galactus / Dr. Manhattan / Knull / 10-cost
+      // crusher makes one relic auto-win the run. The swarm-doubling fantasy still
+      // works on every cheap and mid-cost body.
       desc: 'Your cards with cost ≤ 5 gain Echo (effects fire twice).',
       onCardBuild(run, card) {
         if ((card.baseCost || card.cost || 0) > 5) return;
@@ -597,11 +530,8 @@ const Roguelite = {
     },
     {
       id: 'reality-stone', name: 'Reality Stone', rarity: 'boss',
-      // Rarity-tiered floor — common cards can hit 0 (the original
-      // full discount), but rare and above stay anchored to a minimum
-      // cost so the relic doesn't trivialize the whole deck. Audit
-      // finding: blanket -1 with min 0 made every cheap body free
-      // and turned high-cost cards into mid-cost cards every run.
+      // Rarity-tiered floor — commons can hit 0, but rare and above keep a minimum
+      // cost so the relic doesn't make every cheap body free and every finisher mid-cost.
       desc: 'Cards cost 1 less. Floor by rarity: Common→0 · Rare→1 · Special→2 · Legendary→3.',
       onCardBuild(run, card) {
         const rarity = card._runRarity || 'common';
@@ -627,16 +557,12 @@ const Roguelite = {
         }
       },
     },
-    // Slay-the-Spire-inspired boss addition. StS Cursed Key trades a
-    // free energy/turn for a curse card — we don't have a curse system
-    // wired into the rng deck, so the cost lands on max HP instead.
+    // Slay-the-Spire-inspired boss relic. StS Cursed Key trades energy for a
+    // curse card; here the cost lands on max HP instead.
     {
       id: 'cursed-key', name: 'Cursed Key', rarity: 'boss',
-      // Softened — old behavior was -10 max HP, which made this a TRAP
-      // pickup at low HP (a 12 HP run couldn't even afford to take it).
-      // Now -5 max HP plus a 5 HP heal on pickup, so the long-run cost
-      // stays meaningful but the bar moves and current HP doesn't drop
-      // immediately. The +1 energy/round value remains.
+      // -5 max HP plus a 5 HP heal on pickup, so it isn't a trap at low HP and
+      // current HP doesn't drop immediately. +1 energy/round.
       desc: '+1 starting energy each round. -5 max HP on pickup (heals 5 HP up to the new cap).',
       onAcquire(run) {
         run.maxHp = Math.max(10, run.maxHp - 5);
@@ -645,10 +571,8 @@ const Roguelite = {
       onFightStart(run) { run._extraEnergy = (run._extraEnergy || 0) + 1; },
     },
     // ===== Expansion pack — round-N relic additions ==================
-    // User direction: "more relics." All wire through the existing
-    // hooks (onAcquire / onCardBuild / onFightStart / onFightEnd) so
-    // no engine surgery — they just modify run state or runtime card
-    // stats at canonical decision points.
+    // All wire through the existing hooks (onAcquire / onCardBuild / onFightStart
+    // / onFightEnd) — no engine surgery.
     // ----- Common -----
     {
       id: 'iron-toes', name: 'Iron Toes', rarity: 'common',
@@ -737,10 +661,9 @@ const Roguelite = {
 
   // Apply a hook across all owned relics. Errors caught + logged so a
   // bad relic def doesn't kill the run.
-  // Returns true if any relic fired a hook in the last 3 seconds.
-  // Drives the brief gold pulse on the RELICS HUD button so the
-  // player notices their relics actually triggered. The 3s window
-  // covers the post-fight banner + the rewards screen entry.
+  // Returns true if any relic fired a hook in the last 3 seconds. Drives the
+  // gold pulse on the RELICS HUD button; 3s covers the post-fight banner + the
+  // rewards screen entry.
   _relicPulseRecent(run) {
     if (!run || !run._relicPulses) return false;
     const now = Date.now();
@@ -760,11 +683,8 @@ const Roguelite = {
       const r = this.RELICS.find(x => x.id === rid);
       if (r && typeof r[hookName] === 'function') {
         try { r[hookName](run, ...args); } catch (e) { console.warn('[RELIC]', rid, hookName, e); }
-        // Mark relic as "recently triggered" so the next render flashes
-        // its chip in the relic strip. User polish: "when a relic
-        // fires, the chip pulses gold so the player sees that the
-        // relic actually did something." Skip onCardBuild — it fires
-        // for every card and would just constant-pulse the chips.
+        // Mark relic as "recently triggered" so the next render pulses its chip gold.
+        // Skip onCardBuild — it fires for every card and would constant-pulse the chips.
         if (hookName !== 'onCardBuild') {
           run._relicPulses = run._relicPulses || {};
           run._relicPulses[rid] = Date.now();
@@ -775,8 +695,7 @@ const Roguelite = {
 
   // Grant a relic to the run. Idempotent — duplicates rejected.
   // Fires onAcquire so any one-shot effect (HP bump, gold, etc.) lands
-  // immediately. Spawns an acquire toast so the player notices the
-  // addition (was silent — relics just appeared in the count).
+  // immediately, and spawns an acquire toast so the player notices.
   grantRelic(run, relicId) {
     if (!run || !relicId) return false;
     if (run.relics.includes(relicId)) return false;
@@ -792,8 +711,7 @@ const Roguelite = {
     // Toast — show the icon glyph + relic name with rarity tint.
     const glyph = this._relicIcon(r);
     this.showToast(`<span class="rl-toast-glyph">${glyph}</span><span class="rl-toast-text"><b>${r.name}</b><span class="rl-toast-sub">${this.displayRarity(r.rarity).toUpperCase()} RELIC</span></span>`, 'relic');
-    // Audio cue — golden fanfare on relic pickup. Audit finding:
-    // relic acquisition was silent.
+    // Audio cue — golden fanfare on relic pickup.
     if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.play) {
       try { UI.sfx.play('relicAcquire'); } catch (e) {}
     }
@@ -815,15 +733,10 @@ const Roguelite = {
   },
 
   // ----- Per-rarity description swaps -----
-  // For cards that have rarity-driven ability variants (via
-  // Game.rarityValue), the codex text needs to reflect the actual
-  // behavior at the displayed rarity tier. If a card has an entry
-  // here, _renderCodexCard reads from this table instead of the def
-  // desc. Cards without an entry fall through to their base def
-  // description (so we only write variants for cards we explicitly
-  // tune). User direction: "do not change cards from roguelite into
-  // the game — they're two separate entities." — these strings are
-  // ROGUELITE-ONLY.
+  // For cards with rarity-driven ability variants (via Game.rarityValue), the
+  // codex text must match behavior at the displayed tier. _renderCodexCard reads
+  // from this table when a card has an entry; otherwise it uses the def desc.
+  // These strings are ROGUELITE-ONLY — never change classic cards from here.
   RARITY_DESCS: {
     'Gorilla Grodd': {
       common:    'WHEN PLAYED: Mind Control 1 an enemy with cost ≤ 1. You choose which of its own allies it attacks this turn.',
@@ -879,7 +792,7 @@ const Roguelite = {
       special:   'Can be played during the Trick Phase. WHEN PLAYED: Destroy enemies in 4 random lanes.',
       legendary: 'Can be played during the Trick Phase. WHEN PLAYED: Destroy enemies in 5 random lanes.',
     },
-    // The pull is a WHEN DESTROYED payoff now, not part of her entrance — see
+    // The pull is a WHEN DESTROYED payoff, not part of her entrance — see
     // Hela's onDeath in abilities.js. These tier strings are the roguelite
     // readout of the same ability, so they move with it or they lie.
     'Hela': {
@@ -924,37 +837,28 @@ const Roguelite = {
       special:   'WHEN PLAYED: Even-lane enemies get -1/-2. Force opponent\'s next 3 card placements.',
       legendary: 'WHEN PLAYED: Even-lane enemies get -1/-2. Force opponent\'s next 4 card placements.',
     },
-    // Dr. Strange — text fix. cards.js prints "peek at the top 2 cards
-    // — keep one, the other goes to the opponent" (the classic-mode
-    // path), but roguelite scry is peek-3 and the others sink to the
-    // bottom of YOUR pile (not the opponent's hand). This mismatch
-    // surfaced in the audit's #1 sweep.
+    // Dr. Strange — roguelite scry is peek-3 with the others sinking to the bottom
+    // of YOUR pile, unlike the classic cards.js text (peek 2, other to opponent).
     'Dr. Strange': {
       common:    'WHEN PLAYED: Next draw phase, peek at the top 3 cards — keep one, the other two sink to the bottom of your draw pile. WHILE ACTIVE: Adjacent allies gain Untrickable.',
       rare:      'WHEN PLAYED: Next draw phase, peek at the top 3 cards — keep one, the other two sink to the bottom of your draw pile. WHILE ACTIVE: Adjacent allies gain Untrickable.',
       special:   'WHEN PLAYED: Next draw phase, peek at the top 3 cards — keep one, the other two sink to the bottom of your draw pile. WHILE ACTIVE: Adjacent allies gain Untrickable.',
       legendary: 'WHEN PLAYED: Next draw phase, peek at the top 3 cards — keep one, the other two sink to the bottom of your draw pile. WHILE ACTIVE: Adjacent allies gain Untrickable.',
     },
-    // Solomon Grundy — text fix. cards.js prints "shared Dead Pile" but
-    // the roguelite engine path scavenges from YOUR dead pile only
-    // (user feedback: shared scavenge stacked too easily with Lex
-    // bypass). Override desc so the printed text matches behavior.
+    // Solomon Grundy — the roguelite path scavenges from YOUR dead pile only (not
+    // the shared one cards.js prints), so the text matches that.
     'Solomon Grundy': {
       common:    'WHEN DESTROYED: Draw a random card from your Dead Pile to your hand.',
       rare:      'WHEN DESTROYED: Draw a random card from your Dead Pile to your hand.',
       special:   'WHEN DESTROYED: Draw a random card from your Dead Pile to your hand.',
       legendary: 'WHEN DESTROYED: Draw a random card from your Dead Pile to your hand.',
     },
-    // Lex Luthor — softened from the classic full lock. User direction:
-    // "Have Lex Luthor say while active, the opponent only draws one
-    // card per turn. That's his rare ability. If you upgrade it for
-    // the text, it would be the opponent cannot draw any cards or
-    // make bonus attacks." All four tiers print the soft cap; the
-    // Text+ etch (CARD_TEXT_UPGRADES['Lex Luthor']) restores the full
-    // lockdown via the _lexFullLock flag read by drawCards /
-    // drainBonusAttacks. Roguelite-only — classic-mode Lex always
-    // applies the full block (his preventDraw passive is unconditional
-    // outside the roguelite mode check in drawCards).
+    // Lex Luthor — softened from the classic full lock: all four tiers print the
+    // opponent draws only one card per turn. The Text+ etch
+    // (CARD_TEXT_UPGRADES['Lex Luthor']) restores the full lockdown (no draws, no
+    // bonus attacks) via the _lexFullLock flag read by drawCards /
+    // drainBonusAttacks. Classic-mode Lex always applies the full block (his
+    // preventDraw passive is unconditional outside the roguelite check in drawCards).
     'Lex Luthor': {
       common:    'WHILE ACTIVE: The opponent only draws 1 card per turn. (Tricks unaffected.)',
       rare:      'WHILE ACTIVE: The opponent only draws 1 card per turn. (Tricks unaffected.)',
@@ -975,19 +879,15 @@ const Roguelite = {
     },
   },
 
-  // Card-rarity drop weights at draft time. Most cards you see are
-  // common (just base text); rares are notable, specials are punchy,
-  // legendaries are the "I just topdecked god" moments. Each rarity
-  // confers N starter etches, scaled by tier.
-  // Per-act card-rarity drop weights. User direction (paraphrased):
-  // "Act 1 should rarely show Special/Legendary, Act 3 should rarely
-  // show Common." This tilts the reward curve so early-act picks feel
-  // like grunts and late-act picks feel like jackpots.
+  // Card-rarity drop weights at draft time. Each rarity confers N starter
+  // etches, scaled by tier.
+  // Per-act weights tilt the reward curve: early picks feel like grunts, late
+  // picks like jackpots (common / rare / special / legendary):
   //   Act 1 — Common-heavy:    65 / 30 / 5 / 0
   //   Act 2 — balanced mid:    35 / 40 / 20 / 5
   //   Act 3 — Legendary-bias:   5 / 25 / 50 / 20
-  // The legacy `CARD_DROP_WEIGHTS` field stays as a pre-act fallback
-  // (used when act isn't passed, e.g. event-bridged rolls).
+  // `CARD_DROP_WEIGHTS` is the fallback when act isn't passed (e.g.
+  // event-bridged rolls).
   CARD_DROP_WEIGHTS: { common: 60, rare: 25, special: 12, legendary: 3 },
   CARD_DROP_WEIGHTS_BY_ACT: {
     1: { common: 65, rare: 30, special: 5,  legendary: 0  },
@@ -995,35 +895,23 @@ const Roguelite = {
     3: { common: 5,  rare: 25, special: 50, legendary: 20 },
   },
   CARD_RARITY_ETCH_COUNT: { common: 0, rare: 1, special: 2, legendary: 3 },
-  // Tiered XP thresholds — Common→Uncommon is fast (early commitment),
-  // Uncommon→Rare medium, Rare→Legendary a real grind. Previous flat-ish
-  // curve (40/120/280) made Legendary unreachable in a single run; the
-  // new curve (30/80/160) lands a Legendary on a 4-5 fight commitment
-  // for a card you actually use.
+  // Tiered XP thresholds — Common→Uncommon fast (early commitment),
+  // Uncommon→Rare medium, Rare→Legendary a grind. 30/80/160 lands a Legendary
+  // on a 4-5 fight commitment for a card you actually use.
   XP_THRESHOLDS: { common: 30, rare: 80, special: 160 },
   TIERS: ['common', 'rare', 'special', 'legendary'],
   TIER_INDEX: { common: 0, rare: 1, special: 2, legendary: 3 },
 
   // ----- Run state init -----
-  // Starter tricks — every run begins with a small utility trick set so
-  // the trick phase isn't dead air during early fights. Pulled from the
-  // existing TRICK_DEFS pool, weighted toward cheap utility (Bat Signal,
-  // Mother Box, Bifrost). Players grow their trick hand from rewards.
-  // 6 starter tricks (user spec): 2 Mother Box, 2 Smoke Pellet, 2
-  // Kryptonite. Provides a stable utility kit — summon body, evade
-  // buff, ATK debuff — without leaning on any one strong trick.
+  // Starter tricks so the trick phase isn't dead air early: 2 Mother Box,
+  // 2 Smoke Pellet, 2 Kryptonite — summon body, evade buff, ATK debuff, without
+  // leaning on any one strong trick. Players grow their trick hand from rewards.
   STARTER_TRICK_NAMES: ['Mother Box', 'Mother Box', 'Smoke Pellet', 'Smoke Pellet', 'Kryptonite', 'Kryptonite'],
 
-  // Helper: build a deckCard with a fresh stat roll. Centralizes the
-  // shape so every code path (starter deck, rewards, boon adds, future
-  // shop / event buys) gets the variance.
-  // Build a deckCard: the run-state record for one card slot. No more
-  // statRoll RNG — stats are derived from rarity tier at runtime via
-  // _resolveStats. The `_isStarter` flag tags the 9 starter goons so
-  // they keep their listed face stats regardless of tier. Starter
-  // cards begin at "common" rarity but display at base stats (floor)
-  // and can still level up to rare/special/legendary, gaining tier
-  // bumps from there.
+  // Build a deckCard: the run-state record for one card slot. Stats are derived
+  // from rarity tier at runtime via _resolveStats. `_isStarter` tags the 9
+  // starter goons so they keep their face stats; they begin at "common" and can
+  // still level up, gaining tier bumps from there.
   _makeDeckCard(defName, rarity, statuses, isStarter) {
     return {
       defName,
@@ -1035,11 +923,9 @@ const Roguelite = {
   },
 
   initRun(boon) {
-    // Starter deck: 3 of each vanilla body. User spec: "I want 3 Goon
-    // (1/1), 3 Thug (2/2), 3 Brute (3/4)." Predictable like StS's
-    // Strike/Defend opener — every run starts in the same shape so
-    // the player can ramp around a known floor. _isStarter flag means
-    // these cards never get the Common −1/−1 tier penalty.
+    // Starter deck: 3 each of Goon (1/1), Thug (2/2), Brute (3/4). Every run starts
+    // in the same shape, like StS's Strike/Defend. _isStarter means no Common −1/−1
+    // tier penalty.
     const starterDeck = [
       this._makeDeckCard('Goon',  'common', [], true),
       this._makeDeckCard('Goon',  'common', [], true),
@@ -1070,10 +956,8 @@ const Roguelite = {
       boon: boon || null,
       pendingRewards: null,
       lastResult: null,
-      // Lifetime run counters — surfaced on the end-of-run summary.
-      // User polish suggestion: "Add a 'Run Complete' panel with total
-      // gold earned, fights won, time taken, etc." Counters increment
-      // in _onFightEnd and other state-mutation hooks.
+      // Lifetime run counters for the end-of-run summary. Incremented in
+      // _onFightEnd and other state-mutation hooks.
       _stats: {
         startTime: Date.now(),
         fightsWon: 0,
@@ -1087,23 +971,17 @@ const Roguelite = {
       // and the end-of-run summary can show what difficulty was used.
       ascension: this.currentAscension(),
     };
-    // Ascension 2 used to nerf the player to 25 max HP. User feedback:
-    // "Don't touch my max HP. Just make their max health more." A2 is
-    // now an enemy-HP escalation (see ASCENSION_LEVELS above + the
-    // ascHpMul step in buildAiEncounter). Player max HP starts at the
-    // boon-defined value regardless of ascension level.
+    // Ascension never touches player max HP — A2 escalates enemy HP instead (see
+    // ASCENSION_LEVELS + the ascHpMul step in buildAiEncounter). Player max HP
+    // starts at the boon-defined value regardless of ascension.
     if (boon) {
       if (boon.bonusCard) {
         run.deck.push(this._makeDeckCard(boon.bonusCard, 'rare'));
       }
-      // startingHp = current HP value at run start.
-      // startingMaxHp = max HP cap at run start. If a boon only sets
-      // startingHp, the cap stays at the default 30 — so a 20-HP start
-      // begins INJURED at 20/30 and can heal back up to 30. User
-      // direction: "When you start with 20 HP, your max is 30. So if
-      // you heal, you should be able to heal up to 30." Boons that
-      // want to extend the cap (Robust → 40 max) set startingMaxHp
-      // explicitly.
+      // startingHp = current HP at run start; startingMaxHp = cap. If a boon sets
+      // only startingHp, the cap stays at the default 30 — a 20-HP start begins
+      // INJURED at 20/30 and can heal back to 30. Boons that extend the cap
+      // (Robust → 40 max) set startingMaxHp explicitly.
       if (boon.startingMaxHp != null) run.maxHp = boon.startingMaxHp;
       if (boon.startingHp != null)    run.hp    = boon.startingHp;
       if (boon.startingRelic) {
@@ -1145,11 +1023,9 @@ const Roguelite = {
       name: 'Hired Help',
       desc: 'Add a random Rare card (cost 2-6) to your starting deck.',
       apply: () => {
-        // Roll a real (non-vanilla, non-starter) card with cost 2-6.
-        // User direction: "Hire to help should be two to six cost."
-        // Wider band than the original 1-2 so the boon can land mid-
-        // game finishers (Davy Jones, Wonder Woman, Carnage, etc.) instead
-        // of just early-curve bodies.
+        // Roll a real (non-vanilla, non-starter) card with cost 2-6, so the boon can
+        // land mid-game finishers (Davy Jones, Wonder Woman, Carnage...) not just
+        // early-curve bodies.
         if (typeof CARD_DEFS === 'undefined') return {};
         const pool = CARD_DEFS.filter(d =>
           (d.cost || 0) >= 2 && (d.cost || 0) <= 6
@@ -1177,19 +1053,9 @@ const Roguelite = {
   ],
 
   // ----- Map graph generation (Slay-the-Spire-shaped, 3-act) -----
-  // 18 rows total = 3 acts × 6 rows. Each act has its own boss row + a
-  // pre-boss rest. Final boss sits at row 17 with no choice — it's the
-  // climactic single fight. Tier scales by act: rows 0-5 = tier 1 pool,
-  // 6-11 = tier 2, 12-17 = tier 3. The map renders scrollable so the
-  // full 18-row track is visible by panning.
-  // 7 rows × 3 acts = 21 total. User direction: "7 per act because
-  // every act should have a treasure chest that contains a relic.
-  // Plus one more fight node. So 21 total." Each act layout (top→bot):
-  //   row 0   — entry combat row (3-4 nodes)
-  //   row 1-3 — body (combat / event / shop / rest / elite mix)
-  //   row 4   — TREASURE CHEST (guaranteed relic)
-  //   row 5   — pre-boss rest stop
-  //   row 6   — single boss (was 2 boss options)
+  // Each act has an entry row, a body mix, a TREASURE CHEST (guaranteed relic),
+  // a pre-boss rest, and a single boss; the final boss closes Act 3. Tier scales
+  // by act. The map renders scrollable so the full track is visible by panning.
   ACT_BOUNDS: [
     // 8 rows per act:
     //   row 0     entry (6 combat nodes)
@@ -1219,23 +1085,21 @@ const Roguelite = {
     this.ACT_BOUNDS.forEach((act, actIdx) => {
       const tier = act.tier;
       const bodyStart = act.startRow;
-      // Row layout per act (7 rows total):
-      //   row 0          = entry (3-4 combat nodes)
-      //   row 1..3       = body mix (combat/event/shop/rest/elite)
-      //   row 4 (treasureRow)  = single TREASURE chest, guaranteed relic
-      //   row 5          = pre-boss rest
-      //   row 6 (bossRow)= single boss (or final-boss for act 3)
+      // Row layout per act (see ACT_BOUNDS):
+      //   row 0          = entry combat nodes
+      //   row 1..bodyEndRow = body mix (combat/event/shop/rest/elite)
+      //   treasureRow    = single TREASURE chest, guaranteed relic
+      //   treasureRow+1  = pre-boss rest
+      //   bossRow        = single boss (or final-boss for act 3)
       const bodyEndRow = act.treasureRow - 1;
 
-      // Row 0 — 6 entry combat nodes (was 3-4). User direction: "have
-      // the web have 6 starting points." Entry row is wider than the
-      // 5-col body so the lane visual reads as a fan-out.
+      // Row 0 — 6 entry combat nodes, wider than the 5-col body so the map
+      // reads as a fan-out.
       const startCount = 6;
       for (let c = 0; c < startCount; c++) {
         mk(bodyStart, c, 'combat', tier);
       }
       // Body rows (1..bodyEndRow) — combat/event/shop/rest/elite mix.
-      // bodyEndRow widened to 4 (was 3) since acts now have 8 rows.
       for (let r = bodyStart + 1; r <= bodyEndRow; r++) {
         const count = 3 + Math.floor(rng() * 3); // 3-5 nodes
         const offset = Math.floor((6 - count) / 2);
@@ -1250,13 +1114,10 @@ const Roguelite = {
           mk(r, c + offset, type, tier);
         }
       }
-      // Per-type guarantee. User direction: "make every act have at
-      // least 1 of every possible stage: combat, event, shop, rest,
-      // elite etc." The boss/treasure/pre-boss-rest are already
-      // guaranteed by their hardcoded rows below; combat is guaranteed
-      // by the entry row. So we only need to ensure body rows contain
-      // at least one event, shop, rest, AND elite. If any are missing
-      // after the random roll, promote a random body combat node.
+      // Per-type guarantee: every act has at least one of every stage. Boss,
+      // treasure and pre-boss rest are fixed rows and the entry row guarantees
+      // combat, so body rows only need an event, shop, rest AND elite; any missing
+      // after the random roll promotes a random body combat node.
       const bodyNodes = nodes.filter(n => n.row >= bodyStart + 1 && n.row <= bodyEndRow);
       ['event', 'shop', 'rest', 'elite'].forEach(needed => {
         if (bodyNodes.some(n => n.type === needed)) return;
@@ -1265,14 +1126,12 @@ const Roguelite = {
         const pick = combats[Math.floor(rng() * combats.length)];
         pick.type = needed;
       });
-      // Treasure chest row — single centered relic node. User: "every
-      // act should have a treasure chest that contains a relic."
+      // Treasure chest row — single centered relic node.
       mk(act.treasureRow, 2, 'treasure', tier);
       // Pre-boss rest stop centered in the 6-col grid (cols 2-3 are
       // both visually centered; pick 2 to match treasure / boss).
       mk(act.endRow - 1, 2, 'rest', tier);
-      // Boss row — ONE node per act now. User: "I want there to only
-      // be one boss node. Just like Act 3 has one final boss."
+      // Boss row — ONE node per act, like Act 3's single final boss.
       if (actIdx === 2) {
         mk(act.endRow, 2, 'final-boss', tier);
       } else {
@@ -1342,35 +1201,20 @@ const Roguelite = {
       console.warn('Roguelite.buildRunCard: unknown card', deckCard.defName);
       return null;
     }
-    // SHALLOW clone via Object.assign so callback functions (onPlay,
-    // onDeath, passive, etc.) survive — JSON.parse(JSON.stringify(def))
-    // drops every function field, which silently broke Goon's hive,
-    // Thug's strike, and any other ability hook for starter cards.
-    // Deep-copy the abilities array (only mutable list field we care
-    // about) so etch-driven abilities.push doesn't mutate the source.
+    // SHALLOW clone via Object.assign so callback functions (onPlay, onDeath,
+    // passive...) survive — a JSON round-trip drops every function field. The
+    // abilities array is deep-copied so etch-driven pushes don't mutate the source.
     //
-    // Roguelite-only ability strip. User direction: "all status traits
-    // need to be removed from the cards besides Revive — that's the
-    // whole point, to get new status on cards and create more RNG."
-    // So Bullseye, Hunt, Armor N, Taunt N, Evade N, Untrickable,
-    // Overdrive, Splash N, Immunity, Invincible N, Unresistible, Crazy,
-    // Insane all drop here for non-starter / non-curse cards. Etches +
-    // level-ups + relics are how the player EARNS keywords back.
-    //
-    // Revive N stays (death-trigger identity is core for revivers).
-    // Starter cards keep their baseline (Brute's Taunt 1) — that was
-    // an explicit balance call. Curses have no abilities anyway.
-    // STARTER ABILITY INTEGRITY GUARD. User report (multiple times):
-    // "There's still a Brute in the deck that doesn't have Taunt 1.
-    // How many times do we have to go over this? Fix it."
-    //
-    // Root cause: somewhere in the dead-pile → reshuffle → createCardInstance
-    // chain, abilities arrays were drifting. Bulletproof fix: for any
-    // card whose name matches a STARTER_DEFS entry, OR any deck-entry
-    // tagged `_isStarter`, ALWAYS rebuild the abilities from the
-    // canonical STARTER_DEFS source. This way even if `def.abilities`
-    // got mutated, lost, or was pulled from a stale dead-pile entry,
-    // every Brute we build is guaranteed to ship with `['Taunt 1']`.
+    // Roguelite-only ability strip: non-starter / non-curse cards lose all status
+    // traits except Revive (Bullseye, Hunt, Armor N, Taunt N, Evade N,
+    // Untrickable, Overdrive, Splash N, Immunity, Invincible N, Unresistible,
+    // Crazy, Insane). Etches + level-ups + relics are how the player EARNS
+    // keywords back. Revive N stays (death-trigger identity is core for revivers).
+    // Starters keep their baseline (Brute's Taunt 1); curses have no abilities.
+    // STARTER ABILITY INTEGRITY GUARD: abilities can drift through the dead-pile →
+    // reshuffle → createCardInstance chain, so for any card matching a STARTER_DEFS
+    // name or tagged `_isStarter`, ALWAYS rebuild abilities from the canonical
+    // STARTER_DEFS source — every Brute ships with `['Taunt 1']`.
     const starterDef = this.STARTER_DEFS.find(s => s.name === deckCard.defName);
     const isStarter  = deckCard._isStarter || !!starterDef;
     const rawAbilities = (isStarter && starterDef)
@@ -1387,19 +1231,14 @@ const Roguelite = {
     clone.attack = resolved.atk;
     clone.health = resolved.hp;
     const card = Game.createCardInstance(clone, owner);
-    // Strip etches that don't belong on this card type. For discard-only
-    // cards (Catwoman / Mr. Fantastic / Jigsaw / Professor X) only
-    // energy + Text+ etches are valid — anything else (stat bumps,
-    // trait keywords) was rolled by an old build before the discard
-    // filter shipped. User report: "Mr. Fantastic showed up with
-    // Evade 2 + Unresistible 1, doesn't make sense, he's not on the
-    // board." Sanitizing here AND at codex/reward render time ensures
-    // existing saves get cleaned without forcing a run reset.
+    // Strip etches that don't belong on this card type. Discard-only cards
+    // (Catwoman / Mr. Fantastic / Jigsaw / Professor X) only take energy + Text+
+    // etches. Sanitizing here AND at codex/reward render time cleans older saves
+    // without forcing a run reset.
     this._sanitizeDeckCardStatuses(deckCard);
-    // Migrate the now-removed `cantrip` etch id to `draw-1` (same
-    // effect, identical stacking) so saved runs keep their card-draw
-    // upgrade after the keyword merge. One-time, in-place — fresh
-    // runs never have `cantrip` in their statuses.
+    // Migrate the removed `cantrip` etch id to `draw-1` (same effect, identical
+    // stacking) so saved runs keep their upgrade. In-place; fresh runs never
+    // have `cantrip`.
     if (Array.isArray(deckCard.statuses)) {
       for (let i = 0; i < deckCard.statuses.length; i++) {
         if (deckCard.statuses[i] === 'cantrip') deckCard.statuses[i] = 'draw-1';
@@ -1410,32 +1249,22 @@ const Roguelite = {
       const etch = this._findEtch(etchId);
       if (etch) try { etch.apply(card); } catch (e) { console.warn('Etch apply failed', etchId, e); }
     });
-    // Apply relic-driven per-card transformations (Steel Heart →
-    // Armor 1 on every card, Spider Web → Thorns 1 on every card,
-    // Reality Stone → cost -1, etc.). Player-owned cards only — the
-    // run is the player's, AI-side build paths come through different
-    // routes (buildAiEncounter assembles raw defs, doesn't touch
-    // relics).
-    // Tag the card with its run metadata BEFORE the relic hook so
-    // onCardBuild handlers (e.g. Smiling Mask, which keys off the
-    // _isStarter flag on the deckCard) can read run-scoped fields off
-    // the card. Order matters: was previously tagged after the hook,
-    // but new relics need this context.
+    // Apply relic-driven per-card transformations (Steel Heart → Armor 1, Spider
+    // Web → Thorns 1, Reality Stone → cost -1, etc.). Player-owned cards only —
+    // buildAiEncounter assembles AI decks from raw defs without relics.
+    // Tag the card with its run metadata BEFORE the relic hook: onCardBuild
+    // handlers (e.g. Smiling Mask, keyed off deckCard._isStarter) read it.
     card._runDeckCardRef = deckCard;
     card._runRarity = deckCard.rarity;
     if (owner === 'player') {
       const run = Game.state && Game.state.roguelite;
       if (run) this._applyRelicHook(run, 'onCardBuild', card);
     }
-    // DISCARD-ONLY INVARIANT: cards with isDiscardEffect: true never
-    // touch the board — they fire when discarded. Stat values are
-    // meaningless for them. User direction: "Discards can't gain
-    // stats. It can only be energy reduction. And text." So after
-    // every etch + relic has run, force discard cards back to 0/0 so
-    // a stray +1 ATK etch (rolled before this filter shipped) or a
-    // global-stats relic (Whetstone, Bag of Marbles) can't paint them
-    // with body stats. Splash/armor/etc. ALSO get cleared since the
-    // card never enters a lane.
+    // DISCARD-ONLY INVARIANT: isDiscardEffect cards never touch the board, so they
+    // can't gain stats — only energy reduction and text. After every etch + relic
+    // has run, force them back to 0/0 so a stray +1 ATK etch or a global-stats
+    // relic (Whetstone, Bag of Marbles) can't paint body stats. Splash/armor/etc.
+    // are cleared too since the card never enters a lane.
     if (this._isDiscardOnlyCard(deckCard.defName)) {
       card.attack = 0;
       card.baseAttack = 0;
@@ -1452,27 +1281,19 @@ const Roguelite = {
     // def fields, so re-stamp it from the def/deckCard. The dim purple
     // tint, deck-removal hint, and tier-bypass logic all key off this.
     if (def._isCurse || deckCard._isCurse) card._isCurse = true;
-    // PER-RARITY DESCRIPTION SWAP. For cards in RARITY_DESCS (Mr. Freeze,
-    // Hawkeye, Black Widow, etc.), the rarity tier widens the actual
-    // behavior — Mr. Freeze legendary freezes 3 lanes via rarityValue
-    // — but the def's classic desc still reads "Freeze 1 the enemy
-    // opposite". User report: "Card text says Freeze 1, but it acted
-    // like a splash freeze. The text didn't say that. This isn't the
-    // interaction I wanted." Fix: pull the rarity-scaled variant onto
-    // card.desc so the in-game render and tooltips match what actually
-    // happens. Codex / deck list / reward picker already do their own
-    // RARITY_DESCS lookup; this aligns the in-lane render with that.
+    // PER-RARITY DESCRIPTION SWAP. For RARITY_DESCS cards (Mr. Freeze, Hawkeye,
+    // Black Widow...), the tier widens actual behavior via rarityValue (legendary
+    // Mr. Freeze freezes 3 lanes) while the def desc reads the classic text. Pull
+    // the rarity-scaled variant onto card.desc so the in-lane render and tooltips
+    // match; codex / deck list / reward picker do their own RARITY_DESCS lookup.
     const variantDescs = this.RARITY_DESCS && this.RARITY_DESCS[deckCard.defName];
     if (variantDescs && variantDescs[deckCard.rarity]) {
       card.desc = variantDescs[deckCard.rarity];
     }
-    // TEXT+ DESCRIPTION OVERRIDE. User direction: "I would like it to
-    // be literally the text changed on the card. Just literally change
-    // the text of the card." Each CARD_TEXT_UPGRADES entry carries an
-    // optional `descOverride` — the full replacement card desc with
-    // the upgraded values inline. So a Bigger Targets Winter Soldier
-    // shows "destroy enemy with ≤4 ATK" / "(+2/+2) when destroying"
-    // directly in the body text, not as a separate appendix.
+    // TEXT+ DESCRIPTION OVERRIDE. The upgrade literally changes the card text:
+    // each CARD_TEXT_UPGRADES entry may carry a `descOverride` — the full
+    // replacement desc with upgraded values inline (Bigger Targets Winter Soldier
+    // shows "destroy enemy with ≤4 ATK" in the body, not as an appendix).
     // Also stamp 'Text+' onto the abilities array so a status badge
     // surfaces — the player can see the card is upgraded at a glance.
     let textPlusActive = false;
@@ -1488,13 +1309,10 @@ const Roguelite = {
         }
       });
     }
-    // ALSO show Text+ when the card is a RARITY_SCALED_CARDS entry and
-    // its effective tier is special or legendary — at those tiers the
-    // PRINTED text reads as the boosted variant (e.g. legendary
-    // Xenomorph reads +2/+2 splash 3 instead of the rare +1/+1 splash 1).
-    // User direction (screenshot): "It says while active +2/+2, but
-    // doesn't say Text+ on it. I'd want it to say that." Effective tier
-    // = card rarity + any text-upgrade etches stacked on top.
+    // ALSO show Text+ when the card is a RARITY_SCALED_CARDS entry at an effective
+    // tier of special or legendary — at those tiers the PRINTED text is the boosted
+    // variant (legendary Xenomorph reads +2/+2 splash 3 vs rare +1/+1 splash 1).
+    // Effective tier = card rarity + any text-upgrade etches stacked on top.
     if (!textPlusActive && this.RARITY_SCALED_CARDS && this.RARITY_SCALED_CARDS.has(deckCard.defName)) {
       const tiers = ['common', 'rare', 'special', 'legendary'];
       const baseIdx = Math.max(0, tiers.indexOf(deckCard.rarity || 'common'));
@@ -1529,23 +1347,18 @@ const Roguelite = {
   },
 
   // ----- Reward pool: 3 random cards from the current act tier -----
-  // Each candidate is rolled at a rarity weight (60/25/12/3) and pre-
-  // populated with the appropriate number of starter etches. So a draft
-  // can hand you a Common Gamora (just base text, green border), a Rare
-  // Gamora (1 etch, blue border), or a Legendary Gamora (3 etches, gold
-  // border). The visual rarity is the tell — same Gamora, very different
-  // pull strengths.
+  // Each candidate is rolled at a rarity weight and pre-populated with the
+  // matching number of starter etches — a Common Gamora (base text, green
+  // border), Rare (1 etch, blue), Legendary (3 etches, gold). The visual
+  // rarity is the tell.
   rollRewards(act, opts) {
     opts = opts || {};
     if (typeof CARD_DEFS === 'undefined') return [];
     // Exclude roguelite-only entries (starters Goon/Thug/Brute, AI vanilla
-    // Soldier/Mercenary/Operator, curses Wound/Doubt/Regret) from the
-    // reward pool. They live in CARD_DEFS so the engine can name-resolve
-    // them during a run, but they shouldn't appear as card rewards.
-    // User report: "one of the brutes doesn't have taunt 1" — turned out
-    // a non-starter Brute got pulled from rewards and the baseline
-    // keyword strip in buildRunCard nuked its Taunt 1 (only starters
-    // are exempt from the strip).
+    // Soldier/Mercenary/Operator, curses Wound/Doubt/Regret) and spawn-only cards
+    // from the reward pool. They live in CARD_DEFS for name resolution only. A
+    // non-starter Brute from rewards would also lose its Taunt 1 to the keyword
+    // strip in buildRunCard (only starters are exempt).
     const isRL = (n) => this.isRogueliteOnlyName(n) || this.isSpawnOnlyName(n);
     let pool;
     if (act === 1) {
@@ -1606,14 +1419,10 @@ const Roguelite = {
     return !!(ab && ab.isDiscardEffect);
   },
 
-  // Resolve which rarity tier (common / rare / special / legendary) an
-  // etch ID lives in — drives the level-up picker border coloring. User
-  // direction: "I don't want HP to always be green and trait to always
-  // be blue and energy always to be gold. I want it based on the rarity
-  // of the etch you get." So a +1 ATK (common tier) shows a green
-  // border, +2/+2 (rare) shows cyan, +3/+3 (special) white, +4/+4
-  // (legendary) gold. Card-specific Text+ entries map to legendary
-  // since they're the rare-jackpot pull.
+  // Resolve which rarity tier (common / rare / special / legendary) an etch ID
+  // lives in — the level-up picker border colour follows the etch's rarity, not
+  // its kind: +1 ATK (common) green, +2/+2 (rare) cyan, +3/+3 (special) white,
+  // +4/+4 (legendary) gold. Card-specific Text+ entries map to legendary.
   _etchTier(etchId) {
     if (!etchId || !this.ETCHES) return 'common';
     for (const tier of this.TIERS) {
@@ -1634,8 +1443,6 @@ const Roguelite = {
   // card-specific Text+ entries are kept; stat bumps and trait keywords
   // are removed. Idempotent — safe to call multiple times. Mutates the
   // deckCard's statuses array in place. No-op for non-discard cards.
-  // User report: stale Evade 2 + Unresistible 1 on Mr. Fantastic from a
-  // run started before the discard filter shipped.
   _sanitizeDeckCardStatuses(deckCard) {
     if (!deckCard || !this._isDiscardOnlyCard(deckCard.defName)) return;
     if (!Array.isArray(deckCard.statuses) || !deckCard.statuses.length) return;
@@ -1675,21 +1482,10 @@ const Roguelite = {
       if (out.includes(pick)) continue;
       out.push(pick);
     }
-    // STARTER TEXT+ ROLL — small chance that a higher-rarity reward
-    // card lands with its card-specific Text+ etch ALREADY APPLIED.
-    // User direction: "When you select the card from a card reward,
-    // they can't have a text change in them as an upgrade — they can
-    // come pre-loaded with one. So if you get a legendary Grinch, it
-    // could be he got a stat increase, a discount, AND maybe his
-    // tricks-cost-less. Each time you see a card it could have gotten
-    // a Text+. Now it's rare to have that happen, but it could."
-    //
-    // Rarity-scaled odds — common can't roll Text+ (zero starter etches
-    // anyway), legendary has the best shot:
-    //   common    → 0% (no starter etch slots)
-    //   rare      → 5%   (1 etch slot)
-    //   special   → 10%  (2 etch slots — better odds, more interesting cards)
-    //   legendary → 20%  (3 etch slots — the jackpot pull)
+    // STARTER TEXT+ ROLL — a small chance that a higher-rarity reward card lands
+    // with its card-specific Text+ etch ALREADY APPLIED (rewards can't take Text+
+    // as a separate upgrade; it can only come pre-loaded). Common can't roll it
+    // (no starter etch slots); odds rise with rarity (see textChance below).
     //
     // When it triggers we REPLACE one of the rolled etches (not add a
     // new slot) so the total power level matches the rarity tier —
@@ -1697,9 +1493,8 @@ const Roguelite = {
     // not 3 stat/trait etches + Text+.
     const textEtch = this.cardTextUpgrade(defName);
     if (textEtch && out.length > 0) {
-      // Bumped from 5/10/20 → 12/22/40 per user feedback that Text+
-      // never showed up across many rolls. Still rare-jackpot feel,
-      // just actually visible across a typical run.
+      // 12/22/40%: still a rare-jackpot feel, but actually visible across a
+      // typical run.
       const textChance = { rare: 0.12, special: 0.22, legendary: 0.40 }[rarity] || 0;
       if (Math.random() < textChance) {
         const slot = Math.floor(Math.random() * out.length);
@@ -1709,14 +1504,9 @@ const Roguelite = {
     return out;
   },
 
-  // Stat-roll variance per drawn card. User spec: "Batman is a 7/5 base.
-  // Damage and health are variables we can play with. ±2 range. So he
-  // could be a 5/3 (bad roll) or a 9/7 (insane). Same for the vanilla
-  // bodies." Higher rarity = upside-skewed roll so a Legendary is rarely
-  // ----- Tier-based stat bumps (replaces RNG variance) -----
-  // User direction: "drop the RNG, base stats = rare value, common is
-  // a downgrade, legendary is upgraded." Deterministic progression so
-  // players can read their deck at a glance and feel earned upgrades:
+  // ----- Tier-based stat bumps -----
+  // Deterministic: base stats = rare value, common is a downgrade, legendary an
+  // upgrade, so players can read their deck at a glance:
   //
   //   common    → base −1 ATK, base −1 HP   (floor at 1/1)
   //   rare      → base values exactly (the "true" listed stats)
@@ -1724,29 +1514,20 @@ const Roguelite = {
   //   legendary → base +2 ATK, base +2 HP
   //
   // Starter deck cards (Goon/Thug/Brute) are TAGGED `_isStarter` so
-  // they bypass the Common −1/−1 penalty and display at face stats —
-  // user spec: "starter deck should all have just their baseline stats
-  // shouldn't be increased or decreased."
+  // they bypass the Common −1/−1 penalty and display at face stats.
   STAT_TIER_BUMP: {
     common:    -1,
     rare:       0,
     special:    1,
     legendary:  2,
   },
-  // Final stat = base + tierBump (for both ATK and HP), floored at
-  // ATK 1 and HP 1 so even a Common version of a 1/1 Goon stays
-  // playable. `isStarter` only skips the COMMON tier's −1 penalty —
-  // starter cards still gain stat bumps when leveled to special /
-  // legendary, so progression on the starter deck still feels like
-  // progression. (User: "starter deck should have baseline stats.")
+  // Final stat = base + tierBump (ATK and HP), floored at 1/1 so even a Common
+  // 1/1 Goon stays playable. `isStarter` only skips the COMMON −1 penalty —
+  // starters still gain bumps when leveled to special / legendary.
   //
-  // 0-base passive cards (Mr. Fantastic 0/0, Vision 0/3, Captain
-  // America 0/8, etc.) NEVER scale: those zeros are a design signal
-  // that the card is a totem / aura source, not a combatant. User
-  // direction: "Discards can't gain health or damage stats — saw
-  // Mr. Fantastic as a reward with stats, that can't happen." Each
-  // axis is gated independently so a 0/3 Vision keeps 0 ATK but
-  // still scales HP (3 → 4 → 5 etc.) on tier-up.
+  // 0-base axes (Mr. Fantastic 0/0, Vision 0/3, Captain America 0/8...) NEVER
+  // scale: those zeros signal a totem / aura source, not a combatant. Each axis
+  // is gated independently, so a 0/3 Vision keeps 0 ATK but still scales HP.
   _resolveStats(def, rarity, isStarter) {
     const baseAtk = def.attack || 0;
     const baseHp = def.health || 0;
@@ -1766,7 +1547,7 @@ const Roguelite = {
 
   // ----- AI deck + difficulty for a node -----
   // Returns { deckNames, tricks, hp, difficulty, persona } per node so
-  // Game.startMatch (when wired) can build the AI side of the fight.
+  // Game.startMatch can build the AI side of the fight.
   // Difficulty curve, designed to feel like a Spire-flavored ramp:
   //
   //   NODE TYPE       AI HP      DIFF       DECK POOL                    TRICKS
@@ -1783,14 +1564,10 @@ const Roguelite = {
   //
   // Theme decks are designed by hand — see BOSS_DECKS below. All other
   // decks are randomly drawn from the act-tier pool (2 copies max per name).
-  // Per-act boss preview metadata. Surface at the top of the map so
-  // the player can plan their route around the boss's archetype. User
-  // direction: "Slay the Spire-shaped polish — boss preview banner."
-  // Per-act boss preview metadata. Each act now has THREE possible
-  // bosses; the actual boss for a run is rolled at run start and stored
-  // on run.bossKeys (see _rollBossKeys). The preview banner reads from
-  // run.bossKeys via getBossPreview() so the player sees the boss
-  // they'll actually fight, not a hardcoded default.
+  // Per-act boss preview metadata, shown at the top of the map so the player can
+  // plan around the boss's archetype. Each act has THREE possible bosses; the
+  // run's boss is rolled at run start into run.bossKeys (see _rollBossKeys) and
+  // getBossPreview() reads from there, so the banner shows the actual boss.
   BOSS_PREVIEWS_BY_KEY: {
     'act1-luthor':  { key: 'act1-luthor',  persona: 'Lex Luthor', archetype: 'Control',
          flavor: 'Locks down lanes, fears your high-cost cards, snipes your low-HP bodies. Pack ATK debuff and Bullseye. Deck rolls fresh each run — supporting cast varies.',
@@ -1829,18 +1606,15 @@ const Roguelite = {
          hpRange: '70–90',
          signature: ['Thanos', 'Darkseid', 'Knull'] },
   },
-  // The full pool of boss keys per act — _rollBossKeys randomizes one
-  // pick per act per run. User direction: "rotating bosses in act 1,
-  // act 2 and act 3 just like slay the spire to have a little change
-  // of pace."
+  // The full pool of boss keys per act — _rollBossKeys picks one per act per
+  // run (rotating bosses, StS-style).
   BOSS_KEYS_BY_ACT: {
     1: ['act1-luthor', 'act1-loki', 'act1-grodd'],
     2: ['act2-doom',   'act2-hela', 'act2-magneto'],
     3: ['act3-galactus', 'act3-trigon', 'act3-thanos'],
   },
-  // Backwards-compat shim so any caller still indexing by integer act
-  // (legacy preview banner code paths) gets the run's chosen boss
-  // rather than a fixed default. Lookup walks state.roguelite.bossKeys.
+  // Compat shim so callers still indexing by integer act get the run's chosen
+  // boss rather than a fixed default. Lookup walks state.roguelite.bossKeys.
   get BOSS_PREVIEWS() {
     const run = (typeof Game !== 'undefined' && Game.state && Game.state.roguelite) || null;
     const ks = (run && run.bossKeys) || { 1: 'act1-luthor', 2: 'act2-doom', 3: 'act3-galactus' };
@@ -2098,18 +1872,12 @@ const Roguelite = {
   },
 
   // ----- Randomized boss deck pools -----------------------------------
-  // User direction: "Can I get some new decks in the roguelike? I want
-  // every time it I want it to be random every time. Like, I kinda
-  // know what to expect on each boss." Each boss now has a small set
-  // of THEMATIC ANCHORS (always present so the persona reads cleanly)
-  // and a wider POOL the rest of the deck rolls from. _buildBossDeck()
-  // assembles a fresh deck per run by anchoring the signature cards
-  // and filling the remaining slots with random picks from the pool
-  // (max 2 copies per name). Tricks follow the same anchor + pool
-  // pattern. Result: each boss still feels like itself (you'll see
-  // Lex/Joker/Magneto on Act 1, Doom/Hela on Act 2, Galactus on Act 3),
-  // but the supporting cast — and the trick lineup — varies between
-  // runs so memorization doesn't trivialize the matchup.
+  // Each boss has THEMATIC ANCHORS (always present so the persona reads) and a
+  // wider POOL the rest of the deck rolls from. _buildBossDeck() anchors the
+  // signature cards and fills remaining slots randomly from the pool (max 2
+  // copies per name); tricks follow the same anchor + pool pattern. Each boss
+  // still feels like itself, but the supporting cast and trick lineup vary
+  // between runs so memorization doesn't trivialize the matchup.
   BOSS_DECK_POOLS: {
     'act1-luthor': {
       // Control / debuff / lockdown. Anchors lock in the persona;
@@ -2414,10 +2182,8 @@ const Roguelite = {
     return { deck, tricks };
   },
 
-  // Hand-crafted etches per boss signature card. User feedback: "I
-  // got a 24/33 Grinch via the trick-return combo. Do enemies get
-  // cards like this?" — they didn't. Now they do, scaled per act so
-  // the boss matchup actually contests a buffed player deck.
+  // Hand-crafted etches per boss signature card, scaled per act so the boss
+  // contests a buffed player deck.
   //
   // These etches are APPLIED ON TOP OF the per-act base rarity bump
   // applied in buildAiEncounter (Act 1 boss = rare base / Act 2 = special /
@@ -2425,8 +2191,7 @@ const Roguelite = {
   // + the etches listed below = the strongest single body in the run.
   //
   // Cards NOT in the map for a given boss still get the base rarity
-  // bump (no extra etch), so even unlisted Galactus cards land at a
-  // healthier level than today's raw-stats AI.
+  // bump (no extra etch).
   BOSS_DECK_ETCHES: {
     'act1-luthor': {
       'Lex Luthor':     ['armor-1'],          // tankier draw-blocker
@@ -2506,11 +2271,9 @@ const Roguelite = {
     },
   },
 
-  // Vanilla-strength AI bodies — direct mirror of the player's starter
-  // deck (Goon/Thug/Brute) so Act 1 fights feel like grunts on grunts.
-  // User spec: "First couple fights, have them only have like, three
-  // real 1-3 cost cards in the game and the rest be Soldier, Mercenary,
-  // Operator. Similar to how Goon, Thug, and Brute act."
+  // Vanilla-strength AI bodies — a mirror of the player's starter deck
+  // (Goon/Thug/Brute) so early fights are grunts on grunts: a few real 1-3 cost
+  // cards, the rest Soldier / Mercenary / Operator.
   AI_VANILLA_DEFS: [
     { name: 'Soldier',   cost: 1, attack: 1, health: 1, type: 'villain', abilities: [], desc: '' },
     { name: 'Mercenary', cost: 2, attack: 2, health: 2, type: 'villain', abilities: [], desc: '' },
@@ -2529,10 +2292,9 @@ const Roguelite = {
     this.STARTER_DEFS.forEach(def => {
       if (!CARD_DEFS.find(d => d.name === def.name)) CARD_DEFS.push(def);
     });
-    // Re-merge CARD_ABILITIES onto the freshly-registered defs.
-    // abilities.js's load-time `CARD_DEFS.forEach(...)` ran BEFORE
-    // these were added, so callbacks (Goon's onPlay/onDeath, Thug's
-    // damage prompt, etc.) wouldn't have landed without this step.
+    // Re-merge CARD_ABILITIES onto the freshly-registered defs: abilities.js's
+    // load-time `CARD_DEFS.forEach(...)` ran BEFORE these were added, so their
+    // callbacks (Goon's onPlay/onDeath, Thug's damage prompt...) need this step.
     if (typeof CARD_ABILITIES !== 'undefined') {
       [...this.AI_VANILLA_DEFS, ...this.STARTER_DEFS].forEach(def => {
         const liveDef = CARD_DEFS.find(d => d.name === def.name);
@@ -2544,11 +2306,8 @@ const Roguelite = {
     this._vanillaRegistered = true;
   },
 
-  // HP is rolled in a range per node tier so each fight feels different
-  // — sometimes a 9-HP weakling, sometimes a 17-HP brawler. User spec:
-  // "I don't think the enemy should always have the same health. It
-  // should always be a little bit different." randInRange(min, max) is
-  // inclusive on both sides.
+  // HP is rolled in a range per node tier so each fight feels different.
+  // randInRange(min, max) is inclusive on both sides.
   _randInRange(min, max) {
     return min + Math.floor(Math.random() * (max - min + 1));
   },
@@ -2559,11 +2318,9 @@ const Roguelite = {
     // Ascension difficulty multiplier — A1+ adds 10% enemy HP across
     // the board. A4 adds an extra trick to bosses.
     const asc = (run && run.ascension) || 0;
-    // Ascension HP scaling — stacks each tier. A1 = +10%, A2 = +20%
-    // (was +10% with a player-HP nerf at A2; user moved the difficulty
-    // onto the enemy side instead). Higher tiers stay at 1.20× because
-    // A3 / A4 attach their own difficulty levers (relic pool, trick
-    // count) — bumping enemy HP further would compound too aggressively.
+    // Ascension HP scaling — stacks each tier: A1 = +10%, A2 = +20%. A3 / A4 stay
+    // at 1.20× because they attach their own difficulty levers (relic pool, trick
+    // count); more HP on top would compound too aggressively.
     let ascHpMul = 1.0;
     if (asc >= 1) ascHpMul = 1.10;
     if (asc >= 2) ascHpMul = 1.20;
@@ -2630,10 +2387,9 @@ const Roguelite = {
     // 70% real (cost 2-5). Tier 3 is full pool, cost 3-8.
     let costMin, costMax, hpMin, hpMax, difficulty, trickCount;
     if (node.tier === 1) {
-      // Tier 1 HP nudged down (was 9-17). With baseline keyword strip
-      // applied to the player's deck (no Bullseye / Hunt / Splash on
-      // baseline cards), early fights need a slightly lower ceiling
-      // so a 1/1 Goon line can actually finish a fight in 4-5 rounds.
+      // Tier 1 HP is kept low: with the baseline keyword strip on the player's deck
+      // (no Bullseye / Hunt / Splash), a 1/1 Goon line must be able to finish a
+      // fight in 4-5 rounds.
       costMin = 1; costMax = 3; hpMin = 8;  hpMax = 14; difficulty = 'easy';   trickCount = 1;
     } else if (node.tier === 2) {
       costMin = 2; costMax = 5; hpMin = 17; hpMax = 30; difficulty = 'normal'; trickCount = 2;
@@ -2645,14 +2401,10 @@ const Roguelite = {
     // Apply ascension HP multiplier to regular + elite fights.
     if (ascHpMul > 1) hp = Math.floor(hp * ascHpMul);
 
-    // Tier 1 vanilla pool excludes Operator (3/4). User feedback:
-    // "too many operators for the opponent in the first couple rounds —
-    // it's hard to kill the AI." With round 2 = 4 energy, the AI was
-    // dropping Operator (3/4) + Soldier (1/1) every round, which the
-    // player's starter Goons (1/1) and Thugs (2/2) couldn't match.
-    // Restricting tier 1 to Soldier + Mercenary keeps early fights
-    // tractable; Operator returns at tier 2+ when the player has
-    // upgraded cards, etches, and tricks to handle 3/4 bodies.
+    // Tier 1 vanilla pool excludes Operator (3/4): with round 2 = 4 energy the AI
+    // could drop Operator + Soldier every round, which starter Goons (1/1) and
+    // Thugs (2/2) can't match. Operator returns at tier 2+ once the player has
+    // upgraded cards, etches, and tricks.
     const vanillaPool = this.AI_VANILLA_DEFS.filter(c => {
       if (c.cost < costMin || c.cost > costMax) return false;
       if (node.tier === 1 && c.name === 'Operator') return false;
@@ -2677,13 +2429,10 @@ const Roguelite = {
         if (!realPicks.has(pick.name)) realPicks.add(pick.name);
       }
       Array.from(realPicks).forEach(n => deck.push(n));
-      // Soft cap per vanilla so a deck doesn't read as "Soldier × 27"
-      // — but the cap has to be loose enough that the deck can still
-      // reach 30 cards. After excluding Operator from tier 1 (so the
-      // pool is just Soldier + Mercenary), the old cap=12 made the
-      // loop infinite (max fill = 24, target = 27 leftover). Cap
-      // bumped to ⌈(target / pool.length) + 2⌉ so it always converges,
-      // and we break out when every pool member is at cap.
+      // Soft cap per vanilla so a deck doesn't read as "Soldier × 27", but loose
+      // enough to reach 30 cards: with tier 1's two-card pool a fixed cap can make
+      // the loop infinite. Cap = ⌈(target / pool.length) + 2⌉ always converges, and
+      // we break out when every pool member is at cap.
       const target = 30 - deck.length;
       const cap = Math.ceil(target / Math.max(1, vanillaPool.length)) + 2;
       while (deck.length < 30 && vanillaPool.length) {
@@ -2723,13 +2472,10 @@ const Roguelite = {
       const pick = trickPool[Math.floor(Math.random() * trickPool.length)];
       if (!tricks.includes(pick.name)) tricks.push(pick.name);
     }
-    // Per-tier AI rarity scaling — gives a small chunk of the AI deck
-    // bumped stats so a buffed player late-game has someone to fight.
-    // User feedback: "I got a 24/33 Grinch, do enemies get cards like
-    // this?" Tier 1 stays gentle (pure vanilla feel), tier 2 sprinkles
-    // rare bumps, tier 3 sprinkles rare + occasional special. Vanilla
-    // bodies (Soldier/Mercenary/Operator) skip promotion — they stay
-    // in their identity as raw bodies.
+    // Per-tier AI rarity scaling — a small chunk of the AI deck gets bumped stats
+    // so a buffed late-game player has someone to fight. Tier 1 stays pure vanilla,
+    // tier 2 sprinkles rare bumps, tier 3 rare + occasional special. Vanilla
+    // bodies (Soldier/Mercenary/Operator) are never promoted.
     let cardInstances = null;
     if (node.tier >= 2) {
       cardInstances = this._buildAiCardInstances(deck, {
@@ -2808,9 +2554,7 @@ const Roguelite = {
   //             Zealot, Fear, etc.)
   //   text    — the legendary-rarity Text+ etch that scales the
   //             card's PRINTED ability up one tier (Splash 1 → 2,
-  //             Freeze 1 → 2). User direction: "Thorns is a trait
-  //             like Bullseye. The text tech is the Legendary quality
-  //             upgrade so it's rare to get."
+  //             Freeze 1 → 2).
   //
   // The auto-grant on common→rare pulls from a smaller TRAIT pool of
   // basic keywords — Thorns/Cantrip/Echo/Phoenix etc. are too strong
@@ -2836,9 +2580,8 @@ const Roguelite = {
   ]),
 
   // ----- Per-card Text+ definitions (Phase 2) -----
-  // User direction: "The text upgrade has to be specific to each card.
-  // Winter Soldier's text upgrade should be 'destroy enemy with 4 ATK
-  // or less' or '+2/+2 on destroy'. Every text is different."
+  // Each card's text upgrade is specific to it (Winter Soldier: "destroy enemy
+  // with 4 ATK or less" / "+2/+2 on destroy").
   //
   // Each entry is { id, name, desc, apply } where apply mutates the
   // runtime card instance with a flag the card's onPlay / onDeath /
@@ -2892,10 +2635,9 @@ const Roguelite = {
       descOverride: 'When Played: Steal 3 Energy from the opponent next turn.',
       apply: c => { c._catwomanSteal = 3; },
     },
-    /* Dr. Strange Text+ deferred — his peek mechanic is already
-       roguelite-specific (peek 3 vs 2) and the upgrade would need
-       deeper plumbing through handleDrStrangeReorder. Skipped for
-       this batch. */
+    /* Dr. Strange has no Text+: his peek mechanic is already roguelite-specific
+       (peek 3 vs 2) and an upgrade would need deeper plumbing through
+       handleDrStrangeReorder. */
     'Ghostface': {
       id: 'ghostface-text', name: 'Mass Hysteria',
       desc: 'Gains Overdrive + Evade 3, plus +1/+1 for every card in hand when played.',
@@ -2964,8 +2706,7 @@ const Roguelite = {
         // engine side so trick.cost can never go negative.
         const cur = (c._grinchKeepCostBump != null) ? c._grinchKeepCostBump : 1;
         c._grinchKeepCostBump = cur - 1;
-        // Also reduce Grinch's own cost by 1 per stack — user
-        // direction: "his cost will be reduced more" each upgrade.
+        // Also reduce Grinch's own cost by 1 per stack.
         c.cost = Math.max(0, (c.cost || 0) - 1);
         c.baseCost = Math.max(0, (c.baseCost || c.cost || 0) - 1);
         c._discountTotal = (c._discountTotal || 0) + 1;
@@ -3282,13 +3023,10 @@ const Roguelite = {
       descOverride: 'When Destroyed: Steal a face-down card from the enemy\'s hand (no give-back).',
       apply: c => { c._deadpoolNoGiveBack = true; },
     },
-    // Lex Luthor — Text+ restores the classic full lockdown. Default
-    // Lex (rare) only caps the opponent at 1 draw per turn (see
-    // RARITY_DESCS['Lex Luthor']). The Text+ flag _lexFullLock is read
-    // by drawCards (full block) and drainBonusAttacks (bonus-attack
-    // suppression) in game.js. User direction: "If you upgrade it for
-    // the text, it would be the opponent cannot draw any cards or
-    // make bonus attacks."
+    // Lex Luthor — Text+ restores the classic full lockdown. Default (rare) Lex
+    // only caps the opponent at 1 draw per turn (see RARITY_DESCS['Lex Luthor']).
+    // The _lexFullLock flag is read by drawCards (full block) and
+    // drainBonusAttacks (bonus-attack suppression) in game.js.
     'Lex Luthor': {
       id: 'lex-text', name: 'Total Lockdown',
       desc: 'Restores the full lock — opponent cannot draw cards OR make bonus attacks.',
@@ -3362,13 +3100,10 @@ const Roguelite = {
     return (this.CARD_TEXT_UPGRADES && this.CARD_TEXT_UPGRADES[cardName]) || null;
   },
 
-  // Cards whose level-up etch picks bias HEAVILY toward Energy + Text
-  // and away from Stats/Trait. User direction (for The Grinch): "have
-  // his stat increases be very rare to get… most of the time, the text
-  // upgrade is what you get — the trick you keep gets more cost
-  // reduction, or his cost gets reduced more. Touching stats is rare
-  // for him." So the bucket weights flip: Energy is the dominant pick,
-  // Text+ second (when available), Trait/Stats become tail outcomes.
+  // Cards whose level-up etch picks bias HEAVILY toward Energy + Text and away
+  // from Stats/Trait (The Grinch: stat increases are rare; the kept-trick cost
+  // reduction or his own cost reduction is the usual upgrade). Energy is the
+  // dominant pick, Text+ second, Trait/Stats tail outcomes.
   // Add other "stat-light" cards to this set as the design demands.
   STAT_LIGHT_CARDS: new Set(['The Grinch']),
   _isStatLightCard(name) {
@@ -3388,13 +3123,10 @@ const Roguelite = {
     return this._findEtch(id);
   },
 
-  // Common→Rare ("Uncommon"): 3 picks, one from each of {Stats, Trait,
-  // Energy}. SCOPED to the common etch tier only — the first promotion
-  // is a small bump, not a power spike. So picks are +1 ATK / +1 HP /
-  // +1/+1 (stats), Evade 1 / Splash 1 / Armor 1 / Hunt / Untrickable /
-  // Taunt 1 / Bullseye (traits), Discount 1 (energy). User feedback:
-  // "+3/+3 stats is insane, Evade 4 is ridiculous, Discount 3 is
-  // ridiculous. These scalars have to be toned down."
+  // Common→Rare ("Uncommon"): picks from {Stats, Trait, Energy}, SCOPED to the
+  // common etch tier only — the first promotion is a small bump, not a power
+  // spike: +1 ATK / +1 HP / +1/+1 (stats), Evade 1 / Splash 1 / Armor 1 / Hunt /
+  // Untrickable / Taunt 1 / Bullseye (traits), Discount 1 (energy).
   //
   // Text+ (legendary) gets a small (~5%) chance to substitute — that's
   // the rare jackpot drop. Otherwise the player picks from the
@@ -3407,11 +3139,8 @@ const Roguelite = {
     const traits = pool.filter(e =>
       this._isTraitEtch(e.id) && !this._isTextEtch(e.id) && !ownedTraits.has(e.id)
     );
-    // Text+ only applies to cards with rarity-scaled abilities — for
-    // cards with fixed text (most of the pool), Text+ does nothing,
-    // so we hide it from the picker. User feedback: "I got Text+ on
-    // Winter Soldier — but Winter Soldier doesn't have anything that
-    // scales. The text upgrade has to be specific to each card."
+    // Text+ is hidden from the picker unless the card actually has an upgrade:
+    // fixed-text cards (most of the pool) gain nothing from the generic Text+.
     const cardName = cardRef && cardRef.defName;
     const textEtch = this._resolveTextEtchForCard(cardName);
     const pickFrom = (poolArr, label) => {
@@ -3433,7 +3162,7 @@ const Roguelite = {
     // STAT-LIGHT cards (e.g. The Grinch): always include Energy as
     // one pick; second pick is a 70/30 split between Text+ (if
     // available) and Trait. Stats are excluded from the picker
-    // entirely. User direction: "Touching stats is rare for him."
+    // entirely.
     if (this._isStatLightCard(cardName)) {
       const out = [];
       const e = pickFrom(energy, 'Energy');
@@ -3450,12 +3179,9 @@ const Roguelite = {
       }
       return out.slice(0, 2);
     }
-    // Standard pickers: roll TWO distinct buckets out of {Stats, Trait,
-    // Energy}. User direction: "for the level up screen I just want
-    // two choices." Drop the third — picking 2 of 3 buckets gives the
-    // player a meaningful choice while keeping the screen tight.
-    // Text+ jackpot still has a small chance to substitute one of the
-    // picks for the card's specific upgrade.
+    // Standard pickers: roll TWO distinct buckets out of {Stats, Trait, Energy} —
+    // a meaningful choice while keeping the screen tight. The Text+ jackpot still
+    // has a small chance to substitute one pick for the card's specific upgrade.
     const buckets = [
       { name: 'Stats',  pool: stats  },
       { name: 'Trait',  pool: traits },
@@ -3469,8 +3195,7 @@ const Roguelite = {
     const picks = buckets.slice(0, 2)
       .map(b => pickFrom(b.pool, b.name))
       .filter(Boolean);
-    // Common→Rare Text+ jackpot bumped from 5% → 15% per user feedback
-    // ("I've upgraded a lot of cards and haven't seen one text upgrade").
+    // Common→Rare Text+ jackpot: 15% chance to replace one pick.
     if (textEtch && picks.length > 0 && Math.random() < 0.15) {
       const slot = Math.floor(Math.random() * picks.length);
       picks[slot] = { id: textEtch.id, name: textEtch.name, bucket: 'Text', desc: textEtch.desc || this.etchDesc(textEtch.id), tier: this._etchTier(textEtch.id) };
@@ -3492,18 +3217,15 @@ const Roguelite = {
   },
 
   _rollLevelUpChoices(targetRarity, n, cardRef) {
-    // Higher-tier promotions (rare→special, special→legendary) scale
-    // their pick pool to the target tier so the upgrade strength
-    // tracks the promotion's importance. User feedback: "+3/+3 stats
-    // is insane on a common→rare bump." Now the SCOPE is bounded:
+    // Higher-tier promotions (rare→special, special→legendary) scale their pick
+    // pool to the target tier so upgrade strength tracks the promotion:
     //
     //   target = rare       → pool = common + rare       (small/mid)
     //   target = special    → pool = rare + special      (mid/strong)
     //   target = legendary  → pool = special + legendary (strong/max)
     //
-    // Plus a small Text+ chance at the special / legendary promotions
-    // (5% bucket weight). Buckets weighted:
-    //   60% Stats / 25% Trait / 10% Energy / 5% Text.
+    // Plus a Text+ chance at the special / legendary promotions (bucket
+    // weights below).
     let tierPool;
     if (targetRarity === 'special') {
       tierPool = [...this.ETCHES.rare, ...this.ETCHES.special];
@@ -3518,12 +3240,10 @@ const Roguelite = {
     // RARITY_SCALED_CARDS; otherwise null = no Text+ for this card.
     const cardName = cardRef && cardRef.defName;
     const cardTextEtch = this._resolveTextEtchForCard(cardName);
-    // DISCARD-ONLY cards: no Stats / Trait buckets — those etches do
-    // nothing on a card that never enters a lane. User direction:
-    // "Discards can't gain stats. It can only be energy reduction.
-    // And text." The rollBucket function below already falls back to
-    // a non-empty bucket when its first roll lands on an empty one,
-    // so muting the two buckets is sufficient.
+    // DISCARD-ONLY cards: no Stats / Trait buckets — those etches do nothing on a
+    // card that never enters a lane. rollBucket already falls back to a non-empty
+    // bucket when its first roll lands on an empty one, so muting the two buckets
+    // is sufficient.
     const isDiscard = this._isDiscardOnlyCard(cardName);
     const buckets = {
       stats:  isDiscard ? [] : tierPool.filter(e => this._isStatBumpEtch(e.id)),
@@ -3532,17 +3252,12 @@ const Roguelite = {
       text:   cardTextEtch ? [cardTextEtch] : [],
     };
     const labelOf = { stats: 'Stats', trait: 'Trait', energy: 'Energy', text: 'Text' };
-    // Bucket weights — Text+ bumped from 5% → 15% per pick. User
-    // report: "I've upgraded a lot of cards and haven't seen one
-    // text upgrade." At 5% with 2 picks per level-up the expected
-    // Text+ appearance was ~10% per level-up — easy to miss across
-    // a 5-10 fight run. New 15% per-pick rate works out to ~28%
-    // per level-up (1 - 0.85²), so a typical run will surface 1-2
-    // Text+ options. Stats stays the dominant pick (50%), Trait is
-    // the secondary (25%), Energy and Text both at 15% / 10%.
+    // Bucket weights — Text+ at 15% per pick works out to ~28% per level-up
+    // (1 - 0.85²), so a typical run surfaces 1-2 Text+ options. Stats stays the
+    // dominant pick.
     // Stat-light cards (e.g. The Grinch) use an inverted weight curve:
     // Energy is the dominant bucket, Text+ second, Trait/Stats are tail
-    // outcomes. User direction: "Touching stats is rare for him."
+    // outcomes.
     const isStatLight = this._isStatLightCard(cardName);
     const rollBucket = () => {
       const r = Math.random();
@@ -3573,10 +3288,8 @@ const Roguelite = {
       const cand = pool[Math.floor(Math.random() * pool.length)];
       if (usedIds.has(cand.id)) continue;
       usedIds.add(cand.id);
-      // Card-specific Text+ entries carry their own `desc` field; for
-      // generic etches, fall back to the ETCH_DESCS lookup. The `tier`
-      // field drives the level-up picker border color (per the user's
-      // rarity-based-borders direction).
+      // Card-specific Text+ entries carry their own `desc`; generic etches fall back
+      // to ETCH_DESCS. `tier` drives the level-up picker border color.
       const desc = cand.desc || this.etchDesc(cand.id);
       choices.push({ id: cand.id, name: cand.name, bucket: labelOf[bucket], desc, tier: this._etchTier(cand.id) });
     }
@@ -3604,10 +3317,7 @@ const Roguelite = {
     if (ref.xp < threshold) return null;
     ref.rarity = this.TIERS[tierIdx + 1];
     ref.xp = 0;  // reset on bump
-    // Level-up bucket logic. User direction (most recent): "From
-    // uncommon to rare you auto-get a trait and also 1 upgrade for
-    // stats / text / energy. Then from rare to special it's just
-    // random."
+    // Level-up bucket logic.
     //
     // common → rare: AUTO-GRANT a random Trait keyword (Bullseye,
     //   Hunt, Armor 1, Taunt 1, Evade 1, Untrickable, Splash 1,
@@ -3615,8 +3325,7 @@ const Roguelite = {
     //   1-of-3 picker spanning Stats / Trait / Energy buckets.
     //
     // rare → special / special → legendary: random 2-pick from the
-    // existing weighted bucket roller (60/25/10/5 Stats/Trait/
-    // Energy/Text).
+    // existing weighted bucket roller.
     let autoTrait = null;
     let choices;
     if (ref.rarity === 'rare') {
@@ -3639,11 +3348,8 @@ const Roguelite = {
     };
   },
 
-  // Speed multiplier — shorter wins pay more, longer wins pay less.
-  // User direction: "you're incentivized to drag the fight on. Time
-  // it by a multiplier when the round ended. We need to get away
-  // from staying in matches just to grind XP." Stepped curve so the
-  // bands are easy to read:
+  // Speed multiplier — shorter wins pay more, longer wins pay less, so there's
+  // no incentive to drag a fight out to grind XP. Stepped curve:
   //
   //   Round 1 win → 2.0×   (one-shot — earned the bonus)
   //   Round 2 win → 1.6×
@@ -3669,12 +3375,9 @@ const Roguelite = {
     return 0.60;
   },
 
-  // Project the XP a card would earn if the fight ended right now —
-  // mirrors the played-card path inside attributeXp (damage + 5×kills
-  // + tank) × current-round speed multiplier. Used by the on-board /
-  // in-hand XP chip so the player sees live earnings, not stale
-  // stored XP. User report: "Ahsoka killed a card and the XP didn't
-  // go up." Now it does, in real time.
+  // Project the XP a card would earn if the fight ended right now — mirrors the
+  // played-card path inside attributeXp (damage + 5×kills + tank) × current-round
+  // speed multiplier. Drives the live on-board / in-hand XP chip.
   projectedXp(card) {
     if (!card) return 0;
     const dmg   = (card.statsHealthbarDamage || 0) + (card.statsEnemyDamage || 0);
@@ -3705,24 +3408,17 @@ const Roguelite = {
     pool.forEach(({ card }) => {
       const dmg = (card.statsHealthbarDamage || 0) + (card.statsEnemyDamage || 0);
       const kills = card.statsKills || 0;
-      // Tank XP — replaces the old flat "+10 if survived" bonus. User
-      // direction: "Surviving isn't that important. Maybe should be
-      // damage taken." A 7 HP tank that ate 5 damage earns +5 here
-      // whether it lived or died; a Goon that wasn't targeted earns 0
-      // (it didn't actually do anything tank-flavored).
+      // Tank XP = damage taken: a 7 HP tank that ate 5 damage earns +5 whether it
+      // lived or died; an untargeted Goon earns 0.
       const tank = card.statsHpTaken || 0;
       const raw = dmg * 1 + kills * 5 + tank * 1;
       const earned = Math.round(raw * speedMul);
       const lu = this._grantXp(card._runDeckCardRef, earned);
       if (lu) levelUps.push(lu);
     });
-    // PARTICIPATION XP — every deck card that didn't play still gets a
-    // small XP boost on a win so the player isn't punished for fast
-    // finishes. Same speed multiplier applies, scaled around a baseline
-    // of 5 XP. So a Round-1 stomp pays unplayed cards 10 XP each, a
-    // Round-5 grind 5 XP, a Round-8 drag 3 XP. Cumulatively the deck
-    // earns less the longer the fight runs — same incentive as the
-    // played-card path.
+    // PARTICIPATION XP — on a win, every unplayed deck card gets a small XP boost
+    // so fast finishes aren't punished. Same speed multiplier around a 5 XP
+    // baseline (Round-1 stomp 10 XP each, Round-5 5 XP, Round-8 3 XP).
     if (won) {
       const participationXp = Math.max(1, Math.round(speedMul * 5));
       const playedRefs = new Set();
@@ -3788,16 +3484,13 @@ const Roguelite = {
         <div class="rl-boss-clear-tag">DEFEATED</div>
       </div>`;
     document.body.appendChild(splash);
-    // Audio cue — victory sting layered on top of the existing
-    // gameplay 'victory' that the engine fires. The relicAcquire
-    // fanfare sits brighter and reads as "moment of triumph" rather
-    // than "fight ended." Audit polish: boss-clear was visually
-    // crisp but lacked an audio punctuation when the splash landed.
+    // Audio cue — the brighter relicAcquire fanfare layered on the engine's
+    // gameplay 'victory', so the splash reads as triumph, not "fight ended".
     if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.play) {
       try { UI.sfx.play('relicAcquire'); } catch (e) {}
     }
-    // Hold extended from 1300ms → 1700ms — the ray/shockwave layers
-    // need an extra beat to resolve before the splash cleans up.
+    // 1700ms hold — the ray/shockwave layers need the beat to resolve before the
+    // splash cleans up.
     setTimeout(() => {
       splash.classList.add('rl-boss-clear-splash-out');
       setTimeout(() => {
@@ -3811,10 +3504,8 @@ const Roguelite = {
   // Run start has THREE pick screens, in order:
   //   roguelite-pick-relic  — pick 1 of 3 common relics (excludes Steel Heart)
   //   roguelite-pick-card   — pick 1 of 3 random Common cards (cost 1-3)
-  //   roguelite-start       — pick 1 of 4 boons (existing)
-  // User dropped the trick pick: "I don't want you drawing a trick at
-  // the beginning of the game before your boon. I feel like that's
-  // kinda overpowered."
+  //   roguelite-start       — pick 1 of 4 boons
+  // There is deliberately no starting trick pick (too strong before the boon).
   // ----- Save / resume run -----
   // localStorage key + serialization. Run state is plain data (deck
   // entries, relic IDs, map graph, gold, hp, etc.) — no functions —
@@ -3859,12 +3550,9 @@ const Roguelite = {
     } catch (e) { return false; }
   },
 
-  // Lightweight saved-run summary for the main-menu Roguelite button —
-  // returns null if no saved run, otherwise { ascension, label } so
-  // the UI can show "Continue · Ascension X" instead of the default
-  // "Climb a 6-fight ladder" sub-text. User direction: collapse the
-  // separate Continue Run button into the Roguelite button to keep
-  // the menu trim.
+  // Lightweight saved-run summary for the main-menu Roguelite button — null if
+  // no saved run, otherwise { ascension, label } so the button can show
+  // "Continue · Ascension X" (there is no separate Continue Run button).
   savedRunInfo() {
     if (typeof localStorage === 'undefined') return null;
     try {
@@ -3908,10 +3596,8 @@ const Roguelite = {
     const saved = this._loadSavedRun();
     if (!saved) return;
     this._ensureVanillaDefsRegistered();
-    // Sanitize any stale incompatible etches on discard cards in the
-    // saved deck + pendingRewards. Old saves may have stat/trait
-    // etches baked onto Catwoman / Mr. Fantastic / Jigsaw / Professor X
-    // from before the discard filter shipped — sweep them out so the
+    // Sanitize stale incompatible etches on discard cards (Catwoman / Mr.
+    // Fantastic / Jigsaw / Professor X) in the saved deck + pendingRewards so the
     // codex display matches the actual behavior.
     if (Array.isArray(saved.deck)) saved.deck.forEach(d => this._sanitizeDeckCardStatuses(d));
     if (Array.isArray(saved.pendingRewards)) saved.pendingRewards.forEach(d => this._sanitizeDeckCardStatuses(d));
@@ -3927,11 +3613,8 @@ const Roguelite = {
   ASCENSION_LEVELS: [
     { level: 0, name: 'Standard',  desc: 'No modifiers — the baseline run.' },
     { level: 1, name: 'Hardened',  desc: 'Enemies have +10% HP.' },
-    // A2 used to drop the player's max HP from 30 → 25. User feedback:
-    // "I don't like how max HP goes down. That's lazy. Don't touch my
-    // max HP. Just make their max health more." So A2 now stacks
-    // ANOTHER +10% on enemy HP (cumulative 20% over baseline) instead
-    // of cutting the player's pool.
+    // A2 never cuts the player's max HP; it stacks ANOTHER +10% on enemy HP
+    // (cumulative 20% over baseline).
     { level: 2, name: 'Reinforced', desc: '+ Enemies have +20% HP (cumulative).' },
     { level: 3, name: 'Spartan',   desc: '+ Battery and Old Manuscript removed from the starter pool.' },
     { level: 4, name: 'Cosmic',    desc: '+ Bosses gain an extra trick in their deck.' },
@@ -3975,8 +3658,6 @@ const Roguelite = {
   // ----- Lifetime per-card XP / play count -----
   // Persistent stat per card name across all runs. Pure ego stat, no
   // gameplay impact. Surfaced in the codex via getLifetimeCardStat().
-  // User polish: "career-mode bait — Hawkeye total: 1,240 XP across
-  // 8 runs."
   _CARD_LIFETIME_KEY: 'clb_card_lifetime',
   _loadLifetimeCardStats() {
     if (typeof localStorage === 'undefined') return {};
@@ -4152,9 +3833,8 @@ const Roguelite = {
   },
 
   enterRun() {
-    // Confirm before nuking an in-progress save. The Continue Run
-    // button on the main menu is the safe path; clicking the regular
-    // Roguelite button after a save exists would silently overwrite.
+    // Confirm before overwriting an in-progress save; starting a new Roguelite run
+    // with a save present would otherwise overwrite it silently.
     if (this.hasSavedRun()) {
       UI.confirmModal('You have a saved run in progress. Start a new run anyway? Your save will be overwritten when you reach the map.',
         { title: 'Overwrite Save', okText: 'New Run', danger: true })
@@ -4167,19 +3847,14 @@ const Roguelite = {
   },
 
   // ===================== DAILY RUN =====================
-  // Once-per-day seeded run. The seed is derived from today's UTC
-  // date so every player gets the SAME starter relic pool and card
-  // pool. Ascension is fixed at 0 — the challenge is "what's the
-  // best run you can build from this exact starting hand?" — so
-  // every comparison is apples-to-apples.
+  // Once-per-day seeded run. The seed is derived from today's UTC date so every
+  // player gets the SAME starter relic and card pools, at fixed Ascension 0, so
+  // comparisons are apples-to-apples.
   //
-  // Determinism note: only the starter rolls are seeded today. The
-  // run-time rolls (deck shuffle, AI deck, reward rolls, map gen)
-  // still use Math.random until the broader determinism migration
-  // (deferred per Plan agent's recommendation in session 4). So
-  // two players with identical picks WILL diverge during play —
-  // but the starting conditions are identical, which is the v1
-  // promise of a daily challenge.
+  // Determinism note: only the starter rolls are seeded. Run-time rolls (deck
+  // shuffle, AI deck, rewards, map gen) still use Math.random until they move to
+  // Game.rng, so identical picks WILL diverge during play — only the starting
+  // conditions are identical.
   _DAILY_KEY: 'clb-daily-run',
   // Today's date in YYYY-MM-DD (UTC). One key per day.
   _todayKey() {
@@ -4219,11 +3894,10 @@ const Roguelite = {
       }
     } catch (e) {}
   },
-  // Two gates before a Daily can start, and both used to be native confirm()
-  // calls — which this app shell answers `false` to instantly without drawing
-  // anything, so a player who had already attempted today, or who had a run
-  // saved, could not start a Daily at all. Chained as promises now: each gate
-  // only asks if it applies, and the real work lives in _doEnterDailyRun.
+  // Two gates before a Daily can start. Never use native confirm() here — the
+  // app shell answers `false` instantly without drawing anything, which would
+  // block the Daily. Chained as promises: each gate only asks if it applies,
+  // and the real work lives in _doEnterDailyRun.
   enterDailyRun() {
     const status = this.dailyStatus();
     const savedGate = () => {
@@ -4300,9 +3974,8 @@ const Roguelite = {
         <span class="rl-levelup-desc">${a.desc}</span>
       </button>`;
     }).join('');
-    // Daily Run — moved here from the main menu. A separate seeded mode (same
-    // starter pools for everyone today, always Ascension-0 baseline); picking
-    // it bypasses the difficulty choice above.
+    // Daily Run — a separate seeded mode (same starter pools for everyone today,
+    // always Ascension-0 baseline); picking it bypasses the difficulty choice above.
     const ds = this.dailyStatus ? this.dailyStatus() : null;
     let dailySub = 'Same starter pools for everyone today';
     if (ds) {
@@ -4319,11 +3992,9 @@ const Roguelite = {
       <span class="rl-levelup-name">Today's Seeded Challenge</span>
       <span class="rl-levelup-desc">${dailySub}</span>
     </button>`;
-    // Both flavour lines are struck out in the owner's markup. Neither carried
-    // anything the screen does not already say: the stacking rule is visible in
-    // the list itself ("+ Enemies have +20% HP (cumulative)"), and the daily
-    // BUTTON below is titled "Today's Seeded Challenge", so the divider was
-    // announcing the control directly under it. The button is untouched.
+    // No flavour lines here: the stacking rule is visible in the list itself
+    // ("+ Enemies have +20% HP (cumulative)") and the daily button below is
+    // titled "Today's Seeded Challenge".
     const body = `
       <div class="rl-event-choices">${buttons}</div>
       <div class="rl-event-choices">${dailyBtn}</div>`;
@@ -4351,12 +4022,9 @@ const Roguelite = {
     const shuffled = pool.slice().sort(() => Math.random() - 0.5);
     return shuffled.slice(0, 4);
   },
-  // Roll 3 unique cards from the act-1 cost range (1-4) — same range
-  // post-combat rewards use in act 1, so the starter pick reads as a
-  // first reward rather than a separately-clipped pool. User direction:
-  // "If act 1 is correct (1-4), I like that — revert the starter pool
-  // change." Pre-rolled with no etches, treated as Common rarity at
-  // pickup (so they take the -1/-1 tier penalty until leveled up).
+  // Roll 3 unique cards from the act-1 cost range (1-4) — the same range act-1
+  // rewards use, so the starter pick reads as a first reward. No etches; Common
+  // rarity at pickup (takes the -1/-1 tier penalty until leveled up).
   _rollStarterCardPool() {
     if (typeof CARD_DEFS === 'undefined') return [];
     const pool = CARD_DEFS.filter(d =>
@@ -4439,12 +4107,10 @@ const Roguelite = {
       try { UI.sfx.playNav(); } catch (e) {}
     }
     run.activeNode = node;
-    // Sync run.act to whichever act this node belongs to. run.act is
-    // initialised to 1 at run start and never auto-bumped — without
-    // this update, post-combat reward rolls (rollRewards(run.act, ...))
-    // would always pull from the act-1 weight table even after the
-    // player crosses into Act 2 / 3. ACT_BOUNDS row ranges are the
-    // single source of truth for which act a row belongs to.
+    // Sync run.act to the act this node belongs to. run.act starts at 1 and is
+    // never auto-bumped, so without this reward rolls (rollRewards(run.act, ...))
+    // would stay on the act-1 table. ACT_BOUNDS row ranges are the single source
+    // of truth for which act a row belongs to.
     const bounds = this.ACT_BOUNDS && this.ACT_BOUNDS.find(a => node.row >= a.startRow && node.row <= a.endRow);
     if (bounds) run.act = bounds.act;
     if (node.type === 'boss' || node.type === 'final-boss') {
@@ -4467,11 +4133,8 @@ const Roguelite = {
   },
 
   // ----- Treasure chest node -----
-  // Roll a tier-appropriate relic and grant it. Modal pops with a
-  // big neon chest and the relic card spec — feels like a payoff
-  // moment between fights. User: "every act should have a treasure
-  // chest that contains a relic." Tier-1 chest = common, tier-2 =
-  // rare, tier-3 = boss (legendary).
+  // Roll a tier-appropriate relic and offer it in a big neon chest modal.
+  // Tier-1 chest = common, tier-2 = rare, tier-3 = boss (legendary).
   _showTreasure(node) {
     const run = Game.state.roguelite;
     if (!run) return;
@@ -4485,12 +4148,9 @@ const Roguelite = {
       UI.render();
       return;
     }
-    // Stash the rolled relic so the take/leave handlers can see what
-    // was offered without re-rolling. User direction: "Should have a
-    // choice to NOT take a relic from the treasure chest." Previously
-    // the chest auto-granted on open and the only button was "Take it"
-    // (which was a no-op since you already had it). Now the open is
-    // pure preview — grant only fires on the explicit Take.
+    // Stash the rolled relic so the take/leave handlers see what was offered
+    // without re-rolling. Opening is pure preview — the player may decline; the
+    // grant only fires on the explicit Take.
     run._pendingTreasure = relic.id;
     const body = `
       <div class="rl-event-flavor">A neon chest hums on the path. You crack it open.</div>
@@ -4547,9 +4207,7 @@ const Roguelite = {
   // Cinematic pause before a boss / final-boss fight begins. Pulls
   // persona / archetype / flavor / hpRange / signature cards from
   // BOSS_PREVIEWS and renders a Tron-styled modal — same scaffold as
-  // _showTreasure (rl-modal). User direction (audit follow-up):
-  // "the moment of 'here's who you're fighting' before round 1
-  // builds tension and makes the boss feel like a milestone."
+  // _showTreasure (rl-modal).
   _showBossIntro(node) {
     const run = Game.state.roguelite;
     if (!run) return;
@@ -4626,16 +4284,12 @@ const Roguelite = {
     if (!run) return;
     const encounter = this.buildAiEncounter(node, run);
     if (!encounter) { console.warn('Roguelite: no encounter built'); return; }
-    // FULL FIGHT RESET — the previous fight's state (lanes with cards,
-    // round number, energy, dead piles, status flags, log, gameOver,
-    // selected card, etc.) lingered on Game.state if we just call
-    // startMatch again. User report: "It's keeping the same cards on
-    // board that were there last time, and the energy. Each fight needs
-    // to reset into a new fight." Solution: nuke Game.state via init()
-    // and re-attach the run reference so all per-fight fields rebuild
-    // from scratch. The run state (HP carry-over, deck, relics, gold,
-    // map progress) lives on `run` (a closure reference here), so it
-    // survives the wipe and gets re-pinned to Game.state.roguelite.
+    // FULL FIGHT RESET — the previous fight's state (lanes, round, energy, dead
+    // piles, status flags, log, gameOver, selection...) would linger on Game.state
+    // if we just called startMatch again. Wipe Game.state via init() and re-attach
+    // the run: HP carry-over, deck, relics, gold and map progress live on `run`
+    // (a closure reference here), so they survive and get re-pinned to
+    // Game.state.roguelite.
     //
     // ORDER MATTERS: init() before buildRunCard() — the card-instance
     // ID counter resets in init(), so building cards AFTER ensures
@@ -4720,8 +4374,7 @@ const Roguelite = {
     const won = Game.state.winner === 'player';
     let hpRemaining = Math.max(0, Game.state.player.health || 0);
     let hpLoss = Math.max(0, run.hp - hpRemaining);
-    // Anchor (and historically Iron Maiden, since removed) — flat
-    // HP-loss reduction every fight via the run._dmgReduction stack.
+    // Anchor — flat HP-loss reduction every fight via the run._dmgReduction stack.
     if (run._dmgReduction && hpLoss > 0) {
       const reduced = Math.min(run._dmgReduction, hpLoss);
       hpLoss -= reduced;
@@ -4735,12 +4388,10 @@ const Roguelite = {
       run._phoenixFeatherFired = true;
     }
     run.hp = hpRemaining;
-    // ONE-SHOT TRICKS — user direction: "once you use those tricks,
-    // they're out of your deck." Walk this fight's played-trick pile
-    // and remove ONE matching entry from run.tricks per play. So if
-    // you had 2 Mother Box tricks and played both, both get burned.
-    // Played-once-but-not-yet-used tricks (still in hand at fight end)
-    // remain in run.tricks for the next fight.
+    // ONE-SHOT TRICKS — once used, tricks leave the run. Walk this fight's
+    // played-trick pile and remove ONE matching entry from run.tricks per play
+    // (2 Mother Box played = both burned). Tricks still in hand at fight end
+    // stay in run.tricks for the next fight.
     if (won && Game.state.player && Game.state.player.playedTrickPile) {
       Game.state.player.playedTrickPile.forEach(played => {
         const idx = run.tricks.findIndex(t => t.defName === played.name);
@@ -4812,19 +4463,17 @@ const Roguelite = {
       UI.render();
       return;
     }
-    // Boss-clear payoff (act 1 + 2). User direction: "in Slay the
-    // Spire when you beat a boss you get a boss relic, a guaranteed
-    // legendary card, and gold." Surface as a special boss-reward
-    // modal, then route to standard reward screen for the card pick.
+    // Boss-clear payoff (act 1 + 2), StS-style: boss relic, guaranteed legendary
+    // card, and gold. Shown as a special boss-reward modal, then the standard
+    // reward screen for the card pick.
     if (node.type === 'boss') {
       const goldGained = 50;
       run.gold += goldGained;
       if (run._stats) run._stats.goldEarned = (run._stats.goldEarned || 0) + goldGained;
       const bossRelic = this.rollRelic(run, 'boss');
       if (bossRelic) this.grantRelic(run, bossRelic.id);
-      // Boss always drops a trick reward — guaranteed alongside the
-      // boss relic + legendary cards. User: "tricks should drop, like
-      // card rewards. They're a little more rare." Boss = 100%.
+      // Boss always drops a trick reward (100%), alongside the boss relic +
+      // legendary cards.
       const bossTrick = this._rollTrickReward(run, 'boss');
       if (bossTrick) run.pendingTrickReward = bossTrick;
       run.lastResult = {
@@ -4834,11 +4483,8 @@ const Roguelite = {
       };
       // Pre-roll 3 LEGENDARY cards for the next reward screen.
       run.pendingRewards = this.rollRewards(run.act, { rarityFloor: 'legendary' });
-      // Boss-clear splash banner — 1.6s celebratory full-screen
-      // overlay before the rewards modal opens. User polish: "drop
-      // a 1.5s flash 'ACT N CLEARED' between the boss death and the
-      // reward screen." Pulls boss persona from BOSS_PREVIEWS and
-      // figures out the act from the node tier.
+      // Boss-clear splash — 1.6s celebratory full-screen overlay before the rewards
+      // modal. Pulls boss persona from BOSS_PREVIEWS; act comes from the node tier.
       const bossAct = node.tier || this._currentAct(run) || 1;
       const bossPrev = this.BOSS_PREVIEWS[bossAct];
       const bossName = (bossPrev && bossPrev.persona) || 'Boss';
@@ -4848,9 +4494,8 @@ const Roguelite = {
       });
       return;
     }
-    // Gold drops on every non-boss combat win. User direction: "in Slay
-    // the Spire, you get a certain number of gold for winning a combat."
-    // Regular = 10–15g, Elite = 25–35g. Boss handled above (50g flat).
+    // Gold drops on every non-boss combat win: Regular = 10–15g, Elite = 25–35g.
+    // Boss handled above (50g flat).
     let combatGold = 0;
     if (node.type === 'elite') {
       combatGold = 25 + Math.floor(Math.random() * 11);
@@ -4863,11 +4508,9 @@ const Roguelite = {
       run.lastResult = run.lastResult || {};
       run.lastResult.gold = combatGold;
     }
-    // Trick reward roll. User direction: "tricks should drop, like card
-    // rewards. They're a little more rare, but they should drop." So
-    // regular fights drop ~30% of the time, elites ~60%. Boss is 100%
-    // (handled above). Stored in run.pendingTrickReward; the rewards
-    // screen surfaces it after the card pick.
+    // Trick reward roll — tricks drop a little more rarely than cards: regular
+    // fights ~30%, elites ~60%, boss 100% (handled above). Stored in
+    // run.pendingTrickReward; the rewards screen surfaces it after the card pick.
     const trickRoll = this._rollTrickReward(run, node.type);
     if (trickRoll) run.pendingTrickReward = trickRoll;
     // Elite payoff — rare-floor card + guaranteed common relic.
@@ -5081,8 +4724,6 @@ const Roguelite = {
       ],
     },
     // ----- Slay-the-Spire-style add/remove card events -----
-    // User direction: "some events should allow you to add cards and
-    // remove cards just like Slay the Spire."
     {
       id: 'pruning-shears',
       name: 'Pruning Shears',
@@ -5630,11 +5271,7 @@ const Roguelite = {
     run._pendingRestEtch = null;
     run._pendingStatBumpIdx = null;
     const heal = Math.floor(run.maxHp * 0.3);
-    // Two-tile rest site — REST or UPGRADE A CARD. User direction:
-    // "At the rest site you should see Rest or Upgrade a card. So
-    // you take it a full level up. Nothing else. Those are the only
-    // two options. Also make it more neon-highlighted and Tron — the
-    // buttons don't look that good. It looks very stale, very shell."
+    // Two-tile rest site — REST or UPGRADE A CARD (a full level-up); nothing else.
     // Tiles use the same chrome as .mm-option / level-up picks: black
     // bg + neon border + left-edge accent bar that glows on hover.
     const body = `
@@ -5654,13 +5291,9 @@ const Roguelite = {
     this._modal('REST SITE', body);
   },
 
-  // Bail out of the rest site cleanly. User report: "He clicked etch a
-  // card, it gave him Taunt 1, he didn't want to taunt a card, so he
-  // tried to quit out of it — and it kinda glitched his game out."
-  // The X button closed the modal but left _pendingRestEtch hanging
-  // and the player on the rest node with no resolution. Now there's
-  // an explicit Leave option, and any back-out routes through here
-  // so pending state always clears.
+  // Bail out of the rest site cleanly. Every back-out (Leave, the X button)
+  // must route through here so pending rest state (_pendingRestEtch) always
+  // clears; otherwise the player is stranded on the rest node.
   _restLeave() {
     const run = Game.state.roguelite;
     if (run) {
@@ -5673,12 +5306,8 @@ const Roguelite = {
     UI.render();
   },
 
-  // _restStatBump / _chooseStatBumpCard / _applyStatBump removed —
-  // the rest site is now Rest-or-Upgrade only (see _renderRestModal).
-  // The "+1 ATK or HP" sharpen path was the third option from the old
-  // four-option modal; the new full-level-up Upgrade flow folds the
-  // stat agency into the etch picker (every level-up offers a Stats
-  // bucket pick alongside Trait / Energy).
+  // The rest site is Rest-or-Upgrade only (see _renderRestModal); stat agency
+  // lives in the level-up etch picker's Stats bucket.
 
   _restHeal() {
     const run = Game.state.roguelite;
@@ -5696,9 +5325,7 @@ const Roguelite = {
   // Rest-site card upgrade — full level-up on the chosen card. Bumps
   // rarity tier (common→rare→special→legendary), grants the auto-trait
   // on a common→rare promotion, and routes through the standard 2-pick
-  // etch picker. User direction: "At the rest site you should see Rest
-  // or Upgrade a card. So you take it a full level up." Replaces the
-  // previous "single random etch" + "sharpen +1 stat" rest options.
+  // etch picker.
   _restUpgradeCardPick() {
     const run = Game.state.roguelite;
     const cards = run.deck.map((d, i) => {
@@ -5748,11 +5375,8 @@ const Roguelite = {
     this._renderLevelUpPicker();
   },
 
-  // _restUpgrade / _renderRestEtchPreview / _restEtchReroll /
-  // _restEtchCancel / _renderRestEtchPicker / _applyRestEtch all
-  // removed — the old "single random Common etch" path was the
-  // second option in the four-option rest modal. New flow is full
-  // level-up via _restUpgradeCardPick / _restApplyUpgrade above.
+  // Full level-up at the rest site goes through _restUpgradeCardPick /
+  // _restApplyUpgrade above.
 
   pickReward(rewardIdx) {
     const run = Game.state.roguelite;
@@ -5768,18 +5392,15 @@ const Roguelite = {
         try { UI.sfx.play('rewardPick'); } catch (e) {}
       }
     } else if (rewardIdx == null && run.pendingRewards && run.pendingRewards.length) {
-      // SKIP CONSOLATION. User direction (paraphrased): "StS rewards
-      // skipping a card with a small consolation — lets thin-deck
-      // strategies thrive." 50g if you skip the card pick; gives the
-      // skip a real economic option instead of pure deck-thinning.
+      // SKIP CONSOLATION — 50g for skipping the card pick, StS-style, so skipping is
+      // a real economic option for thin-deck strategies.
       run.gold += 50;
       run.lastResult = run.lastResult || {};
       run.lastResult.skippedCardReward = 50;
     }
     run.pendingRewards = null;
     // Trick reward — if rolled at fight end, surface it now (after the
-    // card pick, before the level-up picker). User direction: "tricks
-    // should drop, like card rewards." Take or skip.
+    // card pick, before the level-up picker). Take or skip.
     if (run.pendingTrickReward) {
       this._renderTrickRewardModal();
       return;
@@ -5803,14 +5424,10 @@ const Roguelite = {
       run.currentNodeId = run.activeNode.id;
       run.currentRow = run.activeNode.row;
     }
-    // Note: Act 1 + 2 bosses route here after rewards. Final boss kill
-    // already short-circuits to 'roguelite-end' inside handleCombatEnd
-    // (see line ~2542). So at this point the player has cleared a
-    // non-final boss and SHOULD return to the map — the cross-act edges
-    // (see generateMap line ~910) connect the boss node into the next
-    // act's row-0 entries. User report: "Roguelike stops at act one. I
-    // defeated the Lex Luthor Boss and it showed YOU FELL. I want to go
-    // all the way to act 3."
+    // Act 1 + 2 bosses route here after rewards. A final-boss kill already
+    // short-circuits to 'roguelite-end' inside handleCombatEnd, so the player has
+    // cleared a non-final boss and MUST return to the map — the cross-act edges in
+    // generateMap connect the boss node into the next act's row-0 entries.
     Game.state.phase = 'roguelite-map';
     UI.render();
   },
@@ -5874,14 +5491,10 @@ const Roguelite = {
       return;
     }
     const lu = run._pendingLevelUps[0];
-    // STALE-DATA GUARD: regenerate the level-up choices if they were
-    // built by a pre-2-pick / pre-tier-tag version of the code. The
-    // signature is "no .tier field on any choice" — every fresh roll
-    // tags it. User report: still seeing 3 choices with bucket-based
-    // borders even after the code changes. Resolves by rebuilding the
-    // choices via _rollCommonToRareChoices / _rollLevelUpChoices using
-    // the current rarity (cardRef.rarity is the POST-bump tier so we
-    // pick the right roller).
+    // STALE-DATA GUARD: regenerate level-up choices built by an older format. The
+    // signature is "no .tier field on any choice" — every fresh roll tags it.
+    // Rebuilt via _rollCommonToRareChoices / _rollLevelUpChoices using the current
+    // rarity (cardRef.rarity is the POST-bump tier, so we pick the right roller).
     const stale = !lu.choices || !lu.choices.length || lu.choices.some(c => !c.tier);
     if (stale && lu.cardRef) {
       // newRarity is what we just promoted TO — common→rare uses the
@@ -5900,18 +5513,11 @@ const Roguelite = {
     //   • a small bucket caption (Stats / Trait / Energy / Text) so
     //     the player can read which bucket fed the option
     //   • the etch name, big and centered, theme-tinted
-    //   • a description line below the name explaining what the etch
-    //     actually does — pulled from ETCH_DESCS via etchDesc(id).
-    //     User direction: "when it says Thorns I want a description
-    //     of what that means."
-    // Border color = etch RARITY TIER (not bucket type). User direction:
-    // "I don't want HP to always be green and trait to always be blue
-    // and energy always to be gold. I want it based on the rarity of
-    // the etch you get." So a +1 ATK (common) gets a green border, a
-    // +2/+2 (rare) gets cyan, +3/+3 (special) white, +4/+4 / Text+
-    // (legendary) gold. The bucket caption stays as a small uppercase
-    // tag inside the button — useful info, but no longer the color
-    // driver.
+    //   • a description line explaining what the etch does — pulled from
+    //     ETCH_DESCS via etchDesc(id).
+    // Border color = etch RARITY TIER, not bucket type: +1 ATK (common) green,
+    // +2/+2 (rare) cyan, +3/+3 (special) white, +4/+4 / Text+ (legendary) gold.
+    // The bucket caption stays as a small uppercase tag inside the button.
     const bucketClassMap = { Stats: 'rl-bucket-stats', Trait: 'rl-bucket-trait', Energy: 'rl-bucket-energy', Text: 'rl-bucket-text' };
     const choices = lu.choices.map((c, i) => {
       const bucketCls = bucketClassMap[c.bucket] || '';
@@ -5937,15 +5543,10 @@ const Roguelite = {
            ${lu.autoTrait.desc ? `<span class="rl-levelup-auto-desc">${lu.autoTrait.desc}</span>` : ''}
          </div>`
       : '';
-    // Card preview — render the leveled-up card itself so the player
-    // can see the new tier's stats / etches / abilities at a glance
-    // while picking. User direction: "On the level-up screen I'd like
-    // to see the card itself so you can see the stats and everything
-    // on it. I think that would be very helpful." Uses the same codex
-    // renderer as the deck list so the chrome matches everywhere else.
-    // At this point ref.rarity has already advanced to lu.newRarity
-    // and any auto-trait is in statuses, so the card draws AT the new
-    // tier — the player sees exactly what they just earned.
+    // Card preview — render the leveled-up card itself (same codex renderer as
+    // the deck list) so the player sees the new tier's stats / etches / abilities
+    // while picking. ref.rarity has already advanced to lu.newRarity and any
+    // auto-trait is in statuses, so the card draws AT the new tier.
     const cardPreview = lu.cardRef
       ? `<div class="rl-levelup-card-preview">${this._renderCodexCard(lu.cardRef)}</div>`
       : '';
@@ -5970,8 +5571,7 @@ const Roguelite = {
     if (pick && lu.cardRef) {
       lu.cardRef.statuses = lu.cardRef.statuses || [];
       lu.cardRef.statuses.push(pick.id);
-      // Audio cue — sharp synth-burst when an etch lands. Audit
-      // finding: level-up etch pick was silent.
+      // Audio cue — sharp synth-burst when an etch lands.
       if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.play) {
         try { UI.sfx.play('levelUpPick'); } catch (e) {}
       }
@@ -5995,21 +5595,15 @@ const Roguelite = {
   },
 
   abandonRun() {
-    // If a deck/trick/relic modal is open, the click might have been
-    // intercepted by the modal backdrop — close it first so clicking
-    // Menu always works in one shot. Then surface a confirm to avoid
-    // accidentally nuking a long run. User report: "the abandon button
-    // doesn't work."
+    // A deck/trick/relic modal's backdrop can intercept the click — close it first
+    // so Menu always works in one shot, then confirm so a long run isn't lost by
+    // accident.
     this._closeModal();
     // Only confirm when there's an active run to lose; pre-run picks
     // can return to main menu directly without a prompt.
-    // UI.confirmModal, NOT the native confirm(). The app shell suppresses
-    // native dialogs — window.confirm returns false INSTANTLY without ever
-    // drawing anything — so the old `if (!ok) return;` made this button a
-    // no-op and the Menu on the run map could not be opened at all. User:
-    // "i can't select the menu on the roguelite screen." Every other screen
-    // in the game was already on the themed modal; roguelite.js was the one
-    // file the sweep missed.
+    // UI.confirmModal, NOT the native confirm(): the app shell suppresses native
+    // dialogs (window.confirm returns false instantly without drawing), which
+    // would make this button a no-op.
     if (Game.state.roguelite) {
       UI.confirmModal('Abandon this run? Your deck, relics, and progress will be lost.',
         { title: 'Abandon Run', okText: 'Abandon', danger: true })
@@ -6087,11 +5681,9 @@ const Roguelite = {
       }
     }
     if (UI.applyTronFx) UI.applyTronFx();
-    // Gold-gain floater. Compare the gold-pill's data-gold from the
-    // PREVIOUS render to the new value; if it went up, spawn a "+N"
-    // floater that rises off the pill. Mirrors the in-combat HP-bar
-    // damage popup for visual symmetry. User polish: "every income
-    // source should get a floater to confirm gold actually moved."
+    // Gold-gain floater. Compare the gold-pill's data-gold from the PREVIOUS
+    // render to the new value; if it went up, spawn a "+N" floater off the pill,
+    // mirroring the in-combat HP-bar damage popup.
     if (phase === 'roguelite-map' && Game.state.roguelite) {
       const newGold = Game.state.roguelite.gold || 0;
       const prevGold = this._prevGold == null ? newGold : this._prevGold;
@@ -6112,9 +5704,8 @@ const Roguelite = {
     } else if (phase !== 'roguelite-map') {
       this._prevGold = null; // reset on non-map screens
     }
-    // Auto-scroll the map to the player's current row so a tall 18-row
-    // run doesn't dump the player at the top of the SVG. Defer one frame
-    // to let the freshly-rendered DOM settle.
+    // Auto-scroll the map to the player's current row so a tall run doesn't dump
+    // the player at the top of the SVG. Defer one frame to let the DOM settle.
     if (phase === 'roguelite-map') {
       requestAnimationFrame(() => {
         const wrap = document.getElementById('rl-map-scroll');
@@ -6140,9 +5731,8 @@ const Roguelite = {
   // Reusable progress strip — renders the 3-step Tron progress pills
   // matching the active step. Uses the .mm-option theme system so the
   // colors auto-flip to whatever neon theme the user has selected.
-  // NUMBERED, AND THE NUMBER IS THE CHIP. Three words in a row do not say they
-  // are a sequence; "1 RELIC — 2 CARD — 3 BOON" does, and the connector between
-  // them carries how far along you are.
+  // NUMBERED, AND THE NUMBER IS THE CHIP: "1 RELIC — 2 CARD — 3 BOON" reads as a
+  // sequence, and the connector between them carries how far along you are.
   _renderProgressStrip(active) {
     const steps = ['RELIC', 'CARD', 'BOON'];
     const idx = steps.indexOf(active);
@@ -6154,10 +5744,8 @@ const Roguelite = {
     }).join('')}</div>`;
   },
 
-  // THE RUN'S OPENING NUMBERS, and they are the REAL ones. The reference sheet
-  // showed "0 GOLD / 12 DECK"; this game starts you on 50 gold with a nine-card
-  // starter deck, so those are what it says. A stat line that is decorative is
-  // worse than no stat line — you would plan around it.
+  // THE RUN'S OPENING NUMBERS, and they must be the REAL ones (50 gold, nine-card
+  // starter deck) — players plan around a stat line, so it must never be decorative.
   //
   // Before step 3 there is no run object yet (initRun is what creates it), so
   // these are read from the run when it exists and from the same constants
@@ -6193,9 +5781,8 @@ const Roguelite = {
     </button>`;
   },
 
-  // Step 1 of 3: pick 1 of 3 common relics. Buttons centered as a
-  // single column inside a max-width container — user feedback: "the
-  // buttons are all left-centered. Just center them."
+  // Step 1 of 3: pick 1 of 3 common relics. Buttons centered as a single column
+  // inside a max-width container.
   _renderPickRelic() {
     const pool = Game.state._starterRelicPool || [];
     const sel = Game.state._starterRelicSel;
@@ -6224,9 +5811,9 @@ const Roguelite = {
       <span class="mp-crumb-sep">/</span><span class="mp-crumb-here">Roguelite</span>
     </nav>`;
   },
-  // SELECT, THEN COMMIT. Every one of these picks is permanent for the run, and
-  // the old tiles fired on the first click — one stray tap and your relic was
-  // chosen. The tile now shows the choice and this button takes it.
+  // SELECT, THEN COMMIT. Every one of these picks is permanent for the run, so a
+  // tile only shows the choice and this button takes it — one stray tap can't
+  // commit.
   _renderPickFoot(chosenName, label, onclick) {
     const ready = !!chosenName;
     return `<div class="rl-pick-foot">
@@ -6244,9 +5831,7 @@ const Roguelite = {
   },
 
   // Step 2 of 3: pick 1 of 3 random Common cards (cost 1-3, real cards).
-  // Layout: 3 large cards in a row, draft-screen-sized so they actually
-  // fill the panel. User direction: "the cards can be bigger. You could
-  // probably fit three cards here. Just like the draft screen."
+  // Layout: 3 large cards in a row, draft-screen-sized so they fill the panel.
   _renderPickCard() {
     const pool = Game.state._starterCardPool || [];
     const cards = pool.map((d, i) => `
@@ -6265,9 +5850,7 @@ const Roguelite = {
   },
 
   _renderStart() {
-    // Step 3 of 3: pick 1 of 4 random boons in a 2x2 grid. User
-    // feedback: "I'd rather be like 2 buttons on the left and 2
-    // buttons on the right. I think that would look good."
+    // Step 3 of 3: pick 1 of 4 random boons in a 2x2 grid.
     if (!Game.state._boonRoll) {
       const shuffled = [...this.BOONS].sort(() => Math.random() - 0.5);
       Game.state._boonRoll = shuffled.slice(0, 4);
@@ -6307,8 +5890,8 @@ const Roguelite = {
       default:       return '<circle cx="12" cy="12" r="6"/>';
     }
   },
-  // WHAT EACH NODE ACTUALLY IS. The legend was a row of pills naming the seven
-  // types without saying what any of them does — a key that needs its own key.
+  // WHAT EACH NODE ACTUALLY IS — the legend says what each type does, not just
+  // its name.
   NODE_LEGEND: [
     { t: 'combat',   label: 'Combat',   sub: 'a standard fight' },
     { t: 'elite',    label: 'Elite',    sub: 'harder fight, better reward' },
@@ -6334,12 +5917,10 @@ const Roguelite = {
       else if (m.nodes) flat = Object.keys(m.nodes).map(k => m.nodes[k]);
       else if (Array.isArray(m.rowNodes)) flat = [].concat.apply([], m.rowNodes);
     }
-    // THIS ACT MEANS THIS ACT. map.rows is 24 — the WHOLE RUN, all three acts
-    // (three boss nodes, at rows 7/15/23) — so printing it under a "This act"
-    // heading would have said 24 floors / 5 elites / 7 shops for a ladder that
-    // actually holds 8 / 2 / 2. Every node carries the tier it belongs to, and
-    // run.act says which one you are in, so the slice is exact rather than row
-    // arithmetic that would break the moment an act changed length.
+    // THIS ACT MEANS THIS ACT. map.rows covers the WHOLE RUN (all three acts,
+    // bosses at rows 7/15/23), so a "This act" readout must not use it. Every node
+    // carries its tier and run.act says which act you're in, so the slice is exact
+    // rather than row arithmetic that breaks if an act changes length.
     const act = (run && run.act) || 1;
     const mine = flat.filter(n => n && (n.tier == null || n.tier === act));
     const count = (t) => mine.filter(n => n.type === t).length;
@@ -6409,16 +5990,12 @@ const Roguelite = {
     // from the main menu. State drives a class on the <g>; the CSS
     // (.rl-mapnode-current, .rl-mapnode-legal, etc.) handles the neon
     // pulse, the active-theme tint, and the dimmed-done state.
-    // ONE GLYPH SOURCE — see Roguelite.nodeIconSvg. This used to be the only
-    // copy, while the legend below carried a hand-written duplicate of all
-    // seven paths, so a node and its own legend entry could disagree and did
-    // not have to be edited together.
+    // ONE GLYPH SOURCE — see Roguelite.nodeIconSvg, shared with the legend so a
+    // node and its legend entry can never disagree.
     const nodeIconSvg = (type) => this.nodeIconSvg(type);
-    // Tooltip text per node type — surfaced on hover via SVG <title>
-    // (which the browser renders as a native tooltip). Concise: type +
-    // tier/HP range + a one-line description. User direction: "map node
-    // tooltips so the player can plan a route instead of clicking
-    // blindly."
+    // Tooltip text per node type — surfaced on hover via SVG <title> (native
+    // tooltip) so the player can plan a route. Concise: type + tier/HP range + a
+    // one-line description.
     const nodeTooltip = (n) => {
       const tier = n.tier || 1;
       switch (n.type) {
@@ -6470,15 +6047,9 @@ const Roguelite = {
         </g>`;
     }).join('');
     const startHint = run.currentNodeId == null ? '<div class="rl-map-hint">Pick an entry point ↓</div>' : '';
-    // HUD now lives in a single in-flow row that includes the Menu
-    // button on the left — no more position:absolute back button
-    // overlapping the HP pill. User feedback: "the bend button is
-    // kind of inner layered on top of the HP. Just say a menu."
-    // The relic chip strip below the HUD has also been removed since
-    // the RELICS button on the right + the relic viewer modal cover
-    // the same job. User: "you can get rid of the relic chips that
-    // you have like it's shown here. You have the relic tab on the
-    // right."
+    // HUD is a single in-flow row with the Menu button on the left (no
+    // position:absolute button overlapping the HP pill). No relic chip strip — the
+    // RELICS button on the right + the relic viewer modal cover that job.
     const hpPct = Math.round(((run.hp || 0) / Math.max(1, run.maxHp || 1)) * 100);
     const hudHtml = `
       <div class="rl-hud rl-hud-tron">
@@ -6549,8 +6120,6 @@ const Roguelite = {
   openRelicViewer() {
     this._modal('YOUR RELICS', this._renderRelicList());
   },
-  // Compact strip below the HUD showing relic icons + tooltips. Always
-  // visible on the map screen so the player remembers what's running.
   // Determine which act the player is currently in based on currentRow.
   // Used by the boss-preview banner + future act-aware UI.
   _currentAct(run) {
@@ -6616,10 +6185,8 @@ const Roguelite = {
     const run = Game.state.roguelite;
     if (!run) return '';
     if (!run.relics.length) return '<div class="rl-empty-state">No relics yet — earn them through events, shops, and bosses.</div>';
-    // Relics now render as proper Tron cards — beveled corners, neon
-    // border-glow ring, theme-driven accent. User feedback: "the relic
-    // looks fine here, but that needs to look way more Tron. Maybe
-    // like a card or something. It looks very flat right now."
+    // Relics render as Tron cards — beveled corners, neon border-glow ring,
+    // theme-driven accent.
     return `<div class="rl-relic-grid rl-relic-grid-tron">${run.relics.map(rid => {
       const r = this.RELICS.find(x => x.id === rid);
       if (!r) return '';
@@ -6686,15 +6253,12 @@ const Roguelite = {
         ${body}
       </div>`;
     modal.style.display = 'flex';
-    // Audio cue — soft swoosh when a modal opens. Audit finding:
-    // every modal opened silently. Wired here so EVERY modal flow
+    // Audio cue — soft swoosh when a modal opens. Wired here so EVERY modal flow
     // (treasure, reward, level-up, rest, etc.) inherits the cue.
     if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.play) {
       try { UI.sfx.play('modalOpen'); } catch (e) {}
     }
-    // Wire ESC to close — single shared listener that auto-detaches on
-    // close. Audit finding: modals had no keyboard support; pressing
-    // Esc did nothing.
+    // Wire ESC to close — single shared listener that auto-detaches on close.
     if (!this._modalEscHandler) {
       this._modalEscHandler = (e) => {
         if (e.key === 'Escape' || e.key === 'Esc') {
@@ -6715,11 +6279,9 @@ const Roguelite = {
   _closeModal() {
     const m = document.getElementById('rl-modal');
     if (!m || m.style.display === 'none') return;
-    // Play exit animation, then hide. Audit finding: modals just
-    // disappeared with display:none — felt like a hard cut. The
-    // closing class triggers a 220ms fade+scale-down via CSS, then
-    // the rAF chain hides the element so a re-open animates in
-    // cleanly.
+    // Play exit animation, then hide: the closing class triggers a 220ms
+    // fade+scale-down via CSS, then the rAF chain hides the element so a re-open
+    // animates in cleanly.
     m.classList.add('rl-modal-closing');
     if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.play) {
       try { UI.sfx.play('modalClose'); } catch (e) {}
@@ -6738,10 +6300,8 @@ const Roguelite = {
     if (!run || !run.deck || !run.deck.length) {
       return '<div class="rl-empty-state">Deck is empty.</div>';
     }
-    // No more wrapping .rl-deck-slot box around each card. User: "get
-    // rid of the boxes around the cards. Just have the cards." The
-    // rarity tinting flows through the card chrome itself, so the
-    // individual box was redundant.
+    // No wrapping .rl-deck-slot box around each card — the rarity tinting flows
+    // through the card chrome itself.
     return `<div class="rl-deck-grid rl-deck-grid-bare">${run.deck.map(d => this._renderCodexCard(d)).join('')}</div>`;
   },
   _renderTrickList() {
@@ -6749,10 +6309,7 @@ const Roguelite = {
     if (!run || !run.tricks || !run.tricks.length) {
       return '<div class="rl-empty-state">No tricks in your deck yet.</div>';
     }
-    // 3-across grid using full trick-card chrome (matches the codex
-    // grid). User: "the trick cards should literally be like the codex
-    // where it's like the same trick cards. Where they're three across
-    // and you just go down."
+    // 3-across grid using full trick-card chrome, matching the codex grid.
     return `<div class="rl-deck-grid rl-deck-grid-tricks">${run.tricks.map(t => this._renderTrickCard(t)).join('')}</div>`;
   },
   _renderTrickCard(t) {
@@ -6762,8 +6319,8 @@ const Roguelite = {
     // big purple cost diamond, name banner, description block. Mirrors
     // the codex/deck-builder presentation so trick + card modals feel
     // consistent.
-    // ONE renderer — the canonical trick face (restores portrait art the old
-    // artless banner lacked). rl-tier carries the rarity styling.
+    // ONE renderer — the canonical trick face (with portrait art). rl-tier carries
+    // the rarity styling.
     if (typeof UI !== 'undefined' && UI.makeTrickEl) {
       return UI.makeTrickEl(def, { extraClass: 'rl-tier-' + (t.rarity || 'common') });
     }
@@ -6824,8 +6381,8 @@ const Roguelite = {
   },
 
   // Keyboard handler for the reward screen — 1/2/3 picks, S/Esc skips.
-  // User polish: "faster runs for keyboard players." Idempotent —
-  // re-installs cleanly on every render without leaking old listeners.
+  // Idempotent — re-installs cleanly on every render without leaking old
+  // listeners.
   _installRewardKeyboard() {
     if (this._rewardKbHandler) {
       document.removeEventListener('keydown', this._rewardKbHandler);
@@ -6917,12 +6474,9 @@ const Roguelite = {
       i = Math.min(tiers.length - 1, i + textBumps);
       dispTier = tiers[i];
     }
-    // Stamp 'Text+' onto the abilities row so a status badge surfaces
-    // when this card carries a Text+ etch — same logic as buildRunCard
-    // so the codex / reward picker / deck list / level-up preview all
-    // show the upgraded card text directly. User direction: "Any etch
-    // that you get from upgrading should be on the card so you don't
-    // forget about it."
+    // Stamp 'Text+' onto the abilities row when this card carries a Text+ etch —
+    // same logic as buildRunCard, so the codex / reward picker / deck list /
+    // level-up preview all show the upgrade on the card.
     let textPlus = false;
     if (this.CARD_TEXT_UPGRADES) {
       (deckCard.statuses || []).forEach(etchId => {
@@ -6932,12 +6486,10 @@ const Roguelite = {
         }
       });
     }
-    // Also show Text+ when a RARITY_SCALED_CARDS card's effective tier
-    // is special or legendary — its PRINTED text already reads the
-    // boosted variant (legendary Xenomorph reads +2/+2 splash 3, etc).
-    // User direction (screenshot): the boosted-text card should
-    // visually be marked Text+ even when the scaling came from the
-    // card's own rarity rather than a Text+ etch.
+    // Also show Text+ when a RARITY_SCALED_CARDS card's effective tier is special
+    // or legendary — its PRINTED text already reads the boosted variant (legendary
+    // Xenomorph reads +2/+2 splash 3), even when the scaling came from rarity
+    // rather than a Text+ etch.
     if (!textPlus && this.RARITY_SCALED_CARDS && this.RARITY_SCALED_CARDS.has(def.name)) {
       if (dispTier === 'special' || dispTier === 'legendary') textPlus = true;
     }
@@ -6954,17 +6506,13 @@ const Roguelite = {
     const rarityPips = `<span class="rarity-strip" aria-hidden="true">${'<span class="rpip"></span>'.repeat(pips)}</span>`;
     const abilitiesHtml = abilities.length
       ? `<div class="card-abilities status-badges">${(typeof UI !== 'undefined' && UI.formatAbilityBadges) ? UI.formatAbilityBadges(abilities) : abilities.map(a => `<span class="status-badge">${a}</span>`).join('')}</div>` : '';
-    // Per-rarity description swap (roguelite-only) — uses dispTier
-    // computed above. Common-tier cards explicitly read the BASE (rare)
-    // text. User direction: "don't touch the text for common cards —
-    // revert that change."
+    // Per-rarity description swap (roguelite-only) — uses dispTier computed above.
+    // Common-tier cards read the BASE (rare) text; never alter common text.
     const variantDesc = variantDescs && variantDescs[dispTier];
     let descText = variantDesc || def.desc;
-    // TEXT+ DESCRIPTION OVERRIDE — if any Text+ etch on this card has
-    // a descOverride, swap it in for the body text. Same logic as
-    // buildRunCard so codex / reward picker / shop / deck list all
-    // show the upgraded card text directly. User direction: "Just
-    // literally change the text of the card."
+    // TEXT+ DESCRIPTION OVERRIDE — if any Text+ etch on this card has a
+    // descOverride, swap it in for the body text. Same logic as buildRunCard so
+    // codex / reward picker / shop / deck list all show the upgraded text.
     if (this.CARD_TEXT_UPGRADES) {
       (deckCard.statuses || []).forEach(etchId => {
         for (const name in this.CARD_TEXT_UPGRADES) {
@@ -6993,12 +6541,11 @@ const Roguelite = {
     // tier. Legendary cards are capped, no bar shown.
     const xpHtml = this._renderCodexXp(deckCard);
     const curseCls = deckCard._isCurse ? ' rl-curse' : '';
-    // ONE renderer — route the resolved roguelite card through UI.makeCardEl so
-    // it gains the portrait art + name overlay + canonical chrome it never had
-    // (was the artless pre-redesign card-name-banner layout). All the roguelite
-    // computation above (tier stats, etch probe, Text+/Curse badges, variant
-    // desc, XP, stat-roll arrows) is preserved: the resolved values feed
-    // _synthFace as overrides, and the curated badge list feeds badgesHTML.
+    // ONE renderer — route the resolved roguelite card through UI.makeCardEl for
+    // the portrait art + name overlay + canonical chrome. All the roguelite
+    // computation above (tier stats, etch probe, Text+/Curse badges, variant desc,
+    // XP, stat-roll arrows) feeds _synthFace as overrides, and the curated badge
+    // list feeds badgesHTML.
     if (typeof UI !== 'undefined' && UI.makeCardEl && UI._synthFace) {
       const face = UI._synthFace(def, { cost, attack: atk, health: hp, descOverride: descText, rarity: deckCard.rarity });
       const badgesHTML = abilities.length && UI.formatAbilityBadges ? UI.formatAbilityBadges(abilities) : '';
@@ -7014,7 +6561,7 @@ const Roguelite = {
       if (xpHtml) el.insertAdjacentHTML('beforeend', xpHtml);
       return el.outerHTML;
     }
-    // Fallback (UI unavailable — shouldn't happen in-app): old artless layout.
+    // Fallback (UI unavailable — shouldn't happen in-app): artless layout.
     return `
       <div class="card hand-card ${costClass} rl-tier-${deckCard.rarity}${curseCls}" data-card-name="${def.name}">
         <span class="card-cost">${cost}</span>
@@ -7079,11 +6626,9 @@ const Roguelite = {
     const ascLevel = run.ascension || 0;
     const ascName = (this.ASCENSION_LEVELS[ascLevel] || {}).name || 'Standard';
     const ascTag = ascLevel > 0 ? ` · A${ascLevel} ${ascName}` : '';
-    // Defeat-detail subtitle. If the player fell at a boss / final-boss
-    // node we know which persona ended the run (stashed in lastResult);
-    // surface that for a sharper end-of-run read instead of generic
-    // "the grid claimed you" copy. User direction (audit follow-up):
-    // "what was killed by what boss" closes the loop on the run.
+    // Defeat-detail subtitle. If the player fell at a boss / final-boss node we
+    // know which persona ended the run (stashed in lastResult); surface that
+    // instead of the generic copy.
     let subtitle;
     if (won) {
       subtitle = 'You reached the top of the grid.';

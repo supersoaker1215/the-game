@@ -1,8 +1,7 @@
 // ============================================================
-// STARTER DECKS — used by Deckbuilder mode (phase 2)
+// STARTER DECKS — used by Deckbuilder mode
 //
-// Each deck is 40 cards + 10 tricks, flat 2-copy limit. Until the deck
-// builder UI (phase 3) lets the user construct their own, both sides
+// Each deck is 40 cards + 10 tricks, flat 2-copy limit; both sides
 // default to STARTER_DECKS.balanced.
 //
 // Deck shape:
@@ -116,11 +115,9 @@ const STARTER_DECKS = {
     ],
   },
   // ----------------------------------------------------------------
-  // REANIMATOR — graveyard recursion. Trade early, then leverage
-  // dead-pile triggers (Solomon Grundy onDeath draw, Hela zombies,
-  // Cyborg summon-on-destroyed, Lazarus Pit / Phantom Zone) to put
-  // threats back on the board faster than the opponent can clear
-  // them. The deck WANTS its allies dying — death is the engine.
+  // REANIMATOR — graveyard recursion: trade early, then use dead-pile
+  // triggers (Grundy draw, Hela zombies, Cyborg, Lazarus Pit / Phantom
+  // Zone) to rebuild faster than the opponent can clear. Death is the engine.
   // ----------------------------------------------------------------
   reanimator: {
     name: 'Reanimator',
@@ -156,11 +153,8 @@ const STARTER_DECKS = {
     ],
   },
   // ----------------------------------------------------------------
-  // SYNERGY SWARM — every ally amplifies every other ally. Poison
-  // Ivy steals their ATK; Hawkeye splashes their lanes; Captain
-  // America buffs the squad; Invisible Woman shields them. Wins
-  // by building a board where every card on it is stronger than it
-  // would be alone. Vulnerable to wipes — keep redundancy.
+  // SYNERGY SWARM — every ally amplifies every other ally (Ivy, Hawkeye,
+  // Captain America, Invisible Woman). Vulnerable to wipes — keep redundancy.
   // ----------------------------------------------------------------
   swarm: {
     name: 'Synergy Swarm',
@@ -196,11 +190,9 @@ const STARTER_DECKS = {
     ],
   },
   // ----------------------------------------------------------------
-  // RAMP TITANS — Dr. Octopus's "+1 Energy each round" + Power
-  // Battery + Mobius Chair lets you slam 8/9/10-cost finishers two
-  // rounds ahead of curve. Cheap defenders to survive the windup,
-  // then one of the biggest game-ending bombs in the pool. Loses
-  // to aggro that closes before you stabilize.
+  // RAMP TITANS — Doc Ock + Power Battery + Mobius Chair ramp 8/9/10-cost
+  // finishers two rounds early; cheap defenders survive the windup.
+  // Loses to aggro that closes before you stabilize.
   // ----------------------------------------------------------------
   ramp: {
     name: 'Ramp Titans',
@@ -236,11 +228,9 @@ const STARTER_DECKS = {
     ],
   },
   // ----------------------------------------------------------------
-  // BURN RUSH — beats the opponent's HP bar before they can build a
-  // board. Sabertooth's "+1/+1 on HP damage" snowballs each round.
-  // Hawkeye splash + Carnage / Spawn direct damage tear through HP.
-  // Late finishers (Thor, Homelander, Gorr) close out before turn 5.
-  // Loses to taunt / armor / heavy block-meter generation.
+  // BURN RUSH — race the opponent's HP before they build a board
+  // (Sabertooth snowball, Hawkeye splash, Carnage/Spawn, late Thor/
+  // Homelander/Gorr). Loses to taunt / armor / heavy block-meter generation.
   // ----------------------------------------------------------------
   burn: {
     name: 'Burn Rush',

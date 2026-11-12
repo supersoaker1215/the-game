@@ -1,37 +1,61 @@
 // ============================================================
-// THE MENU IS A VIDEO.
+// THE MENU BACKDROP IS ONE SHARED ELEMENT, MOVED — NEVER RE-CREATED.
 //
 //   jsc sim/menu-video.js
 //
-// Owner (2026-11-11): "the video replaces the hero art entirely, and the
-// hero/music matching goes". Before: a random hero painting on the title, a
-// cross-faded hero per music track in the menu. After: one muted looping
-// video, MOVED from the title into the menu so PRESS START continues the
-// same shot (measured live: t 9.1s on the title → 12.1s in the menu, one
-// <video> on the page, zero .mm-hero-img), paused whenever the overlay is
-// hidden (measured: paused on display:none, playing again when shown).
+// The title and the menu mount the same backdrop so PRESS START continues the
+// same shot; the start screen is the menu's own scaffold with PRESS START where
+// the list will appear; no hero art or hero/music hand-off remains. The video
+// scene plays only while it is on screen. These checks RUN the renderers.
 // ============================================================
 var __SIM_ROOT_OVERRIDE = '.';
 load('./sim/shim-dom.js');
-var SRC = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n')), SW = read('sw.js'), CSS = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join(''));
+var SW = read('sw.js'), CSS = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join(''));
 var pass = 0, fails = [];
 function check(name, cond, detail) { if (cond) pass++; else fails.push(name + (detail ? ' — ' + detail : '')); }
-function body(sig, next) { var a = SRC.indexOf(sig); return a < 0 ? '' : SRC.slice(a, SRC.indexOf(next, a + sig.length)); }
 
 var scene = UI._menuSceneHTML();
-check('the menu scene hosts the video, not hero buffers', /mm-bgvideo/.test(scene) && !/mm-hero-img/.test(scene), scene);
-var title = body('  renderTitleScreen(s) {', '  _armTitleDismiss() {');
-check('the title mounts the shared video', /this\._mountMenuVideo\(el\.querySelector\('\.mm-bgvideo'\)\)/.test(title));
-check('the start screen IS the menu scaffold (same header, same panel)', /class="mm-panel"/.test(title) && /<div class="mm-header">\s*<h1 class="mm-title">the game<\/h1><div class="mm-tagline">Card Lane Battle<\/div>/.test(title) && /'ts-menulike', 'mm-mw3', 'mm-four'/.test(title));
-check('the start screen offers Options (Settings) under PRESS START', /class="ts-options" onclick="UI\.openSettings\(\)"/.test(title));
-var arm = body('  _armTitleDismiss() {', '  dismissTitle() {');
-check('…and Options / Settings never dismiss the start screen', /closest\('\.ts-options, (\.mm-scene-bar, )?\.settings-cog, \.settings-overlay/.test(arm) && /settings-overlay\[style\*="flex"\]/.test(arm));
+check('the menu scene hosts the backdrop, not hero buffers', /mm-bgvideo/.test(scene) && !/mm-hero-img/.test(scene), scene);
+
+var hosts = [], realMountV = UI._mountMenuVideo;
+UI._mountMenuVideo = function (h) { hosts.push(h); };
+var winL = {}, realWinAdd = window.addEventListener;
+window.addEventListener = function (t, fn) { (winL[t] = winL[t] || []).push(fn); };
+var ov = document.getElementById('main-menu-overlay');
+try {
+  UI._titleDone = false; UI._titleArmed = false;
+  UI.renderTitleScreen(Game.state);
+  var vh = ov.querySelector('.mm-bgvideo');
+  check('the title mounts the shared backdrop', hosts.length === 1 && vh && hosts[0] === vh, hosts.length);
+  var head = ov.querySelector('.mm-panel .mm-header');
+  check('the start screen IS the menu scaffold (same header, same panel)',
+    head && head.querySelector('h1.mm-title') && head.querySelector('h1.mm-title').textContent === 'the game'
+    && ['ts-menulike', 'mm-mw3', 'mm-four'].every(function (c) { return ov.classList.contains(c); }), ov.className);
+  var opt = ov.querySelector('.ts-options');
+  check('the start screen offers Options (Settings) under PRESS START',
+    opt && ov.querySelector('#ts-prompt') && /UI\.openSettings\(\)/.test(opt.getAttribute('onclick') || ''));
+  check('…and picks no hero art', !ov.querySelector('.mm-hero-img') && !(ov.style.backgroundImage || ''));
+  // An open Settings panel swallows presses: the start screen stays.
+  var down = winL.pointerdown || [];
+  var so = document.createElement('div'); so.className = 'settings-overlay active'; document.body.appendChild(so);
+  down.forEach(function (fn) { fn({ type: 'pointerdown', target: ov.querySelector('.mm-panel') }); });
+  check('…and a press while Settings is open never dismisses it', down.length > 0 && UI._titleDone === false, 'done ' + UI._titleDone);
+  so.remove();
+  hosts.length = 0;
+  ov.innerHTML = ''; UI.settings.menuFlow = true;
+  UI.renderMainMenu(Game.state);
+  var mh = ov.querySelector('.mm-bgvideo');
+  check('the menu render mounts the same backdrop', hosts.length >= 1 && mh && hosts[hosts.length - 1] === mh && mh.parentNode === ov, hosts.length);
+} catch (e) { fails.push('render threw: ' + (e.message || e)); }
+UI._mountMenuVideo = realMountV; window.addEventListener = realWinAdd;
+
+var np = [], realNP = UI._updateNowPlaying;
+UI._updateNowPlaying = function (src) { np.push(src); };
+UI._updateMenuSideArt('audio/x.mp3');
+UI._updateNowPlaying = realNP;
+check('a track change only updates the now-playing credit', np.length === 1 && np[0] === 'audio/x.mp3');
+check('the hero hand-off is gone everywhere', ['_titleHeroName', '_heroFocal', '_menuHeroInfo'].every(function (k) { return typeof UI[k] === 'undefined'; }));
 check('title top centre, PRESS START dead centre (CSS)', /\.ts-menulike \.ts-prompt \{\s*position: absolute; left: 50%; top: 50%; transform: translate\(-50%, -50%\)/.test(CSS) && /\.ts-menulike \.mm-header \{ align-items: center/.test(CSS));
-check('…and no longer picks a hero or retargets the music', !/getCardArtPathDefault|_srcForHeroName|_titleHeroName/.test(title));
-check('the menu render mounts the same video', /if \(_flowOn\) this\._mountMenuVideo\(el\.querySelector\(':scope > \.mm-bgvideo'\)\)/.test(SRC));
-var side = body('  _updateMenuSideArt(src) {', '\n  },');
-check('a track change no longer swaps any art', !/backgroundImage|getCardArtPathDefault/.test(side) && /_updateNowPlaying\(src\)/.test(side));
-check('the hero hand-off is gone everywhere', !/_titleHeroName|_heroFocal|_menuHeroInfo/.test(SRC));
 
 // One element, moved — never re-created.
 var made = 0, keepCE = document.createElement;

@@ -3,10 +3,8 @@
 // ============================================================
 
 const AI = {
-  // Tunable weights — the CEM tuner (sim/tune.js) perturbs these. Defaults
-  // reproduce the hand-tuned behavior exactly. Override at runtime by mutating
-  // this object before AI methods are called, or by loading a JSON file via
-  // `--weights path.json` in the simulator.
+  // Tunable weights — the CEM tuner (sim/tune.js) perturbs these. Override at
+  // runtime by mutating this object, or via `--weights path.json` in the sim.
   WEIGHTS: {
     // Draft curve — CEM-tuned 2026-06-02 (gen 10, 30-pop, 40 games/sample)
     draftBucketDeficitMult: 3.384,
@@ -16,8 +14,7 @@ const AI = {
     draftLowBias: 1.550,
     draftHighOverPenalty: 2.218,
     draftStatMult: 1.549,
-    // Contested-lane trade quality. Both added 2026-10-01 against a board the
-    // owner photographed; see the notes at their use sites in chooseLane.
+    // Contested-lane trade quality; see the notes at their use sites in chooseLane.
     laneCleanKill: 6,
     laneBodyLossMult: 1.2,
     // Threat scoring — CEM-tuned
@@ -35,31 +32,16 @@ const AI = {
     blockCostDeltaMult: 0.525,
     blockExpensiveOverKillPenalty: -3.369,
     defensiveThresholdNormal: 5.096,
-    // Hard is the PRESSURE tier — see the note in playCards. Was 3.135, the
-    // LOWEST of the three, which made hard the most defensive AI in the game.
-    // Swept hard-vs-normal, seats swapped, 1600 games a point:
-    //     thr    defensive turns    hard win%
-    //     3.135      54.5%            49.3    <- a coin flip. "Hard" meant nothing.
-    //     9          23.5%            50.9
-    //     12         14.3%            54.3    <- 3.4 sigma above even (SE 1.25pp)
-    // So pressing is not a trade against strength here, it IS the strength:
-    // the same change that makes hard 3.8x less defensive also makes it the
-    // first version of hard that actually beats normal. 12 rather than 16
-    // because it still answers a genuinely big swing — an AI that never blocks
-    // reads as broken, not brave.
-    // !! TWO PLACES !! sim/data/weights-current.json is fetched at startup in
-    // the BROWSER and overwrites every key it shares with this object — and the
-    // headless sim does NOT load it. So the value here is what every sim
-    // measurement uses, and the value in that file is what the game actually
-    // plays. Changing only this one measures a change nobody ever gets.
+    // Hard is the PRESSURE tier (see playCards): thr 12 gives 14% defensive turns and 54.3% vs normal (3.4 sigma); 12 not 16 because it still answers a genuinely big swing.
+    // !! TWO PLACES !! sim/data/weights-current.json overwrites shared keys in the
+    // BROWSER, and the headless sim does NOT load it: this value is what the sim
+    // measures, that file is what the game plays. Change both.
     defensiveThresholdHard: 12,
     defensiveThresholdEasy: 17.274,
-    // Hard does not turtle when it is far behind. Costs win rate or does not —
-    // measured in the sweep; either way a losing opponent that hunkers down is
-    // the least threatening thing on the board.
+    // Hard does not turtle when far behind — a losing opponent that hunkers down is the least threatening thing on the board.
     hardPressesWhenBehind: true,
-    // Lethal awareness (posture + lane choice). 1 = on. Behind a weight so it
-    // can be A/B'd against itself rather than argued about.
+    // Lethal awareness (posture + lane choice). 1 = on. Behind a weight so it can
+    // be A/B'd against itself.
     lethalPush: 1,
     // Trick evaluation — CEM-tuned
     trickRemovalHigh: 8.385,
@@ -70,38 +52,16 @@ const AI = {
     trickBuffAlly: 3.986,
     trickDrawBonus: 2.369,
     trickSummonBonus: 2.392,
-    // 1-ply lookahead — runs a simplified combat sim against each
-    // candidate placement and adds the post-combat HP swing + body
-    // delta as an extra score term. Infrastructure is in place
-    // (_snapshotLanes / _simulateCombat / _evaluateBoard below) but
-    // lookaheadMult defaults to 0 because a clean 1200-game A/B test
-    // showed no win-rate advantage (49.0% ±2.8%) — the existing
-    // heuristic already picks the same lane ~95% of the time, and the
-    // simplified combat sim (skipping onPlay, tricks, chain/mind-
-    // control/taunt-redirect) isn't accurate enough to reliably fix
-    // the remaining 5%. Re-enable by raising lookaheadMult (the CEM
-    // tuner in sim/tune.js can tune it alongside the other weights)
-    // after the sim is extended with onPlay / trick / chain effects.
+    // 1-ply lookahead — simulates combat for each candidate placement and adds the
+    // post-combat HP swing + body delta (_snapshotLanes / _simulateCombat /
+    // _evaluateBoard below). 0 because a 1200-game A/B showed no gain (49.0% ±2.8): the heuristic already agrees ~95% of the time.
+    // Re-enable (tunable via sim/tune.js) once the sim models onPlay / trick / chain effects.
     lookaheadMult: 0,
-    // THE "SIT NEXT TO AN ALLY" BONUS, OFF BY DEFAULT (2026-11-06). chooseLane
-    // used to add a flat +1.0 to any open lane adjacent to a living ally (+0.5
-    // one further out). Nothing else separates equal open lanes, so the tie
-    // shuffle below it never got a tie to break: the AI took the neighbour
-    // every time. Measured over 200 games, 522 placements with a real choice:
-    // 94.3% landed adjacent to an ally against a 60.3% chance level (most open
-    // lanes on six lanes neighbour something). Owner: "the ai enemy plays cards
-    // next to each other all the time ... more random when theres open lanes
-    // or the board empty." The genuine adjacency synergies — splash, Black
-    // Widow's freeze — are scored explicitly further down and are untouched.
-    // 1 reproduces the old behaviour exactly; 0 lets equal lanes tie and the
-    // seeded shuffle spread them. Mirrored in sim/data/weights-current.json.
+    // "Sit next to an ally" bonus (+1.0 adjacent, +0.5 one further). 0 by default: it broke every open-lane tie toward a neighbour (94% adjacent vs 60% chance), so the AI clustered.
+    // Real adjacency synergies (splash, Black Widow's freeze) are scored separately.
+    // 1 = old behaviour; 0 lets equal lanes tie and the seeded shuffle spread them. Mirrored in sim/data/weights-current.json.
     allyAdjacency: 0,
-    // MEASURED DEAD. Giving hard the lookahead that normal lacks was the
-    // obvious idea and it is worth nothing: 400 games a side, seats swapped,
-    // hard won 50.5% at weight 1 and 47.5% at weight 4. The original A/B that
-    // shipped lookaheadMult at 0 was right, and re-running it post-shim-fix
-    // only confirmed it. Left at 0 with the wiring intact so the next person
-    // does not have to rediscover this — sim/difficulty.js re-runs it.
+    // Hard-only lookahead: measured worthless (50.5% at weight 1, 47.5% at 4, 400 games a side). Wired but 0; sim/difficulty.js re-runs it.
     hardLookahead: 0,
     // Simulated play evaluation. 0 = off; see the measurement table on
     // AI._simEnabled before turning it on.
@@ -122,48 +82,23 @@ const AI = {
     // a partner still has a card turn coming — they are the one least likely to
     // be answerable cheaply after me.
     teamThreatPriority: 0,
-    // Weight on the POST-COMBAT board simulation when placing in 2v2. The 1v1
-    // knob (lookaheadMult) ships at 0 because a clean A/B found it a wash
-    // there — but an eight-lane board that two players fill between them is a
-    // different question, so 2v2 gets its own knob to be measured on its own.
+    // Weight on the POST-COMBAT board sim when placing in 2v2 — separate from lookaheadMult (a 1v1 wash), since an eight-lane shared board is a different question.
     team2v2Lookahead: 0,
-    // ENERGY HELD BACK FOR A TRICK. Cards are played before tricks inside the
-    // same turn, so the card loop eats the whole pool and the trick phase finds
-    // nothing affordable — measured: 58% of the affordable tricks an AI seat
-    // held were never cast, and 2.1 tricks were still in hand when the game
-    // ended. This is the minimum evalTrick score that justifies holding its
-    // cost back from the card loop. 0 disables the reserve.
+    // ENERGY HELD BACK FOR A TRICK: cards are played before tricks from one pool, so without a reserve 58% of affordable tricks went uncast.
+    // This is the minimum evalTrick score that justifies holding its cost back from the card loop. 0 disables the reserve.
     teamTrickReserveMin: 0,
-    // 1 = skip the defensive block planner in 2v2. THIS IS THE ONE THAT WORKED.
-    // Sensitivity probe: taking the planner AWAY from a seat made that seat
-    // BETTER by 5.6pp, and the change measured +4.3pp head to head over 4800
-    // games (54.3%, against a 48.6–51.4 no-difference band). It commits the
-    // best body to a trade a partner may already be covering, on an eight-lane
-    // board where an uncontested lane hits health both partners share — and it
-    // front-loads the card loop, which is what made play ORDER look like a 7pp
-    // decision in the same probe. Without it, order barely matters (53.6% vs
-    // 54.3% between cheapest-first and dearest-first) because nothing is
-    // stranding the good body any more.
+    // 1 = skip the defensive block planner in 2v2: +4.3pp head to head over 4800 games (54.3%). It commits the best body to a trade a partner may already cover, on a board where open lanes hit shared health.
     teamSkipBlockPlan: 1,
-    // The minimum evalTrick score a 2v2 seat will cast at. playTricks starts
-    // its search at 0, so a trick the evaluator is merely unexcited about is
-    // held — and measured, NOT casting tricks costs a seat 16pp, which is the
-    // largest single dimension in the game after simply getting bodies down.
-    // Lower bar = cast more freely.
+    // The minimum evalTrick score a 2v2 seat will cast at (playTricks starts at 0). Not casting tricks costs a seat 16pp, so a lower bar = cast more freely.
     teamTrickBar: 0,
-    // Play order for 2v2 only ('' = inherit the 1v1 rule). Order is the single
-    // biggest decision the card loop makes — measured at 7pp between best and
-    // worst — so it is worth asking whether an eight-lane game with energy to
-    // spare wants a different one. '' | 'asc' | 'desc' | 'rand' | 'quality'.
+    // Play order for 2v2 only ('' = inherit the 1v1 rule); order measured at 7pp best-to-worst. '' | 'asc' | 'desc' | 'rand' | 'quality'.
     team2v2PlayOrder: '',
   },
 
   // ===================== 2v2 TEAMPLAY =====================
-  // The 1v1 brain plays a SIDE. In 2v2 a side is two people who alternate with
-  // the enemy, hold separate hands and separate energy, and share one health
-  // bar — so the same board means different things depending on who still has
-  // a turn coming. This is the context the lane and trick logic consult so an
-  // AI seat plays like it has a partner instead of like it is alone.
+  // The 1v1 brain plays a SIDE. In 2v2 a side is two seats that alternate with
+  // the enemy, hold separate hands and energy, and share one health bar — so the
+  // same board means different things depending on who still has a turn coming.
   // Returns null outside 2v2, and every consumer treats null as "1v1 rules".
   _2v2Ctx(owner) {
     const G = (typeof Game !== 'undefined') ? Game : null;
@@ -265,29 +200,10 @@ const AI = {
       const deficit = target - already; // +N need, -N overfull
       score += deficit * this.WEIGHTS.draftBucketDeficitMult;
       if (already >= 3) score -= this.WEIGHTS.draftBucketOverPenalty;
-      // ROUND-1 FLOOR — and the test is cost <= 1, not <= 2.
-      //
-      // Round 1 pays ONE energy. This floor exists to stop the AI opening on a
-      // dead turn, but it asked whether the deck held a cost-<=2 card, and a
-      // cost-2 satisfies that while still being unplayable on turn 1. So the
-      // floor reported itself satisfied by a card that does not solve the
-      // problem it was written for, and the AI kept opening with nothing.
-      //
-      // Measured over 400 drafts (sim/round1-open.js), before this change:
-      //     AI opens with nothing affordable ....... 43.0%
-      //     a cost-1 was offered to it at some point  81.5%
-      //     dead open DESPITE an offered cost-1 .... 24.5%
-      // The 24.5 points are the picker declining a card it was shown; the
-      // remaining ~18.5% is the pool never offering one, which no weighting can
-      // fix. User report: "the ai is getting stuck on turn 1 and wont play a
-      // card" — it was not stuck, it was passing correctly on an unplayable
-      // hand.
-      //
-      // Note this is a LOGIC change, not a weight change, and deliberately so:
-      // every WEIGHTS value is mirrored in sim/data/weights-current.json, which
-      // the browser fetches at startup and which the sim ignores. A retuned
-      // number would have had to be edited in both places to take effect in the
-      // game; the comparison itself lives only here.
+      // ROUND-1 FLOOR — the test is cost <= 1, not <= 2: round 1 pays ONE energy,
+      // so a cost-2 doesn't prevent a dead opening turn (sim/round1-open.js).
+      // A LOGIC change, not a weight, deliberately: weights also live in
+      // sim/data/weights-current.json, and this comparison lives only here.
       const hasTurn1Play = (drafted || []).some(c => (c.cost || 0) <= 1);
       if (!hasTurn1Play && (card.cost || 0) <= 1) {
         const remainingPicks = 5 - (drafted || []).length;
@@ -305,20 +221,11 @@ const AI = {
 
     // LAST CHANCE IS NOT A SCORE, IT IS A CONSTRAINT.
     //
-    // The floor above is a bonus, and a bonus can always be outbid — a cost-9
-    // finisher's quality beats +4.5 comfortably, so the AI kept taking the bomb
-    // on its final pick and locking in a dead opening turn. Raising the bonus
-    // until it wins everywhere would be a weight change (two files, and it
-    // would distort every earlier pick too) to express something that is not
-    // really a preference at all.
-    //
-    // The five drafted cards ARE the opening hand — there is no later draw to
-    // rescue it — so on the final pick, with nothing playable yet and a cost-1
-    // on the table, declining it does not trade some value for some other
-    // value. It guarantees a turn where the AI cannot act. That is a floor, so
-    // it is enforced as one, and only in that exact corner: last pick, nothing
-    // cheap held, something cheap offered. Among the cheap options the normal
-    // score still decides which.
+    // The floor above is a bonus and can be outbid (a cost-9 finisher beats +4.5).
+    // The five drafted cards ARE the opening hand, so on the final pick with
+    // nothing playable held and a cost-1 offered, declining it guarantees a turn
+    // where the AI cannot act. Enforced only in that exact corner; among the cheap
+    // options the normal score still decides.
     const isFinalPick = (drafted || []).length >= 3;
     const hasTurn1 = (drafted || []).some(c => (c.cost || 0) <= 1);
     if (isFinalPick && !hasTurn1) {
@@ -330,13 +237,10 @@ const AI = {
 
   // Simple trick drafting — cheaper tricks are more flexible; prefer variety
   // and effects that name "destroy" / "draw" / "damage".
-  // 2v2 DRAFTS A DIFFERENT DECK. pickDraftCard optimises a COST CURVE, because
-  // in 1v1 energy is the binding constraint — you need cheap bodies for rounds
-  // 1-3 or the curve strands you. Measured in 2v2, energy is not the constraint
-  // at all: seats finish a card turn with 47.6% of their energy unspent and an
-  // affordable card in hand only a quarter of the time. What is scarce there is
-  // CARDS (one draw a round, four seats, eight lanes), so every pick should buy
-  // the most power per card and ignore the curve entirely.
+  // 2v2 DRAFTS A DIFFERENT DECK. pickDraftCard optimises a COST CURVE because
+  // energy binds in 1v1. In 2v2 seats leave ~48% of energy unspent; what is
+  // scarce is CARDS (one draw a round, four seats, eight lanes), so every pick
+  // buys the most power per card and ignores the curve.
   pickDraftCard2v2(choices, drafted) {
     if (!choices || !choices.length) return null;
     if (choices.length === 1) return choices[0];
@@ -369,19 +273,12 @@ const AI = {
 
   // ===================== EVALUATION HELPERS =====================
 
-  // Strategic threat bonus — cards whose VALUE isn't captured by combat
-  // stats alone. Energy generators (Dr. Octopus, Green Lantern) give the
-  // opponent a currency advantage every turn they're alive, which
-  // compounds — one more energy next round usually means one more body
-  // on board, one more trick, a cheaper finisher. Killing them early
-  // saves every future energy point. These bonuses are added on top of
-  // normal stat-based threat so the AI prioritizes removal, blocks, and
-  // trick targeting toward them.
-  //   Dr. Octopus  — passive aura "+1 energy / round while alive",
-  //                  scales with remaining game length. Conservative +5.
-  //   Green Lantern — converts damage dealt → energy next turn. Bonus
-  //                  scales with its own attack (more attack = more
-  //                  damage = more energy). Base +3, plus 1× attack.
+  // Strategic threat bonus — value not captured by combat stats. Energy
+  // generators give the opponent a compounding currency advantage, so killing
+  // them early saves every future energy point. Added on top of stat threat so
+  // removal, blocks and trick targeting prioritise them.
+  //   Dr. Octopus  — "+1 energy / round while alive". Conservative +5.
+  //   Green Lantern — damage dealt → energy next turn. Base +3, plus 1× attack.
   STRATEGIC_THREAT: {
     'Dr. Octopus': (card) => 5,
     'Green Lantern': (card) => 3 + (card.attack || 0),
@@ -431,9 +328,7 @@ const AI = {
 
   // Would `myCard` survive at least 1 combat swing from `enemy`?
   // `extra` is damage arriving from somewhere OTHER than the card in front —
-  // adjacent splash, in practice. It used to be ignored entirely, so the picker
-  // asked "do I survive the trade" while the real question was "do I survive
-  // the trade AND the splash", and walked bodies into lanes that killed them.
+  // adjacent splash, in practice — so the question is "trade AND splash".
   wouldSurvive(myCard, enemy, extra) {
     if (myCard.invincibleTurns > 0 || myCard.hasDamageImmunity) return true;
     if (myCard.evadeCharges > 0) return true;
@@ -447,15 +342,10 @@ const AI = {
 
   // HOW MUCH SPLASH LANDS ON THIS LANE?
   //
-  // Game.effectiveSplash is the authority — applySplash calls it, and it is the
-  // only thing that knows about `_splashTracksAtk`, the flag that makes Hulk's
-  // splash equal his ATTACK. The hazard term below read the raw `splashRange`
-  // FIELD instead, which for Hulk is whatever a sync last wrote there, so a
-  // 5-ATK Hulk next door scored as no hazard at all and the bot placed a 5 HP
-  // body beside him. (Owner: "why would my teammate actively play windu in lane
-  // 7 when there's a hulk in lane 6 who splashes.") Splash only ever reaches the
-  // two immediately adjacent lanes — never the lane in front — which is exactly
-  // the case cost alone cannot see.
+  // Game.effectiveSplash is the authority — it is the only thing that knows
+  // `_splashTracksAtk` (Hulk's splash = his ATK); the raw `splashRange` field
+  // can be stale. Splash only reaches the two adjacent lanes, never the lane in
+  // front — the case cost alone cannot see.
   incomingSplash(laneIdx, owner) {
     const s = Game.state, opp = Game.opponent(owner);
     let d = 0;
@@ -502,36 +392,12 @@ const AI = {
   // Owner-parameterized so both sim seats use this same function.
   //
   // ---- GREEDY HERE IS A MEASURED CHOICE, NOT AN UNFINISHED ONE ----
-  //
-  // This pass is suboptimal BY ITS OWN SCORE and that is fine. Measured
-  // 2026-10-01 over 200 games / 3,115 planning calls, brute-forcing the exact
-  // best assignment of hand to lanes (the sets are small enough that none had
-  // to be skipped): greedy was beaten in 21.1% of calls, leaving a mean of 6.2
-  // blockFitScore on the table and up to 25 in one call.
-  //
-  // SO IT WAS REPLACED WITH AN EXHAUSTIVE SEARCH, AND THE AI GOT WORSE.
-  // Seeded with the greedy answer so it could never score lower, node-capped,
-  // 0.07ms per plan at 1v1 width and 0.24ms at 2v2 — free. It drove
-  // suboptimality to 0.0%. Interleaved A/B, arm swapped every game, 3000 games
-  // on two independent seeds: 46.7% and 46.1%, 95% band ±1.8. Roughly 3.5pp
-  // WORSE, twice, well outside the band.
-  //
-  // WHY, measured rather than guessed: the search blocked MORE lanes than
-  // greedy (3552 vs 3489) while the mean threat of what it left open went UP
-  // (3.80 vs 3.48). Maximising the SUM of blockFitScore buys breadth — lots of
-  // comfortable blocks — and pays for it by letting the scariest lane through.
-  // The threat-descending order of the loop below is carrying information the
-  // objective function does not: answer the biggest thing first, whatever the
-  // totals say. Adding an explicit penalty for leaving a threatened lane open
-  // did not recover it either (46.1%, unmoved).
-  //
-  // The lesson is about the OBJECTIVE, not the search: blockFitScore was tuned
-  // to answer "which of my cards fits this lane", and it is not a quantity that
-  // means anything when summed across lanes. Making blocking genuinely better
-  // needs a different objective — forecast the combat and maximise face damage
-  // prevented, which the predictor can already do — not a better search over
-  // this one. Until that exists, greedy wins, and this note is here so the 21%
-  // figure does not send the next person down the same road.
+  // An exhaustive search that maximised summed blockFitScore made the AI ~3.5pp
+  // WORSE (46.7%/46.1%, 3000 games, two seeds): it blocked more lanes but left
+  // scarier ones open. The threat-descending order carries information the
+  // objective doesn't — answer the biggest thing first. blockFitScore isn't
+  // meaningful summed across lanes; a better planner needs a different objective
+  // (forecast combat, maximise face damage prevented), not a better search.
   planDefensiveBlocks(hand, budget, owner = 'ai') {
     const s = Game.state;
     const opp = Game.opponent(owner);
@@ -570,12 +436,8 @@ const AI = {
   },
 
   // Difficulty — read from UI.settings and skew how greedy/strategic the AI is.
-  // PER-SEAT, not global. This read the one global setting, so both seats in a
-  // simulated match always had the SAME difficulty — which makes the question
-  // "is hard actually harder than normal?" unanswerable, because you can never
-  // sit them opposite each other. Every caller passes its owner now; with no
-  // override set the answer is the global setting exactly as before, so live
-  // play is unchanged.
+  // PER-SEAT, so two sim seats can have different difficulties; with no override
+  // the answer is the global setting.
   //
   // _diffOverride is how the harness pits one against the other:
   //   AI._diffOverride = { ai: 'hard', player: 'normal' }
@@ -587,43 +449,30 @@ const AI = {
 
   // Owner-parameterized. Same code drives both sim seats, so whatever
   // improvements ship here automatically apply to 'player' AND 'ai'.
-  // Delay between each AI card play so the player can follow what
-  // happened. Reduced slightly (was 350/700/1100) per user feedback
-  // that the pause felt a touch too long.
+  // Delay between each AI card play so the player can follow what happened.
   //   aiPacing === 'instant'  → 0ms (fire everything at once)
   //   aiPacing === 'animated' → scaled by aiSpeed setting.
-  // Pre-play delay — how long the "thinking" dots show BEFORE a card
-  // lands. Exists so the AI doesn't appear to play instantly; gives
-  // the player a moment to anticipate before the card materializes.
+  // Pre-play delay — how long the "thinking" dots show BEFORE a card lands,
+  // so the AI doesn't appear to play instantly.
   aiStepMs() {
     const mode = (typeof UI !== 'undefined' && UI.settings && UI.settings.aiPacing) || 'animated';
     if (mode === 'instant') return 0;
     const spd = (typeof UI !== 'undefined' && UI.settings && UI.settings.aiSpeed) || 'normal';
-    // A BEAT BETWEEN AI ACTIONS, TRIMMED 25% (2026-10-29). Originally two full
-    // seconds, on request: "when the ai plays its happens bakc to back no pause
-    // i wnat a 2 second pause between each Ai action just to have soem time."
-    // That beat is still the point; it was just long enough to drag once the AI
-    // started playing well. Owner: "the ai is playing good just slightly speed
-    // up thier turn just a bit."
-    //
-    // This is the FIRST half of the gap; aiPostPlayMs is the second, and the
-    // two are tuned to add up:
-    //     fast   400 + 600  = 1000   (was 1200)
-    //     normal 600 + 900  = 1500   (was 2000)
-    //     slow   850 + 1250 = 2100   (was 2800)
-    // The same 0.75 is applied to UI.aiStepDelay, the gap between the STEPS
-    // INSIDE one card, or a Superman turn would keep its old length while the
-    // gaps around it shortened — the two cadences have to move together.
-    // Most of it still sits AFTER the card lands, so the shockwave and ripple
-    // finish before the next play starts rather than before it begins.
+    // A BEAT BETWEEN AI ACTIONS. This is the FIRST half of the gap; aiPostPlayMs
+    // is the second, tuned to add up:
+    //     fast   400 + 600  = 1000
+    //     normal 600 + 900  = 1500
+    //     slow   850 + 1250 = 2100
+    // The same 0.75 scale is applied to UI.aiStepDelay (the gap between steps
+    // INSIDE one card) — the two cadences have to move together. Most of the gap
+    // sits AFTER the card lands, so the shockwave and ripple finish before the
+    // next play starts.
     return { fast: 400, normal: 600, slow: 850 }[spd] || 600;
   },
 
-  // Post-play hold — pause AFTER a card lands so the radial ripple +
-  // lane shockwave + HP pulse have time to play out before the AI
-  // commits the next action. The larger half of the two-second gap: the
-  // interesting thing to look at is the board AFTER the play, not the thinking
-  // dots before it.
+  // Post-play hold — pause AFTER a card lands so the radial ripple + lane
+  // shockwave + HP pulse play out before the next action. The larger half of
+  // the gap: the interesting thing to look at is the board AFTER the play.
   aiPostPlayMs() {
     const mode = (typeof UI !== 'undefined' && UI.settings && UI.settings.aiPacing) || 'animated';
     if (mode === 'instant') return 0;
@@ -631,13 +480,8 @@ const AI = {
     return { fast: 600, normal: 900, slow: 1250 }[spd] || 900;
   },
 
-  // End-of-turn pause — gives the player a beat to read the final
-  // board state before control hands back. Reduced 800 → 300 per
-  // user feedback: "the time it takes for the enemy to end their
-  // turn needs to be reduced by half a second." The post-play hold
-  // (aiPostPlayMs) already gives ~500ms after the LAST card lands
-  // so the final state is readable; the additional end-of-turn
-  // pause was redundant feel-padding.
+  // End-of-turn pause — a short beat to read the final board before control
+  // hands back; aiPostPlayMs already holds after the LAST card, so this stays small.
   aiEndOfTurnMs() {
     const mode = (typeof UI !== 'undefined' && UI.settings && UI.settings.aiPacing) || 'animated';
     if (mode === 'instant') return 0;
@@ -654,28 +498,15 @@ const AI = {
   // to read.
   // ---- WHOSE TURN THIS WORK BELONGS TO ----
   //
-  // EVERY AI LOOP IN THIS FILE IS PACED. The queue below fires one action per
-  // step, the trick loop casts one trick per step, and both wait out any open
-  // prompt in between — so seconds pass between the first action and the last.
-  // In 2v2 a seat's turn can end inside that gap: the 12s drive watchdog
-  // force-ends a hung seat, a teammate presses Done, a round advances. None of
-  // these loops knew turns existed, so the remainder of the queue fired into the
-  // NEXT seat's turn.
+  // EVERY AI LOOP IN THIS FILE IS PACED, so seconds pass between the first
+  // action and the last. In 2v2 a seat's turn can end inside that gap (drive
+  // watchdog, teammate presses Done, round advances), and the rest of the queue
+  // would fire into the NEXT seat's turn and be refused by playCard's out-of-turn guard.
   //
-  // playCard's own out-of-turn guard refuses those plays, and the owner watched
-  // it do exactly that — "[OUT OF TURN] Joker was not played — it is Cortex's
-  // turn" one line under "Cortex's turn — p4-cards-tricks", for cards belonging
-  // to the seat BEFORE him. But a bot repeatedly attempting plays it is not
-  // allowed to make is a bot that has quietly lost its turn; the refusals are
-  // the symptom. (Owner: "cortex is trying to play out of turn for some reason,
-  // just play on his turn ... its good to block cards played out of turn the
-  // guard is doing its job but just play in a dedicated turn easy.")
-  //
-  // The engine already mints exactly one token per sub-phase and bumps it in the
-  // single place every sub-phase passes through (_2v2StartSubPhase). Capture it
-  // when the work starts; stop the moment it moves. 1v1 never bumps it, so this
-  // is inert there, and a caller that passes its own guard (a rescheduled retry)
-  // keeps the ORIGINAL turn's token rather than minting a fresh one.
+  // The engine mints one token per sub-phase, bumped only in _2v2StartSubPhase.
+  // Capture it when the work starts; stop the moment it moves. 1v1 never bumps
+  // it, so this is inert there, and a caller that passes its own guard (a
+  // rescheduled retry) keeps the ORIGINAL turn's token.
   _turnGuard() {
     const tok = (typeof Game !== 'undefined') ? Game._2v2TurnToken : undefined;
     return () => (typeof Game === 'undefined') || Game._2v2TurnToken === tok;
@@ -683,13 +514,10 @@ const AI = {
 
   // WAIT FOR A PENDING PROMPT — AND DON'T RELY ON BEING WOKEN. The parked
   // continuation only runs when somebody calls resumeCombatIfWaiting, and not
-  // every path that clears a prompt does — so a bot could sit behind a prompt
-  // that was already gone until the 2v2 drive watchdog cut its turn short, then
-  // wake on someone else's turn and be refused out-of-turn. (Owner: "its not
-  // hard for the AI to play a card and not have their turns cut short.") Poll as
-  // a floor: whichever fires first wins, and the poll takes its continuation back
-  // off the stack so a later pop is not wasted on a no-op. Not under _syncMode,
-  // where setTimeout runs inline and a poll would recurse.
+  // every path that clears a prompt does. Poll as a floor: whichever fires first
+  // wins, and the poll takes its continuation back off the stack so a later pop
+  // is not wasted on a no-op. Not under _syncMode, where setTimeout runs inline
+  // and a poll would recurse.
   _parkUntilPromptsClear(step) {
     document.body && document.body.classList.add('ai-thinking');
     let resumed = false;
@@ -715,18 +543,14 @@ const AI = {
     const postDelay = this.aiPostPlayMs();
     let i = 0;
     const step = () => {
-      // THE TURN ENDED UNDER US — STOP, DON'T PUSH ON. The guard is the caller's
-      // (see _turnGuard); it holds the turn token as of when this work started,
-      // so if the sub-phase advances underneath us — a drive watchdog force-ending
-      // the seat, a recovery — the leftovers never land in the NEXT seat's turn
-      // to be refused out-of-turn, which reads as "the AI skipped its own turn
-      // and then played on someone else's".
+      // THE TURN ENDED UNDER US — STOP, DON'T PUSH ON. The guard (see _turnGuard)
+      // holds the turn token from when this work started, so leftovers never land
+      // in the NEXT seat's turn.
       //
       // Checked before the prompt gate below as well as before each action,
-      // because a queue parked on whenPromptCleared is exactly the one most
-      // likely to come back late. onComplete still fires: the 2v2 drive's
-      // finish() is what releases the drive lock, and it already refuses to
-      // advance a turn that is not its own.
+      // because a queue parked on whenPromptCleared is the most likely to come back
+      // late. onComplete still fires: the 2v2 drive's finish() releases the drive
+      // lock, and it already refuses to advance a turn that is not its own.
       if (stillMyTurn && !stillMyTurn()) {
         document.body && document.body.classList.remove('ai-thinking');
         if (onComplete) onComplete();
@@ -734,23 +558,14 @@ const AI = {
       }
       // HOLD FOR ANY PENDING PROMPT — FIRST, before the done-check.
       //
-      // This gate used to sit only BETWEEN actions, AFTER the "queue is done"
-      // branch below. So a prompt-raising card that was the LAST (or only) play
-      // in the queue — Symbiote Spider-Man cycling every seat, a mind-control
-      // target pick, an Apothicon discard — fell straight through to onComplete
-      // while its own async prompt chain was still resolving. The 2v2 drive then
-      // handed control on to doTricks and finish with the chain half-open, and
-      // its completion came to depend on a whenPromptCleared continuation nobody
-      // had parked: the turn only advanced when the freeze watchdog force-ended
-      // it seconds later. (User, hosting 2v2: "the table keeps always getting
-      // stuck ... after any AI card," "after a prompt card.") Waiting here parks
-      // exactly the continuation resumeCombatIfWaiting fires the instant the
-      // prompt clears, so the drive finishes on its own the moment the card's
-      // chain is done — no watchdog, no dead table.
+      // If the LAST play in the queue raised an async prompt chain (Symbiote
+      // Spider-Man, a mind-control pick, an Apothicon discard), falling through to
+      // onComplete would hand the 2v2 drive on with the chain half-open and the
+      // table stuck until a watchdog. Waiting here parks the continuation
+      // resumeCombatIfWaiting fires the instant the prompt clears.
       //
-      // It also keeps the original reason it existed: the AI never plays its
-      // NEXT card or trick while the PLAYER still has a modal open (a
-      // Start-of-Tricks move, a Batarang mid-pick).
+      // It also ensures the AI never plays its NEXT card or trick while the PLAYER
+      // still has a modal open (a Start-of-Tricks move, a Batarang mid-pick).
       if (typeof Game !== 'undefined' && Game.hasPendingPrompt && Game.hasPendingPrompt()) {
         this._parkUntilPromptsClear(step);
         return;
@@ -775,22 +590,16 @@ const AI = {
         document.body && document.body.classList.remove('ai-thinking');
         const fn = actions[i++];
         try { fn(); } catch (e) { console.error(e); }
-        // A RENDER FAULT MUST NOT END THE AI'S TURN.
-        // The action itself was already guarded; this call was not, and it sits
-        // between the action and the setTimeout that schedules the next step.
-        // So a throw anywhere in render did not lose one frame — it skipped the
-        // recursion, and the queue stopped for good: no further cards, and
-        // onComplete never fired, so endPhase1 never ran and the round could not
-        // advance. That is indistinguishable from "the AI is stuck and won't
-        // play a card". Guarded to match the action above; UI._safe already
-        // isolates individual sub-renderers, this covers the call itself.
+        // A RENDER FAULT MUST NOT END THE AI'S TURN. This call sits between the
+        // action and the setTimeout that schedules the next step, so an uncaught throw
+        // would stop the queue for good (onComplete never fires, the round can't
+        // advance). UI._safe isolates sub-renderers; this covers the call itself.
         try {
           if (typeof UI !== 'undefined' && UI.render) UI.render();
         } catch (e) { console.error('[AI queue] render threw; continuing anyway', e); }
-        // Phase B — post-play hold for animations to settle. Space the next
-        // card off the SHORT play-to-play stagger (≤1.4s), not the full SFX
-        // length — the cue keeps playing under the next play, so a long unique
-        // bite no longer forces a ~5s wait between AI cards even on 'fast'.
+        // Phase B — post-play hold for animations to settle. Space the next card off
+        // the SHORT play-to-play stagger (≤1.4s), not the full SFX length — the cue
+        // keeps playing under the next play.
         const sfxEndsAt = (typeof UI !== 'undefined' && UI.sfx && UI.sfx._playStaggerUntil) || 0;
         const sfxRemaining = Math.max(0, sfxEndsAt - Date.now());
         const stepDelay = Math.max(postDelay, sfxRemaining + 80);
@@ -812,15 +621,12 @@ const AI = {
   },
 
   // ---- WHY DID IT DO THAT? ----
-  // The user plays this game and reports the plays that look stupid. Without a
-  // record, every such report is a re-derivation from memory: which card, which
-  // lane, what else was affordable, what posture the AI was in. This keeps the
-  // last few decisions so a report can be answered from what actually happened.
+  // Keeps the last few decisions (card, lane, alternatives, posture) so a report
+  // of a bad play can be answered from what actually happened.
   //
   // Deliberately NOT in Game.state: state rides every multiplayer broadcast and
-  // gets snapshotted for undo, and a debug buffer belongs in neither. It is a
-  // plain ring buffer on the AI object, dropped on reload, costing one small
-  // object per play.
+  // gets snapshotted for undo, and a debug buffer belongs in neither. Plain ring
+  // buffer on the AI object, dropped on reload.
   //
   // Read it from the console with AI.why() after a play that looked wrong.
   _trace: [],
@@ -850,12 +656,9 @@ const AI = {
     if (!mine()) { if (onComplete) onComplete(); return; }
     if (Game.isMultiplayer && Game.isMultiplayer()) { if (onComplete) onComplete(); return; }
     // WAIT OUT A RANDOM-EVENT HOLD, DON'T STALL ON IT. While MC Ballyhoo / the
-    // Shadow Man / a Cog VP is doing its reveal the board is locked so plays
-    // can't stack sound on the music. The AI must not fire under that lock — but
-    // it must also not just RETURN, which would strand its whole turn (the
-    // "after the event the AI stalled out" bug). Reschedule and retry: the hold
-    // has a hard 30s ceiling, so this always resumes, and the moment it lifts the
-    // AI takes its turn. Covers every current and future random event.
+    // Shadow Man / a Cog VP reveal holds the board, the AI must not fire — but
+    // returning would strand its whole turn. Reschedule and retry: the hold has a
+    // hard 30s ceiling, so this always resumes. Covers every random event.
     if (Game.ballyhooLocked && Game.ballyhooLocked()) {
       Game._schedule(() => this.playCards(owner, onComplete, mine), 400);
       return;
@@ -897,50 +700,24 @@ const AI = {
     const incoming = this.unblockedIncoming(owner);
     const diff = this.difficulty(owner);
     const defensiveThreshold = diff === 'easy' ? this.WEIGHTS.defensiveThresholdEasy : diff === 'hard' ? this.WEIGHTS.defensiveThresholdHard : this.WEIGHTS.defensiveThresholdNormal;
-    // PRESSURE, NOT DEPTH. Measured over 120 games a tier, the share of turns
-    // the AI spent blocking rather than pressing was:
-    //     hard 54.4%   normal 41.4%   easy 14.7%
-    // Hard was the most passive opponent in the game. Someone who picks HARD
-    // and then watches it spend every other turn holding the line is not
-    // playing something that feels hard, whatever its win rate says — and its
-    // win rate says nothing either: chooseLane's own note records hard vs
-    // normal at 150/150, a coin flip, because a 3.1-vs-5.1 threshold is flat
-    // in that range. "Hard" was a label on nothing.
+    // PRESSURE, NOT DEPTH. Hard's defensive threshold is the HIGHEST of the three:
+    // it eats chip damage and keeps developing instead of answering every threat.
+    // Easy (17.3) barely blocks because it barely plans, which is different from
+    // choosing to press.
     //
-    // So hard's threshold is now the HIGHEST of the three: it eats chip damage
-    // and keeps developing instead of answering every threat. Easy still plays
-    // its own way (17.3) — it barely blocks because it barely plans, which is
-    // a different thing from choosing to press.
-    //
-    // TURTLING WHILE LOSING IS THE WORST OF IT. `farBehind` forced the
-    // defensive posture no matter what, so the further behind the AI got the
-    // more it hunkered down — the exact moment a human piles on. You cannot
-    // win from 10 HP down by blocking. On hard that clause is dropped: behind
-    // means race, not retreat.
+    // TURTLING WHILE LOSING IS THE WORST OF IT. `farBehind` forces the defensive
+    // posture; on hard that clause is dropped — behind means race, not retreat.
     const _turtleWhenFarBehind = !(diff === 'hard' && this.WEIGHTS.hardPressesWhenBehind);
-    // GOING FOR THE KILL. The AI had no concept of lethal — nowhere in this
-    // file did it ask "can I finish them this turn?". It would hold a winning
-    // board, answer a threat that no longer mattered, and give the player
-    // another turn to find an out. Nothing reads as mercy like an opponent
-    // that does not take the kill.
-    //
-    // unblockedIncoming(opp) is the damage MY uncontested bodies will do to
-    // THEM next combat — the function is already parameterised both ways, so
-    // this costs one call. The kill is in reach when that plus the best body I
-    // could still place this turn covers their remaining health.
+    // GOING FOR THE KILL. unblockedIncoming(opp) is the damage MY uncontested
+    // bodies will do to THEM next combat. The kill is in reach when that plus the
+    // best body I could still place this turn covers their remaining health.
     const _bestBody = s[owner].hand.reduce((m, c) =>
       (c && !c._neverPlayable && Game.getCardCost(owner, c) <= s[owner].currency)
         ? Math.max(m, this._handBody(c, owner).attack || 0) : m, 0);
-    // ONLY WHEN THEY CANNOT ANSWER IT. First cut of this pushed for lethal
-    // whenever the arithmetic worked, and measured 1.7pp WORSE (49.2 vs 50.9,
-    // 2500 games a side). The reason is turn order: firstPlayer alternates, so
-    // when WE move first an "uncontested" lane is only a lane they have not
-    // filled YET. The AI was spending its best body chasing a kill the player
-    // then simply blocked, instead of using it where it mattered.
-    // When they have already taken their card step, the board they left is the
-    // board combat resolves on, and the same arithmetic is real.
-    // Reads firstPlayer only — public information. The opponent's HAND is not
-    // consulted anywhere here; an AI that peeks is a different complaint.
+    // ONLY WHEN THEY CANNOT ANSWER IT. Pushing whenever the arithmetic worked measured 1.7pp WORSE (49.2 vs 50.9): moving first, an "uncontested" lane is only one they haven't filled YET.
+    // After they've taken their card step, the board they left is what combat
+    // resolves on. Reads firstPlayer only — public information; the opponent's
+    // HAND is never consulted here.
     const _theyAlreadyMoved = s.firstPlayer !== owner;
     const killInReach = this.WEIGHTS.lethalPush > 0 && _theyAlreadyMoved
       && s[opp].health > 0
@@ -949,14 +726,9 @@ const AI = {
       && (incoming >= defensiveThreshold || (farBehind && _turtleWhenFarBehind));
 
     // ---- ENERGY RESERVED FOR A TRICK (2v2) ----
-    // The card loop below spends down to zero, and the trick phase runs after
-    // it, in the same turn, out of the same pool. So a seat holding a good
-    // trick would play a marginal body instead and then find the trick
-    // unaffordable — 58% of affordable tricks were never cast, and seats
-    // finished games still holding them. If the best trick on this board is
-    // worth more than the marginal card, hold its cost back.
-    // Capped at 60% of the pool: a reserve that eats the whole turn is just a
-    // pass, and a body on the board beats a trick in hand.
+    // The card loop spends down to zero before the trick phase, from the same
+    // pool. If the best trick on this board is worth more than the marginal card,
+    // hold its cost back. Capped at 60% of the pool: a reserve that eats the whole turn is a pass, and a body on board beats a trick in hand.
     let energyReserve = 0;
     const _teamCtx = this._2v2Ctx(owner);
     if (_teamCtx && this.WEIGHTS.teamTrickReserveMin > 0) {
@@ -1004,21 +776,14 @@ const AI = {
     const remaining = [...s[owner].hand].filter(c => {
       if (c._neverPlayable) return false; // Iron Giant guards from hand — never a play candidate
       if (committedIds.has(c.id)) return false;
-      // Iron Man and Thanos are tagged trickPhasePlayable — both are
-      // strictly stronger when held for the trick phase (Iron Man finishes
-      // off damaged enemies that combat just chipped; Thanos lands the
-      // 3-lane purge after the opponent has committed). Always save them,
-      // even when behind — playing them in phase 1 wastes the trigger
-      // window.
+      // Iron Man and Thanos are trickPhasePlayable and strictly stronger held for
+      // the trick phase (finishing chipped enemies; purging after the opponent
+      // commits). Always save them, even when behind.
       if (c.trickPhasePlayable) return false;
       return true;
     });
-    // PLAY ORDER IS THE DIFFICULTY LEVER. Measured, twice, adversarially:
-    // playing the CHEAPEST affordable card first strands the AI's best body on
-    // 34.6% of turns. Flipping to most-expensive-first is worth +6.3pp head to
-    // head — five to seven times more than anything the lookahead or lane
-    // search can buy, from one comparator.
-    //   easy          -> 'asc'  : the old, genuinely weak behaviour
+    // PLAY ORDER IS THE DIFFICULTY LEVER: cheapest-first strands the best body on 34.6% of turns; most-expensive-first is +6.3pp head to head.
+    //   easy          -> 'asc'  : the genuinely weak behaviour
     //   normal / hard -> 'desc' : commit the best body it can afford
     // WEIGHTS._playOrder still overrides, so sim/tune.js and A/B harnesses can
     // force any order regardless of tier.
@@ -1026,9 +791,7 @@ const AI = {
                   || (this.WEIGHTS && this.WEIGHTS._playOrder)
                   || (diff === 'easy' ? 'asc' : 'desc');
     if (__ord === 'quality') {
-      // Energy is not the constraint in 2v2 (seats end a turn with ~48% of it
-      // unspent), so "the most expensive card I can afford" is a proxy for the
-      // wrong thing. Sort by the drafter's own quality measure instead.
+      // Energy is not the constraint in 2v2 (seats end a turn with ~48% unspent), so sort by the drafter's quality measure instead.
       remaining.sort((a, b) => this.draftCardQuality(b) - this.draftCardQuality(a));
     } else if (__ord === 'rand') {
       for (let i = remaining.length - 1; i > 0; i--) {
@@ -1037,11 +800,9 @@ const AI = {
       }
     } else {
       const dir = __ord === 'desc' ? -1 : 1;
-      // Sorted on the cost the card will ACTUALLY take. Identical to `.cost`
-      // for every printed card; for Sung Jin-Woo it is the whole purse, so he
-      // goes first at full size instead of last on the scraps (measured: 9
-      // energy + a 7-drop played the 7-drop, then him as a 2/2 whose shadows
-      // had 0 ATK).
+      // Sorted on the cost the card will ACTUALLY take. Identical to `.cost` for
+      // every printed card; for Sung Jin-Woo it is the whole purse, so he goes first
+      // at full size instead of last on the scraps.
       const _ec = (c) => this._handBody(c, owner).cost || 0;
       remaining.sort((a, b) => {
         const aHasOnPlay = a.onPlay ? 1 : 0;
@@ -1061,22 +822,14 @@ const AI = {
 
     // A CARD THAT GROWS FROM LATER PLAYS BELONGS BEFORE THEM.
     //
-    // Xenomorph is "+1/+1 each time any other card enters the board". At cost 2
-    // under the most-expensive-first rule he was always the LAST thing played,
-    // so he grew by exactly nothing and went to combat as a 0/1. (Owner: "the ai
-    // always plays xenomorph last — if that card is going to be played it always
-    // is played 1st.") It is not only him: every While-Active that answers an
-    // ENTRY only ever reaches the bodies that land after it — Juggernaut's
-    // adjacent Immunity, Poison Ivy's charm, Luke's and Dr. Strange's auras. So
-    // the rule is derived from the card's own hook rather than a name list, and
-    // a new card with the same shape is covered the day it is added.
+    // Every While-Active that answers an ENTRY (Xenomorph's growth, Juggernaut's
+    // adjacent Immunity, Poison Ivy's charm, Luke's and Dr. Strange's auras) only
+    // reaches bodies that land after it. Derived from the card's own hook rather
+    // than a name list, so new cards of the same shape are covered.
     //
-    // BUT PLAY ORDER IS THE DIFFICULTY LEVER — most-expensive-first is worth
-    // +6.3pp head to head precisely because cheapest-first strands the AI's best
-    // body on 34.6% of turns. So a reactive card jumps the queue ONLY when
-    // paying for it still leaves enough energy for the dearest card behind it.
-    // It goes first when that is free, and waits when going first would cost the
-    // AI its big play. Nothing is dropped either way; this only reorders.
+    // But desc order is the difficulty lever (see above), so a reactive card jumps
+    // the queue ONLY when paying for it still leaves enough energy for the dearest
+    // card behind it. Nothing is dropped either way; this only reorders.
     const _reactsToEntry = (c) => !!(c && c.onAnyCardPlayed && !c.isEnvironment);
     if (remaining.some(_reactsToEntry)) {
       const _budget = spendable();
@@ -1110,13 +863,11 @@ const AI = {
         let card = s[owner].hand.find(c => c.id === cardRef.id);
         if (!card) return;
         if (spendable() <= 0) return;
-        // PRICE THE PLAY, NOT THE CARD. A card Pinhead has chained cannot be
-        // played alone — the pair enters together and is charged together — so
-        // planning on the single cost plans a play the engine then refuses,
-        // every turn, for as long as the chain holds. Game.getPlayCost is the
-        // one door that knows the difference; the rest of this file still reads
-        // the card's own cost, which is right everywhere it is used (ordering,
-        // "what else could I have afforded", the trace).
+        // PRICE THE PLAY, NOT THE CARD. A card Pinhead has chained enters and is
+        // charged together with its partner, so planning on the single cost plans a
+        // play the engine refuses. Game.getPlayCost is the one door that knows the
+        // difference; the rest of this file reads the card's own cost, which is right
+        // everywhere else it is used.
         let cost = Game.getPlayCost ? Game.getPlayCost(owner, card) : Game.getCardCost(owner, card);
         if (cost > spendable()) return;
         // …and the partner needs a lane of its own, which is the OTHER way
@@ -1126,19 +877,10 @@ const AI = {
         if (card.isDiscardEffect) { Game.playCard(owner, card, 0); return; }
         let lane = this.chooseLane(card, owner);
         if (lane < 0) return;
-        // SIMULATED RE-RANK (hard only). The heuristic queued these in its own
-        // order; before committing THIS one, ask what actually happens if each
-        // of the top few affordable cards is played, and take the best real
-        // outcome. Reconsidered at play time rather than when the queue was
-        // built, because the board moves between plays. Falls straight back to
-        // the heuristic when simulation is off or could not run.
-        // ONLY WHEN COMBAT ACTUALLY FOLLOWS. previewPlay plays the card and
-        // resolves combat IMMEDIATELY — but mid-turn the fight is still several
-        // plays away, so scoring by post-combat health answers a question that
-        // is not being asked and rewards overextending into a board the
-        // opponent has not finished building. Measured that way it came out at
-        // 46.5%, WORSE than the heuristic. The forecast is only honest on the
-        // last play of the turn, when nothing else will change the board first.
+        // SIMULATED RE-RANK (hard only). Before committing THIS card, simulate the top
+        // few affordable cards and take the best real outcome; reconsidered at play
+        // time because the board moves. Falls back to the heuristic when off or failed.
+        // ONLY ON THE LAST PLAY OF THE TURN: previewPlay resolves combat immediately, so mid-turn it rewards overextending (46.5% ungated, worse than the heuristic).
         const _spendAfter = spendable() - cost;
         const _isLastPlay = !s[owner].hand.some(c =>
           c.id !== card.id && !c.isDiscardEffect && Game.getCardCost(owner, c) <= _spendAfter);
@@ -1158,10 +900,9 @@ const AI = {
         if (uncontestedHere && this.opponentHasTaunter(owner) && (card.splashRange || 0) <= 0 && !card.isBullseye) {
           if ((card.cost || 0) >= 6 && s[owner].currency < (card.cost || 0) + 2) return;
         }
-        // Invisible Woman face-down: when Invisible Woman is on board, the
-        // AI gets one face-down play. Reserve it for a high-value finisher
-        // (cost ≥ 6 with onPlay) so the protected card carries real swing —
-        // hiding a 1-cost token from removal isn't worth burning the slot.
+        // Invisible Woman face-down: the AI gets one face-down play while she is on
+        // board. Reserve it for a high-value finisher (cost ≥ 6 with onPlay) — hiding
+        // a 1-cost token from removal isn't worth the slot.
         if (Game.canPlayFaceDown(owner) && (card.cost || 0) >= 6 && card.onPlay && !card.isFaceDown) {
           card._playFaceDown = true;
         }
@@ -1194,8 +935,8 @@ const AI = {
   // ===================== LANE SELECTION =====================
 
   // True if `owner`'s opponent has a taunter on the board.
-  // Kept under the old name as an alias since some external call sites may
-  // still use `playerHasTaunter()`; new code should prefer `opponentHasTaunter`.
+  // `playerHasTaunter()` is kept as an alias for external call sites; new code
+  // should prefer `opponentHasTaunter`.
   opponentHasTaunter(owner = 'ai') {
     const opp = Game.opponent(owner);
     for (let i = 0; i < Game.LANE_COUNT; i++) {
@@ -1346,48 +1087,19 @@ const AI = {
   //   +   empty-lane uncontested damage, weighted by adjacency / taunter
   //   +   lookahead bonus — weighted post-combat board-state swing (skipped on easy)
   // ===================== SIMULATED PLAY EVALUATION =====================
-  // Owner: build the thing that evaluates a candidate play against the ACTUAL
-  // combat outcome instead of a hand-tuned heuristic.
+  // Evaluates a candidate play against the ACTUAL combat outcome:
+  // Game.previewPlay clones the state, plays the card, runs the REAL resolver
+  // and reports the health swing. The heuristic stays as the PREFILTER — only
+  // its top few candidates get simulated, keeping cost bounded (one clone + one
+  // combat per candidate).
   //
-  // WHY THIS AND NOT A BIGGER HEURISTIC. Measured with sim/difficulty.js: the
-  // CEM-tuned weights sit on a plateau. Hard vs normal was 150/150; giving hard
-  // the lookahead was 50.5%; sweeping its defensive threshold across 1.5-12 was
-  // flat. No dial moves it. What the AI lacks is not a better guess — it is
-  // ground truth, and Game.previewPlay already produces it: clone the state,
-  // play the card, run the REAL resolver, and report the health swing.
-  //
-  // WHAT IT COSTS. One clone plus one full combat per candidate. So the
-  // heuristic stays as the PREFILTER — it ranks every legal play, and only the
-  // top few get simulated. That keeps the cost bounded and uses each part for
-  // what it is good at: the heuristic to discard the obviously bad, simulation
-  // to separate the plausible.
-  //
-  // NEVER NESTED. previewPlay stamps the clone _silentSim; if the AI is somehow
-  // reached inside one, this returns null and the caller falls back to the
-  // heuristic rather than cloning a clone.
-  // OFF, AND HERE IS WHY. Measured with sim/difficulty.js, seats swapped:
-  //
-  //     ungated, top-5 shortlist        200 games   46.5%
-  //     gated to the last play          300 games   52.0%
-  //     gated, top-12 shortlist         800 games   51.6%
-  //     gated, top-5 shortlist         1200 games   50.7%
-  //     gated, top-5 shortlist         6000 games   48.6%   <-- 2.2 sigma BELOW 50
-  //
-  // Read that column downwards. The encouraging 52% was noise at n=300 (SE
-  // 2.9pp); at n=6000 (SE 0.65pp) the sign FLIPS and the simulating AI is
-  // significantly worse than the heuristic it replaced. Shipping on the 52%
-  // reading would have made the AI weaker while announcing it was smarter.
-  //
-  // Why it loses, most likely: previewPlay resolves combat one ply deep and
-  // models none of the opponent's reply, so it is not more informed than the
-  // heuristic — just differently approximate, and it trades a CEM-tuned
-  // estimator for an untuned one. Gating it to the last play recovered most of
-  // the loss (46.5 -> ~50), which is consistent with the myopia being the
-  // problem rather than the simulation being wrong.
-  //
-  // The machinery is left wired and disabled, exactly as lookaheadMult is, so
-  // the next attempt starts from this evidence instead of rediscovering it.
-  // Set simEval to 1 and re-run: jsc sim/difficulty.js -- --games 6000
+  // NEVER NESTED. previewPlay stamps the clone _silentSim; if the AI is reached
+  // inside one, this returns null and the caller uses the heuristic.
+  // OFF: at 6000 games, gated top-5 measured 48.6% (2.2 sigma BELOW 50; an early 52% at n=300 was noise), ungated 46.5%.
+  // Likely cause: one-ply myopia — previewPlay models none of the opponent's
+  // reply, so it is differently approximate, not more informed, and replaces a
+  // CEM-tuned estimator with an untuned one. Wired and disabled like
+  // lookaheadMult. Set simEval to 1 and re-run: jsc sim/difficulty.js -- --games 6000
   SIM_CANDIDATES: 5,      // how many heuristic-ranked plays get simulated
   SIM_WIN_BONUS: 1000,    // a line that ends the game dominates any HP swing
 
@@ -1439,28 +1151,17 @@ const AI = {
 
   // WHAT WILL THIS CARD ACTUALLY BE, ONCE IT LANDS IN *THIS* LANE?
   //
-  // Almost every card is the same body wherever it goes, so the lane picker
-  // scores the hand card directly. Scarlet Witch is not: she sits in hand as a
-  // 0/0 carrying `copiesOpposite`, and ADOPTS the ATK and HP of whoever stands
-  // opposite the lane she is played into.
-  //
-  // Scored as the literal 0/0, she can never kill, never survive and never deal
-  // face damage — so every contested lane came back negative (-2 for "dies
-  // without killing") and the picker shoved her into an EMPTY one, which is the
-  // single placement that throws the ability away for a 3/4. The bot was not
-  // picking a bad target; it was actively avoiding all of them.
-  // (Owner: "the scarlet witch should go to the enemy with the most stats.")
-  //
-  // Hand the scorer the body she will HAVE, and every existing consideration —
-  // threat, trade maths, survival, lethal — reads true with no special cases.
-  // A face-down card cannot be copied (the ability refuses to read one, so the
-  // hidden-card promise holds), so such a lane scores as the fallback.
+  // Most cards are the same body anywhere. Scarlet Witch sits in hand as a 0/0
+  // carrying `copiesOpposite` and ADOPTS the ATK and HP of whoever stands
+  // opposite; scored as a literal 0/0 the picker would avoid every contested lane.
+  // Hand the scorer the body she will HAVE, and threat, trade maths, survival
+  // and lethal all read true with no special cases. A face-down card cannot be
+  // copied (the hidden-card promise holds), so such a lane scores as the fallback.
   // THE BODY A HAND CARD WILL ACTUALLY HAVE. An energy-scaled card (Sung
-  // Jin-Woo) is an X/X whose X is the purse at the moment he is played — the
-  // hand instance still carries the printed 5/5, so every reader that asked
-  // the card directly scored a 9-energy Sung Jin-Woo as a 5/5. Same proxy shape
-  // as _asPlacedIn: only the cost and stat line change, nothing is mutated.
-  // Game.energyScaledPreview is the one source the tile and the engine use.
+  // Jin-Woo) is an X/X whose X is the purse when played, while the hand instance
+  // carries the printed 5/5. Same proxy shape as _asPlacedIn: only the cost and
+  // stat line change, nothing is mutated. Game.energyScaledPreview is the one
+  // source the tile and the engine use.
   _handBody(card, owner) {
     const pv = card && Game.energyScaledPreview ? Game.energyScaledPreview(card) : null;
     if (!pv) return card;
@@ -1503,16 +1204,8 @@ const AI = {
     // ---- 2v2: what does my partner still get to do? ----
     const team = this._2v2Ctx(owner);
     const laMult = team ? this.WEIGHTS.team2v2Lookahead : this.WEIGHTS.lookaheadMult;
-    // HARD GETS THE LOOKAHEAD. Measured, 300 games a side, seats swapped:
-    // hard vs normal was 150/150 — exactly a coin flip — because the ONLY thing
-    // separating them was a defensive threshold (3.1 vs 5.1) that the same
-    // harness shows is flat in that range. The whole 25.7pp gap down to easy
-    // comes from easy's 17.3 threshold, not from anything hard does.
-    // So "hard" meant nothing. lookaheadMult ships at 0 for everyone, and the
-    // A/B that zeroed it ran BEFORE the shim fix that made earlier tuning runs
-    // roughly half noise — which makes it worth re-measuring rather than
-    // inheriting. _hardLookahead is what hard gets that normal does not; normal
-    // and easy are untouched, so nobody's existing game gets harder by surprise.
+    // HARD GETS THE LOOKAHEAD (_hardLookahead) — the one thing hard has that normal
+    // does not; normal and easy are untouched, so nobody's game gets harder by surprise.
     const _diff = this.difficulty(owner);
     const _effLa = (_diff === 'hard' && laMult <= 0) ? this.WEIGHTS.hardLookahead : laMult;
     const useLookahead = _diff !== 'easy' && _effLa > 0;
@@ -1527,38 +1220,24 @@ const AI = {
       const card = this._asPlacedIn(baseCard, l, owner);
       let score = 0;
 
-      // THE BODY ITSELF IS THE DECISION HERE.
-      //
-      // For every other card the stat line is identical in all six lanes, so it
-      // cancels out and the scorer rightly never prices it — which is why there
-      // is no body term anywhere else in this function. For a copier it is the
-      // ENTIRE choice, and the old ranking was blind to half of it: the only
-      // per-lane signal was threatScore, and threat is essentially ATK. So a
-      // 6/2 outranked a 4/9 and she copied the smaller card. Landing on 13
-      // stats instead of 8 outlives whatever trades this turn.
-      //
-      // Weighted to dominate rather than nudge, because "become the biggest
-      // thing you can" IS the card, and the surrounding terms (a +6 kill on a
-      // mirror is a mutual trade, not a win) should only break ties. It stays
-      // well under the +100 lethal push, which still outranks everything.
+      // THE BODY ITSELF IS THE DECISION HERE. For other cards the stat line is the
+      // same in every lane and cancels out; for a copier it is the ENTIRE choice,
+      // and threatScore (≈ ATK) alone would prefer a 6/2 over a 4/9.
+      // Weighted to dominate rather than nudge — "become the biggest thing you can" IS the card — but well under the +100 lethal push.
       if (baseCard.copiesOpposite) {
         score += ((card.attack || 0) + (card.currentHealth || 0)) * 3;
       }
 
       // Some enemies vacate their lane before combat (Man-Bat's recurring
-      // onBeforeTricks move-and-debuff). Contesting those lanes provides
-      // zero blocking value — the enemy leaves, my card is uncontested,
-      // and the opponent uses the move to target MY open lanes instead.
-      // Treat these as uncontested for scoring purposes.
+      // onBeforeTricks move-and-debuff). Contesting those lanes gives zero blocking
+      // value, so treat them as uncontested for scoring purposes.
       const enemyWillLeave = enemy && enemy._recurringBT && enemy.name === 'Man-Bat';
       if (enemy && enemy.currentHealth > 0 && !enemyWillLeave) {
         // Contested placement — we're blocking
         const threat = this.threatScore(enemy);
         // An enemy is "unkillable this turn" when it fully negates damage —
-        // Invincible or DmgImmune eat any hit we land, and Evade charges
-        // consume our swing entirely (unless our card has Bullseye to bypass
-        // evade charges on the attack itself — but evade on defense still
-        // eats our combat hit, so evade still counts as unkillable here).
+        // Invincible or DmgImmune eat any hit, and Evade on defense eats our combat
+        // hit even with Bullseye (which only bypasses evade on the attack itself).
         const unkillable =
           enemy.invincibleTurns > 0 ||
           enemy.hasDamageImmunity ||
@@ -1569,28 +1248,14 @@ const AI = {
         score += threat * 1.5;           // prioritize blocking scarier enemies
         if (iKill) score += 6;
         if (iSurvive) score += 3;
-        // A CLEAN KILL IS THE BEST THING ON THE BOARD, AND IT WAS WORTH +9.
-        //
-        // `threat * 1.5` is unbounded, so a single huge-ATK body pulled every
-        // card toward it no matter what happened there. Measured on the owner's
-        // own board — Hela 6/7 in hand, an enemy Hulk 4/6 and an enemy Grinch
-        // 18/27 — lane-into-Hulk scored ~15 (threat 6, kill +6, survive +3) and
-        // lane-into-Grinch scored ~25 (threat 27, minus 2 for dying) and WON.
-        // So Hela walked into the Grinch, killed nothing and died, while a free
-        // kill she would have survived sat open. (Owner: "hela should go in
-        // front of hulk to kill hulk … its simple calculation.")
-        //
-        // Removing their body and keeping yours is strictly the best outcome a
-        // contested lane offers, and nothing in the score said so — it was just
-        // the two separate bonuses added together.
+        // A CLEAN KILL IS THE BEST THING ON THE BOARD. `threat * 1.5` is unbounded,
+        // so without an explicit bonus a huge-ATK body pulls every card toward it even
+        // when the card dies there killing nothing, over a free survivable kill.
+        // Removing their body and keeping yours is strictly the best contested outcome.
         if (iKill && iSurvive) score += this.WEIGHTS.laneCleanKill;
-        // …AND LOSING THE BODY HAD TO COST SOMETHING. The only price on dying
-        // was a flat −2, identical for a 1-cost token and a 10-cost finisher,
-        // so the scorer could not tell a chump block from throwing away your
-        // best card. Priced by the card's own cost, which is what makes the
-        // owner's second sentence fall out on its own: the cheap Undead Warrior
-        // still happily eats the Grinch, and Hela no longer will. ("one warrior
-        // should be in front of grinch and the other xenomorph.")
+        // …AND LOSING THE BODY COSTS ITS PRICE. Priced by the card's own cost rather
+        // than a flat −2, so a cheap token still chump-blocks a giant and a finisher
+        // doesn't throw itself away.
         if (!iSurvive) score -= (card.cost || 0) * this.WEIGHTS.laneBodyLossMult;
         // Trading a 1-cost card for a 6+ cost enemy is great; inverse is bad
         score += Math.max(0, (enemy.cost || 0) - (card.cost || 0)) * 0.8;
@@ -1598,11 +1263,9 @@ const AI = {
         if ((card.cost || 0) >= 7 && threat <= 2) score -= 3;
         // Dying without killing = net loss
         if (!iSurvive && !iKill) score -= 2;
-        // Big penalty: enemy is unkillable this turn AND my card dies = we
-        // just feed them a free body. The Invincible/DmgImmune will fade
-        // next turn — committing now is almost always worse than an empty
-        // lane with tempo damage. (Keeps AI from feeding Peacemakers into
-        // Flash's Invincible 2, Batarang into Invincible targets, etc.)
+        // Big penalty: enemy is unkillable this turn AND my card dies = a free body
+        // for them. Invincible/DmgImmune fade next turn — committing now is almost
+        // always worse than an empty lane with tempo damage.
         if (unkillable && !iSurvive) score -= 8;
         // ---- 2v2 ----
         if (team) {
@@ -1610,11 +1273,9 @@ const AI = {
           // not this seat's, so covering one is worth more than the 1v1
           // trade maths alone says.
           score += this.WEIGHTS.teamCoverUnblocked;
-          // DIVISION OF LABOUR. While my partner still has a card turn coming,
-          // I take the scariest thing on the board — it is the one they are
-          // least likely to be able to answer cheaply after me. When they have
-          // already played, this bias switches itself off and I take whatever
-          // is left.
+          // DIVISION OF LABOUR. While my partner still has a card turn coming, I take
+          // the scariest thing on the board — the one they are least likely to answer
+          // cheaply after me. Once they've played, this bias switches itself off.
           if (team.teammateActsLater) score += threat * this.WEIGHTS.teamThreatPriority;
         }
       } else {
@@ -1625,11 +1286,8 @@ const AI = {
         } else {
           score += (card.attack || 0) * 0.8 + (card.splashRange || 0) * 0.6;
         }
-        // LETHAL BEATS EVERY OTHER CONSIDERATION. If dropping this body in this
-        // open lane takes their last health, no amount of blocking value,
-        // adjacency or splash hazard is worth comparing against it. Gated on
-        // the same taunter test as the damage above — a taunter eats the swing,
-        // so it is not lethal at all unless we can bypass it.
+        // LETHAL BEATS EVERY OTHER CONSIDERATION. Gated on the same taunter test as
+        // the damage above — a taunter eats the swing unless we can bypass it.
         {
           const _tauntBlocks = hasTaunter && (card.splashRange || 0) <= 0 && !card.isBullseye;
           // Same gate as the posture check — see the note there. A lethal we
@@ -1640,11 +1298,8 @@ const AI = {
             if (_theirHp > 0 && _already + (card.attack || 0) >= _theirHp) score += 100;
           }
         }
-        // Bullseye bodies shine in OPEN lanes — they keep dealing face damage
-        // every combat and can't be blocked. Committing a Bullseye card
-        // against a threat wastes its recurring face-damage value on a single
-        // trade. Extra bonus so the AI prefers an empty lane over a contested
-        // trade when the card has Bullseye.
+        // Bullseye bodies shine in OPEN lanes — recurring unblockable face damage is
+        // wasted on a single trade, so prefer an empty lane when the card has Bullseye.
         if (card.isBullseye) score += 2;
         // Slight bonus for being near existing allies (adjacency/synergies)
         const alliedLanes = [];
@@ -1659,11 +1314,9 @@ const AI = {
         }
         // ---- 2v2 ----
         if (team) {
-          // LEAVE THE EMPTY LANE FOR YOUR PARTNER. An open lane is the one
-          // placement they can still make after me; an unanswered enemy is
-          // damage on the health we share. While they have a card turn coming
-          // and something is leaking, taking the free lane is the worse half of
-          // that trade — so this only bites while BOTH are true.
+          // LEAVE THE EMPTY LANE FOR YOUR PARTNER. An open lane is the one placement
+          // they can still make after me; an unanswered enemy is damage on shared
+          // health. Only bites while they have a card turn coming AND something leaks.
           if (team.teammateActsLater && leaks.length) score -= this.WEIGHTS.teamReserveLane;
           // Clustering next to an ally is worth less on an eight-lane board
           // that two players have to cover between them.
@@ -1677,21 +1330,14 @@ const AI = {
         }
       }
       // Incoming splash hazards from ADJACENT enemy lanes. Two sources:
-      //   1. Attack splash — enemy with splashRange > 0 will deal that much
-      //      to my card when attacking (even through a body, since splash
-      //      bypasses the lane's primary trade).
-      //   2. Reactive splash — Red Hulk specifically splashes incoming
-      //      damage back to adjacent allies. Placing a fragile body next
-      //      to Red Hulk is dangerous because any attack on Red Hulk
-      //      (likely every turn) will splash onto my card.
-      // Penalty scales with how much of my card's HP the incoming damage
-      // eats — a lethal splash is a hard no, a chip is a mild preference.
-      // Man-Bat debuff hazard: if the opponent has a Man-Bat on the board,
-      // it moves to an open lane before combat and debuffs (-1/-1) whatever
-      // AI card is in that lane. If my card would DIE from -1/-1 (i.e. 1 HP
-      // or 1 ATK post-debuff leaves it at 0), this lane is a potential
-      // target. Small penalty — Man-Bat hits at most one lane per round and
-      // the user picks which, but fragile placements are still risky.
+      //   1. Attack splash — an enemy with splash deals it to my card when attacking.
+      //   2. Reactive splash — Red Hulk splashes incoming damage back to adjacent
+      //      allies, and he is likely hit every combat.
+      // Penalty scales with how much of my card's HP it eats — lethal splash is a
+      // hard no, a chip is a mild preference.
+      // Man-Bat debuff hazard: a Man-Bat moves to an open lane before combat and
+      // debuffs (-1/-1) whatever stands there. Small penalty if -1/-1 would kill my
+      // card — Man-Bat hits at most one lane per round.
       const oppCards = Game.getAllCardsOf(opp);
       const manBat = oppCards.find(c => c.name === 'Man-Bat' && c.currentHealth > 0 && c._recurringBT);
       let splashHazard = 0;
@@ -1717,9 +1363,8 @@ const AI = {
           if (effective >= myHP) splashHazard += 6;       // lethal
           else if (effective > 0) splashHazard += effective * 0.8; // chip
         }
-        // 2. Red Hulk reactive splash — assume ~4 damage will land on Red
-        //    Hulk this combat (its likely the AI's combat step hits it).
-        //    Only concerning if my card can't tank it.
+        // 2. Red Hulk reactive splash — assume ~4 damage lands on Red Hulk this combat;
+        //    only concerning if my card can't tank it.
         if (e.name === 'Red Hulk') {
           const likely = 4;
           const effective = Math.max(0, likely - (card.armorValue || 0));
@@ -1729,15 +1374,10 @@ const AI = {
       });
       score -= splashHazard;
       // ---- Placement-aware onPlay bonus ----
-      // Some cards' WhenPlayed effect targets ADJACENT lanes, so the
-      // base score (which evaluates only the candidate lane itself)
-      // misses their full value. Reward placements where the onPlay
-      // can actually fire a useful effect on a neighboring enemy.
-      // User feedback: AI played Black Widow front-on against Harley
-      // Quinn for the trade — but a one-lane-over placement would
-      // have FROZEN Harley (taking her attack offline for the round)
-      // while Black Widow's Bullseye pushed face damage. The
-      // adjacency bonus below catches that.
+      // Some WhenPlayed effects target ADJACENT lanes, which the base score (the
+      // candidate lane only) misses. Reward placements where the onPlay fires a
+      // useful effect on a neighbouring enemy — e.g. Black Widow one lane over
+      // freezes a threat while her Bullseye pushes face damage.
       if (card.name === 'Black Widow' || card.name === 'Mr. Freeze' || card.name === 'Bane') {
         // Black Widow: Freeze 1 an adjacent enemy.
         // Mr. Freeze: Freeze the enemy opposite — opposite, not adjacent,
@@ -1751,22 +1391,17 @@ const AI = {
             const e = s.lanes[i][opp];
             if (!e || e.currentHealth <= 0) continue;
             if (e.invincibleTurns > 0 || e.hasDamageImmunity) continue;
-            // Freeze value ≈ attack we're cancelling for 1 turn + a fraction
-            // of their cost (high-cost enemies are harder to neutralize so
-            // freezing them is worth more). Calibrated to bump score by
-            // ~3-6 for typical mid-cost threats — enough to PULL Black Widow
-            // off a "would trade" lane onto a one-over "would freeze threat
-            // AND push face damage" lane.
+            // Freeze value ≈ attack cancelled for 1 turn + a fraction of their cost.
+            // Calibrated to ~3-6 for mid-cost threats — enough to PULL Black Widow off a "would trade" lane onto a "freeze + face damage" one.
             const freezeVal = (e.attack || 0) * 0.9 + (e.cost || 0) * 0.3;
             if (freezeVal > bestFreezeVal) bestFreezeVal = freezeVal;
           }
           score += bestFreezeVal;
         }
       }
-      // Moder: forces the opponent's next card into Moder's lane and strips
-      // its abilities/keywords. Uncontested placement maximizes value — if
-      // the lane already has an enemy, the trap effect can't fire (the lane
-      // is full). Big bonus for empty lanes; soft penalty for contested.
+      // Moder: forces the opponent's next card into Moder's lane and strips it. The
+      // trap can't fire if the lane already holds an enemy, so big bonus for empty
+      // lanes, soft penalty for contested.
       if (card.name === 'Moder') {
         if (!enemy || enemy.currentHealth <= 0) score += 5;
         else score -= 4;
@@ -1803,18 +1438,10 @@ const AI = {
     });
 
     scores.sort((a, b) => b.score - a.score);
-    // TIES GO TO A COIN, NOT TO THE LEFT. Array.prototype.sort is stable, so
-    // every tie used to resolve to whichever lane came first in `open` —
-    // always the lowest index. Measured over 200 games / 1898 placements the
-    // AI put 26.4% of its cards in lane 0 and 8.2% in lane 5, a monotonic
-    // left-slide, and it compounds: lane 0 fills, the "cluster near an ally"
-    // bonus then favours lane 1, and so on across the board. It reads as a
-    // script running left to right rather than an opponent making a choice.
-    //
-    // Only EXACT ties are shuffled, so this cannot cost a single point of
-    // strength — the lanes it picks between scored identically. Uses the
-    // seeded RNG (never Math.random) so replays, goldens and the fuzz harness
-    // stay reproducible.
+    // TIES GO TO A COIN, NOT TO THE LEFT. A stable sort resolves every tie to the
+    // lowest lane index, which compounds into a left-to-right slide. Only EXACT
+    // ties are shuffled, so this cannot cost strength. Uses the seeded RNG (never
+    // Math.random) so replays, goldens and the fuzz harness stay reproducible.
     const _top = scores[0].score;
     let _tied = 1;
     while (_tied < scores.length && scores[_tied].score === _top) _tied++;
@@ -1852,19 +1479,15 @@ const AI = {
     'Mobius Chair', 'The Darkhold', 'Cosmic Cube', 'Infinity Gauntlet'
   ]),
 
-  // Per-trick evaluators — keyed by trick name. Each returns a score (or
-  // -1 to skip). Registered here for tricks where the generic regex
-  // heuristic below gets the preconditions wrong: damage tricks with a
-  // fixed amount (Batarang) need an HP-threshold check, stat-debuff tricks
-  // (Kryptonite) are misfiled as removal, conditional-destroy tricks
-  // (Darkhold, Anti-Life) need constraint checks, and category-orphan
-  // tricks (Phantom Zone, Reality Stone, Joker's Card, Super Soldier
-  // Serum) had no matching regex so they returned -1 and never cast.
-  // Per-trick evaluators. Called with (this, owner) — `ai` is the AI
-  // singleton, `owner` is the side ('ai' or 'player') the trick belongs to.
-  // Must use `owner` (not hardcoded 'ai') so both sim seats evaluate
-  // their own tricks correctly. Default keeps backwards-compat for any
-  // future call site that doesn't pass owner.
+  // Per-trick evaluators — keyed by trick name. Each returns a score (or -1 to
+  // skip). Registered for tricks the generic regex heuristic gets wrong:
+  // fixed-amount damage (Batarang) needs an HP check, stat debuffs (Kryptonite)
+  // aren't removal, conditional destroys (Darkhold, Anti-Life) need constraint
+  // checks, and tricks matching no regex (Phantom Zone, Reality Stone, Joker's
+  // Card, Super Soldier Serum) would never be cast.
+  // Called with (this, owner) — `ai` is the AI singleton, `owner` the side ('ai'
+  // or 'player'). Must use `owner` (not hardcoded 'ai') so both sim seats
+  // evaluate their own tricks. The default covers call sites that omit owner.
   TRICK_EVALUATORS: {
     'Batarang': function (ai, owner = 'ai') {
       const enemies = Game.getEnemiesOf(owner);
@@ -1986,12 +1609,9 @@ const AI = {
       return -1;
     },
 
-    // TWO TRICKS THE EVALUATOR COULD NOT SEE AT ALL. Audited against every
-    // desc test in evalTrick: these two match none of them, have no override
-    // and are not always-cast, so they scored only the generic "you have
-    // allies" floor of 1 — which never wins the pick, because playTricks takes
-    // the BEST trick and almost anything else scores higher. Two-Face Coin was
-    // the most-held-while-wanted trick in a 300-game audit.
+    // These two match no desc test in evalTrick, have no override and aren't
+    // always-cast, so they'd score only the generic floor of 1 and never win the
+    // pick (playTricks takes the BEST trick).
 
     // "Add a random 1-8 to your Block Meter." Worth the most when there is room
     // to put it AND something coming to absorb — a full meter wastes the roll,
@@ -2026,19 +1646,9 @@ const AI = {
     },
 
     'Space Stone': function (ai, owner = 'ai') {
-      // REWRITTEN for the card's new text (2026-10-29). It no longer marks one
-      // card for a LATER trick phase — it opens THIS trick phase to the whole
-      // hand. The old evaluator was built entirely on the other premise: it
-      // looked for a card too expensive to play now but affordable NEXT round,
-      // because the old per-card flag was never cleared at round end. None of
-      // that applies any more, and left alone it would have scored the card on
-      // a window that no longer exists.
-      //
-      // The new question is immediate and much simpler: a trick is being cast
-      // DURING the trick phase, so — do I hold a card I could actually put
-      // down right now, and somewhere to put it? If yes this is a free tempo
-      // gain (the stone costs 0); if no it is a wasted cast, which is the
-      // original complaint that produced the old gate ("that is a dumb play").
+      // Space Stone opens THIS trick phase to the whole hand. So: do I hold a card I
+      // could put down right now, and somewhere to put it? If yes it's free tempo
+      // (the stone costs 0); if no it's a wasted cast.
       const s = Game.state;
       const cur = s[owner].currency || 0;
       // Already unlocked by Red Skull, or by a Space Stone cast this round —
@@ -2075,14 +1685,11 @@ const AI = {
     const allies = Game.getAlliesOf(owner);
     let score = 0;
 
-    // LEGALITY FIRST. TRICK_ALWAYS_CAST short-circuits ahead of both the
-    // per-trick evaluators and the keyword scoring below, so a listed trick
-    // scored 5 even with nothing legal to point at — and Game.playTrick then
-    // refused it on the very same canPlay the evaluator never consulted.
-    // The AI re-picked it every step until the safety counter ended its whole
-    // trick phase with nothing cast. Reproduces whenever the board denies a
-    // listed trick its targets: an all-3+-ATK board against The Darkhold, or
-    // any removal against Dr. Manhattan / an Untrickable card.
+    // LEGALITY FIRST. TRICK_ALWAYS_CAST short-circuits ahead of the per-trick
+    // evaluators and keyword scoring, so without this a listed trick with nothing
+    // legal to target scores 5, Game.playTrick refuses it on the same canPlay, and
+    // the AI re-picks it until the safety counter ends the trick phase (e.g. The
+    // Darkhold vs an all-3+-ATK board, removal vs Dr. Manhattan / Untrickable).
     if (trick.canPlay && !trick.canPlay(Game, owner)) return -1;
 
     if (this.TRICK_ALWAYS_CAST.has(trick.name)) return 5;
@@ -2146,26 +1753,21 @@ const AI = {
     if (!mine()) { if (onComplete) onComplete(); return; }
     if (Game.isMultiplayer && Game.isMultiplayer()) { if (onComplete) onComplete(); return; }
     // Same event-hold wait as playCards — never cast under a random-event lock,
-    // and reschedule rather than return so the trick phase can't stall after an
-    // event. (Owner: "the next player or the AI stalls out.")
+    // and reschedule rather than return so the trick phase can't stall.
     if (Game.ballyhooLocked && Game.ballyhooLocked()) {
       Game._schedule(() => this.playTricks(owner, onComplete, mine), 400);
       return;
     }
-    // Pause-then-cast loop: thinking dots show first, then the AI
-    // commits its best trick (re-evaluated per step against fresh
-    // board state). Matches the _runAIQueue pattern — user sees the
-    // "think → play → think → play" rhythm instead of instant-drop.
+    // Pause-then-cast loop: thinking dots first, then the AI commits its best
+    // trick (re-evaluated per step against fresh board state). Matches the
+    // _runAIQueue "think → play" rhythm.
     const s = Game.state;
     const delay = this.aiStepMs();
     let safety = 0;
-    // A trick the engine REFUSED. Without this, a refusal changes nothing —
-    // the same trick still scores highest next step, so the AI re-picks it
-    // until `safety` trips and the trick phase ends having cast nothing, while
-    // the seat still holds tricks it could legally have played. The evaluator
-    // gate above is the real fix; this is the backstop that makes any future
-    // disagreement between "the AI wants it" and "the engine allows it" cost
-    // one wasted step instead of the whole phase.
+    // A trick the engine REFUSED. Without this the same trick still scores highest
+    // next step and the AI re-picks it until `safety` trips. The evaluator gate is
+    // the real fix; this backstop makes any future disagreement between "the AI
+    // wants it" and "the engine allows it" cost one step instead of the phase.
     const refused = new Set();
     const step = () => {
       // Same rule as the card queue — a trick is a play, and a play belongs to
@@ -2180,10 +1782,8 @@ const AI = {
         if (onComplete) onComplete();
         return;
       }
-      // Same guard as _runAIQueue — wait for any player prompt to
-      // resolve before casting. Prevents out-of-sync action clashes
-      // where an AI trick fires while the player still has a modal
-      // (e.g. a Start-of-Tricks move) to respond to.
+      // Same guard as _runAIQueue — wait for any player prompt to resolve before
+      // casting, so an AI trick never fires while the player still has a modal open.
       if (typeof Game !== 'undefined' && Game.hasPendingPrompt && Game.hasPendingPrompt()) {
         this._parkUntilPromptsClear(step);
         return;
@@ -2193,10 +1793,8 @@ const AI = {
       for (const t of s[owner].trickHand) {
         const cost = Game.getTrickCost(owner, t);
         if (cost > s[owner].currency) continue;
-        // Skip tricks that were countered by Time Stone this round —
-        // they bounced back to the AI's hand but are on a 1-round
-        // timeout so the AI doesn't instantly re-play the same trick
-        // the player just spent Time Stone to cancel.
+        // Skip tricks countered by Time Stone this round — they bounced back to hand
+        // on a 1-round timeout so the AI doesn't instantly re-play them.
         if (t._timeStonedAtRound === s.round) continue;
         if (refused.has(t.id)) continue;              // engine already said no
         // Also skip tricks marked reactive — they only fire via
@@ -2220,15 +1818,10 @@ const AI = {
           if (Game.getTrickCost(owner, best) > s[owner].currency) { step(); return; }
           if (!Game.playTrick(owner, best)) refused.add(best.id);
           if (typeof UI !== 'undefined' && UI.render) UI.render();
-          // ONE TRICK, ITS NOTICE, THEN THE NEXT. This used to call step()
-          // straight back, so the loop ran at aiStepMs (350ms) while each
-          // trick's announcement holds 3.5s — four tricks resolved inside the
-          // first one's notice and the board had finished changing before the
-          // player had read any of them. (Owner: "the ai plays tricks too fst
-          // and its all one blur i want some sequnce and time.")
-          // Waiting on the ANNOUNCEMENT queues rather than a fixed pause means
-          // the rhythm tracks UI.TRICK_NOTICE_MS on its own, and a trick that
-          // raises no notice at all still moves on immediately.
+          // ONE TRICK, ITS NOTICE, THEN THE NEXT. Each trick's announcement holds ~3.5s;
+          // stepping at aiStepMs would resolve several inside the first notice. Waiting
+          // on the ANNOUNCEMENT queue tracks UI.TRICK_NOTICE_MS on its own, and a trick
+          // that raises no notice moves on immediately.
           _afterCast();
         }, delay);
       } else {

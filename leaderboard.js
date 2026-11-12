@@ -3,21 +3,16 @@
 // ============================================================
 //
 // Talks to the PartyKit "stats" party (partykit/stats-server.js), one global
-// room every player joins from the main menu. It reports each finished game
-// (win/loss, the cards you played, how long it ran) and receives the ranked
-// board back, which UI renders on the menu.
+// room joined from the main menu: reports each finished game and receives the
+// ranked board back, which UI renders on the menu.
 //
-// Identity, without accounts or passwords:
-//   • A per-DEVICE anonymous id, generated once and kept in localStorage. It
-//     is the server key, so your history follows you across sessions and a
-//     rename never splits or collides it.
-//   • Your REAL NAME, typed on first launch (so everyone knows who is who),
-//     stored locally and sent as display text.
+// Identity, without accounts: a per-DEVICE anonymous id in localStorage is the
+// server key (so a rename never splits or collides history); the player's real
+// name, typed on first launch, is sent only as display text.
 //
-// Configuration: the deployed stats URL lives in `window.CLB_STATS_URL`
-// (set in index.html after you `npx partykit deploy`). Until it's set the
-// client stays in LOCAL-ONLY mode — no socket, and the menu shows just your
-// own record built from local stats — so nothing breaks before deploy.
+// The stats URL lives in `window.CLB_STATS_URL` (set in index.html after
+// `npx partykit deploy`). Until it's set the client stays LOCAL-ONLY — no
+// socket, the menu shows just the local record — so nothing breaks before deploy.
 //
 // Best-effort throughout: a down server, a bad URL, or a blocked WebSocket
 // never throws into the game. The board simply doesn't update.
@@ -70,9 +65,8 @@ const Leaderboard = {
 
   // ---- opt-in membership --------------------------------------------
   // A player appears on the shared board ONLY after explicitly adding
-  // themselves. Merely having a name does nothing — that is the whole point of
-  // "they have to add themselves." join() records the choice locally and tells
-  // the server to list us; the server persists rec.joined so it sticks.
+  // themselves; having a name does nothing. join() records the choice locally
+  // and tells the server, which persists rec.joined.
   hasJoined() { return this._ls(this._JOINED_KEY) === '1'; },
   join(n) {
     if (n != null) {
@@ -144,13 +138,11 @@ const Leaderboard = {
 
   // ---- reporting -----------------------------------------------------
   // Called from Game.finalizeStats at game over. Only ONLINE PvP games carry a
-  // matchId (stamped by the host, synced to every seat); a game without one —
-  // vs-AI, or any fabricated call — is never sent, because the server would not
-  // count it anyway (it needs a real opponent to corroborate the same matchId).
-  // This is the anti stat-padding gate on the client side; the server enforces
-  // the same rule authoritatively. Deliberately NO optimistic local mirror:
-  // your record only moves once the opponent's report corroborates it on the
-  // server, so a win can never be shown before it's real.
+  // matchId (host-stamped, synced to every seat); anything without one is never
+  // sent — the server needs the opponent to corroborate the same matchId anyway.
+  // This is the client-side anti stat-padding gate (the server enforces it too).
+  // Deliberately NO optimistic local mirror: the record moves only once the
+  // server has both reports, so a win is never shown before it's real.
   reportResult(result) {
     if (!result || !result.matchId) return;
     this._send({
@@ -182,12 +174,10 @@ const Leaderboard = {
   // ---- internals -----------------------------------------------------
   _send(msg) {
     if (this._socket && this._socket.readyState === 1) { this._sendRaw(msg); return; }
-    // Socket not open. A REPORT must not be dropped: an online match can easily
-    // outlast an idle-closed leaderboard socket, and a lost report means the
-    // server never sees the win+loss pair — so NEITHER player's row moves (the
-    // exact "I won and nothing happened to the leaderboard" bug). Queue it,
-    // persist it across a reload, and flush on the next open. Hellos/getBoard
-    // are re-sent on open anyway, so only reports need queuing.
+    // Socket not open. A REPORT must not be dropped: a match can outlast an
+    // idle-closed socket, and the server needs the win+loss pair or NEITHER row
+    // moves. Queue it, persist across reload, flush on next open (hellos/getBoard
+    // are re-sent on open anyway, so only reports need queuing).
     if (msg && msg.t === 'report') {
       this._pendingReports = (this._pendingReports || []).filter(m => m.matchId !== msg.matchId);
       this._pendingReports.push(msg);

@@ -18,20 +18,12 @@
 // ============================================================
 // SUMMONED TOKENS — display-only rows for the codex.
 //
-// These bodies are conjured on the fly by abilities (summonCardChoice takes
-// name/cost/atk/hp directly) rather than stored in CARD_DEFS, so nothing else
-// in the game knows their names. This table exists so the encyclopedia can
-// still show them, and it lives HERE, with the rest of the card data, rather
-// than inside the codex renderer — a test has to be able to read it, and it
-// could not reach a constant declared inside a function.
+// These bodies are conjured by abilities (summonCardChoice takes
+// name/cost/atk/hp directly), not stored in CARD_DEFS. The table lives here
+// rather than in the codex renderer so a test can read it.
 //
-// It MIRRORS the summonCardChoice() calls in abilities.js by hand, which is
-// the weak link: nothing connects the two, so a token added to an ability just
-// never appeared in the codex. Battle Droid went missing the day it was
-// written, and Doombot had been missing far longer — Dr. Doom conjuring a 5/5
-// the encyclopedia never admitted existed. sim/test.js reads every ability's
-// source for summon-name literals and fails if one is not listed here, so the
-// next omission is caught by the suite instead of by a player.
+// It MIRRORS the summonCardChoice() calls in abilities.js by hand; sim/test.js
+// scans ability sources for summon-name literals and fails if one is missing here.
 // ============================================================
 const SUMMON_TOKEN_DEFS = [
   { name: 'Ant',            cost: 1, attack: 1, health: 1, abilities: ['Bullseye'], desc: 'Token — summoned by Ant-Man.' },
@@ -46,11 +38,9 @@ const CARD_DEFS = [
   // ==================== COST 0 ====================
   { name: "Iron Giant", cost: 0, attack: 0, health: 0, type: "scifi",
     _neverPlayable: true,
-    // "Draw 1" is carried for the BADGE — the sacrifice draw is real and should
-    // be readable at a glance on the tile. The keyword's own drawOnPlay effect
-    // is inert here and always will be: it fires only on play paths, and six
-    // gates make sure this card is never played. The actual draw lives in
-    // _ironGiantIntercept's doSave.
+    // "Draw 1" is carried for the BADGE. The keyword's drawOnPlay is inert here —
+    // it fires only on play paths and this card is never played. The real draw
+    // lives in _ironGiantIntercept's doSave.
     abilities: ["Draw 1"],
     desc: "Leaves your hand only to save an ally. While in Hand: When an ally would be destroyed, you may sacrifice Iron Giant to save it. When Sacrificed: Deal 1 damage to all enemies. Draw a card." },
   // ==================== COST 1 ====================
@@ -111,11 +101,8 @@ const CARD_DEFS = [
     isEnvironment: true,
     _spawnOnly: true,
     abilities: [],
-    // It never spawns anything — what it does happens entirely to the cards
-    // standing OPPOSITE it, so that is the half its picture belongs on. Owner,
-    // watching a room on their own half chain the card above it: "if thr
-    // bathroom is on my side my cards are gtting chained becasue im in the
-    // bathroom." The rule is unchanged; the picture moved to where it applies.
+    // It never spawns anything — it acts on the cards standing OPPOSITE it, so
+    // its picture belongs on that half.
     actsOnOpponentSide: true,
     desc: "While Active: Enemy cards in this lane take (−2/−2) and are Chained — a Chained card loses (−1/−1) at the start of every round it stays, and (−1/−1) again each time it moves." },
   { name: "Game Over", cost: 2, attack: 0, health: 1, type: "environment",
@@ -125,24 +112,15 @@ const CARD_DEFS = [
     desc: "While Active: The first enemy card to die in this lane rises on your side as a (2/2), as if newly played. An ally in that lane moves to an empty lane to make room. Game Over is then spent." },
   { name: "Enclosure", cost: 2, attack: 0, health: 1, type: "environment",
     _spawnOnly: true,
-    // WHICH HALF THIS ROOM ACTS ON. Every other habitat's monster surfaces for
-    // the side that owns it; the T-Rex breaks OUT of the paddock and joins the
-    // opponent, against whoever stopped paying. One declaration, read twice:
+    // WHICH HALF THIS ROOM ACTS ON. Other habitats' monsters surface for the owning
+    // side; the T-Rex breaks OUT and joins the opponent. One declaration, read twice:
     // releaseHabitatMonster puts the T-Rex on that side, and the lane backdrop
-    // paints the picture on that same half, because the picture should be where
-    // the room's business happens. (Owner: "the t rex breaks out of the
-    // enclousre so he spawns on the enviroment so the enviroment would be
-    // opposite the player … same with wetlands, the enemy spino spawns in the
-    // envirmonet so if your facing him the enviroment is on the enemy side.")
+    // paints the picture on that same half.
     actsOnOpponentSide: true,
-    // isEnvironment, NOT just type:"environment". They are not the same flag:
-    // `type` is what the codex sorts on, `isEnvironment` is what the ENGINE
-    // reads — playCard's env-slot branch, canPlaceEnvironment, cleanupDead's
-    // invariant sweep. Without it this card was a combat body sitting in an env
-    // slot, which is precisely what the sweep prints: "[INVARIANT @cleanup]
-    // Enclosure (combat card) is in the ENV slot of lane 3". Every other
-    // environment in this file carries both; this one was written with only
-    // `type` and nothing had ever placed it, so nothing had ever noticed.
+    // isEnvironment, NOT just type:"environment". `type` is what the codex sorts
+    // on; `isEnvironment` is what the ENGINE reads (playCard's env-slot branch,
+    // canPlaceEnvironment, cleanupDead's invariant sweep). Without it the card is
+    // a combat body in an env slot. Every environment carries both.
     isEnvironment: true,
     abilities: [],
     desc: "Each Turn: Pay 1 Energy to keep the gate shut, or refuse — refuse once and the T-Rex is released AGAINST you, into this lane on the enemy side. An enemy already standing there moves to an empty lane — with no empty lane it is destroyed and the T-Rex adds its stats. Pay the fourth toll and the park closes for good." },
@@ -242,21 +220,15 @@ const CARD_DEFS = [
     desc: "When Played: Give adjacent allies Damage Immunity, and shield the adjacent lanes so uncontested enemies there can't attack — for 1 turn." },
   { name: "Jigsaw", cost: 2, attack: 0, health: 0, type: "villain",
     abilities: [],
-    // EVENT-ONLY now, like the other habitat environments (Sewers, Boiler Room,
-    // Open Water, Gargantua, Wetlands, Enclosure). _spawnOnly keeps him out of
+    // EVENT-ONLY, like the other habitat environments. _spawnOnly keeps him out of
     // the classic draw pile, the draft pool AND the summon deck (game.js
-    // buildDecks / _initSummonDeck all filter it) so he can only arrive through
-    // the Saw event. (Owner: these environments "should not be able to be drawn
-    // ... make sure the environments are not draftable or drawable.")
+    // buildDecks / _initSummonDeck filter it), so he only arrives via the Saw event.
     _spawnOnly: true,
     desc: "Saw event only: opens The Bathroom and Game Over in empty enemy lanes, then moves an enemy to an empty lane." },
   { name: "Brainiac", cost: 2, attack: 0, health: 0, type: "villain",
-    // "Draw 1" is carried for the BADGE, the same arrangement Iron Giant uses
-    // and for the same reason: his discard really does draw, and that should be
-    // readable on the tile. The keyword's own drawOnPlay effect is inert and
-    // always will be — it fires only on play paths, and he is isDiscardEffect,
-    // which playCard AND summonCard both refuse. The real draw lives in his
-    // onDiscard.
+    // "Draw 1" is carried for the BADGE (same arrangement as Iron Giant). The
+    // keyword's drawOnPlay is inert — he is isDiscardEffect, which playCard AND
+    // summonCard refuse. The real draw lives in his onDiscard.
     abilities: ["Draw 1"],
     desc: "When Discarded: Draw a card, then see an enemy's hand for 2 rounds — every card they draw arrives at -1/-1 and pops up so you see it, and you steal the stat: your next 2 draws come in at +1/+1. In 2v2, choose which enemy. Only you can see their hand." },
   { name: "Loki", cost: 3, attack: 2, health: 1, type: "villain",
@@ -290,9 +262,8 @@ const CARD_DEFS = [
     desc: "When Played: Destroy an enemy with ≤ 3 ATK. On Kill: Add (+1/+1)." },
 
   // ==================== COST 4 ====================
-  // 3/5 -> 2/7 (owner, 2026-08-14): less swing, far harder to remove, which
-  // suits a card whose whole value is surviving long enough for the 3-round
-  // Block-Meter bypass to pay out.
+  // 2/7: less swing, far harder to remove — its value is surviving long enough
+  // for the 3-round Block-Meter bypass to pay out.
   { name: "Pennywise", cost: 4, attack: 2, health: 7, type: "villain",
     _spawnOnly: true,
     abilities: [],
@@ -355,12 +326,11 @@ const CARD_DEFS = [
     desc: "When Played: Freeze 1 the enemy opposite. Add 2 to your Block Meter. While Active: When Wonder Woman's attack lands on an enemy card, deal (ATK−1) to 1 chained enemy." },
 
   // ==================== COST 5 ====================
-  // SUNG JIN-WOO is an X card: he costs all of your energy and lands as an X/X
-  // (see Game.isEnergyScaled). The printed 5/5 is the owner's own example — "if
-  // you have 5 energy he is a 5/5" — and is what the codex, the draft and the
-  // deck curve file him under. In hand the tile prints the live X.
+  // SUNG JIN-WOO is an X card: he costs all your energy and lands as an X/X
+  // (see Game.isEnergyScaled). The printed 5/5 is what the codex, draft and deck
+  // curve file him under; in hand the tile prints the live X.
   // skipAutoUntrickable: at 10+ energy his locked cost reaches the titan line,
-  // and a scaling card is not a titan (Doomsday's ruling, same flag).
+  // and a scaling card is not a titan (same flag as Doomsday).
   { name: "Sung Jin-Woo", cost: 5, attack: 5, health: 5, type: "hero",
     skipAutoUntrickable: true,
     abilities: [],
@@ -382,30 +352,23 @@ const CARD_DEFS = [
     desc: "While Active: Each time the T-Rex moves to another lane, Freeze a random enemy." },
   { name: "Spinosaurus", cost: 5, attack: 4, health: 6, type: "scifi",
     _spawnOnly: true,
-    // "Spawn Only" dropped from the BADGE list only — _spawnOnly above is the
-    // engine gate and still keeps him out of every draft and draw pile. Owner
-    // struck the badge off a screenshot: he is only ever spawned by Sewers, so
-    // the chip stated something the player can never act on.
-    // Hunt is the REAL keyword now, the same one Jason and Jango print — it
-    // routes through _resolveHuntChase like theirs. It replaces a bespoke
-    // start-of-round stalk that shared the name but was a separate mechanic;
-    // "Hunt" and "Hunt Meter" parse as two independent entries, so both land.
+    // No "Spawn Only" BADGE — _spawnOnly above is the engine gate; he is only ever
+    // spawned by Sewers, so the chip would state nothing the player can act on.
+    // Hunt is the REAL keyword (same as Jason/Jango), routed through
+    // _resolveHuntChase. "Hunt" and "Hunt Meter" parse as two independent entries.
     abilities: ["Hunt", "Hunt Meter"],
     desc: "While Active: Each time an enemy is damaged the Hunt Meter fills by 1 — at 3, the Hunt Meter is spent and Spinosaurus permanently gains Overdrive." },
 
   // ==================== COG INVASION — Toontown ====================
-  // The four Cogs are spawned by their Vice President (see Game._cog* in
-  // game.js), never drafted or drawn — _spawnOnly keeps them out of every pool.
-  // All four are 3-cost 4/6 bodies; the variety is in their signature attack
-  // (fired in place of a normal swing via onBeforeAttack) and the shared Power
-  // Trip that three of them fire every 3rd round.
+  // The Cogs are spawned by their Vice President (see Game._cog* in game.js),
+  // never drafted or drawn — _spawnOnly keeps them out of every pool. The four
+  // level-8 Cogs are 3-cost 4/6 bodies whose variety is their signature attack
+  // (fired instead of a normal swing via onBeforeAttack) and the shared Power
+  // Trip three of them fire every 3rd round.
   //
-  // THE PROTECTION IS NOT ON THESE CARDS, and that is deliberate. It keys on
-  // `card._cogVP` — WHICH VP SENT the Cog — not on the Cog's name, and since
-  // the ladder lets any VP send any Cog, a card that named one VP was wrong in
-  // three cases out of four: a Big Cheese sent by the C.J. gets +1 ATK per
-  // ally, not Freeze immunity. The attack belongs to the card; the protection
-  // belongs to the sender, and the VP panel states it there (UI._COG_VP_BLURB).
+  // THE PROTECTION IS NOT ON THESE CARDS, deliberately. It keys on `card._cogVP`
+  // — WHICH VP SENT the Cog — since any VP can send any Cog. The attack belongs
+  // to the card; the protection to the sender (UI._COG_VP_BLURB states it).
   { name: "Mr. Hollywood", cost: 3, attack: 4, health: 6, type: "villain",
     _spawnOnly: true, _cog: 'vp',
     abilities: [],
@@ -424,20 +387,13 @@ const CARD_DEFS = [
     desc: "Glower Power: Deal 5 damage to an enemy and knock it down (Stun 1)." },
 
   // ---- THE LADDER ----------------------------------------------------------
-  // The four above are the LEVEL-8 Cogs, one per department, and until now they
-  // were the only ones that existed — so whichever VP was out sent the same
-  // 4/6 body every three rounds from the moment it arrived. A Flunky and a Big
-  // Cheese are not the same threat, and the event never showed the difference.
+  // The four above are the LEVEL-8 Cogs, one per department. These eight fill
+  // the rungs below so a VP's Cogs escalate over the event (Game._COG_LADDER pairs
+  // them by turn) — two per rung, from two departments, so the pair reads as a choice.
   //
-  // These eight fill the rungs below, so a VP's Cogs escalate over the event's
-  // life (Game._COG_LADDER pairs them by turn). Two per rung, one from each of
-  // two departments, so the pair reads as a choice rather than a variant.
-  //
-  // Deliberately VANILLA. The level-8 four earn their signature attacks by
-  // being the top of the ladder; giving the lower rungs invented abilities
-  // would be designing gameplay that was not asked for, and would flatten the
-  // very escalation these exist to create. Stats ramp 1/2 -> 2/3 -> 3/4 -> 3/5
-  // and land exactly on the 4/6 the level-8 Cogs already are.
+  // Deliberately VANILLA: signature attacks are what the top rung earns, and
+  // lower-rung abilities would flatten the escalation. Stats ramp 1/2 -> 2/3 ->
+  // 3/4 -> 3/5 and land on the level-8 4/6.
   { name: "Flunky", cost: 1, attack: 1, health: 2, type: "villain",
     _spawnOnly: true, _cog: 'ladder',
     abilities: [],
@@ -632,26 +588,16 @@ const CARD_DEFS = [
     abilities: ["Immunity", "Invincible 1", "Unresistible 3", "Draw 1"],
     desc: "When Played: Steal the opponent's Block Meter. Start of Tricks (once): Freeze 1 all enemies. While Active: Destroy another random enemy when Trigon destroys an enemy." },
   { name: "Doomsday", cost: 12, attack: 1, health: 1, type: "villain",
-    // Doomsday is NOT a titan. He prints at 12 only because he starts as a 1/1
-    // that scales up while his cost scales DOWN (min 0) — the printed number is
-    // a countdown, not a power level. Every "cost >= 10" rule reads baseCost,
-    // which stays 12 forever, so without this flag he was silently swept into
-    // the titan class: auto-Untrickable (applyAbilities stamps it at >= 10), so
-    // NO trick could be played on or against him, and is10CostImmune treated him
-    // as a titan so other 10-costs (Dormammu's drain) bounced off him.
-    // The engine already had the whole opt-out mechanism — is10CostImmune, the
-    // auto-Untrickable stamp and every targeting filter check
-    // skipAutoUntrickable, and their comments cite Doomsday by name — but the
-    // flag was never actually set on this def, so none of it did anything.
-    // User (twice): "you still are counting doomsday as a 10 and tricks cant be
-    // played on or against him … he isnt a 10 cost card!"
+    // Doomsday is NOT a titan. He prints at 12 because he starts as a 1/1 whose
+    // cost scales DOWN (min 0) — the number is a countdown, not a power level.
+    // Every "cost >= 10" rule reads baseCost (12 forever), so without
+    // skipAutoUntrickable he'd be auto-Untrickable (no tricks on or against him)
+    // and is10CostImmune would treat him as a titan. Those checks all honour this flag.
     skipAutoUntrickable: true,
-    // Revive 1 as a real keyword so EVERY surface (board, codex, hand
-    // chips, draft, gallery) badges it from the one canonical source.
-    // His onDeath consumes the charge when the custom revive fires —
-    // same contract as Jason/Grundy/Drax; the desc text stays because
-    // his revive differs from generic Revive (full HP + permanent
-    // Freeze immunity, NOT played-anew).
+    // Revive 1 as a real keyword so EVERY surface badges it from one source.
+    // His onDeath consumes the charge when the custom revive fires (same contract
+    // as Jason/Grundy/Drax); the desc stays because his revive differs from
+    // generic Revive (full HP + permanent Freeze immunity, NOT played-anew).
     abilities: ["Revive 1", "Taunt 1"],
     desc: "Add (+1/+1) each time you play a card, even before Doomsday is drawn. While in Hand: costs 1 less each time an ally is destroyed. When Destroyed: Revive once at full HP with Immunity and Untrickable." }
 ];
@@ -659,41 +605,27 @@ const CARD_DEFS = [
 
 
 // ============================================================
-// EVENT FRANCHISES (2026-09-01)
+// EVENT FRANCHISES
 // ============================================================
-// Owner: "i want the events to have titles then from there there will be 2-3
-// to choose from", and "id rather have environments be events".
+// Environments are not bought by a player — every one is `_spawnOnly`, placed
+// by the match. This list says WHICH event places them and is the codex's
+// spine: an event is a FRANCHISE holding two or three outcomes in one world.
 //
-// Environments are no longer bought and aimed by a player — every one is now
-// `_spawnOnly`, placed by the match itself. This is the list that says WHICH
-// event places them, and it is the codex's organising spine: an event is a
-// FRANCHISE, and a franchise holds two or three outcomes that share a world.
+// DEPTH IS THE RARITY DIAL, which is why this is groups, not a flat tag: roll a
+// franchise, then roll inside it, so a lone outcome fires every time its
+// franchise comes up and one of three fires a third as often. Swingiest content
+// belongs in the deepest group. Gargantua sits alone deliberately (an optional
+// pull you can ignore); anything that puts a body on the board wants siblings.
 //
-// DEPTH IS THE RARITY DIAL, and that is the reason this is a list of groups
-// rather than a flat tag on each card. Rolling a franchise and then rolling
-// inside it means a lone outcome fires every time its franchise comes up,
-// while one of three fires a third as often — so the swingiest content belongs
-// in the deepest group. Gargantua sits alone deliberately: it is an optional
-// per-turn pull you can ignore. Anything that puts a body on the board wants
-// siblings first.
-//
-// MEMBERS ARE NAMES, NOT DEFS. A franchise spans four different arrays —
-// CARD_DEFS (the environments and their monsters), CANDY_DEFS and WONDER_DEFS
-// in tricks.js, and three rows the codex synthesises because they have no def
-// anywhere (MC Ballyhoo, the Shadow Man, the Apothicon Rift are events, never
-// cards). Names resolve against all of them at render time, so nothing here
-// has to know where a member lives.
+// MEMBERS ARE NAMES, NOT DEFS. A franchise spans CARD_DEFS, CANDY_DEFS and
+// WONDER_DEFS (tricks.js), plus three codex-synthesised rows with no def (MC
+// Ballyhoo, the Shadow Man, the Apothicon Rift). Names resolve against all of
+// them at render time.
 const EVENT_FRANCHISES = [
-  // AN EVENT IS THE THING THAT GETS ROLLED. The monsters are what come OUT of
-  // one, not alternatives to it — owner: "jurassic park is 2 events, the
-  // wetlands or enclosure, the cards spawn from there ... same with IT its 1
-  // event that spawns pennywise. Mario party is 1 because MC is the event that
-  // gives cards, there's not another event."
-  //
-  // The first draft of this list had it flat, which counted Pennywise as a
-  // second IT event and made a one-outcome franchise look like a two-outcome
-  // one. Depth is the rarity dial, so getting that wrong does not just misread
-  // in the codex — it would have made the roll itself wrong.
+  // AN EVENT IS THE THING THAT GETS ROLLED. Monsters come OUT of one; they are
+  // not alternatives to it (Jurassic Park = Wetlands or Enclosure; IT = one event
+  // that spawns Pennywise; Mario Party = MC only). Since depth is the rarity
+  // dial, counting a monster as a sibling event would make the roll itself wrong.
   { key: 'jurassic', title: 'Jurassic Park',
     blurb: 'Two ways to lose control of the park.',
     events: [
@@ -721,15 +653,10 @@ const EVENT_FRANCHISES = [
   { key: 'zombies', title: 'Call of Duty: Zombies',
     blurb: 'Four challenges, named up front, paid out later.',
     events: [ { name: 'Shadow Man', spawns: ['Apothicon Rift', '@wonders'] } ] },
-  // COG INVASION — ONE WAVE, like every other event. It used to be a whole-match
-  // franchise: four Vice Presidents rolling independently every round, each
-  // sending waves and draining health for the rest of the game. Owner: "for the
-  // toon town event stahs the VP 4 bosses, thats not what i want ... if it rolls
-  // on round 6 only the cogs that i said on round 6 spawn the same cog one on
-  // each side ez peasy." So the event is now a single Cog drop, one on each
-  // side, picked from the rung the round it rolled on has reached
-  // (Game._COG_LADDER). The ten Cogs below are what it can produce, in rung
-  // order — which IS the escalation.
+  // COG INVASION — ONE WAVE, like every other event: a single Cog drop, one on
+  // each side, picked from the rung the rolling round has reached
+  // (Game._COG_LADDER). The ten Cogs below are its outputs in rung order —
+  // which IS the escalation.
   { key: 'toontown', title: 'Toontown',
     blurb: 'One wave of Cogs, the same on both sides, tougher the later it lands.',
     events: [ { name: 'Cog Invasion',

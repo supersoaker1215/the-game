@@ -1,20 +1,12 @@
 // ============================================================
 // MULTIPLAYER CLIENT ADAPTER
 // ============================================================
-// Transport-agnostic client for the multiplayer flow. Same module
-// drives all three deployment modes:
+// Transport-agnostic client for the multiplayer flow:
 //
-//   • LocalTabTransport   — BroadcastChannel between two tabs
-//                           on the same machine. Used for dev /
-//                           testing without any server. Pick this
-//                           when running the static server locally.
-//
-//   • WebSocketTransport  — connects to a PartyKit (or any ws://)
-//                           endpoint. Production.
-//
-//   • (future) WebRTCTransport — P2P friend-direct via peerjs or
-//                           similar; needs signaling. Out of scope
-//                           for v1.
+//   • LocalTabTransport   — BroadcastChannel between two tabs on the
+//                           same machine; dev / testing without a server.
+//   • WebSocketTransport  — PartyKit (or any ws://) endpoint.
+//   • WebRTCTransport     — P2P via PeerJS (see below).
 //
 // The adapter exposes ONE public API to the rest of the game:
 //
@@ -33,9 +25,6 @@
 //   'opponentLeft'     — {}
 //   'state'            — { state: GameState }   (already rehydrated)
 //   'error'            — { message }
-//
-// User spec: "I want this on a mobile phone and I want to share
-// it with friends and we play multiplayer vs each other."
 // ============================================================
 
 const Multiplayer = {
@@ -102,10 +91,8 @@ const Multiplayer = {
     this._transport.send(msg);
   },
 
-  // 4-char alphabet code, easy to read aloud / type. Avoids 0/O, 1/I
-  // confusion. Generated client-side so the host can show it before
-  // the server confirms — the createRoom message includes the code
-  // so server uses the same one.
+  // 4-char code, easy to read aloud (avoids 0/O, 1/I). Generated client-side so
+  // the host can show it before the server confirms; createRoom sends it along.
   _genCode() {
     const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let s = '';
@@ -113,10 +100,8 @@ const Multiplayer = {
     return s;
   },
 
-  // Server message handler — broadcasts to UI subscribers. Game-action
-  // messages (playCard / playTrick / doneTurn / etc.) are emitted as a
-  // single 'action' event so the host's Game engine can route them
-  // through one handler instead of dozens of listeners.
+  // Game-action messages are emitted as a single 'action' event so the host's
+  // engine routes them through one handler.
   _GAME_ACTION_TYPES: new Set([
     'playCard', 'playCardFree', 'playJump', 'playTrick', 'doneTurn', 'mulligan',
     'draftPick', 'draftMulligan', 'promptResolve', 'bwlChoice', 'forfeit',
@@ -151,13 +136,9 @@ const Multiplayer = {
         this._emit('emote', msg);
         break;
       case 'notice':
-        // Host → guest explanation (an ACK-less protocol's missing NACK).
-        // When the host REJECTS a guest's action it used to only console.warn
-        // on the HOST's own machine and re-broadcast an unchanged state, so on
-        // the guest the card simply refused to move with no reason given —
-        // the "it never leaves my hand" report. The host now says why.
-        // Deliberately NOT in _GAME_ACTION_TYPES: this is host→guest feedback,
-        // not a game action, and must never be applied to the engine.
+        // Host → guest explanation of a REJECTED guest action, so the guest sees why
+        // a card won't move instead of a silent no-op. Deliberately NOT in
+        // _GAME_ACTION_TYPES: it is feedback and must never be applied to the engine.
         this._emit('notice', msg);
         break;
       case 'lobby':
@@ -183,11 +164,8 @@ const Multiplayer = {
         try { if (typeof Voice !== 'undefined') Voice.onMessage(msg); } catch (e) {}
         break;
       case 'state': {
-        // Rehydrate function references on every received state.
-        // This is what makes the JSON-roundtripped engine usable
-        // again on the client — without rehydration, every onPlay /
-        // play / canPlay callback is null after the trip. Block
-        // scope so const doesn't leak across case clauses.
+        // Rehydrate function references on every received state — JSON drops every
+        // onPlay / play / canPlay hook. Block scope so const doesn't leak across cases.
         const rehydrated = this._rehydrateState(msg.state);
         this._emit('state', { state: rehydrated });
         break;
@@ -209,11 +187,9 @@ const Multiplayer = {
   _rehydrateState(state) {
     if (!state || typeof state !== 'object') return state;
     const cardDefs = (typeof CARD_DEFS !== 'undefined' ? CARD_DEFS : []);
-    // Candies are deliberately absent from TRICK_DEFS (they must never enter a
-    // draft or draw pool), but a candy sitting in a player's trick hand still
-    // has to come back with its `play` function after crossing the wire —
-    // otherwise it arrives on the other three screens as an inert object that
-    // does nothing when clicked.
+    // Candies are deliberately absent from TRICK_DEFS (never in a draft or draw
+    // pool), but a candy in a trick hand still needs its `play` function back
+    // after crossing the wire, or it arrives inert.
     const trickDefs = (typeof TRICK_DEFS !== 'undefined' ? TRICK_DEFS : [])
       .concat(typeof CANDY_DEFS !== 'undefined' ? CANDY_DEFS : [])
       .concat(typeof WONDER_DEFS !== 'undefined' ? WONDER_DEFS : []);
@@ -249,15 +225,11 @@ const Multiplayer = {
       (p.drawPile || []).forEach(collect);
     });
 
-    // PUT THE ZEROES BACK. serializeState drops every stats* accumulator that
-    // is still at 0 and leaves `_sz` on the card to say so. This walks the
-    // received state with the SAME predicate the strip used, so its coverage
-    // cannot be narrower than the strip's — a card the strip reached but this
-    // missed would hand the engine `undefined` where it expects a number.
-    //
-    // The field list is read off a real card instance rather than typed out, so
-    // a new counter added to createCardInstance is covered without anyone
-    // remembering to come back here.
+    // PUT THE ZEROES BACK. serializeState drops every stats* accumulator still at
+    // 0 and marks the card `_sz`. This walk uses the SAME predicate as the strip,
+    // so its coverage can't be narrower (a miss hands the engine `undefined`).
+    // The field list is read off a real card instance, so new counters added to
+    // createCardInstance are covered automatically.
     (function restoreStatZeros(root) {
       let keys = Multiplayer._statKeys;
       if (!keys) {
@@ -289,13 +261,10 @@ const Multiplayer = {
       if (!c || !c.name) return;
       const def = cardDefs.find(d => d.name === c.name);
       if (def) {
-        // TEXT COMES BACK FROM THE DEF. serializeState drops `desc` from any
-        // card whose text still matches its definition and leaves `_d` behind
-        // to say so — that text is 15 KB of a 37 KB payload, re-sent to three
-        // players on every action, and every client already has all of it in
-        // CARD_DEFS. A card whose text was CHANGED at runtime (Martian
-        // Manhunter copying a corpse, a token with its own wording) keeps its
-        // desc on the wire and never carries the marker, so it is untouched.
+        // TEXT COMES BACK FROM THE DEF. serializeState drops `desc` when it still
+        // matches the definition and leaves `_d` (text is ~15 KB of a 37 KB payload,
+        // and every client has CARD_DEFS). Runtime-changed text (Martian Manhunter
+        // copying a corpse, tokens) stays on the wire with no marker.
         if (c._d && c.desc === undefined) { c.desc = def.desc; delete c._d; }
         // Copy hooks from the merged def + abilities
         c.onPlay        = def.onPlay        || null;
@@ -351,14 +320,10 @@ const Multiplayer = {
     (state.drawPile || []).forEach(rehydrateCard);
     (state.trickDrawPile || []).forEach(rehydrateTrick);
 
-    // 2v2 lives in its OWN sub-tree, which this walk used to skip entirely.
-    // JSON.stringify drops every function on the way out, so each guest's
-    // cards and tricks came back inert: no onPlay, no onDeath, no trick
-    // play(). The host is authoritative for resolution so matches still
-    // "worked", but anything the guest evaluates locally — damage previews
-    // (they run a silent sim on the guest's own copy), canPlay gating, hook
-    // presence checks — was reading hookless cards. Walk it like any other
-    // zone. Found by sim/fuzzonline.js round-trip fidelity checks.
+    // 2v2 lives in its OWN sub-tree; walk it like any other zone, or guest cards
+    // and tricks come back hookless and guest-local evaluation (damage previews,
+    // canPlay gating, hook presence checks) breaks. Covered by sim/fuzzonline.js
+    // round-trip fidelity checks.
     const tt = state.twoVTwo;
     if (tt) {
       ['p1', 'p2', 'p3', 'p4'].forEach(k => {
@@ -389,38 +354,22 @@ const Multiplayer = {
     return state;
   },
 
-  // Inverse of rehydrate — strip non-serializable fields BEFORE
-  // sending state across the wire. Game.state is mutated in place
-  // by the engine; we don't want to mutate it here, so we deep-
-  // clone via JSON round-trip (which conveniently ALSO drops the
-  // function refs for free) and then patch _summonedBy / _drawnBy
-  // to id-based form.
+  // Inverse of rehydrate — strip non-serializable fields before sending. Never
+  // mutate Game.state here: deep-clone (dropping functions), then patch
+  // _summonedBy / _drawnBy to id-based form.
   serializeState(state) {
-    // Cycle-safe deep clone. The old JSON.parse(JSON.stringify(state)) threw
-    // "Converting circular structure to JSON" the instant two cards referenced
-    // each other — e.g. a mutual mindControlTarget, or _copiedFrom, or any
-    // card back-ref that forms a loop. fixRefs (below) only rewrites
-    // _summonedBy / _drawnBy, and it runs AFTER the stringify, so it could
-    // never prevent the throw. On the host that throw aborted the broadcast:
-    // the host kept playing locally while every guest froze on a stale state,
-    // waiting for an update that never came (the "host advances, guest stuck"
-    // 2v2 freeze). This replacer walks an ancestor stack and drops any value
-    // that is its own ancestor — breaking true cycles only, while leaving
-    // shared (non-cyclic) references intact. Functions are dropped too;
-    // rehydrate re-attaches them from the card defs.
+    // Cycle-safe deep clone: plain JSON.stringify throws on any card back-ref loop
+    // (mutual mindControlTarget, _copiedFrom...), and a throw on the host aborts
+    // the broadcast and freezes every guest. The replacer walks an ancestor stack
+    // and drops only true cycles, keeping shared non-cyclic refs. Functions are
+    // dropped too; rehydrate re-attaches them from the card defs.
     const ancestors = [];
     const json = JSON.stringify(state, function (key, value) {
       if (typeof value === 'function') return undefined;
-      // NEVER SERIALIZE THE UNDO SNAPSHOT. tt._turnSnap is a whole second copy
-      // of the state (measured at ~170 KB on a live board, larger than the rest
-      // of the state combined) kept only so the HOST can rewind one seat's turn.
-      // It is nulled out of the clone further down, but by then it has already
-      // been stringified AND parsed — so every single broadcast paid to
-      // serialize a 170 KB blob it immediately threw away. Dropping it here in
-      // the replacer skips that work entirely. `_undoRearm` is the 1v1 twin.
-      // This is the single biggest per-broadcast cost, so it is the first thing
-      // to lift the "everything is laggy online" report. (Nothing on the wire
-      // changes — _turnSnap was already stripped before send.)
+      // NEVER SERIALIZE THE UNDO SNAPSHOT. tt._turnSnap is a whole second copy of the
+      // state (~170 KB on a live board), kept only so the HOST can rewind a seat's
+      // turn. Dropping it in the replacer skips stringifying it at all — the largest
+      // per-broadcast cost. `_undoRearm` is the 1v1 twin.
       if (key === '_turnSnap' || key === '_undoRearm') return undefined;
       if (value && typeof value === 'object') {
         while (ancestors.length && ancestors[ancestors.length - 1] !== this) ancestors.pop();
@@ -430,10 +379,9 @@ const Multiplayer = {
       return value;
     });
     const clone = JSON.parse(json);
-    // DROP CARD TEXT THAT THE RECEIVER ALREADY HAS. Walk the clone and remove
-    // `desc` from every card whose text is still exactly its definition's,
-    // marking it `_d` so _rehydrateState can put it back. Runtime-modified text
-    // is left alone. Measured on a live 2v2 state: 15 KB of 37 KB.
+    // DROP CARD TEXT THE RECEIVER ALREADY HAS: remove `desc` from every card whose
+    // text still matches its definition, marking `_d` so _rehydrateState restores it.
+    // Runtime-modified text is left alone.
     (function stripDefText(root) {
       const defs = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS : null;
       if (!defs) return;
@@ -449,15 +397,9 @@ const Multiplayer = {
           const d = byName.get(o.name);
           if (d && d.desc === o.desc) { delete o.desc; o._d = 1; }
         }
-        // DROP THE FLAGS THAT ARE OFF. A card instance carries ~104 keys and
-        // about half of them are `false` or `null` at any moment — every
-        // ability flag the card does not have, every target it is not holding.
-        // They cost ~45% of the whole state payload and say nothing a missing
-        // key does not already say: the receiver replaces its state wholesale
-        // and reads all of these as booleans, so absent and false behave
-        // identically. Measured on a live 2v2 board: 38.6 KB -> 22.6 KB per
-        // push, per guest. (User: "sometimes when i play a card it takes
-        // forever for it to show up on the board.")
+        // DROP THE FLAGS THAT ARE OFF. About half of a card's ~104 keys are `false` or
+        // `null` (~45% of the payload). The receiver replaces state wholesale and reads
+        // these as booleans, so absent and false behave identically.
         //
         // CARD INSTANCES ONLY — id + name + numeric attack/currentHealth.
         // Tricks are deliberately excluded: `trick.hostile === false` is a real
@@ -471,25 +413,12 @@ const Multiplayer = {
           for (const k in o) {
             const v = o[k];
             if (v === false || v === null) { delete o[k]; continue; }
-            // AND THE stats* BLOCK, WHICH IS THE EXCEPTION TO THE RULE ABOVE.
-            // "Zeroes are kept — 0 is arithmetic, not a flag" is right for the
-            // card's own numbers, and wrong for this one family: every card
-            // carries ~21 per-card accumulators (statsDamageAbsorbed,
-            // statsFreezesApplied, statsEnergyGenerated...) whose 0 IS their
-            // starting value, and they are overwhelmingly still at it.
-            //
-            // Measured on a live 2v2 board at round 5: 25 distinct stats*
-            // names across 41 card instances = 873 written fields, 843 of them
-            // (96.6%) still zero, costing 19,068 of a 58,217-byte payload —
-            // 32.8% of EVERY broadcast, sent to three other clients on every
-            // single action. (Owner: "after turn 6 the game lags, too much
-            // weight or something, how to lighten".)
-            //
-            // The zero comes BACK on arrival rather than the readers being
-            // asked to cope with a missing key — there are 246 of them across
-            // game.js, ui.js and abilities.js, and `undefined + 1` is NaN, not
-            // 1. `_sz` marks a card that was trimmed so the restore knows to
-            // run; see restoreStatZeros in _rehydrateState.
+            // AND THE stats* BLOCK, THE EXCEPTION TO THE ZERO RULE ABOVE. Each card carries
+            // ~21 per-card accumulators whose 0 IS their starting value and which are
+            // overwhelmingly still at it (~a third of every broadcast).
+            // The zero comes BACK on arrival rather than readers coping with a missing key
+            // (there are ~246 readers, and `undefined + 1` is NaN). `_sz` marks a trimmed
+            // card; see restoreStatZeros in _rehydrateState.
             if (v === 0 && k.charCodeAt(0) === 115 && k.indexOf('stats') === 0) {
               delete o[k]; _sz = true;
             }
@@ -500,34 +429,23 @@ const Multiplayer = {
       };
       walk(root);
     })(clone);
-    // THE UNDO SNAPSHOT NEVER GOES ON THE WIRE. It is a whole extra copy of
-    // the state, kept so the host can rewind one seat's turn, and only the host
-    // can ever apply it. Shipping it would roughly double every broadcast for
-    // something no guest can use; `twoVTwo._undoSnapSeat` travels instead and is
-    // all a client needs to light its Undo button.
+    // THE UNDO SNAPSHOT NEVER GOES ON THE WIRE — only the host can apply it, and it
+    // would roughly double every broadcast. `twoVTwo._undoSnapSeat` travels instead
+    // and is all a client needs to light its Undo button.
     if (clone.twoVTwo && clone.twoVTwo._turnSnap) clone.twoVTwo._turnSnap = null;
-    // selectedCard / selectedTrick are per-CLIENT UI state, not shared game
-    // state. Broadcasting the host's selection leaks it into the guest's state,
-    // where it's a card the guest doesn't hold — the guest's restore-selection
-    // guard then sees a non-null selection and skips restoring the guest's OWN
-    // pick, so the guest's card "places itself" in a stray lane. Strip them.
+    // selectedCard / selectedTrick are per-CLIENT UI state. Broadcasting the host's
+    // selection makes the guest's restore-selection guard skip restoring its OWN
+    // pick, so the guest's card lands in a stray lane. Strip them.
     delete clone.selectedCard;
     delete clone.selectedTrick;
     // WIRE TRIM (host-authoritative → guest only RENDERS this state):
-    //  • Draw piles are HIDDEN — the guest shows them only as a DECK COUNT
-    //    (state.drawPile.length). So replace each hidden card with a tiny
-    //    {id,name} stub: the count survives, but ~85 full card objects PER SIDE
-    //    (stats + abilities[] + baseAbilities[] + desc string + flags) no longer
-    //    ride EVERY action's broadcast. The guest never draws from its own pile
-    //    (the host does, and the drawn card arrives via the hand), and
-    //    rehydrateCard skips nameless/def-less cards, so this can't desync play.
+    //  • Draw piles are HIDDEN — the guest shows only a count (drawPile.length).
+    //    Each hidden card becomes an {id}-only stub: the count survives, the full
+    //    card objects stop riding every broadcast, and the draw ORDER no longer
+    //    leaks to the guest (fairness). The guest never draws from its own pile
+    //    (the host does), and rehydrateCard bails on !c.name, so play can't desync.
     //  • The combat LOG is capped to its recent tail — the guest only shows
-    //    recent lines, so shipping all 300 every action is wasted bytes.
-    //  • The stub carries ONLY {id} — dropping `name` both saves bytes and
-    //    closes a fairness hole: the full draw ORDER of both decks was riding
-    //    every broadcast, so anything reading the guest's state could see the
-    //    next N cards. rehydrateCard bails on !c.name, and the guest renders
-    //    hidden piles purely by .length, so nothing downstream needs the name.
+    //    recent lines.
     const stubPile = (pile) => Array.isArray(pile)
       ? pile.map(c => (c && c.id != null) ? { id: c.id } : {})
       : pile;
@@ -540,35 +458,22 @@ const Multiplayer = {
       if (clone[side].drawPile) clone[side].drawPile = stubPile(clone[side].drawPile);
       if (clone[side].trickDrawPile) clone[side].trickDrawPile = stubPile(clone[side].trickDrawPile);
     });
-    //  • …AND THE 2v2 PILES, which is where the cards actually are in that mode.
-    //    Every stub above reads state.drawPile / state[side].drawPile — the 1v1
-    //    homes. A 2v2 table keeps ONE shared pile per kind on twoVTwo, and those
-    //    were never in this list, so all four seats received the whole undrawn
-    //    deck, in order, with names, on every single broadcast.
-    //
-    //    Both halves of the reason above apply here and neither was getting the
-    //    benefit: it measured 8.5 KB of a 65 KB round-5 payload (13%) plus 1.8 KB
-    //    of trickDrawPile, re-sent on every action — and it is the same fairness
-    //    hole, still open in the mode with four players in it. The deck counter
-    //    reads .length, which the stub preserves, and rehydrateCard bails on a
-    //    nameless card, so nothing downstream can tell the difference.
+    //  • …AND THE 2v2 PILES. A 2v2 table keeps ONE shared pile per kind on
+    //    twoVTwo, outside the 1v1 homes above. Same size and fairness reasons
+    //    apply; the deck counter reads .length, which the stub preserves.
     if (clone.twoVTwo) {
       if (clone.twoVTwo.drawPile) clone.twoVTwo.drawPile = stubPile(clone.twoVTwo.drawPile);
       if (clone.twoVTwo.trickDrawPile) clone.twoVTwo.trickDrawPile = stubPile(clone.twoVTwo.trickDrawPile);
     }
-    //  • summonDeck is the SHARED ~95-card summon lottery pool (Mother Box,
-    //    Bat Signal, Knull...). Measured at 41% of a mid-match payload — the
-    //    single largest object on the wire — and the guest never draws from it:
-    //    the host resolves every summon and broadcasts the RESULT. It is also
-    //    self-healing (drawFromSummonDeck re-inits via _initSummonDeck when the
-    //    pool is missing or empty), so dropping it cannot desync or strand a
-    //    draw. Same fairness note as above: it was leaking the summon order.
-    // ---- THE DEAD PILES (late-game lag, measured 2026-11-10) -------------------
-    // A 2v2 round-24 broadcast was 88KB, ~43% of it dead piles — sent TWICE,
-    // because in 2v2 each side record holds the very same array as its team
-    // (s.player.deadPile === tt.teams.A.deadPile) and JSON writes a shared
-    // array out once per reference. And each entry carried ~420 bytes, most of
-    // it end-of-match stats nobody else reads mid-match.
+    //  • summonDeck is the SHARED ~95-card summon lottery pool — the largest
+    //    object on the wire (~41% of a mid-match payload). The guest never draws
+    //    from it (the host resolves summons and broadcasts the result), and it
+    //    self-heals (drawFromSummonDeck re-inits via _initSummonDeck when missing
+    //    or empty), so dropping it can't desync. It would also leak summon order.
+    // ---- THE DEAD PILES (late-game lag) ----------------------------------------
+    // In 2v2 each side record holds the same array as its team
+    // (s.player.deadPile === tt.teams.A.deadPile), and JSON writes a shared array
+    // once per reference, so dead piles would ship TWICE.
     // (1) SEND ONCE: when a side's pile IS its team's pile, ship a pointer; the
     //     receiver re-links them (_rehydrateState), restoring the aliasing too.
     // (2) SLIM: drop stats* from dead entries until the match is over. Every
@@ -598,12 +503,9 @@ const Multiplayer = {
     }
     delete clone.summonDeck;
     // 4. draft.history — the Back button's undo stack. draftUndo refuses to run
-    //    in multiplayer, so it is unusable on either client, and each entry
-    //    holds `pile: pile.slice()` — the remaining deck IN DRAW ORDER. That is
-    //    the same leak stubPile was added to close, arriving through a side
-    //    door. draftPick no longer records it online (see game.js), and this is
-    //    the belt-and-braces so a stale history from a solo match before the
-    //    room opened cannot ride out either.
+    //    online, and each entry holds `pile: pile.slice()` (the remaining deck IN
+    //    DRAW ORDER — the leak stubPile closes). draftPick doesn't record it online
+    //    (see game.js); this also drops a stale history from a prior solo match.
     if (clone.draft && clone.draft.history) delete clone.draft.history;
     if (Array.isArray(clone.log) && clone.log.length > 60) clone.log = clone.log.slice(-60);
     const fixRefs = (c) => {
@@ -861,17 +763,10 @@ class WebSocketTransport {
 // SHARED ICE SERVER CONFIG (STUN + TURN)
 // ============================================================
 // Used by both WebRTCTransport (1v1) and WebRTC4Transport (2v2).
-// The TURN entries relay traffic through metered.ca's public Open
-// Relay servers when direct P2P fails — covers hotel WiFi, mobile
-// hotspots, and corporate networks with symmetric NAT that block
-// raw UDP. TURNS (TLS on 443) is the last-resort fallback since
-// port 443 is open on every network that allows HTTPS.
-// ICE servers: two STUN + two independent TURN providers for
-// redundancy. openrelay.metered.ca and freestun.net are both
-// free, no-signup relays. Having two distinct providers means
-// if one is down or blocked the other takes over.
-// TURNS (TLS on 443) is the last resort — it looks like HTTPS to
-// hotel/corporate firewalls that block all other UDP/TCP.
+// Two STUN + two independent free TURN providers (openrelay.metered.ca,
+// freestun.net), so one being down or blocked doesn't break relay. TURN covers
+// hotel WiFi, mobile hotspots and symmetric-NAT corporate networks; TURNS
+// (TLS on 443) is the last resort since it looks like HTTPS to firewalls.
 const _WEBRTC_ICE_SERVERS = [
   // STUN — address discovery, no relay. Multiple providers so gathering never
   // hangs on one being down; these cover the large majority of connections
@@ -882,11 +777,9 @@ const _WEBRTC_ICE_SERVERS = [
   { urls: 'stun:stun3.l.google.com:19302' },
   { urls: 'stun:stun.cloudflare.com:3478' },
   // TURN relay — needed only when both peers are behind restrictive/symmetric
-  // NAT and can't connect directly. metered.ca's OPEN relay (the old
-  // openrelayproject free creds are dead) is replaced with their current free
-  // "open relay" endpoints, plus freestun.net as an independent backup. If your
-  // network needs relay and these are down, audio can't connect — the panel
-  // now says so (see Voice diagnostics).
+  // NAT. metered.ca's current free "open relay" endpoints plus freestun.net as
+  // an independent backup. If relay is needed and these are down, audio can't
+  // connect — the panel says so (see Voice diagnostics).
   { urls: 'turn:openrelay.metered.ca:80',               username: 'openrelayproject', credential: 'openrelayproject' },
   { urls: 'turn:openrelay.metered.ca:443',              username: 'openrelayproject', credential: 'openrelayproject' },
   { urls: 'turns:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
@@ -895,16 +788,10 @@ const _WEBRTC_ICE_SERVERS = [
   { urls: 'turns:freestun.net:5350', username: 'freestun', credential: 'freestun' },
 ];
 
-// Build the ICE config from the built-in STUN/TURN list. WebRTC's own
-// ICE negotiation tries a direct path first and automatically falls back
-// to the TURN relays below when direct fails (hotel/corporate Wi-Fi) —
-// so relay coverage is built in without any per-user override.
-//
-// The old force-relay + custom-TURN localStorage overrides were removed:
-// a stale/dead value in either silently broke EVERY later connection
-// (force-relay with an unreachable TURN = no direct fallback = never
-// connects). User report: "I can't connect in multiplayer — get rid of
-// the hotel Wi-Fi thing I added."
+// Build the ICE config from the built-in STUN/TURN list. WebRTC tries a direct
+// path first and falls back to TURN automatically. Deliberately no per-user
+// force-relay / custom-TURN overrides: a stale value silently breaks every
+// later connection.
 function _buildIceConfig() {
   return { iceServers: _WEBRTC_ICE_SERVERS };
 }
@@ -912,17 +799,9 @@ function _buildIceConfig() {
 // ============================================================
 // WEBRTC TRANSPORT — peer-to-peer over the public internet
 // ============================================================
-// Uses PeerJS (https://peerjs.com) for WebRTC signaling. PeerJS
-// runs a free public signaling cloud at 0.peerjs.com that brokers
-// the initial offer/answer exchange; once peers are connected, all
-// game data flows directly P2P via WebRTC DataChannels — no server
-// in the middle.
-//
-// Why this transport: the user wanted to play against a friend on
-// a different computer "on the web" without deploying any backend.
-// PeerJS public cloud + WebRTC achieves that with zero server cost
-// and no account setup. TURN relay servers handle hotel WiFi,
-// mobile hotspots, and corporate networks with symmetric NAT.
+// PeerJS's free public cloud (0.peerjs.com) brokers the offer/answer; after
+// that, game data flows P2P over WebRTC DataChannels — no backend, no account.
+// TURN relays handle restrictive NATs.
 //
 // Room code mapping: the 4-letter room code becomes a peer ID with
 // a 'clb-game-' prefix so we don't collide with other apps using
@@ -934,15 +813,12 @@ function _buildIceConfig() {
 //   • Host calls broadcastState() to push authoritative state
 //   • Both sides see opponentJoined / opponentLeft / state events
 
-// Build stamp for the version handshake — derived from the ?v= params the
-// page actually loaded its scripts with, so it updates on every deploy with
-// zero maintenance. Two clients on the same deploy always agree; a
-// stale-cached client disagrees and both get warned.
-// cards.js and abilities.js are IN the stamp: they hold every card's text and
-// every card's rules, so two clients could match on game/ui/multiplayer and
-// still resolve the same card differently — which is a desync the handshake
-// existed to catch and was silently blind to. First letters stay unique
-// (g/u/m/c/a), so the compact stamp format is unchanged.
+// Build stamp for the version handshake — derived from the ?v= params the page
+// loaded its scripts with, so it updates every deploy. A stale-cached client
+// disagrees and both get warned.
+// cards.js and abilities.js are IN the stamp (card text and rules), or two
+// clients could resolve the same card differently undetected. First letters
+// stay unique (g/u/m/c/a), so the compact stamp format holds.
 function _clbBuildStamp() {
   try {
     const parts = [];
@@ -1059,19 +935,15 @@ class WebRTCTransport {
       queued.forEach(m => this._sendChunked(m));
       if (this._isHost) {
         const name = (conn.metadata && conn.metadata.name) || 'Opponent';
-        // Version handshake — the game is a PWA, so one side can easily be
-        // running a weeks-old cached build (every "fixed" bug comes back
-        // when the stale side hosts). Compare the joiner's build stamp to
-        // ours; on mismatch, surface a warning on BOTH clients so the two
-        // players know to refresh. Non-fatal: the match still starts.
+        // Version handshake — as a PWA, one side may run an old cached build. Compare
+        // the joiner's stamp to ours; on mismatch warn BOTH clients to refresh.
+        // Non-fatal: the match still starts.
         const mine = _clbBuildStamp();
         const theirs = (conn.metadata && conn.metadata.v) || null;
-        // Always reply with OUR stamp. The metadata handshake only lets
-        // the host compare — without this reply, a fresh guest joining a
-        // STALE host (the dangerous direction: the host runs the
-        // authoritative engine, so its old bugs decide the match) gets no
-        // version signal at all. The joiner arms a timer below and treats
-        // "no versionInfo" as "host predates the handshake".
+        // Always reply with OUR stamp: the metadata handshake only lets the host
+        // compare, and a STALE host is the dangerous direction (it runs the
+        // authoritative engine). The joiner treats "no versionInfo" before its timer
+        // fires as "host predates the handshake".
         try { conn.send({ t: 'versionInfo', v: mine }); } catch (e) {}
         if (mine && theirs && mine !== theirs) {
           this._dispatch({ t: 'versionMismatch', mine, theirs });
@@ -1165,23 +1037,17 @@ class WebRTCTransport {
     }
   }
 
-  // Split any message over the safe single-message size into ordered
-  // chunks and reassemble on the far side. WebRTC/SCTP caps a single
-  // send at the SMALLER of the two peers' limits — Safari negotiates a
-  // much lower cap than Chrome, so a full ~50KB draft-state broadcast
-  // silently vanished on a Chrome↔Safari match (guest paired but stuck
-  // on "Dropping into the match…"). 8KB chunks are safe on every
-  // browser. PeerJS data channels are ordered+reliable, so the pieces
-  // arrive in sequence; the index guards against any reordering anyway.
+  // Split any message over the safe single-message size into ordered chunks and
+  // reassemble on the far side. WebRTC/SCTP caps a send at the SMALLER peer's
+  // limit (Safari's is much lower than Chrome's) and oversize sends vanish
+  // silently. PeerJS channels are ordered+reliable; the index guards reordering anyway.
   _sendChunked(msg) {
     if (!(this._conn && this._conn.open)) { this._sendQueue.push(msg); return; }
     let json;
     try { json = JSON.stringify(msg); } catch (e) { return; }
-    // Slice size 3500: when a part is re-serialized inside the chunk
-    // wrapper, every " and \ in it escapes to two chars (worst case
-    // doubling), so a 3500-char part stays well under ~8KB on the wire —
-    // safe on every browser's negotiated SCTP message limit, Safari
-    // included. A message at/under this size sends whole (no wrapper).
+    // Slice size 3500: inside the chunk wrapper every " and \ escapes to two chars
+    // (worst case doubling), so a part stays under ~8KB on the wire — safe on every
+    // browser's SCTP limit, Safari included. A message at/under this sends whole.
     const LIMIT = 3500;
     if (json.length <= LIMIT) {
       try { this._conn.send(msg); } catch (e) {}
@@ -1275,12 +1141,9 @@ class WebRTC4Transport {
     if (msg && msg.t === 'joinRoom')   { this._openAsJoiner(msg); return; }
     // Game action — joiner sends to host; host echoes to self via dispatch
     if (this._isHost) {
-      // COSMETIC emote / taunt: the star topology means the host's own send
-      // would otherwise reach nobody but itself. The sender already rendered it
-      // locally (sendEmote/sendTaunt), so FAN it out to all three joiners
-      // instead of echoing to self — that's how a host taunt reaches the table.
-      // (Owner: "add the taunt system for all players … it plays on their
-      // devices.")
+      // COSMETIC emote / taunt: in the star topology the host's own send would reach
+      // only itself. The sender already rendered it locally (sendEmote/sendTaunt), so
+      // FAN it out to all three joiners instead of echoing to self.
       if (msg && msg.t === 'emote') {
         Object.values(this._conns).forEach(conn => this._sendChunked(conn, msg));
         return;
@@ -1312,17 +1175,11 @@ class WebRTC4Transport {
     this._dispatch({ ...full, _from: fromSlot });
   }
 
-  // Split any message over the safe single-message size into ordered
-  // chunks and reassemble on the far side — the same guard the 1v1
-  // transport already carries. A single PeerJS `json` send is NOT
-  // chunked by the library, and anything past ~16KB is dropped on the
-  // floor with no error: `conn.send()` returns normally and the far
-  // side's `data` handler simply never fires. The 2v2 draft-start
-  // broadcast is ~30KB (the full card/trick pools ride along inside
-  // twoVTwo), so every joiner sat on the lobby forever while the host
-  // walked into the draft alone. 3500-char parts stay under ~8KB on the
-  // wire even after JSON escaping doubles them, which is safe on every
-  // browser's negotiated SCTP limit, Safari included.
+  // Chunk large messages, same guard as the 1v1 transport. A PeerJS `json` send
+  // is NOT chunked by the library, and anything past ~16KB is dropped silently
+  // (send() returns normally, the far side never fires). The 2v2 draft-start
+  // broadcast is ~30KB. 3500-char parts stay under ~8KB even after JSON escaping
+  // doubles them — safe on every browser's SCTP limit, Safari included.
   _sendChunked(conn, msg) {
     if (!(conn && conn.open)) return;
     let json;
@@ -1369,13 +1226,8 @@ class WebRTC4Transport {
     });
     this._peer.on('connection', (conn) => {
       const slots = ['p2', 'p3', 'p4'];
-      // A SEAT IS HELD BY A LIVE CONNECTION, NOT BY AN ATTEMPT. The old line
-      // was `slots.find(s => !taken.includes(s))` against every key ever added
-      // — so any connection that arrived and then failed to finish its ICE
-      // handshake sat on a seat forever, and it never fires 'close' (it never
-      // opened), so nothing released it. One flaky attempt, or one player who
-      // reloaded, and the room was full at three. (User: "not all 4 of us can
-      // join only 3 of us.")
+      // A SEAT IS HELD BY A LIVE CONNECTION, NOT BY AN ATTEMPT. A connection that
+      // never finishes ICE never fires 'close', so it would hold a seat forever.
       // Three rules, in order:
       //   1. A peer that is already seated gets ITS OWN seat back — that is a
       //      reconnect, not a fourth player.
@@ -1440,14 +1292,10 @@ class WebRTC4Transport {
       this._dispatchError('Peer init failed: ' + (e && e.message || e));
       return;
     }
-    // RETRY, BECAUSE THE BROKER IS FLAKY. Signalling runs through PeerJS's free
-    // public cloud, and a connect that arrives before the host's ID has fully
-    // propagated comes back 'peer-unavailable' — which we then showed as
-    // "Couldn't find that room — check the code", as if the code were wrong.
-    // With four people joining the same room within a few seconds of each
-    // other, the LAST one in is the one that hits it, every time, which is
-    // exactly the shape of "only 3 of us can join". Three attempts, and we only
-    // believe the failure after the third.
+    // RETRY, BECAUSE THE BROKER IS FLAKY. A connect that arrives before the host's
+    // ID has propagated through PeerJS's public cloud returns 'peer-unavailable'
+    // (not a wrong code). With four people joining at once the last one tends to
+    // hit it. Three attempts; only believe the failure after the third.
     const attempt = () => {
       this._joinTries = (this._joinTries || 0) + 1;
       const conn = this._peer.connect(this._peerIdFor(msg.code), {
@@ -1486,7 +1334,7 @@ class WebRTC4Transport {
     this._peer.on('open', () => attempt());
     this._peer.on('error', (err) => {
       // A lookup that lost the race with the host's registration is retryable;
-      // everything else is reported as before.
+      // everything else is reported.
       // <= 3, not < 3: a late error from attempt 2 can land AFTER attempt 3 has
       // already been made, and reporting it then puts a failure banner over a
       // connection that is about to succeed.
@@ -1561,13 +1409,9 @@ const Multiplayer4 = {
 
   init(transport) {
     if (this._transport) this.leave();
-    // DROP THE OLD LISTENERS. `on()` appends and nothing ever removed them, so
-    // a client that tried to JOIN (failed) and then CREATED a room kept the
-    // join flow's handlers registered on top of the create flow's. Both then
-    // ran for every message — two 'state' handlers, two 'playerJoined' — and
-    // the dead transport's errors surfaced in the live lobby, which is how a
-    // HOST ends up staring at a joiner's "couldn't find that room" banner over
-    // their own room code.
+    // DROP THE OLD LISTENERS. `on()` appends, so a client that tried to JOIN and
+    // then CREATED a room would run both flows' handlers for every message, and the
+    // dead transport's errors would surface in the live lobby.
     this._listeners = {};
     this._transport = transport;
     transport.onMessage((msg) => this._handleMsg(msg));
@@ -1589,7 +1433,7 @@ const Multiplayer4 = {
 
   // Host broadcasts current game state to all joiners
   // redactFor(stateClone, playerKey) -> the copy THAT seat may see. Optional;
-  // without it every connection gets the same payload, as before.
+  // without it every connection gets the same payload.
   broadcastState(stateClone, redactFor) {
     if (this._transport && this._transport.broadcastState) {
       this._transport.broadcastState(stateClone, redactFor);
@@ -1624,21 +1468,12 @@ const Multiplayer4 = {
     return s;
   },
 
-  // THIS IS AN ALLOWLIST, NOT A ROUTER — and it is only HALF of adding a 2v2
-  // message. A `case` in Game._apply2v2OnlineAction does nothing unless its
-  // type is also named here; without the entry the message is dropped before
-  // the engine ever sees it, silently, with conn.send() having returned fine.
-  // Two handler cases had drifted out of this set and were dead for guests:
-  //   resolve2v2BlockTrick — a guest winning a trick from a Block could not
-  //     Keep or Play it. The answer vanished, so the host's pendingBlockTrick
-  //     never cleared, hasPendingPrompt stayed true, and the combat
-  //     continuation parked by whenPromptCleared never ran: all four clients
-  //     froze until a 45s watchdog force-KEPT the trick. Reported as "I chose
-  //     to keep it but it never went into my hand and glitched out the game."
-  //   skip2v2Jump — a guest declining a jump froze the match by the same
-  //     mechanism, via pendingJumpOffer, which hasPendingPrompt also counts.
-  // Both host handlers already existed and were correct; they were simply
-  // unreachable from the wire.
+  // THIS IS AN ALLOWLIST, NOT A ROUTER — and only HALF of adding a 2v2 message.
+  // A `case` in Game._apply2v2OnlineAction does nothing unless its type is also
+  // named here; otherwise the message is dropped silently before the engine sees
+  // it. A missing answer type (e.g. resolve2v2BlockTrick, skip2v2Jump) leaves a
+  // pending prompt set, hasPendingPrompt stays true, and the parked combat
+  // continuation never runs — all four clients freeze until a watchdog fires.
   _GAME_ACTION_TYPES: new Set([
     'play2v2Card', 'play2v2Trick', 'play2v2Jump', 'end2v2Phase', '2v2DraftPick', 'start2v2',
     'req2v2LaneChoice', '2v2LaneChoiceResult', '2v2CardChoiceResult', '2v2DraftMulligan',
@@ -1652,12 +1487,9 @@ const Multiplayer4 = {
       return;
     }
     switch (msg.t) {
-      // Cosmetic emote / taunt, symmetric: any of the four seats can send and
-      // every other seat shows it. Deliberately NOT a game action — it must
-      // never reach the engine. Without this case the 2v2 transport dropped
-      // emotes on the floor (unknown types hit `default`), so the whole
-      // emote + taunt feature was silently dead in a 2v2 room even though the
-      // buttons and handlers already existed.
+      // Cosmetic emote / taunt, symmetric: any of the four seats can send and every
+      // other seat shows it. Deliberately NOT a game action — it must never reach
+      // the engine. Without this case 2v2 drops emotes at `default`.
       case 'emote':
         this._emit('emote', msg);
         break;
@@ -1697,10 +1529,9 @@ const Multiplayer4 = {
         this._emit('error', msg);
         break;
       default:
-        // MAKE THE NEXT DRIFT LOUD. An unknown type used to fall out of this
-        // switch with no error, no log and a successful-looking send — which is
-        // why two dead handlers went unnoticed. Warn instead of throwing: a
-        // stray message must never take down a live match.
+        // MAKE DRIFT LOUD: an unknown type would otherwise fall out silently after a
+        // successful-looking send. Warn instead of throwing: a stray message must
+        // never take down a live match.
         console.warn('[MP4] dropped unknown message type:', msg.t,
           '— if this is a 2v2 action, add it to Multiplayer4._GAME_ACTION_TYPES');
         break;

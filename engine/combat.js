@@ -2,27 +2,11 @@
 // ============================================================
 // COMBAT ENGINE — pure helpers shared by resolver + predictor.
 // ============================================================
-// Phase 1 of the rules-engine extraction (see Plan agent output).
-// At this stage the engine is INSTRUMENT-ONLY: it owns the small
-// helpers that both Game.applyCombatDamage and Game.predictCombatGlobal
-// call (canSwingForward, snapCard, applyArmor) and provides a
-// dual-run divergence checker for diagnostic mode.
-//
-// Loaded BEFORE game.js in index.html so Game.* methods can forward
-// to it. No build step — plain global namespace, ES2017+.
-//
-// What lives here:
-//   - snapCard(card)        — frozen-shape snapshot used by predictors
-//   - canSwingForward(card) — swing gate (stunned/frozen/feared/MC)
-//   - applyArmor(raw, av)   — pure armor reduction math
-//   - assertSnapComplete    — debug-only: throws on missing fields
-//   - dualRunDiff(a, b)     — debug-only: compares two predicted maps
-//
-// What stays in game.js (for now):
-//   - applyCombatDamage / dealDamage / damagePlayer side effects
-//   - All onPlay / onKill / onDeath / onDamaged ability hooks
-//   - Stat credit chain (_creditChain, _creditAbsorb)
-//   - Async prompts (mind-control target picks, fear retargets)
+// Owns the helpers both Game.applyCombatDamage and Game.predictCombatGlobal
+// call (canSwingForward, snapCard, applyArmor) plus a dual-run divergence
+// checker for diagnostic mode. Loaded BEFORE game.js in index.html so Game.*
+// methods can forward to it. Side effects, ability hooks, the stat credit
+// chain and async prompts stay in game.js.
 //
 // The engine never reads from Game.state directly. Inputs in,
 // pure outputs out. That's the seam.
@@ -88,10 +72,9 @@
 
 const CombatEngine = {
   /**
-   * Frozen snapshot of a card with only the fields combat math reads.
-   * Mirrors what predictCombatGlobal needs; ensures both paths see the
-   * exact same field names. If a future field gets read live by the
-   * resolver but isn't in here, dualRunDiff will surface the gap.
+   * Frozen snapshot of a card with only the fields combat math reads, so both
+   * paths see the same field names. A field the resolver reads live but that
+   * is missing here is what dualRunDiff surfaces.
    * @param {CardLike|null|undefined} c
    * @returns {CardSnap|null}
    */
@@ -100,10 +83,8 @@ const CombatEngine = {
       name: c.name,
       currentHealth: c.currentHealth | 0,
       attack: c.attack | 0,
-      // Live, not stored — a card whose splash tracks its ATK (Hulk) can have
-      // had its attack changed by any of the paths that do not re-sync the
-      // stored number, and the forecast must show what will actually land.
-      // See Game.effectiveSplash.
+      // Live, not stored — a splash that tracks ATK (Hulk) can drift from the
+      // stored number, and the forecast must show what will land. See Game.effectiveSplash.
       splashRange: (c._splashTracksAtk ? Math.max(0, c.attack | 0) : (c.splashRange | 0)),
       _splashTracksAtk: !!c._splashTracksAtk,
       armorValue: c.armorValue | 0,
@@ -112,17 +93,13 @@ const CombatEngine = {
       hasDamageImmunity: !!c.hasDamageImmunity,
       isStunned: !!c.isStunned,
       isFrozen:  !!c.isFrozen,
-      // Feared cards swing at their own allies; MC'd cards swing for
-      // the opponent. From the forecast's "what enemy/face damage
-      // will this lane produce?" angle, both behaviors mean the card
-      // produces ZERO damage on the enemy side — same effective gate
-      // as stun/freeze.
+      // Feared cards swing at their own allies; MC'd cards swing for the opponent.
+      // Either way the lane produces ZERO enemy-side damage — same gate as stun/freeze.
       isFeared:  !!c.isFeared,
       isMindControlled: !!c.isMindControlled,
       isBullseye: !!c.isBullseye,
-      // Jaws-style pierce flags — the predictor needs these to mirror the
-      // live evade/armor gates (Bullseye does NOT pierce card Evade; only
-      // ignoresEvade does. ignoresArmor skips armor reduction).
+      // Pierce flags — the predictor mirrors the live evade/armor gates (Bullseye does
+      // NOT pierce card Evade; only ignoresEvade does. ignoresArmor skips armor).
       ignoresEvade: !!c.ignoresEvade,
       ignoresArmor: !!c.ignoresArmor,
       owner: c.owner,
@@ -130,11 +107,9 @@ const CombatEngine = {
   },
 
   /**
-   * Combat predicate shared by both predictors and (via forwarder) the
-   * resolver: a card can land its swing on the enemy front iff it
-   * isn't stunned, frozen, feared, or mind-controlled. Feared cards
-   * swing at allies, MC'd cards swing at their own side — both
-   * contribute zero forecast damage to the opposing lane.
+   * A card lands its swing on the enemy front iff it isn't stunned, frozen,
+   * feared, or mind-controlled (feared/MC'd swings contribute zero forecast
+   * damage to the opposing lane). Shared by both predictors and the resolver.
    * @param {CardLike|null|undefined} c
    * @returns {boolean}
    */
@@ -143,17 +118,12 @@ const CombatEngine = {
   },
 
   /**
-   * Splash is NOT a rider on the attack. Owner ruling 2026-08-10: "if a card
-   * has 0 attack like doc ock and he still has splash 2, the splash 2 still
-   * fires — that's not dependent on the attack. The only card that is is Hulk
-   * because his splash is the same as his attack." Hulk isn't an exception to
-   * this rule, he's an instance of it: `_splashTracksAtk` drives his
-   * splashRange FROM his ATK, so zeroing his ATK zeroes his splashRange and
-   * this predicate returns true over a splashRange of 0.
+   * Splash is NOT a rider on the attack: a 0-ATK card with splash still splashes.
+   * Hulk is an instance of the rule, not an exception — `_splashTracksAtk`
+   * drives his splashRange FROM his ATK, so zeroing his ATK zeroes his splash.
    *
-   * Everything that stops a swing outright still stops the splash — stun,
-   * freeze, fear and mind control all redirect or cancel the strike, and
-   * splash is part of that strike. Only the "ATK > 0" term is dropped.
+   * Everything that stops a swing outright (stun, freeze, fear, mind control)
+   * still stops the splash; only the "ATK > 0" term is dropped.
    *
    * The health/face-down terms read the PRE-swing snapshot at every call
    * site: a splasher that dies in the exchange it started still splashes.
@@ -202,11 +172,8 @@ const CombatEngine = {
   /**
    * Compares a forecast byId map (from predictCombatGlobal, before
    * resolveCombat ran) to actual post-resolve card states. Empty
-   * return = no divergence.
-   *
-   * Called only when Game.DEBUG_DUAL_RUN is true. The resolver wraps
-   * its own resolveCombat call to capture the forecast first, run
-   * combat, then call this to log divergences. Pure read; no mutation.
+   * return = no divergence. Only called when Game.DEBUG_DUAL_RUN is true.
+   * Pure read; no mutation.
    * @param {Map<number, PredictedOutcome>|Object<number, PredictedOutcome>|null} forecast
    * @param {Array<CardLike>} livePlayerLanes
    * @param {Array<CardLike>} liveAiLanes
@@ -242,7 +209,6 @@ const CombatEngine = {
   },
 };
 
-// Expose globally — matches the rest of the codebase's namespace style
-// (Roguelite, Game, UI, AI, Multiplayer all live as top-level globals).
+// Expose globally — matches the codebase's top-level-global namespace style.
 if (typeof globalThis !== 'undefined') globalThis.CombatEngine = CombatEngine;
 else if (typeof window !== 'undefined') window.CombatEngine = CombatEngine;

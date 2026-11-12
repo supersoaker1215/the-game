@@ -388,10 +388,8 @@ const Tournament = {
 
   _onMatchEnd(winner) {
     const t = this.T;
-    // ONE RESULT PER MATCH. showGameOverScreen fires more than once per game
-    // over (damagePlayer's immediate hook + the next render both call it), so
-    // without this guard a single win counted twice and a Bo3 ended 2–0 after
-    // one game.
+    // ONE RESULT PER MATCH: showGameOverScreen fires more than once per game over
+    // (damagePlayer's immediate hook + the next render), so guard against double-counting.
     if (this._matchResolved) return;
     this._matchResolved = true;
     this._clearSpeedTimer();
@@ -533,12 +531,9 @@ const Tournament = {
           <div class="tl-name">${c.name}</div>
           <div class="tl-stats">${[
             c.cost != null ? c.cost + '⚡' : '',
-            /* Bodyless cards (Iron Giant, and the four discard-effect cards)
-               are printed 0/0 because they never stand in a lane. Printing
-               that here asked the player to bid energy on something the UI
-               describes as worthless. Same predicate every other surface
-               uses; guarded because tournament.js does not otherwise assume
-               UI is loaded. */
+            /* Bodyless cards (Iron Giant, the discard-effect cards) print 0/0 because they
+               never stand in a lane; don't show that as a bid stat. Same predicate as other
+               surfaces; guarded because tournament.js doesn't assume UI is loaded. */
             (c.attack != null && (typeof UI === 'undefined' || !UI._hasBody || UI._hasBody(c)))
               ? c.attack + '/' + c.health : '',
             c.type || ''
@@ -825,12 +820,9 @@ const Tournament = {
   _2v2Me() { const tt = this._2v2tt(); return tt ? tt.you : null; },
   _2v2AmAuth() { return this._2v2Me() === 'p1'; },
   _2v2MyTeam() { const tt = this._2v2tt(), me = this._2v2Me(); return (tt && me && tt.players[me]) ? tt.players[me].team : null; },
-  // The captain is the FIRST seat (slot order) that actually belongs to the
-  // team — derived live, NOT hardcoded p1/p2. If the lobby rearranged teams (so
-  // team B is, say, p3+p4), the old hardcode pointed at p2, which is now on the
-  // OTHER team — so the host checked the wrong seat's isAI flag and never
-  // auto-picked for the real AI captain, and the number game hung on "waiting
-  // for the other captain." (User: "the AI never picks a number.")
+  // The captain is the FIRST seat (slot order) actually on the team — derived
+  // live, NOT hardcoded p1/p2, because the lobby can rearrange teams. A wrong seat
+  // means the AI captain's isAI check fails and the number game hangs.
   _2v2CaptainSeat(team) {
     const tt = this._2v2tt();
     if (tt && tt.players) {
@@ -862,11 +854,10 @@ const Tournament = {
   _2v2OnlineRender() {
     const t = this._t();
     if (!t || !t.online || t.mode !== '2v2') { this._hideOverlay && this._hideOverlay(); return; }
-    // HOST SELF-HEAL: every time the host renders the number phase, fill any AI
-    // captain's pick and roll once both are in. Idempotent (== null guards) and
-    // only re-syncs when something actually changed, so a bot captain can never
-    // hang the draw even if a normal trigger was missed. (User: "the AI never
-    // picks a number.") Guarded against re-entrancy via _2v2Healing.
+    // HOST SELF-HEAL: each time the host renders the number phase, fill any AI
+    // captain's pick and roll once both are in, so a bot captain can never hang the
+    // draw. Idempotent (== null guards), re-syncs only on change; re-entrancy
+    // guarded via _2v2Healing.
     if (this._2v2AmAuth() && t.phase === 'number' && !this._2v2Healing) {
       this._2v2Healing = true;
       const sig = String(t.aNum) + '/' + String(t.bNum) + '/' + String(t.roll);

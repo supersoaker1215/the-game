@@ -3,31 +3,18 @@
 // All player targeting uses promptCardChoice for manual selection.
 // ============================================================
 // Vampire Candy's drain. One number so the card text, the clamp and the log
-// cannot drift apart. (Owner: "vampite candy should be steal 2".)
+// cannot drift apart.
 const CANDY_VAMPIRE_STEAL = 2;
 
 const TRICK_DEFS = [
   // Cost 0
   { name: "Space Stone", cost: 0,
-    // NO LONGER PICKS A CARD (2026-10-29). Owner: "i want space stone to not
-    // select a card to play just for the trick hase to llow cards to be
-    // played."
-    //
-    // It used to prompt for one card in hand and stamp trickPhasePlayable on
-    // that instance. Two things were wrong with that beyond the ceremony:
-    //   · In 2v2 it read G.state[owner].hand — the SIDE proxy, which is the
-    //     team, not the seat. The chooser was offered a hand that may not have
-    //     been the one they were holding, and the flag landed on an instance
-    //     the caster might not own.
-    //   · It raised a prompt from inside a trick resolution, so it queued
-    //     behind / collided with any other prompt already armed — a jump offer,
-    //     for one — which is the shape of the report that prompted this change
-    //     ("i played ghotface jump then his card couldnt be played after it was
-    //     bugged out").
-    // Granting the PERMISSION instead of marking a CARD removes the prompt, the
-    // side-proxy read and the per-instance flag in one go. The grant is round-
-    // scoped by construction (see Game.spaceStoneTricksActive) so it cannot go
-    // stale, and it rides the MP wire as ordinary state.
+    // Grants a round-scoped PERMISSION rather than marking a card: no prompt
+    // raised inside a trick resolution (which collides with other armed prompts,
+    // e.g. a jump offer), and no read of G.state[owner].hand, which in 2v2 is the
+    // SIDE proxy (the team, not the seat). The grant is round-scoped by
+    // construction (see Game.spaceStoneTricksActive) so it cannot go stale, and
+    // it rides the MP wire as ordinary state.
     desc: "Cards can be played from your hand during this Trick Phase, at their normal cost.",
     play(G, owner) {
       G.grantSpaceStoneTricks(owner);
@@ -56,10 +43,8 @@ const TRICK_DEFS = [
   },
   // Cost 1
   { name: "Batarangs", cost: 1,
-    // Text-only change: dropped the "Untrickable enemies cannot be targeted"
-    // line since that's a GENERAL trick rule (all tricks are blocked by
-    // Untrickable), not Batarangs-specific. Behavior is unchanged — Untrickable
-    // enemies are still filtered out.
+    // Untrickable enemies are still filtered out; that's a GENERAL trick rule, so
+    // the desc doesn't repeat it.
     desc: "Deal 2 damage to an enemy 2 times. Each hit can target a different enemy.",
     canPlay(G, owner) {
       return G.getEnemiesOf(owner).some(e => G.canTrickLand(e, 'damage', owner));
@@ -92,9 +77,8 @@ const TRICK_DEFS = [
   },
   { name: "Seismic Charge", cost: 2,
     desc: "Deal 3 damage to an enemy, 2 to enemies one lane away, and 1 to enemies two lanes away.",
-    // The seismic-charge cue fires on DETONATION (inside the target callback),
-    // not the instant the trick is played — so with multiple targets it lands
-    // when you actually pick, in sync with the blast. deferPlaySfx tells the
+    // The seismic-charge cue fires on DETONATION (inside the target callback), so
+    // with multiple targets it lands in sync with the blast. deferPlaySfx tells the
     // generic playTrick sound-hook to stay quiet for this trick (see ui.js).
     deferPlaySfx: true,
     canPlay(G, owner) {
@@ -103,15 +87,12 @@ const TRICK_DEFS = [
     play(G, owner) {
       const pool = G.getEnemiesOf(owner).filter(e => G.canTrickLand(e, 'damage', owner));
       if (!pool.length) return;
-      // BLAST FALLOFF, by distance from the epicentre. Owner: "3 damage on the
-      // lane it's played on, 2 to lanes next door, 1 to lanes two away."
-      // Index IS the distance, so the shape of the blast is the shape of this
-      // array — adding a 4th ring later means adding a number, nothing else.
+      // BLAST FALLOFF, by distance from the epicentre: 3 / 2 / 1. Index IS the
+      // distance, so adding a ring means adding a number, nothing else.
       const SEISMIC_FALLOFF = [3, 2, 1];
-      // Every enemy the blast reaches, paired with what it takes. Walks outward
-      // from the epicentre lane rather than reusing getAdjacentEnemiesInContext,
-      // which only knows about immediate neighbours and would silently cap the
-      // blast at one ring.
+      // Every enemy the blast reaches, paired with what it takes. Walks outward from
+      // the epicentre rather than using getAdjacentEnemiesInContext, which only knows
+      // immediate neighbours and would cap the blast at one ring.
       const seismicTargets = (laneIdx) => {
         const opp = G.opponent(owner);
         const hits = [];
@@ -148,11 +129,8 @@ const TRICK_DEFS = [
           hits.forEach(h => G.dealDamage(h.card, h.dmg));
           G.log(`Seismic Charge detonates on ${t.name} — ${hits.map(h => `${h.card.name} ${h.dmg}`).join(', ')}!`);
         },
-        // AI picker: detonate where it catches the most cards; tie-break on the
-        // lowest-HP center so the blast is most likely to kill.
-        // AI picker: detonate where the blast does the most TOTAL damage, not
-        // where it merely touches the most cards — a ring-1 hit is worth twice a
-        // ring-2 one now, so counting bodies would pick the wrong epicentre.
+        // AI picker: detonate where the blast does the most TOTAL damage, not where it
+        // touches the most cards — a ring-1 hit is worth more than a ring-2 one.
         cards => cards.slice().sort((a, b) => {
           const tot = (c) => seismicTargets(G.findCardLane(c))
             .reduce((n, h) => n + Math.min(h.dmg, h.card.currentHealth), 0);
@@ -163,20 +141,12 @@ const TRICK_DEFS = [
   { name: "Bat Signal", cost: 1,
     desc: "Summon a random card with cost ≤ 1. From round 4, Batman can be pulled too.",
     play(G, owner) {
-      // Pull from the SHARED summon deck (95-card reference pool) rather
-      // than this player's drawPile so summoned cards can duplicate
-      // cards already in hand. Filter: cost ≤ 1 OR Batman, no discard-
-      // effect cards. Restored balance: previously cost ≤ 2 made
-      // mid-cost cards (Black Widow, Thanos's tier-2 etc.) too cheap.
-      //
-      // Roguelite-only: Batman is excluded from the pool. User direction:
-      // "remove the spawn Darkseid and Batman from Mother Box / Bat
-      // Signal only in the roguelite." Classic mode keeps the legendary
-      // boss-card jackpot.
+      // Pull from the SHARED summon deck rather than this player's drawPile so
+      // summons can duplicate cards already in hand. Filter: cost ≤ 1 OR Batman, no
+      // discard-effect cards (cost ≤ 2 made mid-cost cards too cheap).
+      // Roguelite-only: Batman is excluded from the pool; classic keeps the jackpot.
       const isRoguelite = !!(G.state.mode && G.state.mode._roguelite);
-      // ROUND GATE — the boss card is a late-game jackpot, not a turn-one one.
-      // Owner: "darkseid and batman can only be pulled from these cards on
-      // round 4 and above."
+      // ROUND GATE — the boss card is a late-game jackpot: round 4 and above only.
       const bossOk = !isRoguelite && (G.state.round || 1) >= 4;
       const d = G.drawFromSummonDeck(c => !c.isDiscardEffect && (c.cost <= 1 || (bossOk && c.name === 'Batman')));
       if (d) {
@@ -239,7 +209,7 @@ const TRICK_DEFS = [
     play(G, owner) {
       G.drawCards(owner, 1);
       // 2v2 has two enemies — let the caster pick whose hand to peek at.
-      // 1v1 resolves instantly with the only opponent (unchanged behavior).
+      // 1v1 resolves instantly with the only opponent.
       G.withChosenOpponent(owner, 'Lasso of Truth — whose hand?', (opp) => {
       const h = G.state[opp].hand;
       if (!h.length) {
@@ -248,31 +218,16 @@ const TRICK_DEFS = [
       }
       const c = h[Math.floor(G.rng() * h.length)];
       G.log(`[REVEAL] Lasso of Truth reveals from opponent's hand: ${c.name} (${c.cost} cost, ${c.attack || '?'}/${c.currentHealth || c.maxHealth || c.health || '?'})`);
-      // Show the revealed card prominently to the player via the
-      // pending-choice modal. Single-card "choice" — clicking
-      // dismisses it.
-      //
-      // BUG FIX 2026-05-19: `owner` field was hardcoded 'player',
-      // which in multiplayer routed the prompt to the host's UI
-      // regardless of who actually played the trick. In a guest-
-      // played Lasso of Truth the host got a phantom "Revealed"
-      // modal pointing at a card the guest revealed from the host
-      // (the host already knows what they hold) — a state mismatch
-      // that desynced the two clients and could disconnect the
-      // session. User report: "the Lasso of Truth is bugging out
-      // the game when I play it. The game will log itself out."
-      // Routing the prompt to the actual `owner` (the player who
-      // played the trick) restores the canonical "reveal goes to
-      // the trick caster" semantics on both sides.
+      // Show the revealed card to the player via the pending-choice modal (single
+      // card; clicking dismisses). The prompt is routed to the actual `owner` — the
+      // trick caster — never hardcoded 'player', or in MP the host gets a phantom
+      // reveal and the clients desync.
       if (Game.isHuman(owner)) {
-        // Routed through promptCardChoice rather than assigning
-        // state.pendingCardChoice directly: the helper stamps the 2v2
-        // _2v2ActingPlayer annotation, so the player who actually cast the
-        // trick is the one who can dismiss the reveal. A hand-rolled prompt
-        // carries no actor, and the resolve guard in cardChoicePick then lets
-        // ANY client try to clear it — on a guest that only mutates their
-        // display copy and the modal sticks. forcePrompt because a single
-        // card would otherwise auto-resolve without ever being shown.
+        // Routed through promptCardChoice rather than assigning state.pendingCardChoice
+        // directly: the helper stamps _2v2ActingPlayer so only the caster can dismiss
+        // the reveal (otherwise any client may try, and a guest only mutates its
+        // display copy so the modal sticks). forcePrompt because a single card would
+        // otherwise auto-resolve without ever being shown.
         G.promptCardChoice(
           owner, [c],
           'Lasso of Truth — Revealed',
@@ -297,15 +252,11 @@ const TRICK_DEFS = [
         }
         // Pick a random card. The original is untouched.
         const src = h[Math.floor(G.rng() * h.length)];
-        // Build the copy from a DEF, not from the hand instance. A hand
-        // instance stores health as maxHealth/currentHealth and has no
-        // `.health` field, so feeding it straight to createCardInstance made
-        // safeHp fall through to its "1" fallback — Knull came out 7/1. Prefer
-        // the canonical CARD_DEFS entry (pristine base stats); fall back to a
-        // def synthesized from the instance's base* snapshot for tokens/summons
-        // not in CARD_DEFS. Using base* also means any in-hand debuff (Brainiac
-        // drain, Magneto, etc.) is stripped — the copy is a clean full-health
-        // version of the card.
+        // Build the copy from a DEF, not the hand instance: a hand instance has no
+        // `.health` field, so createCardInstance's safeHp would fall back to 1. Prefer
+        // the CARD_DEFS entry; fall back to a def synthesized from the instance's base*
+        // snapshot for tokens not in CARD_DEFS. Either way in-hand debuffs are
+        // stripped — the copy is a clean full-health version.
         const canonical = (typeof CARD_DEFS !== 'undefined')
           ? CARD_DEFS.find(d => d.name === src.name) : null;
         const def = canonical || {
@@ -334,19 +285,10 @@ const TRICK_DEFS = [
       const d = G.state[owner].deadPile;
       if (d.length) {
         const archived = d.splice(Math.floor(G.rng() * d.length), 1)[0];
-        // The dead-pile archive stores BASE stats (`attack`, `health`,
-        // `cost`) but lacks the runtime fields a playable card needs
-        // (`id`, `currentHealth`, `maxHealth`, `baseAttack`, `armorValue`,
-        // `evadeCharges`, all the ability-derived flags). Pushing the
-        // raw archive into the hand spawned cards with `currentHealth`
-        // undefined → on the next combat / damage check they read as
-        // 0 HP and immediately died. User report: "cards revived from
-        // lazarus pit are glitched, they can be played but kill
-        // themlsleves on board."
-        // Fix: rehydrate via createCardInstance (treats the archive
-        // like a card def) + applyAbilities so keyword-derived flags
-        // (Armor N, Evade N, Bullseye, etc.) get re-stamped on the
-        // fresh instance.
+        // The dead-pile archive stores BASE stats but lacks runtime fields (`id`,
+        // `currentHealth`, `maxHealth`, `baseAttack`, armor/evade, ability flags); raw,
+        // it would read as 0 HP and die immediately. Rehydrate via createCardInstance +
+        // applyAbilities so keyword-derived flags get re-stamped.
         const fresh = G.createCardInstance(archived, owner);
         if (typeof G.applyAbilities === 'function') G.applyAbilities(fresh);
         if (typeof G.addToHand === 'function') G.addToHand(owner, fresh, null, null, 'Returned by Lazarus Pit');
@@ -358,15 +300,9 @@ const TRICK_DEFS = [
   { name: "Mother Box", cost: 1,
     desc: "Summon a random card with cost ≤ 1. From round 4, Darkseid can be pulled too.",
     play(G, owner) {
-      // Pulls from the shared summon deck. Filter: cost ≤ 1 OR Darkseid,
-      // no discard-effect cards. Same scope shift as Bat Signal — was
-      // cost ≤ 2 which routinely produced 2-cost cards from a 1-cost
-      // trick.
-      //
-      // Roguelite-only: Darkseid is excluded from the pool. User
-      // direction: "remove the spawn Darkseid and Batman from Mother
-      // Box / Bat Signal only in the roguelite." Classic mode keeps
-      // the boss-card jackpot.
+      // Pulls from the shared summon deck. Filter: cost ≤ 1 OR Darkseid, no
+      // discard-effect cards (same scope as Bat Signal).
+      // Roguelite-only: Darkseid is excluded from the pool; classic keeps the jackpot.
       const isRoguelite = !!(G.state.mode && G.state.mode._roguelite);
       // Same round-4 gate as Bat Signal — see the note there.
       const bossOk = !isRoguelite && (G.state.round || 1) >= 4;
@@ -438,18 +374,13 @@ const TRICK_DEFS = [
   { name: "Mobius Chair", cost: 2,
     desc: "Your max hand size increases by 1. Look at 3 random cards from the draw pile. Add one to your hand.",
     play(G, owner) {
-      // The +1 lands FIRST, and unconditionally — before the empty-pile bail
-      // and before the pick. addToHand refuses at the cap and silently bins the
-      // card (it only logs [HAND FULL]), so a Chair played on a full hand used
-      // to show you three cards, take your pick, charge you 2 Energy and hand
-      // you nothing. Raising the cap up front is what makes the card it gives
-      // you actually fit.
-      // 2v2: bump ONLY the acting seat (via _2v2BumpHandSize), which also mirrors
-      // the raised cap onto the side proxy for this play's own scry. The direct
+      // The +1 lands FIRST, unconditionally — before the empty-pile bail and the
+      // pick. addToHand refuses at the cap and silently bins the card, so raising the
+      // cap up front is what makes the given card fit.
+      // 2v2: bump ONLY the acting seat (via _2v2BumpHandSize), which also mirrors the
+      // raised cap onto the side proxy for this play's own scry. The direct
       // state[owner] bump below is the 1v1 path — in 2v2 it would bump the shared
-      // team proxy and log "both allies … now 9" (stacking), which is exactly the
-      // bug. (User: "if I play Mobius Chair only MY max hand size should increase,
-      // not both allies.") Same split for Eye of Agamotto above.
+      // team proxy and stack for both allies. Same split for Eye of Agamotto above.
       const mobiusIn2v2 = !!(G.is2v2 && G.is2v2() && G.state.twoVTwo && G.state.twoVTwo.online);
       if (mobiusIn2v2) {
         if (G._2v2BumpHandSize) G._2v2BumpHandSize();
@@ -584,22 +515,11 @@ const TRICK_DEFS = [
   },
   { name: "Super Soldier Serum", cost: 3,
     desc: "Transform an ally into a random card that costs exactly 1 more.",
-    // The "leap" — transforming the ally always produces a card that
-    // costs EXACTLY ONE MORE than the picked ally. User refinement:
-    // "It can only upgrade the card one cost. So if you have a 1-cost
-    // card it can only go to a 2. If you have a 7-cost it can only go
-    // to an 8. So you can't get a 1-cost and turn it into Batman."
-    // Tradeoff curve is now clean and predictable:
-    //   • 1 → 2-cost,  2 → 3-cost,  ..., 8 → 9-cost,  9 → 10-cost
-    // The 9-cost case is still the killshot (only 10-cost bosses
-    // qualify) but reaching it requires actually placing a 9-cost
-    // ally first — no more turn-3 Batman from a 1-drop.
-    //
-    // Implementation:
+    // The "leap": transforming the ally always produces a card costing EXACTLY ONE
+    // MORE than the picked ally (1 → 2, ..., 9 → 10), so a 1-drop can't become a
+    // 10-cost boss.
     //   • Ally must have cost ≤ 9 (10-cost can't upgrade further).
-    //   • Cost-comparison uses BASE cost so buffs/discounts can't
-    //     game the math (e.g. a Captain America–discounted card still
-    //     leaps from its true base cost).
+    //   • Cost-comparison uses BASE cost so buffs/discounts can't game the math.
     canPlay(G, owner) {
       const allAllies = G.getAlliesOf(owner).filter(a => (a.baseCost || a.cost || 0) <= 9 && G.canTrickLand(a, 'trick', owner));
       return allAllies.length > 0;
@@ -617,8 +537,6 @@ const TRICK_DEFS = [
           const baseCost = t.baseCost || t.cost || 0;
           const targetCost = baseCost + 1;
           // Predicate: cost EXACTLY one more, no discard-effect cards.
-          // The cost === targetCost equality is the difference between
-          // the old "anything higher" exploit and the new ladder rule.
           const d = G.drawFromSummonDeck(c => !c.isDiscardEffect && (c.cost || 0) === targetCost);
           if (!d) {
             G.log(`Super Soldier Serum: no ${targetCost}-cost cards available to leap into.`);
@@ -630,19 +548,15 @@ const TRICK_DEFS = [
           G.summonCard(owner, l, d.name, d.cost, d.attack, d.health, d.abilities || [], d);
           G.log(`Serum LEAPS ${t.name} (${baseCost}-cost) → ${d.name} (${targetCost}-cost)!`);
         },
-        // AI fallback picker: prefer the highest-cost ally so the leap's
-        // result tier is the strongest possible. A 9-cost ally beats a
-        // 1-cost ally because the 9→10 leap is the most valuable.
+        // AI fallback picker: prefer the highest-cost ally — the 9→10 leap is the most
+        // valuable.
         cards => cards.sort((x, y) => (y.baseCost || y.cost || 0) - (x.baseCost || x.cost || 0))[0]
       );
     }
   },
   { name: "Pym Particles", cost: 2,
-    // Time Stone reads this flag FIRST. Pym Particles takes (−2/−2) off one of
-    // your cards and can destroy it outright, which is about as hostile as a
-    // trick gets — but it was missing from the hardcoded name list in
-    // _isHostileTrick, so the counter was never offered. Owner: "time stone did
-    // not block pym particles or kryptonite".
+    // Time Stone reads this flag FIRST. Pym Particles takes (−2/−2) and can destroy
+    // outright, so it must be counterable (it isn't on _isHostileTrick's name list).
     hostile: true,
     desc: "Remove (−2/−2) from an enemy. This can destroy it.",
     canPlay(G, owner) { return G.getEnemiesOf(owner).some(e => G.canTrickLand(e, 'debuff', owner)); },
@@ -650,9 +564,8 @@ const TRICK_DEFS = [
       const enemies = G.getEnemiesOf(owner).filter(e => G.canTrickLand(e, 'debuff', owner));
       if (!enemies.length) return;
       G.promptCardChoice(owner, enemies, "Pym Particles — Shrink", "Choose an enemy to shrink", (t) => {
-        // allowKill=true — shrinking a ≤3-HP enemy destroys it outright.
-        // Without the flag, debuffCard floors HP at 1 (user: "Pym Particles
-        // can kill an enemy; right now it leaves it at 1 health").
+        // allowKill=true — shrinking a ≤3-HP enemy destroys it outright; without it
+        // debuffCard floors HP at 1.
         if (typeof UI !== 'undefined' && UI._fxTrickDebuff) { try { UI._fxTrickDebuff(t, '#ff9a3a', '#c8501a'); } catch (e) {} }
         G.debuffCard(t, 2, 2, true, { name: 'Pym Particles' });
         if (t.currentHealth <= 0) G.log(`Pym Particles: ${t.name} shrinks into nothing — destroyed!`);
@@ -676,14 +589,10 @@ const TRICK_DEFS = [
           // base stats — no accumulated buffs, debuffs, or status effects.
           const def = CARD_DEFS.find(d => d.name === t.name) || t;
           const fresh = G.createCardInstance(def, t.owner);
-          // Route through addToHand so the hand-size cap (maxHandSize=7)
-          // is honored. Previously a direct push let Phantom Zone push
-          // a hand to 8 — caught by the sim/test.js invariant sweep.
-          // If the target's hand is full, addToHand logs and returns
-          // false; the card is lost (same semantics as any cap-hit).
-          // 2v2: return the card to its EXACT owner seat (the player who
-          // played it), not just their team's side proxy — briefly point the
-          // hand-router at that seat while addToHand runs, then restore.
+          // Route through addToHand so the hand-size cap is honored (sim/test.js
+          // invariant sweep). If the hand is full the card is lost (same as any cap-hit).
+          // 2v2: return the card to its EXACT owner seat, not the team's side proxy —
+          // briefly point the hand-router at that seat while addToHand runs, then restore.
           const _dpTt = G.state.twoVTwo, _savedActor = G._2v2CurrentActingPlayer;
           if (_dpTt && _dpTt.online && t._2v2PlayedBy && _dpTt.players[t._2v2PlayedBy]) {
             G._2v2CurrentActingPlayer = t._2v2PlayedBy;
@@ -691,9 +600,8 @@ const TRICK_DEFS = [
           G.addToHand(t.owner, fresh, null, null, 'Bounced by Phantom Zone');
           if (_dpTt && _dpTt.online) G._2v2CurrentActingPlayer = _savedActor;
           G.log(`Phantom Zone bounces ${t.name}!`);
-          // Highest cost is not the same question as "what does removing this
-          // buy me" — see Game.pickBounceTarget. It also SORTED the array it
-          // was handed, which is the prompt's own list.
+          // Highest cost is not the same as "what does removing this buy me" — see
+          // Game.pickBounceTarget. Don't sort the array: it's the prompt's own list.
         }, cards => G.pickBounceTarget(cards, owner));
       }
     }
@@ -723,24 +631,12 @@ const TRICK_DEFS = [
         if (Game.isHuman(owner)) {
           G.promptCardChoice(owner, allies, "Soul Stone — Choose Your Card", "Choose your card to sacrifice", doSoulStone);
         } else {
-          // THE AI USED TO SACRIFICE allies[0] — the first eligible ally in LANE
-          // ORDER, with no evaluation of any kind. In a real 2v2 that was the one
-          // body standing in front of a 15-ATK Doomsday, and throwing it away to
-          // kill a Hulk opened the lane that lost the match on the same swing.
-          // (Owner: "he gets soul stone kills my omni man for the hulk, doomsday
-          // with 15 attack is uncontested and hits us for the win — literally the
-          // worst possible plays.")
-          //
-          // A sacrifice costs more than the body. What it really costs is the
-          // body PLUS whatever that body was holding back: an ally facing a big
-          // attacker is a wall, and removing it hands the enemy a free swing at
-          // the team. Weighted x2 so a wall is never traded for stats, and
-          // ranked ascending so the cheapest thing to lose goes first. Ties go
-          // to whichever sacrifice kills the bigger enemy.
-          //
-          // Note this reads the ALLY's lane from the shared board, so in 2v2 it
-          // protects a TEAMMATE's blocker exactly as it protects its own — the
-          // whole team's cards are allies here, which is the case that broke.
+          // A sacrifice costs the body PLUS whatever it was holding back: an ally facing
+          // a big attacker is a wall, and removing it gives the enemy a free swing at the
+          // team. Weighted x2 so a wall is never traded for stats; ranked ascending so the
+          // cheapest loss goes first; ties go to whichever sacrifice kills the bigger enemy.
+          // Reads the ALLY's lane from the shared board, so in 2v2 it protects a
+          // TEAMMATE's blocker exactly as its own.
           const _oppSide = G.opponent(owner);
           const _bestEnemyFor = (a) => {
             const bc = a.baseCost || a.cost || 0;
@@ -779,9 +675,8 @@ const TRICK_DEFS = [
         const mine = G.state.lanes[i][owner];
         const theirs = G.state.lanes[i][opp];
         if (mine && theirs && !G.state.lanes[i].destroyed) {
-          // Only offer lanes where BOTH cards will actually die — any
-          // survivor would be left standing inside the collapsed void
-          // (user report: Invincible Spider-Man stranded in a voided lane).
+          // Only offer lanes where BOTH cards will actually die — a survivor would be
+          // left standing inside the collapsed void.
           //   • 10-cost titans: immune to all tricks.
           //   • Invincible: killCard refuses ("that character can't die").
           //   • ENEMY Untrickable: blocks the kill (own-side Untrickable
@@ -829,11 +724,8 @@ const TRICK_DEFS = [
             if (typeof UI !== 'undefined' && UI._fxTrickDebuff) { try { UI._fxTrickDebuff(t, '#f1c40f', '#b8860b'); } catch (e) {} }
             G.log(`Mind Stone controls ${t.name}!`);
           });
-          // `cards[0]` — the first enemy in BOARD ORDER, with no evaluation of
-          // any kind. On the reported board that was Optimus Prime in lane 7,
-          // while a Michael Myers stood uncontested in lane 8 with lethal on the
-          // team. Controlling him is the whole point of the card: the swing
-          // never lands. Threat ranks lethal above everything, so it is taken.
+          // Pick by threat, not board order: threat ranks lethal above everything, and
+          // controlling the lethal attacker means its swing never lands.
         }, cards => G.pickBiggestThreat(cards, owner));
       }
     }
@@ -892,11 +784,9 @@ const TRICK_DEFS = [
     play(G, owner) {
       const PICKS = 3;
       const opp = G.opponent(owner);
-      // Any lane that still exists is pickable. Deliberately NOT filtered to
-      // lanes that currently hold an uncontested enemy: the protection is
-      // checked at combat, and the board can change between playing this and
-      // combat resolving, so pre-filtering would quietly remove lanes that turn
-      // out to matter.
+      // Any lane that still exists is pickable. Deliberately NOT filtered to lanes
+      // holding an uncontested enemy: protection is checked at combat, and the board
+      // can change before then.
       const eligible = () => {
         const out = [];
         for (let i = 0; i < Game.LANE_COUNT; i++) {
@@ -927,10 +817,8 @@ const TRICK_DEFS = [
         return;
       }
 
-      // Human: one lane at a time, the same recursive-prompt idiom the other
-      // PICK-N abilities use. `forced` auto-resolves the tail when exactly as
-      // many lanes remain as picks, so the last prompt never asks a question
-      // with one answer.
+      // Human: one lane at a time (recursive-prompt PICK-N idiom). `forced`
+      // auto-resolves the tail when exactly as many lanes remain as picks.
       const chosen = [];
       const step = () => {
         if (chosen.length >= PICKS) {
@@ -959,22 +847,16 @@ const TRICK_DEFS = [
 // ============================================================
 // MC BALLYHOO'S CANDIES
 // ============================================================
-// Four one-shot tricks handed out by MC Ballyhoo, who is not a card: he is a
-// round-start EVENT (see Game._maybeBallyhoo). Every match he turns up once, at
-// an unpredictable round, and gives every player at the table one candy — a
-// different one each, dealt at random from these four. (He was a coin flip when
-// this was written; _BALLYHOO_MATCH_CHANCE is the one number that decides it.)
+// One-shot tricks handed out by MC Ballyhoo, a round-start EVENT (see
+// Game._maybeBallyhoo): once per match at an unpredictable round he gives every
+// player one candy, a different one each. _BALLYHOO_MATCH_CHANCE decides whether he appears.
 //
-// DELIBERATELY NOT IN TRICK_DEFS. Four separate places build a trick pool
-// straight off that array (the 1v1 shared pile, the deckbuilder piles, the 2v2
-// deal and the 2v2 draft) and none of them filter, so anything living there is
-// draftable and drawable. Candies must only ever arrive from Ballyhoo's hand,
-// so they live in their own table and nothing that reads TRICK_DEFS can see
-// them. Multiplayer._rehydrateState looks them up here as well, so a candy
-// still comes back with its `play` function after crossing the wire.
+// DELIBERATELY NOT IN TRICK_DEFS. Four places build a trick pool straight off
+// that array (1v1 shared pile, deckbuilder piles, 2v2 deal, 2v2 draft) without
+// filtering, so anything there is draftable. Multiplayer._rehydrateState looks
+// candies up here so they keep their `play` function across the wire.
 //
-// Cost 0: they are a gift, not a purchase, and the player already paid for
-// them by being at the table when Ballyhoo showed up.
+// Cost 0: they are a gift, not a purchase.
 const CANDY_DEFS = [
   {
     name: "Twice Candy", cost: 0, _isCandy: true,
@@ -988,10 +870,8 @@ const CANDY_DEFS = [
         (t) => {
           if (!t) return;
           if (typeof UI !== 'undefined' && UI._fxCandyTwice) { try { UI._fxCandyTwice(t); } catch (e) {} }
-          // PERMANENT (owner). Not grantTempBuff/1-turn any more: buffCard is
-          // the permanent stat path (additive, survives the round), and
-          // isOverdrive is set-and-left rather than reverted, so both the +2/+2
-          // and the Overdrive keyword stick for the rest of the match.
+          // PERMANENT: buffCard is the permanent stat path, and isOverdrive is
+          // set-and-left, so both the +2/+2 and Overdrive stick for the match.
           G.buffCard(t, 2, 2);
           t.isOverdrive = true;
           G.log(`Twice Candy: ${t.name} gains Overdrive and +2/+2 — permanently!`);
@@ -1007,30 +887,17 @@ const CANDY_DEFS = [
     play(G, owner) {
       if (typeof UI !== 'undefined' && UI._fxCandyCash) { try { UI._fxCandyCash(null); } catch (e) {} }
       const tt = G.state.twoVTwo;
-      // 2v2 keeps energy on the SEAT, not on the side proxy, so a side-level
-      // spend would take it from whichever teammate the bridge happens to be
-      // pointing at. Walk the seats instead.
+      // 2v2 keeps energy on the SEAT, not the side proxy, so walk the seats.
       //
-      // "Every other player" INCLUDES YOUR TEAMMATE, confirmed by the owner
-      // after playtesting — so in a 2v2 room the caster takes 3 and their own
-      // partner is down 1. That is the card working as written, not a bug to
-      // be tidied up later: it is a free candy nobody paid for, and the cost of
-      // taking it is that your partner feels it too.
+      // "Every other player" INCLUDES YOUR TEAMMATE — by design: in 2v2 the caster
+      // takes 3 and their partner is down 1.
       //
-      // THE THEFT HAS TO SURVIVE THE ROUND. It used to take energy by bumping
-      // the victims' usedEnergy and adding to the caster's energy — and the top
-      // of every round runs `p.energy = energy + bonus; p.usedEnergy = 0`, which
-      // wipes BOTH. Unless the caster still had plays left in that same round,
-      // the candy did nothing anybody could see: no one lost anything and the
-      // caster never got to spend the gain. (Owner: "my teamate played the
-      // cashzap candy and all 3 players never lost an energy for the next turn
-      // and he never gained 3".) nextTurnCurrency is the bucket the round start
-      // ADDS to rather than overwrites — the same one Power Battery and Green
-      // Lantern bank into — so the steal lands where it is actually felt.
+      // THE THEFT HAS TO SURVIVE THE ROUND. Round start runs
+      // `p.energy = energy + bonus; p.usedEnergy = 0`, wiping any direct change.
+      // nextTurnCurrency is the bucket the round start ADDS to (same as Power
+      // Battery / Green Lantern), so the steal lands where it is felt.
       //
-      // tt.players and not tt.online: gated on the network it was completely
-      // inert in LOCAL 2v2, falling through to the 1v1 branch below and moving
-      // side currency that no seat ever reads.
+      // Gated on tt.players, not tt.online, so LOCAL 2v2 takes this path too.
       if (tt && tt.players) {
         const caster = (G._2v2AbilityOwner && G._2v2AbilityOwner())
           || (G._2v2SeatOfPlay ? G._2v2SeatOfPlay(null) : null)
@@ -1056,9 +923,8 @@ const CANDY_DEFS = [
     }
   },
   {
-    // Steal 2, not 5 (owner). The number lives here rather than inline because
-    // the desc, the clamp and the log all have to agree about it, and a candy
-    // whose text and effect disagree is the worst kind of card to debug.
+    // Steal 2. The number lives here because the desc, the clamp and the log all
+    // have to agree about it.
     name: "Vampire Candy", cost: 0, _isCandy: true, _steal: CANDY_VAMPIRE_STEAL,
     desc: "Steal 2 health from the enemy team. It cannot reduce them below 1.",
     play(G, owner) {
@@ -1094,30 +960,19 @@ const CANDY_DEFS = [
       // Fired BEFORE removeFromLane, or there is no card element left to blow.
       if (typeof UI !== 'undefined' && UI._fxCandyBloway) { try { UI._fxCandyBloway(t); } catch (e) {} }
       G.removeFromLane(t, l);
-      // Fresh instance at base stats, exactly as Phantom Zone does — but BORN
-      // WITHOUT ITS KEYWORDS, not stripped of them afterwards.
-      //
-      // Clearing `fresh.abilities` after the fact (which is what this used to
-      // do, below) empties the LIST and leaves everything the list had already
-      // produced: createCardInstance applies the keywords on the way in, so a
-      // blown Jason Voorhees came back reading "Lost to Bloway Candy" with an
-      // empty ability row and still carried isOverdrive, reviveCharges 1 and
-      // Hunt. Measured, on exactly that card.
-      //
-      // Handing createCardInstance a def with no abilities means none are ever
-      // derived, so there is no flag to remember to unset — and no new keyword
-      // can be added later that this forgets about. The HOOKS are left on the
+      // Fresh instance at base stats, like Phantom Zone — but BORN WITHOUT ITS
+      // KEYWORDS rather than stripped afterwards. createCardInstance applies keywords
+      // on the way in, so clearing `fresh.abilities` later would leave the derived
+      // flags (isOverdrive, reviveCharges, Hunt...). With no abilities on the def,
+      // nothing is derived and no future keyword can be missed. The HOOKS stay on the
       // def so the hookless-def repair stays quiet; they are nulled below.
       const baseDef = (typeof CARD_DEFS !== 'undefined' && CARD_DEFS.find(d => d.name === t.name)) || t;
       const def = Object.assign({}, baseDef, { abilities: [] });
       const fresh = G.createCardInstance(def, t.owner);
-      // THE SILENCE. Null every hook on the returning copy, the same set the
-      // face-down play suppresses — that is what "doesn't get to fire its
-      // abilities" means, and it has to be baked into the instance rather than
-      // checked at play time so no play path can forget to look.
-      // Deliberately NOT Moder's strip: addToHand calls _unstripModer() on
-      // anything entering a hand, so a Moder-style strip would be undone by
-      // the very bounce that applied it.
+      // THE SILENCE. Null every hook on the returning copy (the same set the
+      // face-down play suppresses), baked into the instance so no play path can
+      // forget to check. NOT Moder's strip: addToHand calls _unstripModer() on
+      // anything entering a hand, which would undo it.
       fresh._blowaySilenced = true;
       ['onPlay', 'onDeath', 'onDamaged', 'onKill', 'onBeforeTricks', 'onBeforeAttack',
        'onEndOfTurn', 'onAnyCardPlayed', 'onAllyKilled', 'onEnemyKilled', 'onEvade',
@@ -1125,10 +980,8 @@ const CANDY_DEFS = [
        'onAnyCardDamaged', 'onBlockMeterFired', 'onRevive', 'onDiscard', 'onMoved']
         .forEach(h => { fresh[h] = null; });
       fresh.passive = null;
-      // Its rules text goes too — the card comes back a blank, so its tile can't
-      // still promise an ability that will never fire. (Owner: "when back in hand
-      // it should lose the text it has and say lost to Blowaway candy.") The
-      // abilities[] chips are cleared for the same reason.
+      // Its rules text and abilities[] chips go too — the card comes back blank,
+      // reading "lost to Blowaway candy", so its tile can't promise a dead ability.
       fresh.desc = 'Lost to Bloway Candy.';
       fresh.abilities = [];
       fresh.baseAbilities = [];
@@ -1153,7 +1006,7 @@ if (typeof window !== 'undefined') window.CANDY_DEFS = CANDY_DEFS;
 // no-dupes-until-exhausted bag per player (Game._cogDrawGag). They are ordinary
 // tricks that cost Energy to fire — being earned is not being free. Kept out of
 // TRICK_DEFS so they never appear in a draft; granted straight to the trick
-// hand like a candy. (Owner spec §2.6.)
+// hand like a candy.
 const GAG_DEFS = [
   {
     name: "High Dive", cost: 2, _isGag: true, track: 'Toon-Up',
@@ -1163,9 +1016,8 @@ const GAG_DEFS = [
       const allies = G.getAlliesOf(owner).filter(a => a.currentHealth > 0);
       if (!allies.length) { G.log('High Dive: no ally to lift.'); return; }
       G.promptCardChoice(owner, allies, 'High Dive', 'Choose an ally to give +2 Max Health',
-        // buffCard raises maxHealth AND currentHealth by 2, permanently — a real
-        // Max Health gain, not a heal that caps at the old max. (Owner: "make the
-        // High dive give 2 max health.")
+        // buffCard raises maxHealth AND currentHealth by 2, permanently — a real Max
+        // Health gain, not a heal that caps at the old max.
         (t) => { if (t) { G.buffCard(t, 0, 2); G.log(`High Dive: ${t.name} gains +2 Max Health!`); } },
         cs => cs.slice().sort((a, b) => (b.attack | 0) - (a.attack | 0))[0]);
     }
@@ -1270,28 +1122,21 @@ if (typeof window !== 'undefined') window.GAG_DEFS = GAG_DEFS;
 // WONDER WEAPONS — Shadow Man's prizes
 // ============================================================
 // Handed to whoever leads a Shadow Man category. They are CARDS, not tricks:
-// discard-effect cards (no body, no lane) that sit in your CARD hand and cost
-// energy to fire, like Pinhead or Jigsaw. Being earned does not mean being
-// free — you still have to afford the shot.
+// discard-effect cards (no body, no lane) in your CARD hand that cost energy to
+// fire, like Pinhead or Jigsaw.
 //
-// They live OUTSIDE CARD_DEFS so nothing can draft or draw them (four separate
-// places build pools off that array and none of them filter), and
-// Multiplayer._rehydrateState reads this table so they survive the wire with
-// their onDiscard intact.
+// They live OUTSIDE CARD_DEFS so nothing can draft or draw them (four places
+// build unfiltered pools off that array), and Multiplayer._rehydrateState reads
+// this table so they survive the wire with their onDiscard intact.
 //
-// ALL FOUR COST 3, so choosing between them is about what they DO rather than
-// what you can afford. Measured against the existing baseline on a full
-// six-lane board, where Seismic Charge (2 energy) removes 4 HP and Phantom Zone
-// (3) removes 6 and kills one: a weapon should sit a little above that line,
-// because a prize ought to be worth winning — and nowhere near a board wipe,
-// which is exactly where the uncapped Lightning Bow measured.
+// ALL FOUR COST 3, so the choice is about what they DO. Baseline on a full
+// six-lane board: Seismic Charge (2) removes 4 HP, Phantom Zone (3) removes 6
+// and kills one. A prize sits a little above that line — nowhere near a wipe.
 const WONDER_DEFS = [
   {
-    // THE RAY GUN. Splash is the whole point, and so is the recoil — this is
-    // the only card in the game that damages its owner's own board, which is
-    // what lets it carry a bigger number than the other cost-3 prizes without
-    // stepping on the Lightning Bow. Fire it at the wrong lane and you finish
-    // off your own card.
+    // THE RAY GUN. Splash plus recoil — the only card that damages its owner's
+    // own board, which is what lets it carry a bigger number than the other cost-3
+    // prizes. Fire at the wrong lane and you finish off your own card.
     name: "Ray Gun", cost: 3, attack: 0, health: 0, type: "wonder",
     isDiscardEffect: true, _isWonder: true,
     desc: "Deal 7 damage to an enemy. The blast splashes the enemies either side for 3. Your own card in that lane takes 3 — mind the recoil.",
@@ -1362,14 +1207,11 @@ const WONDER_DEFS = [
           const opp = G.opponent(owner);
           const from = G.findCardLane(t);
           if (from < 0) return;
-          // Two lanes, preferring the direction that HAS a lane. Falling back to
-          // the opposite side rather than fizzling is the spec's own rule — a
-          // card at the edge still gets blasted, just the other way.
-          // TWO LANES. (Owner asked for 3, then "make thundergun jump 2 lanes
-          // not 3" — three put it well over the cost-3 line because it passed
-          // through two bodies every cast.) The direction is still a coin flip,
-          // with the far side tried as a fallback when the first is off the
-          // board or collapsed.
+          // Two lanes, preferring the direction that HAS a lane; falls back to the
+          // opposite side rather than fizzling. 2 lanes, not 3 — three passed through
+          // two bodies every cast and put it well over the cost-3 line. The direction is
+          // a coin flip, with the far side as fallback when the first is off the board
+          // or collapsed.
           const dir = G.rng() < 0.5 ? -1 : 1;
           const tryLanes = [from + 2 * dir, from - 2 * dir];
           let to = -1;
@@ -1388,13 +1230,9 @@ const WONDER_DEFS = [
               UI._fxThundergun(t, _path, G.state.lanes[to] && G.state.lanes[to][opp]);
             } catch (e) {}
           }
-          // EVERYTHING IN THE PATH IS HIT ON THE WAY PAST. Previously the card
-          // flew straight over an occupied lane and left it untouched, which is
-          // not what being blasted through a line of bodies should look like.
-          // (Owner: "any card it goes through takes the 3 damage and gets
-          // stunned".) Walked from the origin outward so the log reads in the
-          // order the card actually travels, and the destination is excluded —
-          // that one is a collision, handled below, not a fly-through.
+          // EVERYTHING IN THE PATH IS HIT ON THE WAY PAST (3 damage + stun). Walked from
+          // the origin outward so the log reads in travel order; the destination is
+          // excluded — that one is a collision, handled below.
           const step = (to > from) ? 1 : -1;
           for (let i = from + step; i !== to; i += step) {
             const lane = G.state.lanes[i];
@@ -1416,13 +1254,9 @@ const WONDER_DEFS = [
             // conditional on where the card ends up, so it applies either way.
             G.log(`Thundergun: ${t.name} slams into ${crash.name}!`);
             G.dealDamage(t, 4, { name: 'Thundergun' });
-            // A REAL COLLISION: each card takes damage equal to the OTHER's
-            // remaining health, so the bigger body walks away and the smaller
-            // one is crushed — and equal bodies destroy each other. Both totals
-            // are read BEFORE either is applied, or the first hit would shrink
-            // the health the second one is measured against and the order of
-            // resolution would decide the winner. (Owner: "both cards deal each
-            // other's health to each other, and if 1 survives, it's stunned".)
+            // A REAL COLLISION: each card takes damage equal to the OTHER's remaining
+            // health, so the bigger body survives and equal bodies destroy each other. Both
+            // totals are read BEFORE either applies, or resolution order would decide the winner.
             const tHP = t.currentHealth | 0, cHP = crash.currentHealth | 0;
             if (tHP > 0 && cHP > 0) {
               G.log(`  [COLLISION] ${t.name} (${tHP}) and ${crash.name} (${cHP}) slam into each other.`);
@@ -1470,13 +1304,9 @@ const WONDER_DEFS = [
     }
   },
   {
-    // GROUND CURRENT. The Wunderwaffe kept measuring as a second Lightning Bow
-    // — both "hit a card, spread to its neighbours" — so the damage kit was
-    // the problem, not the numbers. This gives it the one axis NOTHING else in
-    // the game touches: no trick in the game damages a player's health
-    // directly. It barely kills anything; it ends games. And it is the rare
-    // card that WANTS the enemy board full, which inverts every other removal
-    // tool the player owns.
+    // GROUND CURRENT. Gives the Wunderwaffe the one axis no other trick touches —
+    // direct damage to a player's health — so it isn't a second Lightning Bow. It
+    // barely kills anything; it ends games, and it WANTS the enemy board full.
     name: "Wunderwaffe DG-3 JZ", cost: 3, attack: 0, health: 0, type: "wonder",
     isDiscardEffect: true, _isWonder: true,
     desc: "The current runs the length of the enemy row, dealing 2 to every enemy card — then earths itself in the enemy for 1 damage per card it passed through, up to 5.",
@@ -1498,11 +1328,9 @@ const WONDER_DEFS = [
         G.dealDamage(c, 2, { name: 'Wunderwaffe DG-3 JZ' });
       });
       // EARTHED. Counted BEFORE cleanup so a card the current killed on its way
-      // through still conducted — it was in the line when the bolt travelled.
-      // CAPPED AT 5. A full six-lane board would otherwise pay 6 face damage —
-      // a fifth of a 30-health player from one 3-cost card. The cap costs the
-      // card nothing in the common case (it only bites on a completely full
-      // enemy row) while taking the best case off the table.
+      // through still conducted.
+      // CAPPED AT 5: a full six-lane board would pay 6 face damage from one 3-cost
+      // card. The cap only bites on a completely full enemy row.
       const conducted = Math.min(5, row.length);
       G.cleanupDead();
       G.log(`  [EARTHED] The current grounds itself in the enemy for ${conducted}.`);
@@ -1515,12 +1343,9 @@ const WONDER_DEFS = [
     desc: "Tear a Rift in a chosen enemy lane for 2 rounds. The first card in is swallowed whole; after that they arrive at −4/−4. Enemies must be played into it, take 2 at each round end, and anything dying inside is consumed — no When Killed.",
     onDiscard(G, owner) {
       const opp = G.opponent(owner);
-      // THE PLAYER PICKS THE LANE. It was random to begin with, per the brief —
-      // but measured against a typical three-card enemy board, 94 of 200 random
-      // placements landed on an OCCUPIED lane, where the compulsion cannot
-      // engage until that card leaves. Half the time a 3-cost card's headline
-      // effect was decided by a coin flip, on the one weapon where placement IS
-      // the card. (Owner: "yes let the player choose where to place the rift.")
+      // THE PLAYER PICKS THE LANE: random placement lands on an OCCUPIED lane about
+      // half the time, where the compulsion can't engage until that card leaves, and
+      // placement IS this card.
       const cand = [];
       for (let i = 0; i < Game.LANE_COUNT; i++) {
         const l = G.state.lanes[i];
