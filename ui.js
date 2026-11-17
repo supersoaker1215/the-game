@@ -12686,6 +12686,31 @@ const UI = {
     } catch (e) {}
     return document.body;
   },
+  // A docked reveal gives up room first (#right-col CSS), so it can end up
+  // shorter than its card. Scale the whole card down to the room it got, so it
+  // neither spills over the decision above nor reflows its text. `zoom` (not
+  // transform) so the layout box shrinks with it. Re-fits when the decision
+  // panel opens or resizes while the reveal is up.
+  _fitRevealToColumn(wrap) {
+    if (!wrap || !wrap.parentElement || wrap.parentElement.id !== 'right-col') return;
+    const fit = () => {
+      const card = wrap.querySelector('.trick-reveal-card');
+      if (!card || !wrap.isConnected) return;
+      card.style.zoom = '';
+      const kids = [...wrap.children];
+      const gap = parseFloat(getComputedStyle(wrap).rowGap) || 0;
+      const others = kids.filter(k => k !== card).reduce((h, k) => h + k.offsetHeight, 0);
+      const room = wrap.clientHeight - others - gap * Math.max(0, kids.length - 1);
+      const need = card.offsetHeight;
+      if (need > 0 && room > 0 && need > room) card.style.zoom = String(Math.max(0.35, room / need));
+    };
+    requestAnimationFrame(() => requestAnimationFrame(fit));
+    const panel = document.getElementById('classic-decision');
+    if (panel && typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(() => { if (!wrap.isConnected) { ro.disconnect(); return; } fit(); });
+      ro.observe(panel);
+    }
+  },
   _nextTrickReveal() {
     const item = this._trickRevealQueue.shift();
     if (!item) { this._trickRevealActive = false; return; }
@@ -12716,6 +12741,7 @@ const UI = {
                 : String(item.who).replace(/</g, '&lt;') + ' plays a Trick')
             : (item.mine ? 'You play a Trick' : this.oppName() + ' plays a Trick'))}</div>`;
     this._revealHome().appendChild(wrap);
+    this._fitRevealToColumn(wrap);
     if (item.onShow) { try { item.onShow(); } catch (e) {} }
     // Hold, then exit + advance the queue.
     setTimeout(() => {

@@ -3752,6 +3752,19 @@ body.in-match:not(.board-v2) .board {
    event list climbing into the decision half. */
 #right-col > .trick-reveal {
   max-height: 50%;
+  /* THE REVEAL GIVES FIRST, ALL OF IT. flex-shrink is weighted by size, so at
+     1 the decision paid part of the deficit and its second option slid under
+     its own title block. At 1000 the reveal absorbs the whole shortfall before
+     the decision gives a pixel; _fitRevealToColumn then scales the card to the
+     room it got. */
+  flex-shrink: 1000;
+}
+/* Anything that still overflows goes DOWN, never up over the decision. Scoped
+   through #right-col so it outranks the floating-gutter rule above that centres
+   the reveal whenever a decision is open (its :has(#classic-decision …) carries
+   an id). */
+body.decision-column:not(.board-v2):has(#classic-decision) #right-col > .trick-reveal {
+  justify-content: flex-start;
 }
 
 /* ---- a little smaller, throughout ---------------------------------------- */
