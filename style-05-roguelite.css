@@ -5097,18 +5097,18 @@ body.round-tick .board::after {
      never stretches), wrapping the whole description inside the frame. The
      modal then re-fits the taller card to the viewport via _fitInspectToViewport. */
   aspect-ratio: auto !important;
-  height: auto !important;
-  min-height: 0 !important;
+  height: auto;
+  min-height: 0;
 }
 /* Description flows in the card body (below art + name), padded so the text
    doesn't kiss the border, and never clipped now that the card grows for it. */
 .card-inspect-modal .inspect-card .card-desc,
 .card-inspect-modal .inspect-card .trick-desc,
 .card-inspect-modal .inspect-card .card-active-text {
-  position: static !important;
+  position: static;
   height: auto !important;
-  max-height: none !important;
-  overflow: visible !important;
+  max-height: none;
+  overflow: visible;
   padding: 4px 8px 8px !important;
 }
 /* A trick tile is .trick-card, not .card, so the aspect/height escape hatch

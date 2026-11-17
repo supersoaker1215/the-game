@@ -372,7 +372,7 @@
    today so the rule above already misses it, but this guard means
    any future scope change can't break the inspect view. */
 .inspect-card .card-desc,
-.inspect-card .card-active-text { display: block !important; }
+.inspect-card .card-active-text { display: block; }
 /* Board cards advertise their tap-to-inspect affordance via the
    pointer cursor (desktop only — touch suppresses it via the
    pointer-coarse override below). Face-down enemy tiles skip the

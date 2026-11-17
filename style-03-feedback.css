@@ -1394,7 +1394,7 @@ body.theme-purple, :root.theme-purple { --theme-r: 176; --theme-g: 97; --theme-b
 .draft-card.trick-draft {
   background:
     linear-gradient(180deg, rgba(155,89,182,0.08) 0%, rgba(155,89,182,0) 45%),
-    #000000 !important;
+    #000000;
   border-color: rgba(155,89,182,0.70) !important;
   box-shadow:
     0 0 10px rgba(155,89,182,0.30),
@@ -1411,7 +1411,7 @@ body.theme-purple, :root.theme-purple { --theme-r: 176; --theme-g: 97; --theme-b
     linear-gradient(rgba(155,89,182,0.65), rgba(155,89,182,0.65)) bottom left   / 12px 1px no-repeat,
     linear-gradient(rgba(155,89,182,0.65), rgba(155,89,182,0.65)) bottom left   / 1px 12px no-repeat,
     linear-gradient(rgba(155,89,182,0.65), rgba(155,89,182,0.65)) bottom right  / 12px 1px no-repeat,
-    linear-gradient(rgba(155,89,182,0.65), rgba(155,89,182,0.65)) bottom right  / 1px 12px no-repeat !important;
+    linear-gradient(rgba(155,89,182,0.65), rgba(155,89,182,0.65)) bottom right  / 1px 12px no-repeat;
 }
 .draft-card.trick-draft:hover {
   border-color: #9b59b6 !important;
@@ -1724,8 +1724,8 @@ body {
    purple from rule above). */
 .draft-panel:not(.draft-tricks)::before,
 .draft-panel:not(.draft-tricks)::after {
-  border-color: var(--theme-accent-bright) !important;
-  filter: drop-shadow(0 0 6px var(--theme-glow-outer)) !important;
+  border-color: var(--theme-accent-bright);
+  filter: drop-shadow(0 0 6px var(--theme-glow-outer));
 }
 /* Menu back button in draft */
 .mode-back,
@@ -2007,8 +2007,8 @@ body.round-first-ai .hud-pill-main {
    the card draft; trick draft keeps its purple per prior rule.
    ============================================================ */
 .draft-panel:not(.draft-tricks) {
-  border-top-color: var(--theme-accent-bright) !important;
-  border-bottom-color: var(--theme-accent-bright) !important;
+  border-top-color: var(--theme-accent-bright);
+  border-bottom-color: var(--theme-accent-bright);
   box-shadow:
     0 -12px 14px -12px var(--theme-glow-outer),
     0  12px 14px -12px var(--theme-glow-outer) !important;
@@ -2208,15 +2208,15 @@ body.round-first-ai .hud-pill-main {
 
 /* AI mini-hand card-backs — enemy theme (was hardcoded red). */
 .ai-hand-mini .card-back {
-  border-color: var(--enemy-accent-bright) !important;
+  border-color: var(--enemy-accent-bright);
   color: rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.85) !important;
-  box-shadow: 0 0 5px var(--enemy-glow-outer), 0 0 10px var(--enemy-glow-inner) !important;
+  box-shadow: 0 0 5px var(--enemy-glow-outer), 0 0 10px var(--enemy-glow-inner);
 }
 .ai-hand-mini .card-back.trick-back {
   /* Trick back stays purple — tricks have their own purple identity. */
-  border-color: rgba(155,89,182,0.95) !important;
+  border-color: rgba(155,89,182,0.95);
   color: rgba(155,89,182,0.85) !important;
-  box-shadow: 0 0 5px rgba(155,89,182,0.40), 0 0 10px rgba(155,89,182,0.14) !important;
+  box-shadow: 0 0 5px rgba(155,89,182,0.40), 0 0 10px rgba(155,89,182,0.14);
 }
 
 /* Energy orb — gold is semantic (currency); leave untouched so it
@@ -2414,7 +2414,7 @@ body.round-first-ai .hud-pill-main {
    ============================================================ */
 
 /* Hide the "+" placeholder glyph per user request — looks cheap. */
-.empty-lane-glyph { display: none !important; }
+.empty-lane-glyph { display: none; }
 
 /* ============================================================
    SINGLE LANE DIVIDER + BOARD EDGE CLEANUP
@@ -5568,7 +5568,7 @@ input:focus-visible,
   box-shadow:
     0 0 10px var(--theme-glow-outer),
     0 0 22px var(--theme-glow-inner),
-    inset 0 0 8px var(--theme-wash-08) !important;
+    inset 0 0 8px var(--theme-wash-08);
 }
 
 /* Hand + tricks section borders — the thin cyan line at the top of

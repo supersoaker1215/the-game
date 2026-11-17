@@ -845,7 +845,7 @@ body.ai-thinking .ai-thinking-ring { opacity: 1; }
      emits the 4 .board-mote divs) but stops the per-frame
      compositor work entirely. To restore: remove `display: none`
      and the original sizing / animation rules below take over. */
-  display: none !important;
+  display: none;
   position: absolute;
   width: 3px; height: 3px;
   border-radius: 50%;
@@ -1258,8 +1258,8 @@ body.combat-anticipate .board {
    explained that ::after was claimed by the corner brackets and ::before by the
    inner hairline, which is still true and is exactly why .pt-shine exists. */
 .draft-card.trick-draft {
-  background-image: none !important;
-  background-color: #000 !important;
+  background-image: none;
+  background-color: #000;
 }
 
 /* (c) 3D tilt parallax on trick cards. Perspective host is the

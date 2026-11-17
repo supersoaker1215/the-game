@@ -921,7 +921,7 @@ check('and the old fixed green is gone from it',
     return found;
   })();
   check('the draft trick has no second sheen on its body',
-        !!draft && /background-image:\s*none\s*!important/.test(draft),
+        !!draft && /background-image:\s*none(\s*!important)?\s*;/.test(draft),
         'winning background-image for .draft-card.trick-draft is `' + draft + '`');
   // The body wash: the trick's own colour, at the card's strength. Resolved by
   // walking the rule blocks for the exact `.trick-card` selector rather than by

@@ -1713,7 +1713,7 @@ body.turn-combat::after,
 .mm-mw3 .mm-hero-img {
     animation: none !important;
   }
-  .mm-particle, .board-mote { display: none !important; }
+  .mm-particle, .board-mote { display: none; }
   /* Always-on backdrop blur = constant GPU compositing over the whole
      viewport. The surfaces keep their dark rgba backgrounds, so nothing
      goes transparent — they just stop live-blurring what's behind them. */
@@ -5110,7 +5110,7 @@ body.hand-text-always .player-hand-section .hand-cards .card.face-flipped .card-
   text-align: center;
   padding: 5px 5px;
   background: #000;
-  font-size: 8px !important;
+  font-size: 8px;
   line-height: 1.25;
   letter-spacing: 0.1px;
   overflow: hidden;
@@ -6342,7 +6342,7 @@ body.low-fx .mm-mw3 .mm-hero-img { animation: none; }
    deeper selector and !important to answer it). The lock variant stays hidden —
    it is a different mark with a different job. */
 .card-slot .empty-lane-glyph:not(.lane-glyph-locked) {
-  display: grid !important;
+  display: grid;
   place-items: center;
   position: absolute;
   inset: 0;

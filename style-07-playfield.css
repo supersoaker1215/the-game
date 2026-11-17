@@ -568,7 +568,7 @@ body.in-match {
 body.in-match .log-drawer-toggle,
 body.in-match .cheat-help-toggle,
 body.in-match .settings-cog {
-  position: fixed !important;
+  position: fixed;
   top: var(--hudc-top) !important;
   right: auto !important;
   width: var(--hudc-size) !important;
@@ -585,8 +585,8 @@ body.in-match .settings-cog {
    it needs the same explicit gate the hint button uses, or it would float
    over the menu, codex and deck builder. */
 .log-drawer-toggle { display: none; }
-body.in-match .log-drawer-toggle  { display: flex; left: var(--hudc-left) !important; }
-body.in-match .cheat-help-toggle  { left: calc(var(--hudc-left) + var(--hudc-step)) !important; }
+body.in-match .log-drawer-toggle  { display: flex; left: var(--hudc-left); }
+body.in-match .cheat-help-toggle  { left: calc(var(--hudc-left) + var(--hudc-step)); }
 body.in-match .settings-cog       { left: calc(var(--hudc-left) + 2 * var(--hudc-step)) !important; }
 
 /* Matching chrome so the trio reads as ONE control, not one control and
@@ -668,7 +668,7 @@ body.in-match .turn-hud {
   /* The strip is see-through by design (a texture over rgba black), and a
      see-through bar with the board sliding under it reads as a smear. Opaque
      only while it is doing the sticky job. */
-  background-color: #000 !important;
+  background-color: #000;
 }
 
 /* ============================================================
@@ -2860,7 +2860,7 @@ body.twov2-online-game .tricks-section { padding-top: 4px; padding-bottom: 4px; 
 /* Particles exist ONLY to drift — gameDrift fades them 0 -> 0.35 -> 0,
    so freezing the animation would leave 12 inert dots sitting on the
    board rather than a calmer board. They go entirely. */
-body:not(.ambient-motion) .game-particle { display: none !important; }
+body:not(.ambient-motion) .game-particle { display: none; }
 
 /* Pulsing NUMBERS are the worst of these: a number that throbs is a
    number you re-read. Card digits were just given a fixed-width face
@@ -4404,22 +4404,22 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
     calc(var(--card-w) * 0.0114) var(--chamfer));
 }
 .trick-card .card-cost {
-  top: var(--cf-inset) !important;
-  left: var(--cf-inset) !important;
-  width: var(--band-mid) !important;
-  height: var(--band-mid) !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  padding: 0 !important; text-indent: 0 !important; line-height: 1 !important;
+  top: var(--cf-inset);
+  left: var(--cf-inset);
+  width: var(--band-mid);
+  height: var(--band-mid);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0; text-indent: 0 !important; line-height: 1;
   font-family: var(--font-mono);
-  font-size: calc(var(--card-w) * 0.0857) !important;
-  color: #f4e6ff !important;
+  font-size: calc(var(--card-w) * 0.0857);
+  color: #f4e6ff;
   text-shadow: 0 0 1px rgba(255,255,255,0.7), 0 0 8px rgba(var(--cf-rgb), 0.9) !important;
   z-index: 7;
 }
 .trick-card .card-cost::before,
-.trick-card .card-cost::after { display: none !important; }
+.trick-card .card-cost::after { display: none; }
 
 /* ============================================================
    DRAFT / TAP-TO-READ / CODEX — ITS OWN LADDER (2026-08-25)
@@ -5233,25 +5233,25 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .trick-card.enc-trick .trick-desc {
   color: rgba(var(--cf-rgb, var(--portrait-frame-rgb, 155,89,182)), 1) !important;
   text-shadow: 0 0 5px rgba(var(--cf-rgb, var(--portrait-frame-rgb, 155,89,182)), 0.30) !important;
-  font-size: 11px !important;
-  line-height: 1.5 !important;
+  font-size: 11px;
+  line-height: 1.5;
   text-align: left !important;
-  margin-left:  calc(var(--cf-inset) + var(--card-w) * 0.10) !important;
-  margin-right: calc(var(--cf-inset) + var(--card-w) * 0.10) !important;
+  margin-left:  calc(var(--cf-inset) + var(--card-w) * 0.10);
+  margin-right: calc(var(--cf-inset) + var(--card-w) * 0.10);
 }
 .trick-card.trick-draft .trick-desc .cd-row,
 .trick-card.trick-draft .trick-desc .cd-eff,
 .draft-card.trick-draft .trick-desc .cd-row,
 .draft-card.trick-draft .trick-desc .cd-eff,
 .card-inspect-modal .trick-card .trick-desc .cd-row,
-.card-inspect-modal .trick-card .trick-desc .cd-eff { text-align: left !important; }
+.card-inspect-modal .trick-card .trick-desc .cd-eff { text-align: left; }
 /* the label matches the card's: 9px, wide tracking, and the neon from the one
    trigger-label rule (which already reaches .trick-card .trick-desc b) */
 .trick-card.trick-draft .trick-desc b,
 .draft-card.trick-draft .trick-desc b,
 .card-inspect-modal .trick-card .trick-desc b {
-  font-size: 9px !important;
-  letter-spacing: 0.18em !important;
+  font-size: 9px;
+  letter-spacing: 0.18em;
   margin-bottom: 4px;
 }
 
@@ -5456,9 +5456,9 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card-inspect-modal .card.card.inspect-card,
 .card-inspect-modal .trick-card.inspect-card,
 .fp-trick-preview .card.card {
-  width: var(--read-card-w) !important;
-  min-width: var(--read-card-w) !important;
-  max-width: var(--read-card-w) !important;
+  width: var(--read-card-w);
+  min-width: var(--read-card-w);
+  max-width: var(--read-card-w);
 }
 
 /* The trick's NAME takes the card's type ramp too — 31px Chakra Petch against
@@ -5469,10 +5469,10 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .draft-card.trick-draft .card-name-overlay .cn-text,
 .trick-card.enc-trick   .card-name-overlay .cn-text,
 .card-inspect-modal .trick-card .card-name-overlay .cn-text {
-  font-family: 'Chakra Petch', 'Rajdhani', sans-serif !important;
-  font-weight: 700 !important;
-  font-size: calc(var(--card-w) * 0.0982 * var(--cn-fit, 1)) !important;
-  letter-spacing: 0.02em !important;
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: calc(var(--card-w) * 0.0982 * var(--cn-fit, 1));
+  letter-spacing: 0.02em;
   white-space: nowrap !important;
   text-align: center !important;
 }
@@ -5508,8 +5508,8 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card-inspect-modal .trick-card.inspect-card .trick-desc,
 .card-inspect-modal .inspect-card .card-desc,
 .card-inspect-modal .inspect-card .trick-desc {
-  max-height: var(--read-desc-h) !important;
-  overflow: hidden !important;
+  max-height: var(--read-desc-h);
+  overflow: hidden;
   height: auto !important;
 }
 
@@ -5534,10 +5534,10 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .player-hand-section .hand-cards .card .status-badge:not(.sb-noicon),
 .trick-cards .trick-card .status-badge:not(.sb-noicon),
 .choice-tray .status-badge:not(.sb-noicon) {
-  border: 0 !important;
-  clip-path: none !important;
-  background: none !important;
-  box-shadow: none !important;
+  border: 0;
+  clip-path: none;
+  background: none;
+  box-shadow: none;
   padding: 0 !important;
 }
 
@@ -6275,7 +6275,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card-inspect-modal .card.card,
 .card-inspect-modal .card.card.ally-card,
 .card-inspect-modal .card.card.enemy-card {
-  --portrait-frame-rgb: var(--rarity-rgb, 79, 195, 247) !important;
+  --portrait-frame-rgb: var(--rarity-rgb, 79, 195, 247);
 }
 
 /* ============================================================
