@@ -1832,12 +1832,12 @@ body {
 .card.ally-card .card-desc {
   text-shadow:
     0 0 5px var(--player-glow-outer),
-    0 0 10px var(--player-glow-inner) !important;
+    0 0 10px var(--player-glow-inner);
 }
 .card.enemy-card .card-desc {
   text-shadow:
     0 0 5px var(--enemy-glow-outer),
-    0 0 10px var(--enemy-glow-inner) !important;
+    0 0 10px var(--enemy-glow-inner);
 }
 
 /* ---- Dead-pile badges follow side theme ---- */
@@ -1985,7 +1985,7 @@ body.round-first-ai .hud-pill-main {
     0  12px 14px -12px var(--theme-glow-outer) !important;
   background:
     radial-gradient(ellipse at top, var(--theme-wash-05) 0%, rgba(255,255,255,0) 60%),
-    #000 !important;
+    #000;
 }
 .draft-panel:not(.draft-tricks) .draft-hud-label {
   color: color-mix(in srgb, var(--theme-accent) 25%, white) !important;
@@ -1995,43 +1995,43 @@ body.round-first-ai .hud-pill-main {
     0 0 28px var(--theme-glow-inner) !important;
 }
 .draft-panel:not(.draft-tricks) .draft-hud-sub {
-  color: color-mix(in srgb, var(--theme-accent) 30%, white) !important;
+  color: color-mix(in srgb, var(--theme-accent) 30%, white);
   text-shadow:
     0 0 6px var(--theme-accent-bright),
-    0 0 14px var(--theme-glow-outer) !important;
+    0 0 14px var(--theme-glow-outer);
 }
 .draft-panel:not(.draft-tricks) .draft-hud-row {
-  border-bottom-color: var(--theme-accent-edge) !important;
+  border-bottom-color: var(--theme-accent-edge);
 }
 /* Progress pips */
 .draft-panel:not(.draft-tricks) .draft-pip {
-  border-color: var(--theme-accent-edge) !important;
-  box-shadow: inset 0 0 4px var(--theme-glow-inner) !important;
+  border-color: var(--theme-accent-edge);
+  box-shadow: inset 0 0 4px var(--theme-glow-inner);
 }
 .draft-panel:not(.draft-tricks) .draft-pip.pip-done {
-  background: var(--theme-accent) !important;
-  border-color: var(--theme-accent-bright) !important;
-  box-shadow: 0 0 8px var(--theme-glow-outer), 0 0 14px var(--theme-glow-inner) !important;
+  background: var(--theme-accent);
+  border-color: var(--theme-accent-bright);
+  box-shadow: 0 0 8px var(--theme-glow-outer), 0 0 14px var(--theme-glow-inner);
 }
 .draft-panel:not(.draft-tricks) .draft-pip.pip-current {
-  background: var(--theme-accent) !important;
-  border-color: var(--theme-accent-bright) !important;
-  box-shadow: 0 0 10px var(--theme-accent-bright), 0 0 22px var(--theme-glow-outer) !important;
+  background: var(--theme-accent);
+  border-color: var(--theme-accent-bright);
+  box-shadow: 0 0 10px var(--theme-accent-bright), 0 0 22px var(--theme-glow-outer);
 }
 /* PICK x/N counter */
 .draft-panel:not(.draft-tricks) .draft-hud-counter {
   color: color-mix(in srgb, var(--theme-accent) 30%, white) !important;
-  border-color: var(--theme-accent-edge) !important;
+  border-color: var(--theme-accent-edge);
   box-shadow:
     inset 0 0 8px var(--theme-wash-08),
-    0 0 8px var(--theme-glow-inner) !important;
+    0 0 8px var(--theme-glow-inner);
   text-shadow: 0 0 6px var(--theme-accent-bright) !important;
 }
 .draft-panel:not(.draft-tricks) .draft-hud-counter em {
-  color: color-mix(in srgb, var(--theme-accent) 20%, white) !important;
+  color: color-mix(in srgb, var(--theme-accent) 20%, white);
   text-shadow:
     0 0 10px var(--theme-accent-bright),
-    0 0 18px var(--theme-glow-outer) !important;
+    0 0 18px var(--theme-glow-outer);
 }
 /* Mulligan + Settings + Undo (draft-hud-actions) — theme the white
    chrome; keep the red quit-btn (menu) as red since it's destructive.
@@ -2305,10 +2305,10 @@ body.round-first-ai .hud-pill-main {
         rgb(var(--enemy-r), var(--enemy-g), var(--enemy-b)) 50%,
         rgb(var(--player-r), var(--player-g), var(--player-b))) 97%,
       var(--player-accent-bright) 100%
-    ) 1 !important;
+    ) 1;
   box-shadow:
     0 0 12px var(--enemy-glow-outer),
-    0 0 24px var(--enemy-glow-inner) !important;
+    0 0 24px var(--enemy-glow-inner);
 }
 /* Player owns — mirror. */
 .lane.occ-player {
@@ -2397,8 +2397,8 @@ body.round-first-ai .hud-pill-main {
    child of #board and `:first-child` never resolved. Just unifying
    border-left on all lanes side-steps the problem entirely. */
 .lane {
-  border-right: none !important;
-  border-left: 1px solid transparent !important;
+  border-right: none;
+  border-left: 1px solid transparent;
   border-image: linear-gradient(180deg,
       var(--enemy-accent-bright)   0%,
       var(--enemy-accent-bright)   2%,
@@ -2406,7 +2406,7 @@ body.round-first-ai .hud-pill-main {
       rgba(255,255,255,0.90)       91%,
       var(--player-accent-bright)  98%,
       var(--player-accent-bright)  100%
-    ) 1 !important;
+    ) 1;
 }
 /* (REMOVED — these legacy adjacent-lane painting rules were the
    cause of "lane 2 lit up with red" when lane 1 has an enemy.
@@ -3908,7 +3908,7 @@ body::before {
     inset 0 0 0 1px var(--theme-wash-08) !important;
   background:
     linear-gradient(180deg, var(--theme-wash-05) 0%, rgba(0,0,0,0) 40%),
-    #000 !important;
+    #000;
 }
 .game-over-overlay.victory .game-over-title,
 .game-over-overlay.defeat .game-over-title {
@@ -5501,9 +5501,9 @@ input:focus-visible,
 .db-preset {
   /* Preset chips (Balanced Starter / Aggro Rush / Villain Control) —
      theme instead of purple. */
-  border-color: var(--theme-accent-edge) !important;
-  color: color-mix(in srgb, var(--theme-accent) 35%, #d4ecff) !important;
-  background: #000 !important;
+  border-color: var(--theme-accent-edge);
+  color: color-mix(in srgb, var(--theme-accent) 35%, #d4ecff);
+  background: #000;
 }
 .db-preset:hover,
 .db-preset-active {
@@ -5512,10 +5512,10 @@ input:focus-visible,
   box-shadow: 0 0 10px var(--theme-glow-outer), 0 0 20px var(--theme-glow-inner) !important;
 }
 .db-save-btn, .db-load-btn, .db-share-btn, .db-import-btn {
-  border-color: var(--theme-accent-edge) !important;
-  color: color-mix(in srgb, var(--theme-accent) 40%, white) !important;
-  box-shadow: 0 0 7px var(--theme-glow-inner) !important;
-  background: #000 !important;
+  border-color: var(--theme-accent-edge);
+  color: color-mix(in srgb, var(--theme-accent) 40%, white);
+  box-shadow: 0 0 7px var(--theme-glow-inner);
+  background: #000;
 }
 .db-save-btn:hover, .db-load-btn:hover, .db-share-btn:hover, .db-import-btn:hover {
   border-color: var(--theme-accent-bright) !important;
@@ -5523,12 +5523,12 @@ input:focus-visible,
   box-shadow: 0 0 12px var(--theme-glow-outer), 0 0 22px var(--theme-glow-inner) !important;
 }
 .db-start-btn {
-  border-color: var(--theme-accent-bright) !important;
-  color: color-mix(in srgb, var(--theme-accent) 45%, white) !important;
+  border-color: var(--theme-accent-bright);
+  color: color-mix(in srgb, var(--theme-accent) 45%, white);
   box-shadow:
     0 0 10px var(--theme-glow-outer),
     0 0 22px var(--theme-glow-inner),
-    inset 0 0 8px var(--theme-wash-08) !important;
+    inset 0 0 8px var(--theme-wash-08);
 }
 .db-start-btn:hover {
   color: var(--text-hi, #f5fbff) !important;
@@ -5542,7 +5542,7 @@ input:focus-visible,
 
 /* Deck-body panel dividers + labels theme */
 .db-body {
-  border-color: var(--theme-accent-edge) !important;
+  border-color: var(--theme-accent-edge);
 }
 
 
@@ -5554,29 +5554,29 @@ input:focus-visible,
    dropdown, and a pulsing Start button when the deck is valid.
    ============================================================ */
 .db-panel {
-  position: relative !important;
+  position: relative;
   /* Fill the overlay vertically so the internal flex chain has a
      bounded height — lets .db-body, .db-left, and .db-grid each
      set overflow:auto on their own region. Without a bounded
      panel height, the grid blew out to ~1700px tall and spilled
      the whole page into a single scroll. */
   margin: 14px auto !important;
-  max-width: 1440px !important;
-  width: calc(100% - 28px) !important;
-  height: calc(100vh - 28px) !important;   /* fallback */
-  height: calc(100dvh - 28px) !important;  /* excludes mobile URL bar so the hand row + Done button stay in view */
-  padding: 20px 28px 18px !important;
+  max-width: 1440px;
+  width: calc(100% - 28px);
+  height: calc(100vh - 28px);   /* fallback */
+  height: calc(100dvh - 28px);  /* excludes mobile URL bar so the hand row + Done button stay in view */
+  padding: 20px 28px 18px;
   box-sizing: border-box;
   background:
     linear-gradient(180deg, var(--theme-wash-05, rgba(79,195,247,0.05)) 0%, rgba(0,0,0,0) 42%),
-    #000 !important;
-  border: 1px solid var(--theme-accent-ring, rgba(79,195,247,0.55)) !important;
-  border-radius: 4px !important;
+    #000;
+  border: 1px solid var(--theme-accent-ring, rgba(79,195,247,0.55));
+  border-radius: 4px;
   box-shadow:
     0 0 32px var(--theme-glow-inner, rgba(79,195,247,0.30)),
     0 0 72px var(--theme-glow-outer, rgba(79,195,247,0.14)),
     inset 0 0 0 1px var(--theme-wash-08, rgba(79,195,247,0.08)),
-    inset 0 1px 0 var(--theme-accent-edge, rgba(79,195,247,0.35)) !important;
+    inset 0 1px 0 var(--theme-accent-edge, rgba(79,195,247,0.35));
 }
 /* Corner HUD brackets — four L-shapes at the panel corners (pure
    border pseudo-elements; two via ::before + box-shadow trick for
@@ -5832,8 +5832,8 @@ input:focus-visible,
   margin-right: 4px;
 }
 .db-preset-clear {
-  border-color: rgba(231,76,60,0.55) !important;
-  color: #f1948a !important;
+  border-color: rgba(231,76,60,0.55);
+  color: #f1948a;
 }
 .db-preset-clear:hover {
   border-color: rgba(231,76,60,1) !important;
@@ -5918,7 +5918,7 @@ input:focus-visible,
    pulse when the deck is valid so it screams "click me now". */
 .db-start-btn {
   display: inline-flex; align-items: center; gap: 10px;
-  padding: 10px 22px !important;
+  padding: 10px 22px;
   text-align: left;
   line-height: 1.1;
 }
@@ -5982,11 +5982,11 @@ input:focus-visible,
      button is now positioning relative to .db-panel (since .db-hud
      above no longer creates a containing block), so these coords land
      in the same visual spot as the other overlays' menu buttons. */
-  position: absolute !important;
-  top: 14px !important; left: 14px !important;
+  position: absolute;
+  top: 14px; left: 14px;
   z-index: 3;
-  padding: 6px 12px !important;
-  font-size: 10px !important;
+  padding: 6px 12px;
+  font-size: 10px;
 }
 
 /* Responsive — stack the HUD meters below the title on narrow

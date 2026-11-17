@@ -2287,11 +2287,11 @@ body.in-match:not(.board-v2) .board {
    grayscale alone to hold it back. */
 .card.unplayable {
   --tube-a1: 0.45; --tube-a2: 0.18;
-  filter: var(--card-tube) grayscale(0.95) brightness(0.6) !important;
+  filter: var(--card-tube) grayscale(0.95) brightness(0.6);
 }
 .hand-card-wrapper .card.unafford {
   --tube-a1: 0.45; --tube-a2: 0.18;
-  filter: var(--card-tube) grayscale(0.85) brightness(0.74) !important;
+  filter: var(--card-tube) grayscale(0.85) brightness(0.74);
 }
 /* hovering an unaffordable card un-dims it — so it takes the full tube back */
 .hand-card-wrapper:hover .card.hand-card.unafford {
@@ -3341,7 +3341,7 @@ body.in-match:not(.board-v2) .board {
 .card.card.draft-card .card-portrait,
 .card.card.enc-card .card-portrait {
   flex: 0 0 328px;
-  height: 328px !important;
+  height: 328px;
   min-height: 0;
   max-height: 328px;
   aspect-ratio: auto;
@@ -3879,7 +3879,7 @@ body.in-match:not(.board-v2) .board {
 .trick-card.trick-card.trick-card .trick-desc,
 .trick-card.trick-card.trick-card .trick-desc .cd-row,
 .trick-card.trick-card.trick-card .trick-desc .cd-eff {
-  color: #ffffff !important;
+  color: #ffffff;
   /* NEON WHITE, NOT GREY — and the colour was never the problem. Declared #fff
      measured #fff, and the paragraph still read grey. At 11px the STROKE CORES
      hit 254 but the MEDIAN ink pixel was 184: most of a glyph at this size is
@@ -3893,7 +3893,7 @@ body.in-match:not(.board-v2) .board {
   text-shadow:
     0 1px 2px rgba(0, 0, 0, 0.90),
     0 0 calc(var(--card-w, 320px) * 0.013) rgba(255, 255, 255, 0.38),
-    0 0 calc(var(--card-w, 320px) * 0.030) rgba(255, 255, 255, 0.15) !important;
+    0 0 calc(var(--card-w, 320px) * 0.030) rgba(255, 255, 255, 0.15);
 }
 /* The trigger label keeps the card's accent — and on the board keeps the SIDE
    colour, since --portrait-frame-rgb is already re-pointed there. */
@@ -3904,7 +3904,7 @@ body.in-match:not(.board-v2) .board {
    .card-desc above covers the surfaces that rule does not reach. */
 .card.card.card .card-desc .cd-trig,
 .trick-card.trick-card.trick-card .trick-desc .cd-trig {
-  color: rgb(var(--portrait-frame-rgb, var(--own-green))) !important;
+  color: rgb(var(--portrait-frame-rgb, var(--own-green)));
 }
 /* health stops being red in the prose — it is a number in a sentence here, not
    a stat readout (the readouts keep their green/red, see the draft block). */
@@ -4419,7 +4419,7 @@ body.low-fx .card-glow-host { filter: none !important; }
 .card.card.enc-card .card-desc,
 .card-inspect-modal .card.card .card-desc {
   border-top: 1px solid rgb(40, 45, 51);
-  padding-top: calc(var(--card-w) * 0.030) !important;
+  padding-top: calc(var(--card-w) * 0.030);
 }
 
 /* ---- 4 · the energy corner is GLASS — the painting runs under it ---------
@@ -4522,7 +4522,7 @@ body.low-fx .card-glow-host { filter: none !important; }
     0 1px 2px rgba(0, 0, 0, 0.95),
     0 0 3px rgba(0, 0, 0, 0.90),
     0 0 1px rgba(255, 255, 255, 0.70),
-    0 0 8px rgba(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250)), 0.80) !important;
+    0 0 8px rgba(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250)), 0.80);
 }
 
 /* ============================================================
@@ -4690,7 +4690,7 @@ body.low-fx .card-glow-host { filter: none !important; }
    ============================================================ */
 .trick-cards .trick-card .status-badges,
 .trick-card.flip-host .status-badges {
-  margin-bottom: calc(var(--cf-inset, 4px) + var(--sb-i) * 0.30) !important;
+  margin-bottom: calc(var(--cf-inset, 4px) + var(--sb-i) * 0.30);
 }
 
 
@@ -4805,9 +4805,9 @@ body.low-fx .card-glow-host { filter: none !important; }
      190px preview the portrait came out 186x328 = 0.567 against the real
      card's 0.963. So the preview inherits --read-card-w untouched and the grid
      gives it the room instead. */
-  width: var(--read-card-w) !important;
+  width: var(--read-card-w);
   min-width: var(--read-card-w) !important;
-  max-width: var(--read-card-w) !important;
+  max-width: var(--read-card-w);
   margin: 0 auto;
   cursor: grab;
 }
@@ -4816,17 +4816,17 @@ body.low-fx .card-glow-host { filter: none !important; }
 /* The preview is a tool, not a card in play — no lift, no pointer games. */
 .gal-preview-card:hover { transform: none !important; }
 .gal-preview-card,
-.gal-preview-card * { animation: none !important; }
+.gal-preview-card * { animation: none; }
 .gal-crop-area-card {
   display: flex; flex-direction: column; gap: 6px; align-items: center;
   /* The old card preview was 112px wide and the column was sized for it. A real
      card is --read-card-w, so the area sizes to the card and the row wraps
      rather than letting the card overlap the menu crop beside it. */
-  width: auto !important;
+  width: auto;
   flex: 0 0 auto;
 }
-.gal-crops { flex-wrap: wrap !important; align-items: flex-start; }
-.gal-thumb { width: auto !important; min-width: calc(var(--read-card-w, 320px) + 24px); }
+.gal-crops { flex-wrap: wrap; align-items: flex-start; }
+.gal-thumb { width: auto; min-width: calc(var(--read-card-w, 320px) + 24px); }
 
 /* THE GALLERY'S REFERENCE IMAGE CARRIES THE SAME GRADE AS THE CARD.
    Owner: "why is the card so much dimmer than the art?" Because the portrait
@@ -5128,7 +5128,7 @@ body.fx-lean:not(.low-fx) .card.status-crazy:not(:where(.card-slot > *)):where(:
    body::before and the scanline roll on body.crt-on::after, so the obvious
    `.tron-grid` / `.crt-scanlines` spellings would both have been inert. */
 body.fx-lean::before { animation: none; }
-body.fx-lean.crt-on::after { animation: none !important; }
+body.fx-lean.crt-on::after { animation: none; }
 body.fx-lean .board-section .crt-scanlines { animation: none !important; }
 
 
@@ -5967,7 +5967,7 @@ body:not(.ai-thinking) .ai-thinking-ring circle {
   /* ALL four: a non-none border-image replaces the border entirely, so the
      plain (light-grey currentColor) side borders were never visible — turning
      the image off must not expose them. */
-  border-color: transparent !important;
+  border-color: transparent;
   /* The visible pair is actually a border-IMAGE: a red→cyan gradient with
      border-image-width "1 0", i.e. it paints ONLY the top (red) and bottom
      (cyan) edges and overrides the colours above. The vertical dividers are
@@ -5977,7 +5977,7 @@ body:not(.ai-thinking) .ai-thinking-ring circle {
      (0,2,0) !important, and later in the sheet. */
 }
 .board-section .lane:where(body:not(.board-v2) *) {
-  border-image: none !important;
+  border-image: none;
 }
 .tricks-section:where(body:not(.board-v2) *) {
   border-top-color: transparent;

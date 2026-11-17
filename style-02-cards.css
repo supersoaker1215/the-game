@@ -1682,7 +1682,7 @@
    SELECTION ON THE PLAYFIELD). The class itself stays as a state hook — the
    rules below only reach the two cursor-trail nodes, which is cheap. */
 /* No mouse cursor trail while dragging a card by finger. */
-body.mobile-card-dragging #tron-cursor-trail { display: none !important; }
+body.mobile-card-dragging #tron-cursor-trail { display: none; }
 
 /* When the magnify is open on a hand card, freeze the WRAPPER's
    :hover transform AND the inner card's :hover transform. The
@@ -2228,7 +2228,7 @@ body.mobile-card-dragging #tron-cursor-trail { display: none !important; }
   text-shadow: 0 0 4px rgba(155,89,182,0.30);
 }
 .trick-desc b {
-  color: #d7b3e6 !important;
+  color: #d7b3e6;
   font-weight: 600;
   letter-spacing: 0.5px;
   font-size: 8px;

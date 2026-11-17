@@ -1457,9 +1457,9 @@ body.dragging-trick .tut-callout { pointer-events: none; }
    this row in future is boxless glow-text automatically and cannot regress.
    ============================================================ */
 .draft-hud-actions button {
-  background: none !important;
+  background: none;
   border: none !important;
-  box-shadow: none !important;
+  box-shadow: none;
   /* TYPOGRAPHY LIVES HERE TOO. Dropping a button from the boxed base rule to
      un-box it also dropped its type, so it fell back to plain mixed-case sans
      next to MENU / BACK / MULLIGAN — un-Tron. The row's spaced-caps Rajdhani is
@@ -1477,7 +1477,7 @@ body.dragging-trick .tut-callout { pointer-events: none; }
   padding: 8px 14px;
   transition: transform 0.15s var(--ease-snap), color 0.2s var(--ease-snap), text-shadow 0.2s var(--ease-snap);
 }
-.draft-hud-actions button > .tron-sweep { display: none !important; }
+.draft-hud-actions button > .tron-sweep { display: none; }
 /* Grow + glow is the whole affordance — "just the text and it magnifies". */
 .draft-hud-actions button:not([disabled]):not(.mulligan-used):not(.undo-disabled):hover {
   transform: scale(1.12);
@@ -1522,9 +1522,9 @@ body.dragging-trick .tut-callout { pointer-events: none; }
 .stats-slash,
 .db-deck-slash,
 .mh-hp-sep {
-  color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 48%, #dcebf8) !important;
+  color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 48%, #dcebf8);
 }
-.gal-note b { color: #8ef2ad !important; }
+.gal-note b { color: #8ef2ad; }
 /* Crop captions on the art — theme-bright with a soft glow, not washed white. */
 .gal-tag {
   color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 55%, white);
@@ -3437,20 +3437,20 @@ body.clb-emote-open .viewport-toggle { display: none !important; }
    the picker gets room to show WHOLE cards; the strip still grows as you add
    cards, it just no longer reserves space it isn't using. */
 .db-deck-strip {
-  min-height: 0 !important;
-  max-height: 15vh !important;
+  min-height: 0;
+  max-height: 15vh;
 }
 .db-deck-strip .db-deck-empty {
-  min-height: 0 !important;
-  height: auto !important;
-  padding: 8px 10px !important;
+  min-height: 0;
+  height: auto;
+  padding: 8px 10px;
   font-size: 10px;
 }
 /* Sections may collapse when empty, but the LIST must size to its content or
    added cards get clipped (it collapsed to 24px and hid the rows). Cap comes
    from the strip's max-height; the list scrolls past that. */
-.db-deck-strip .db-deck-section { min-height: 0 !important; }
-.db-deck-strip .db-deck-list { min-height: 0 !important; flex: 1 1 auto; overflow-y: auto; }
+.db-deck-strip .db-deck-section { min-height: 0; }
+.db-deck-strip .db-deck-list { min-height: 0; flex: 1 1 auto; overflow-y: auto; }
 .db-deck-strip:has(.db-deck-row) { min-height: 92px !important; }
 /* Floor the picker so a full card is always visible even at 720p. */
 .db-collection .db-pick-grid { min-height: 232px; }
@@ -3539,8 +3539,8 @@ body.low-fx #game-area {
   /* The mouse-parallax camera pivot is the single most expensive thing
      on the page for a weak compositor: it re-transforms the 3D root
      containing the whole game on every mouse move. Gone. */
-  perspective: none !important;
-  transform: none !important;
+  perspective: none;
+  transform: none;
   transition: none !important;
 }
 body.low-fx .card-slot,
@@ -3606,7 +3606,7 @@ body.low-fx .hand-card-wrapper:hover .card.hand-card .card-cost {
 }
 /* Particles lose their Z depth (they were only interesting under the
    camera pivot, which is now off). */
-body.low-fx .game-particle { transform: none !important; }
+body.low-fx .game-particle { transform: none; }
 
 /* ---- 3. Kill the cursor-follow decoration -------------------------
    Every one of these repaints on mousemove, which is precisely when the
@@ -3615,7 +3615,7 @@ body.low-fx .custom-cursor,
 body.low-fx #tron-cursor-trail,
 body.low-fx .mm-particle,
 body.low-fx .board-mote {
-  display: none !important;
+  display: none;
 }
 /* ...but GIVE THE NATIVE CURSOR BACK. The global rule at the top of the
    cursor section sets `cursor: none` everywhere so the glowing custom
@@ -3651,8 +3651,8 @@ body.low-fx [contenteditable="true"] { cursor: text !important; }
 body.low-fx *,
 body.low-fx *::before,
 body.low-fx *::after {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 /* ---- 5. Stop the always-on ornamental animation loops -------------
@@ -3691,8 +3691,8 @@ body.low-fx .empty-hand::before {
    the simple software-raster path for it rather than a deferred
    composited one. Cheap, and only applied in the fallback mode. */
 body.low-fx .card-portrait {
-  transform: none !important;
-  will-change: auto !important;
+  transform: none;
+  will-change: auto;
   backface-visibility: visible !important;
 }
 
@@ -3965,8 +3965,8 @@ body.low-fx .card-portrait {
    specificity is what finally brings it into line with the other nine. */
 .draft-panel:not(.draft-tricks),
 .draft-panel.draft-tricks {
-  background: #000 !important;
-  background-image: none !important;   /* kills every re-applied wash gradient */
+  background: #000;
+  background-image: none;   /* kills every re-applied wash gradient */
   border: var(--panel-border) !important;
   border-top-color: rgba(var(--theme-rgb, 79,195,247), 0.55) !important;
   border-bottom-color: rgba(var(--theme-rgb, 79,195,247), 0.55) !important;
@@ -4134,7 +4134,7 @@ body.low-fx .card-portrait {
     var(--lane-mid-color)                                                      50%,
     rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 72%,
     rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 100%
-  ) 1 !important;
+  ) 1;
 }
 
 /* Lane interior — the pillar left a transparent hole at 50%, exactly where the
@@ -4204,7 +4204,7 @@ body.low-fx .card-portrait {
    lane it is — including the contested red-to-blue blend, which is painted by
    .lane.occ-both::before and never by these rails.
    =========================================================================== */
-.board-section .lane.lane.lane.lane { border-image-width: 1 0 !important; }
+.board-section .lane.lane.lane.lane { border-image-width: 1 0; }
 
 .lane.lane-active::after {
   background: linear-gradient(180deg,
@@ -4500,9 +4500,9 @@ body.hand-text-always .player-hand-section .hand-cards .card .card-desc {
    Anakin) overflowed their own border (user: "the card text leaves the card
    border"). Dropping the ratio here lets the height track the CONTENT again. */
 body.hand-text-always .player-hand-section .hand-cards .card {
-  aspect-ratio: auto !important;
+  aspect-ratio: auto;
   height: auto !important;
-  min-height: 0 !important;
+  min-height: 0;
 }
 /* Show the keyword badges (Bullseye / Evade / …) as they used to appear, and
    let the strip show every row rather than the 2-row art-mode clamp.
@@ -5176,9 +5176,9 @@ body.hand-text-always .trick-cards .trick-card .trick-desc {
 body.hand-text-always .trick-cards .trick-card {
   /* Drop the artwork aspect-ratio so the trick grows to fit its in-flow rules
      instead of overflowing its border (same fix as the hand cards above). */
-  aspect-ratio: auto !important;
-  height: auto !important;
-  min-height: 0 !important;
+  aspect-ratio: auto;
+  height: auto;
+  min-height: 0;
 }
 /* Keep the trick name legible above the art. */
 body.hand-text-always .trick-cards .trick-card .card-name-overlay {
@@ -5964,7 +5964,7 @@ body.dragging-trick .info-bar.player-bar {
    the rule is narrower on screen than it is in code. */
 body.dragging-trick .board-section {
   /* Same story: .board-section declares box-shadow:none with !important. */
-  box-shadow: inset 0 0 0 1px rgba(155,89,182,0.28) !important;
+  box-shadow: inset 0 0 0 1px rgba(155,89,182,0.28);
 }
 /* Says the rule in words the first time, where the hand can see it. */
 body.dragging-trick .info-bar.player-bar::after {

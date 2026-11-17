@@ -240,10 +240,10 @@ body.hand-text-always .trick-cards .trick-card .status-badges,
 .rl-pick-step,
 .rl-pick-step-active,
 .rl-pick-step-done {
-  background: none !important;
-  border: none !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
   padding: 6px 10px;
   letter-spacing: 3px;
 }
@@ -305,8 +305,8 @@ body.hand-text-always .trick-cards .trick-card .status-badges,
   border-radius: 0 !important;
   box-shadow: none !important;
 }
-.rl-hud .rl-hud-pill > .tron-sweep { display: none !important; }
-.rl-hud .rl-hud-pill.tron-fx-breathe { animation: none !important; }
+.rl-hud .rl-hud-pill > .tron-sweep { display: none; }
+.rl-hud .rl-hud-pill.tron-fx-breathe { animation: none; }
 .rl-hud .rl-hud-pill { padding: 8px 10px; }
 .rl-hud .rl-hud-pill.rl-hud-btn {
   transition: transform 150ms var(--ease-spring, var(--ease-snap)), color 200ms var(--ease-snap), text-shadow 200ms var(--ease-snap);
@@ -342,8 +342,8 @@ body.hand-text-always .trick-cards .trick-card .status-badges,
    a 6%-white hairline — sitting inside a panel that is already pure
    black. Interior goes back to #000 with no rule around it. */
 .rl-map-panel .rl-map-svg-wrap {
-  background: #000 !important;
-  border-color: transparent !important;
+  background: #000;
+  border-color: transparent;
 }
 
 /* ---- 8. Mastery chip gets out of the stat row -------------------
@@ -580,7 +580,7 @@ body.in-match .settings-cog       { left: calc(var(--hudc-left) + 2 * var(--hudc
    two visitors. The log had a flatter, dimmer treatment than the other
    two; levelled onto the hint/cog look. */
 body.in-match .log-drawer-toggle {
-  background: #000 !important;
+  background: #000;
   border: 1px solid var(--theme-accent-bright) !important;
   color: color-mix(in srgb, var(--theme-accent) 55%, white) !important;
   box-shadow:
@@ -4364,11 +4364,11 @@ body:not(.ambient-motion) .board-section .crt-scanlines { animation: none !impor
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0; text-indent: 0 !important; line-height: 1;
+  padding: 0; text-indent: 0; line-height: 1;
   font-family: var(--font-mono);
   font-size: calc(var(--card-w) * 0.0857);
   color: #f4e6ff;
-  text-shadow: 0 0 1px rgba(255,255,255,0.7), 0 0 8px rgba(var(--cf-rgb), 0.9) !important;
+  text-shadow: 0 0 1px rgba(255,255,255,0.7), 0 0 8px rgba(var(--cf-rgb), 0.9);
   z-index: 7;
 }
 .trick-card .card-cost::before,
@@ -4850,7 +4850,7 @@ body:not(.ambient-motion) .board-section .crt-scanlines { animation: none !impor
   line-height: 1.5 !important;
   margin-left:  calc(var(--cf-inset) + var(--card-w) * 0.045);
   margin-right: calc(var(--cf-inset) + var(--card-w) * 0.045);
-  text-align: left !important;
+  text-align: left;
 }
 .card.card.draft-card .card-desc b,
 .card.card.enc-card   .card-desc b,
@@ -4952,11 +4952,11 @@ body:not(.ambient-motion) .board-section .crt-scanlines { animation: none !impor
 .card.card.draft-card .card-desc .cd-trig,
 .card.card.enc-card   .card-desc .cd-trig,
 .card-inspect-modal .card.card .card-desc .cd-trig {
-  color: rgb(var(--cf-rgb, var(--portrait-frame-rgb, 255,210,74))) !important;
+  color: rgb(var(--cf-rgb, var(--portrait-frame-rgb, 255,210,74)));
   text-shadow:
     0 0 1px    rgba(255,255,255,0.85),
     0 0 0.60em rgba(var(--cf-rgb, var(--portrait-frame-rgb, 255,210,74)), 0.95),
-    0 0 1.40em rgba(var(--cf-rgb, var(--portrait-frame-rgb, 255,210,74)), 0.45) !important;
+    0 0 1.40em rgba(var(--cf-rgb, var(--portrait-frame-rgb, 255,210,74)), 0.45);
   font-weight: 700 !important;
 }
 
@@ -5059,12 +5059,12 @@ body:not(.ambient-motion) .board-section .crt-scanlines { animation: none !impor
 .trick-card.trick-draft .status-badge,
 .draft-card.trick-draft .status-badge,
 .card-inspect-modal .trick-card .status-badge {
-  color: rgba(var(--cf-rgb, var(--trick-rgb, 155,89,182)), 1) !important;
-  border: 1px solid currentColor !important;
-  border-radius: 0 !important;
-  background: none !important;
-  box-shadow: none !important;
-  opacity: 1 !important;
+  color: rgba(var(--cf-rgb, var(--trick-rgb, 155,89,182)), 1);
+  border: 1px solid currentColor;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  opacity: 1;
 }
 
 /* ============================================================
@@ -5171,10 +5171,10 @@ body:not(.ambient-motion) .board-section .crt-scanlines { animation: none !impor
 .trick-card .card-name-overlay .cn-text,
 .trick-card.trick-draft .card-name-overlay .cn-text,
 .card-inspect-modal .trick-card .card-name-overlay .cn-text {
-  color: rgba(var(--cf-rgb, var(--portrait-frame-rgb, 155,89,182)), 1) !important;
+  color: rgba(var(--cf-rgb, var(--portrait-frame-rgb, 155,89,182)), 1);
   text-shadow:
     0 1px 3px rgba(0,0,0,0.95),
-    0 0 10px rgba(var(--cf-rgb, var(--portrait-frame-rgb, 155,89,182)), 0.55) !important;
+    0 0 10px rgba(var(--cf-rgb, var(--portrait-frame-rgb, 155,89,182)), 0.55);
 }
 
 /* And so does the body copy — same colour, same glow, same left-aligned column
@@ -5184,11 +5184,11 @@ body:not(.ambient-motion) .board-section .crt-scanlines { animation: none !impor
 .draft-card.trick-draft .trick-desc,
 .card-inspect-modal .trick-card .trick-desc,
 .trick-card.enc-trick .trick-desc {
-  color: rgba(var(--cf-rgb, var(--portrait-frame-rgb, 155,89,182)), 1) !important;
-  text-shadow: 0 0 5px rgba(var(--cf-rgb, var(--portrait-frame-rgb, 155,89,182)), 0.30) !important;
+  color: rgba(var(--cf-rgb, var(--portrait-frame-rgb, 155,89,182)), 1);
+  text-shadow: 0 0 5px rgba(var(--cf-rgb, var(--portrait-frame-rgb, 155,89,182)), 0.30);
   font-size: 11px;
   line-height: 1.5;
-  text-align: left !important;
+  text-align: left;
   margin-left:  calc(var(--cf-inset) + var(--card-w) * 0.10);
   margin-right: calc(var(--cf-inset) + var(--card-w) * 0.10);
 }
@@ -5355,7 +5355,7 @@ body:not(.ambient-motion) .board-section .crt-scanlines { animation: none !impor
 .card-inspect-modal .trick-card .card-portrait,
 .rl-pick-cardslot .card.card .card-portrait {
   aspect-ratio: 360 / 472;
-  height: auto !important;
+  height: auto;
 }
 /* everything under the art keeps its own height and stays put */
 .card.card.draft-card .status-badges,
@@ -5426,8 +5426,8 @@ body:not(.ambient-motion) .board-section .crt-scanlines { animation: none !impor
   font-weight: 700;
   font-size: calc(var(--card-w) * 0.0982 * var(--cn-fit, 1));
   letter-spacing: 0.02em;
-  white-space: nowrap !important;
-  text-align: center !important;
+  white-space: nowrap;
+  text-align: center;
 }
 
 /* The roguelite starter-card picker is a reading surface — it is where you
@@ -5435,12 +5435,12 @@ body:not(.ambient-motion) .board-section .crt-scanlines { animation: none !impor
    card's size, art window and text box like the draft, the codex and the
    tap-to-play card. */
 .rl-pick-cardslot .card.card {
-  width: var(--read-card-w) !important;
-  min-width: var(--read-card-w) !important;
-  max-width: var(--read-card-w) !important;
-  height: var(--read-card-h) !important;
-  min-height: var(--read-card-h) !important;
-  max-height: var(--read-card-h) !important;
+  width: var(--read-card-w);
+  min-width: var(--read-card-w);
+  max-width: var(--read-card-w);
+  height: var(--read-card-h);
+  min-height: var(--read-card-h);
+  max-height: var(--read-card-h);
 }
 
 .rl-pick-cardslot .card.card .card-desc {
@@ -5463,7 +5463,7 @@ body:not(.ambient-motion) .board-section .crt-scanlines { animation: none !impor
 .card-inspect-modal .inspect-card .trick-desc {
   max-height: var(--read-desc-h);
   overflow: hidden;
-  height: auto !important;
+  height: auto;
 }
 
 /* ============================================================
@@ -5913,7 +5913,7 @@ body:not(.ambient-motion) .board-section .crt-scanlines { animation: none !impor
      rgb(241,64,105) border printed its name at rgb(248,163,183), a pale pink.
      82% keeps a bright core on the glyph, which is what a neon tube actually
      looks like, while reading unmistakably as the border's hue. */
-  color: var(--cn-colour) !important;
+  color: var(--cn-colour);
   /* the fit is off here — see above; --cn-fit is ignored and the name wraps */
   /* * var(--cn-fit, 1) — WITHOUT IT THE FIT IS DEAD ON THIS SURFACE. This rule
      is later and !important, so it beat the two rules that DO carry the
@@ -5923,7 +5923,7 @@ body:not(.ambient-motion) .board-section .crt-scanlines { animation: none !impor
      draft card's and a tray trick's did not move at all. Default 1, so a name
      that never needed fitting is unchanged. */
   font-size: calc(var(--card-w) * 0.0982 * var(--cn-fit, 1));
-  white-space: normal !important;
+  white-space: normal;
   line-height: 1.02;
   text-wrap: balance;
   /* two rows and no more: a third would push the art out of the card */
@@ -5948,7 +5948,7 @@ body:not(.ambient-motion) .board-section .crt-scanlines { animation: none !impor
      removed). The letters went soft. Owner: "better but too much outer glow."
      Halved, and the far layer cut by more than half again — enough to read as
      lit, not enough to eat the letterform. Measured after: 2.4 to 1. */
-  text-shadow: var(--cn-glow) !important;
+  text-shadow: var(--cn-glow);
 }
 
 /* ============================================================
@@ -6192,16 +6192,16 @@ body:not(.ambient-motion) .board-section .crt-scanlines { animation: none !impor
      cyan, so the same mix that reads as bright neon on the player's colour
      comes out a pale pink on the enemy's — matching the recipe would not have
      matched the result. The number is different so the two READ the same. */
-  color: color-mix(in srgb, rgb(var(--enemy-r), var(--enemy-g), var(--enemy-b)) 62%, #ffffff) !important;
+  color: color-mix(in srgb, rgb(var(--enemy-r), var(--enemy-g), var(--enemy-b)) 62%, #ffffff);
   text-shadow:
     0 0 8px  rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.85),
-    0 0 18px rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.45) !important;
+    0 0 18px rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.45);
 }
 .draft-panel .draft-hud .draft-hud-sub.draft-first-player.is-mine {
-  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 30%, #e8f5ff) !important;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 30%, #e8f5ff);
   text-shadow:
     0 0 8px  rgba(var(--theme-rgb, 79,195,247), 0.85),
-    0 0 18px rgba(var(--theme-rgb, 79,195,247), 0.45) !important;
+    0 0 18px rgba(var(--theme-rgb, 79,195,247), 0.45);
 }
 
 /* ============================================================
@@ -6269,7 +6269,7 @@ body:not(.ambient-motion) .board-section .crt-scanlines { animation: none !impor
      space with its own .291w bottom padding, so that 38px has been reserving
      the same room a second time. Trimmed to a real gap between the last line
      and the readouts rather than a duplicate of the reserve below it. */
-  padding-bottom: calc(var(--card-w) * 0.025) !important;
+  padding-bottom: calc(var(--card-w) * 0.025);
 }
 
 /* ============================================================

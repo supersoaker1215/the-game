@@ -6251,7 +6251,7 @@ body.round-tick .board-cursor-light { opacity: 0; }
 .rl-reward-slot {
   display: flex; flex-direction: column; align-items: center; gap: 8px;
   background: transparent;
-  border: none !important;
+  border: none;
   padding: 8px 4px;
   cursor: pointer;
   font-family: inherit;
@@ -6284,7 +6284,7 @@ body.round-tick .board-cursor-light { opacity: 0; }
 /* Border + outer halo */
 .rl-tier-common .card.hand-card { border-color: rgba(46,204,113,0.95) !important; box-shadow: 0 0 10px rgba(46,204,113,0.45), 0 0 20px rgba(46,204,113,0.18) !important; }
 .rl-tier-rare .card.hand-card { border-color: rgba(var(--theme-rgb, 79,195,247),0.95) !important; box-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247),0.45), 0 0 20px rgba(var(--theme-rgb, 79,195,247),0.18) !important; }
-.rl-tier-special .card.hand-card { border-color: rgba(240,245,250,0.95) !important; box-shadow: 0 0 10px rgba(240,245,250,0.45), 0 0 20px rgba(240,245,250,0.18) !important; }
+.rl-tier-special .card.hand-card { border-color: rgba(240,245,250,0.95); box-shadow: 0 0 10px rgba(240,245,250,0.45), 0 0 20px rgba(240,245,250,0.18) !important; }
 .rl-tier-legendary .card.hand-card { border-color: rgba(var(--gold-rgb),0.95) !important; box-shadow: 0 0 12px rgba(var(--gold-rgb),0.55), 0 0 24px rgba(var(--gold-rgb),0.22) !important; }
 
 /* Card name */
@@ -6378,7 +6378,7 @@ body.round-tick .board-cursor-light { opacity: 0; }
 /* and the border rules gain the self form they were missing */
 .card.hand-card.rl-tier-common    { border-color: rgba(46,204,113,0.95) !important; }
 .card.hand-card.rl-tier-rare      { border-color: rgba(var(--theme-rgb, 79,195,247),0.95) !important; }
-.card.hand-card.rl-tier-special   { border-color: rgba(240,245,250,0.95) !important; }
+.card.hand-card.rl-tier-special   { border-color: rgba(240,245,250,0.95); }
 .card.hand-card.rl-tier-legendary { border-color: rgba(var(--gold-rgb),0.95) !important; }
 
 /* In-game (hand + board) rarity tinting — kicks in only on cards
@@ -6399,7 +6399,7 @@ body.round-tick .board-cursor-light { opacity: 0; }
 .card.enemy-card.rl-tier-rare { border-color: rgba(var(--theme-rgb, 79,195,247),0.95) !important; box-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247),0.45), 0 0 20px rgba(var(--theme-rgb, 79,195,247),0.18) !important; }
 .card.hand-card.rl-tier-special,
 .card.ally-card.rl-tier-special,
-.card.enemy-card.rl-tier-special { border-color: rgba(240,245,250,0.95) !important; box-shadow: 0 0 10px rgba(240,245,250,0.45), 0 0 20px rgba(240,245,250,0.18) !important; }
+.card.enemy-card.rl-tier-special { border-color: rgba(240,245,250,0.95); box-shadow: 0 0 10px rgba(240,245,250,0.45), 0 0 20px rgba(240,245,250,0.18) !important; }
 .card.hand-card.rl-tier-legendary,
 .card.ally-card.rl-tier-legendary,
 .card.enemy-card.rl-tier-legendary { border-color: rgba(var(--gold-rgb),0.95) !important; box-shadow: 0 0 12px rgba(var(--gold-rgb),0.55), 0 0 24px rgba(var(--gold-rgb),0.22) !important; }

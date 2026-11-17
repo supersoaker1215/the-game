@@ -4430,20 +4430,20 @@ body.hit-pause .ai-hand * {
    stayed theme-green instead of the bright yellow asked for. !important on top
    so it also beats any equal-specificity latecomer. */
 .draft-panel .draft-hud .draft-hud-sub.draft-first-player {
-  font-size: 16px !important; letter-spacing: 2.4px; font-weight: 800 !important;
+  font-size: 16px; letter-spacing: 2.4px; font-weight: 800;
   margin-top: 14px;
-  color: #ffe23a !important;
+  color: #ffe23a;
   text-shadow:
     0 0 8px rgba(255, 214, 40, 0.9),
     0 0 18px rgba(255, 196, 0, 0.6),
-    0 0 30px rgba(255, 176, 0, 0.35) !important;
+    0 0 30px rgba(255, 176, 0, 0.35);
 }
 /* The bolt is a drawn mark now, not an emoji sticker — it takes the line's
    amber and its glow from currentColor rather than bringing its own palette. */
 /* (The .dbolt rule stood here. Its only markup was UI.BOLT_SVG, removed with
    the glyph itself — the owner asked for the bolt gone, and a rule with nothing
    left to paint is just something for the next reader to trace.) */
-@media (max-width: 900px) { .draft-panel .draft-hud .draft-hud-sub.draft-first-player { font-size: 14px !important; } }
+@media (max-width: 900px) { .draft-panel .draft-hud .draft-hud-sub.draft-first-player { font-size: 14px; } }
 
 /* Draft HUD actions row — Mulligan + Settings buttons side by side. */
 .draft-hud-actions {
@@ -5086,7 +5086,7 @@ body.hit-pause .ai-hand * {
 }
 .draft-card .trick-desc b,
 .fp-trick-preview .trick-card .trick-desc b {
-  color: #d7b3e6 !important;
+  color: #d7b3e6;
   font-weight: 700;
   letter-spacing: var(--draft-trigger-ls);
   font-size: var(--draft-trigger-size);

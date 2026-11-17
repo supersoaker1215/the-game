@@ -435,7 +435,7 @@ body.crt-on::before {
     );
   /* Replace the body::before grid drift on crt-on so we don't double-paint
      a perpetual animation. The grid drift stays for non-CRT users. */
-  animation: none !important;
+  animation: none;
   /* Slight chromatic aberration via mix-blend so the scanlines pull
      toward the underlying neon glow rather than flattening it. */
   mix-blend-mode: multiply;
@@ -813,9 +813,9 @@ button:disabled, button[disabled] {
    defeat the base .encyc-close round-button styling. */
 .gallery-audit-panel .encyc-close,
 .audio-audit-panel .encyc-close {
-  width: auto !important; height: auto !important;
-  border: none !important; background: none !important; border-radius: 0 !important;
-  box-shadow: none !important; padding: 4px 4px !important;
+  width: auto; height: auto;
+  border: none; background: none; border-radius: 0;
+  box-shadow: none; padding: 4px 4px;
   color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 82%, white);
   font-family: 'Rajdhani', sans-serif; font-size: 18px; font-weight: 700;
   letter-spacing: 2.5px; text-transform: uppercase;
@@ -1857,7 +1857,7 @@ input[type="number"]::-webkit-outer-spin-button {
 .draft-panel,
 .mode-panel,
 .game-over-content {
-  background: #000 !important;
+  background: #000;
 }
 
 /* Unify the glow-stack across panels — settings reference is:
@@ -2086,35 +2086,35 @@ input[type="number"]::-webkit-outer-spin-button {
 /* AUDIO AUDIT PANEL — was hardcoded with a different blue shade
    (74,170,255 vs Tron's 79,195,247). Convert all chrome to theme. */
 .audio-audit-panel .aa-summary {
-  background: rgba(var(--theme-rgb, 79,195,247), 0.06) !important;
-  border-color: rgba(var(--theme-rgb, 79,195,247), 0.20) !important;
+  background: rgba(var(--theme-rgb, 79,195,247), 0.06);
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.20);
 }
 .audio-audit-panel .aa-tab {
-  background: rgba(var(--theme-rgb, 79,195,247), 0.06) !important;
-  border-color: rgba(var(--theme-rgb, 79,195,247), 0.30) !important;
+  background: rgba(var(--theme-rgb, 79,195,247), 0.06);
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.30);
 }
 .audio-audit-panel .aa-tab:hover {
   background: rgba(var(--theme-rgb, 79,195,247), 0.18) !important;
 }
 .audio-audit-panel .aa-tab-active {
-  background: rgba(var(--theme-rgb, 79,195,247), 0.25) !important;
-  border-color: rgba(var(--theme-rgb, 79,195,247), 1) !important;
+  background: rgba(var(--theme-rgb, 79,195,247), 0.25);
+  border-color: rgba(var(--theme-rgb, 79,195,247), 1);
 }
 .audio-audit-panel .aa-search {
-  border-color: rgba(var(--theme-rgb, 79,195,247), 0.35) !important;
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.35);
 }
 .audio-audit-panel .aa-search:focus {
   border-color: rgba(var(--theme-rgb, 79,195,247), 1) !important;
   box-shadow: 0 0 0 2px rgba(var(--theme-rgb, 79,195,247), 0.25) !important;
 }
 .audio-audit-panel .aa-table-wrap {
-  border-color: rgba(var(--theme-rgb, 79,195,247), 0.20) !important;
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.20);
 }
 .audio-audit-panel .aa-table thead th {
-  border-bottom-color: rgba(var(--theme-rgb, 79,195,247), 0.35) !important;
+  border-bottom-color: rgba(var(--theme-rgb, 79,195,247), 0.35);
 }
 .audio-audit-panel .aa-table tbody td {
-  border-bottom-color: rgba(var(--theme-rgb, 79,195,247), 0.08) !important;
+  border-bottom-color: rgba(var(--theme-rgb, 79,195,247), 0.08);
 }
 .audio-audit-panel .aa-table tbody tr:hover td {
   background: rgba(var(--theme-rgb, 79,195,247), 0.04) !important;
@@ -2242,16 +2242,16 @@ input[type="number"]::-webkit-outer-spin-button {
 /* Deck builder section headings — match .settings-group-title.
    These were 10px without text-shadow; now consistent across panels. */
 .db-deck-heading {
-  font-family: 'Rajdhani', sans-serif !important;
-  font-size: 11px !important;
-  letter-spacing: 2.5px !important;
-  text-transform: uppercase !important;
-  color: rgba(var(--theme-rgb, 79,195,247), 1) !important;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: rgba(var(--theme-rgb, 79,195,247), 1);
   text-shadow:
     0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.55),
-    0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.25) !important;
-  border-bottom: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55) !important;
-  padding-bottom: 4px !important;
+    0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.25);
+  border-bottom: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);
+  padding-bottom: 4px;
 }
 
 /* Deck builder grid card hover — add the proper glow stack so cards
@@ -2304,11 +2304,11 @@ input[type="number"]::-webkit-outer-spin-button {
 
 /* Deck builder empty state — themed dashed border. */
 .db-deck-empty {
-  border: 1px dashed rgba(var(--theme-rgb, 79,195,247), 0.25) !important;
-  background: rgba(var(--theme-rgb, 79,195,247), 0.03) !important;
-  padding: 12px !important;
-  border-radius: 4px !important;
-  text-align: center !important;
+  border: 1px dashed rgba(var(--theme-rgb, 79,195,247), 0.25);
+  background: rgba(var(--theme-rgb, 79,195,247), 0.03);
+  padding: 12px;
+  border-radius: 4px;
+  text-align: center;
 }
 
 /* ============================================================
@@ -3116,9 +3116,9 @@ body > .grid-bg {
       var(--lane-mid-color) 91%,
       rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 97%,
       rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 100%
-    ) 1 !important;
-  border-width: 1px !important;
-  border-style: solid !important;
+    ) 1;
+  border-width: 1px;
+  border-style: solid;
   /* No border-image-width here — see the TOP AND BOTTOM ONLY block at the end
      of this sheet. It must sit after every `border-image` shorthand a lane can
      take, because the shorthand resets the width longhand with it. */
@@ -3784,8 +3784,8 @@ body.killcam .board::before {
    on the same beat is preserved — only the visual flash is removed.
    To bring it back: restore `content: ''` and the keyframe animation
    declarations below. */
-body.combat-anticipate::before { content: none !important; }
-body.combat-anticipate::after  { content: none !important; }
+body.combat-anticipate::before { content: none; }
+body.combat-anticipate::after  { content: none; }
 @media (prefers-reduced-motion: reduce) {
   body.combat-anticipate::before,
   body.combat-anticipate::after { display: none; }
@@ -4932,10 +4932,10 @@ body.round-tick .board::after {
 .card-inspect-modal .inspect-card .trick-desc,
 .card-inspect-modal .inspect-card .card-active-text {
   position: static;
-  height: auto !important;
+  height: auto;
   max-height: none;
   overflow: visible;
-  padding: 4px 8px 8px !important;
+  padding: 4px 8px 8px;
 }
 /* A trick tile is .trick-card, not .card, so the aspect/height escape hatch
    above (scoped to .inspect-card) reaches it, but its own fixed width does
