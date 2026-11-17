@@ -75,12 +75,24 @@ function pendingKind() {
   return null;
 }
 
+load('./sim/audit-seed.js');
+AuditSeed.init(argv, 'sim/aiStall2v2.js');
+
 var stalls = [];
 var threw = [];
 var tested = 0;
 
 CARD_DEFS.forEach(function (def) {
   if (def._spawnOnly) return;
+  var seedKey = 'card:' + def.name;
+  if (!AuditSeed.scenario(seedKey)) return;
+  // Only hard stalls (no one can answer) and throws are findings; a prompt
+  // parked on a human seat is the game correctly waiting.
+  var bad = function () { return stalls.filter(function (x) { return x.unanswerable; }).length + threw.length; };
+  var seedBefore = bad();
+  try { aiStallOne(def); } finally { AuditSeed.check(seedKey, seedBefore, bad()); }
+});
+function aiStallOne(def) {
   tested++;
   var tt = room();
   var casterSeat = 'p2';
@@ -141,7 +153,7 @@ CARD_DEFS.forEach(function (def) {
   Game._2v2AIDriving = null;
   Game.state.pendingCardChoice = null; Game.state.pendingLaneChoice = null;
   Game.state.pendingKangChoice = null; Game.state.pendingBlockTrick = null; Game.state.pendingJumpOffer = null;
-});
+}
 
 print('=== 2v2 AI-CASTER STALL SWEEP ' + (ALLAI ? '— one human, three AI ===' : '— one AI, three humans ===') + '');
 print('cards tested: ' + tested);
@@ -165,4 +177,5 @@ if (!hard.length) print('NO HANGS — every prompt an AI seat raised has someone
 // printing a count it can grep is what turns a tool nobody runs into one that
 // fails the build — which is the whole reason the sfx.playEffect relay gap sat
 // in this very output, correct and unread, for as long as it did.
+AuditSeed.report();
 print('AUDIT aiStall2v2: ' + (hard.length) + ' findings');

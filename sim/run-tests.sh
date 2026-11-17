@@ -457,11 +457,16 @@ run_audit() {
   local file="$1"
   [ -f "$file" ] || { echo "· skip $file (not present)"; return; }
   local out
-  out="$("$JSC" "$file" 2>&1)"
+  # AUDIT_SEED=<n> replays a whole CI run of the seeded audits locally.
+  out="$("$JSC" "$file" ${AUDIT_SEED:+-- --seed "$AUDIT_SEED"} 2>&1)"
   echo "$out" | grep -E "^AUDIT " | tail -1
   if echo "$out" | grep -qE "^AUDIT [^:]*: [1-9]"; then
     echo "  ❌ $file — findings (run it directly for the detail)"
-    echo "$out" | grep -vE "^\[SEED\]|^\[WARN\]" | tail -12 | sed 's/^/     /'
+    echo "$out" | grep -vE "^\[SEED\]|^\[WARN\]|^\[REPLAY\]|^\[AUDIT-SEED\]" | tail -12 | sed 's/^/     /'
+    # The seeded audits name their master seed and one replay command per
+    # failing scenario (sim/audit-seed.js); a random-seed failure is only
+    # useful if the log says how to get it back.
+    echo "$out" | grep -E "^\[AUDIT-SEED\]|^\[REPLAY\]" | sed 's/^/     /'
     FAIL=1
   elif ! echo "$out" | grep -qE "^AUDIT "; then
     echo "  ❌ $file — no verdict line (it threw before finishing?)"

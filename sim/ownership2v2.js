@@ -36,6 +36,9 @@ for (var i = 0; i < argv.length; i++) {
   if (argv[i] === '--seat') ONLY_SEAT = String(argv[i + 1] || '');
 }
 
+load('./sim/audit-seed.js');
+AuditSeed.init(argv, 'sim/ownership2v2.js');
+
 var SEATS = ['p1', 'p2', 'p3', 'p4'];
 var findings = [];
 var stats = { played: 0, prompts: 0, stamped: 0 };
@@ -259,12 +262,20 @@ var _origErr = console.error; console.error = function () {};
 var CASTERS = ONLY_SEAT ? [ONLY_SEAT] : ['p3', 'p2'];
 CASTERS.forEach(function (caster) {
   CARD_DEFS.forEach(function (d) {
+    var key = 'card:' + d.name + '@' + caster;
+    if (!AuditSeed.scenario(key)) return;
+    var before = findings.length;
     try { auditCard(d, caster); }
     catch (e) { note(d.name, 'THREW', 'harness: ' + (e.message || e)); }
+    AuditSeed.check(key, before, findings.length);
   });
   TRICK_DEFS.forEach(function (t) {
+    var key = 'trick:' + t.name + '@' + caster;
+    if (!AuditSeed.scenario(key)) return;
+    var before = findings.length;
     try { auditTrick(t, caster); }
     catch (e) { note('TRICK ' + t.name, 'THREW', 'harness: ' + (e.message || e)); }
+    AuditSeed.check(key, before, findings.length);
   });
 });
 console.error = _origErr;
@@ -300,4 +311,5 @@ print(total ? ('TOTAL FINDINGS: ' + total)
 // printing a count it can grep is what turns a tool nobody runs into one that
 // fails the build — which is the whole reason the sfx.playEffect relay gap sat
 // in this very output, correct and unread, for as long as it did.
+AuditSeed.report();
 print('AUDIT ownership2v2: ' + (total) + ' findings');

@@ -60,6 +60,9 @@ var SCENARIOS = {
   allhuman:  { caster: 'p3', ai: {},
                label: 'all four seats human' }
 };
+load('./sim/audit-seed.js');
+AuditSeed.init(argv, 'sim/audit2v2.js');
+
 var SCEN = SCENARIOS.guest;      // rebound per scenario by runScenario()
 
 var findings = [];   // { card, kind, detail }
@@ -368,12 +371,20 @@ function runScenario(name) {
   swallowed.length = 0;
 
   CARD_DEFS.forEach(function (d) {
+    var key = name + '/card:' + d.name;
+    if (!AuditSeed.scenario(key)) return;
+    var before = findings.length;
     try { auditCard(d); }
     catch (e) { note(d.name, 'THREW', 'audit harness: ' + (e.message || e)); }
+    AuditSeed.check(key, before, findings.length);
   });
   TRICK_DEFS.forEach(function (t) {
+    var key = name + '/trick:' + t.name;
+    if (!AuditSeed.scenario(key)) return;
+    var before = findings.length;
     try { auditTrick(t); }
     catch (e) { note('TRICK ' + t.name, 'THREW', 'audit harness: ' + (e.message || e)); }
+    AuditSeed.check(key, before, findings.length);
   });
 
   print('');
@@ -427,4 +438,5 @@ if (summary.length > 1) {
 // printing a count it can grep is what turns a tool nobody runs into one that
 // fails the build — which is the whole reason the sfx.playEffect relay gap sat
 // in this very output, correct and unread, for as long as it did.
+AuditSeed.report();
 print('AUDIT audit2v2: ' + (summary.reduce(function (n, r) { return n + r.total; }, 0)) + ' findings');
