@@ -2078,23 +2078,6 @@ body.hit-pause .ai-hand * {
 @media (prefers-reduced-motion: reduce) {
   .mm-mw3 .mm-hero { animation: none; }
 }
-.mm-mw3 .mm-hero-img {
-  position: absolute; inset: 0;
-  /* cover hero anchored to the RIGHT so the character stays put while the box
-     bleeds left into the panel. The contrast/saturate bump crisps the upscaled
-     art (perceived sharpening) — an AAA trick to hide low-res blur. */
-  background-size: cover; background-position: 72% 26%;
-  background-repeat: no-repeat;
-  opacity: 0;
-  filter: contrast(1.1) saturate(1.14) brightness(0.9);
-  transition: opacity 0.9s var(--ease-snap), filter 0.3s var(--ease-snap);
-  will-change: transform, opacity;
-}
-.mm-mw3 .mm-hero-img.is-visible {
-  /* the cover star is prominent (it lives on the dark right, away from text);
-     the Settings intensity slider still scales it. */
-  opacity: clamp(0.32, calc(var(--menu-flow-intensity, 0.18) + 0.54), 0.95);
-}
 /* Fine CRT scanlines over the hero — high-frequency texture that masks upscale
    blur and reads as Tron-monitor sci-fi. Subtle. */
 .mm-mw3 .mm-hero::after {
@@ -2105,8 +2088,6 @@ body.hit-pause .ai-hand * {
 @keyframes mmHeroDrift {
   0%   { transform: scale(1.05) translate(0, -1.5%); }
   100% { transform: scale(1.11) translate(-1.8%, 1.5%); }
-}
-@media (prefers-reduced-motion: reduce) {
 }
 /* ---- Fractured-mirror hero: 3 diagonal art bands + glowing neon seam-lines.
    Each shard clips one diagonal band of the (shared) art and offsets it
@@ -2148,14 +2129,6 @@ body.hit-pause .ai-hand * {
   transform: scaleX(-1);
   -webkit-mask-image: linear-gradient(to right, #000 0%, rgba(0,0,0,0) 72%);
           mask-image: linear-gradient(to right, #000 0%, rgba(0,0,0,0) 72%);
-}
-.mm-mw3 .mm-hero-reflect .mm-hero-img {
-  background-position: 50% 20%;
-  filter: blur(4px) saturate(1.05) brightness(0.55);
-  animation-duration: 38s;
-}
-.mm-mw3 .mm-hero-reflect .mm-hero-img.is-visible {
-  opacity: clamp(0.1, calc(var(--menu-flow-intensity, 0.18) + 0.16), 0.42);
 }
 /* Central neon SEAM — the Tron mirror line dividing grid from hero. */
 .mm-mw3 .mm-seam {
@@ -2483,29 +2456,6 @@ body.hit-pause .ai-hand * {
 /* In-shell multiplayer submenu — matches the main menu: left-aligned, boxless
    glow-text options + minimal underline fields (no popup, no segmented boxes). */
 .mm-mw3 .mp-section { max-width: 320px; }
-.mm-mw3 .mp-opts { margin-top: 2px; }
-/* Minimal name field — underline only, left-aligned. */
-.mm-mw3 .mp-name-min-row {
-  display: flex; align-items: baseline; gap: 10px;
-  margin: 2px 0 16px; padding-left: 2px;
-  /* Cap the underline to the menu-column width so it never bleeds right
-     into the hero art (matches the seam line). */
-  max-width: 230px;
-}
-.mm-mw3 .mp-name-min-label {
-  font-family: 'Rajdhani', sans-serif; text-transform: uppercase;
-  font-size: 10px; font-weight: 700; letter-spacing: 3px;
-  color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 55%, #dcebf8);
-}
-.mm-mw3 .mp-name-min {
-  flex: 1; min-width: 0; background: transparent; border: none;
-  border-bottom: 1px solid rgba(var(--theme-rgb,79,195,247),0.35);
-  color: var(--text-body, #e8eef6); font-family: 'Rajdhani', sans-serif; font-size: 16px;
-  font-weight: 600; letter-spacing: 0.5px; padding: 3px 2px; outline: none;
-  transition: border-color 0.2s var(--ease-snap);
-}
-.mm-mw3 .mp-name-min:focus { border-bottom-color: rgb(var(--theme-rgb,79,195,247)); }
-.mm-mw3 .mp-name-min::placeholder { color: rgba(159,207,237,0.35); }
 /* Glow-text action (Join / Leave / Cancel) — boxless, like a menu option. */
 .mm-mw3 .mp-glow-go {
   display: inline-block; background: none; border: none; padding: 4px 2px; margin: 0;
@@ -2519,19 +2469,6 @@ body.hit-pause .ai-hand * {
   color: #fff; transform: scale(1.08);
   text-shadow: 0 0 12px rgba(var(--theme-rgb,79,195,247),0.9), 0 0 22px rgba(var(--theme-rgb,79,195,247),0.5);
 }
-/* Inline join-code entry, indented under the Join Room option. */
-.mm-mw3 .mp-join-inline {
-  display: flex; align-items: center; gap: 14px;
-  margin: 0 0 8px; padding-left: 46px;
-}
-.mm-mw3 .mp-code-min {
-  width: 110px; background: transparent; border: none;
-  border-bottom: 1px solid rgba(var(--theme-rgb,79,195,247),0.45);
-  color: var(--text-body, #e8eef6); font-family: 'Rajdhani', sans-serif; font-size: 22px;
-  font-weight: 700; letter-spacing: 6px; text-align: center; padding: 2px 0; outline: none;
-}
-.mm-mw3 .mp-code-min:focus { border-bottom-color: rgb(var(--theme-rgb,79,195,247)); }
-.mm-mw3 .mp-code-min::placeholder { color: rgba(159,207,237,0.3); letter-spacing: 4px; }
 /* Status rows — left-aligned, no box. */
 .mm-mw3 .mp-status { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-top: 6px; padding-left: 2px; }
 .mm-mw3 .mp-status .mp-status-label,
@@ -2539,15 +2476,6 @@ body.hit-pause .ai-hand * {
 .mm-mw3 .mp-status .mp-hint,
 .mm-mw3 .mp-status .mp-pairing-line { text-align: left; margin: 0; }
 .mm-mw3 .mp-status .mp-loader { margin: 2px 0; }
-/* Waiting label with its dots inline. */
-.mm-mw3 .mp-status-waiting { display: flex; align-items: center; gap: 12px; }
-.mm-mw3 .mp-loader-inline { display: inline-flex; gap: 6px; margin: 0; justify-content: flex-start; }
-.mm-mw3 .mp-loader-inline span { width: 6px; height: 6px; box-shadow: 0 0 6px var(--theme-glow-outer, rgba(79,195,247,0.65)); }
-/* Room code — boxless glow-text (no border/fill), like the menu wordmark. */
-.mm-mw3 .mp-code-boxless {
-  background: none !important; border: none !important; padding: 0 !important;
-  font-size: 46px; letter-spacing: 12px; margin-top: 4px;
-}
 /* Tiny transport footer — just the actionable links. */
 .mm-mw3 .mp-transport-min {
   margin-top: 18px; padding-left: 2px;
@@ -2588,11 +2516,6 @@ body.hit-pause .ai-hand * {
   font-size: clamp(28px, 4vw, 54px); letter-spacing: 0.14em; text-transform: uppercase;
   color: var(--text-body, #e8eef6); text-shadow: 0 0 18px rgba(var(--theme-rgb,79,195,247),0.6);
 }
-.twov2-mm-label {
-  font-size: 12px; font-weight: 700; letter-spacing: 4px; text-transform: uppercase;
-  color: rgb(var(--theme-rgb,79,195,247));
-  border-left: 3px solid rgb(var(--theme-rgb,79,195,247)); padding-left: 10px; margin-bottom: 4px;
-}
 /* A 45% theme mix against #dcebf8 lands on pale blue-grey — technically tinted,
    read as grey. Weighted to the hue and given a soft glow so every line on this
    screen is lit. (User: "no grey text please.") */
@@ -2602,8 +2525,6 @@ body.hit-pause .ai-hand * {
   text-shadow: 0 0 8px rgba(var(--theme-rgb,79,195,247), 0.35);
   margin: 6px 0 18px;
 }
-.twov2-mm-namerow { display: flex; align-items: baseline; gap: 10px; max-width: 320px; margin: 4px 0 20px; }
-.twov2-mm-namelabel { font-size: 10px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 55%, #dcebf8); }
 .twov2-mm .twov2-mm-nameinput {
   flex: 1; min-width: 0; background: transparent; border: none;
   border-bottom: 1px solid rgba(var(--theme-rgb,79,195,247),0.35);
@@ -2612,18 +2533,6 @@ body.hit-pause .ai-hand * {
 }
 .twov2-mm .twov2-mm-nameinput:focus { border-bottom-color: rgb(var(--theme-rgb,79,195,247)); }
 .twov2-mm .twov2-mm-nameinput::placeholder { color: rgba(159,207,237,0.35); }
-.twov2-mm-opt {
-  display: flex; align-items: center; gap: 14px; background: none; border: none; cursor: pointer;
-  padding: 10px 2px; margin: 6px 0; font-family: 'Rajdhani', sans-serif; text-transform: uppercase;
-  font-size: 20px; font-weight: 700; letter-spacing: 3px;
-  color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 72%, #dcebf8);
-  text-shadow: 0 0 8px rgba(var(--theme-rgb,79,195,247),0.35);
-  transition: transform 150ms var(--ease-snap), color 0.2s var(--ease-snap), text-shadow 0.2s var(--ease-snap);
-}
-.twov2-mm-opt:hover { color: #fff; transform: scale(1.06); transform-origin: left center; text-shadow: 0 0 14px rgba(var(--theme-rgb,79,195,247),0.9), 0 0 26px rgba(var(--theme-rgb,79,195,247),0.5); }
-.twov2-mm-ic { font-size: 16px; opacity: 0.85; }
-.twov2-mm-optsub { font-size: 12px; letter-spacing: 2px; opacity: 0.5; }
-.twov2-mm-joinrow { display: flex; align-items: center; gap: 18px; margin: 8px 0; padding-left: 32px; }
 .twov2-mm .twov2-mm-code {
   width: 120px; background: transparent; border: none;
   border-bottom: 1px solid rgba(var(--theme-rgb,79,195,247),0.45);
@@ -2778,8 +2687,6 @@ body.hit-pause .ai-hand * {
      left). The desktop rule caps width to 86vh anchored right; portrait wants
      the art edge-to-edge behind the centered menu. */
   .mm-mw3 .mm-hero { left: 0; right: 0; width: 100%; }
-  .mm-mw3 .mm-hero-img { background-position: 50% 22%; background-size: cover; }
-  .mm-mw3 .mm-hero-img.is-visible { opacity: clamp(0.3, calc(var(--menu-flow-intensity, 0.18) + 0.42), 0.85); }
   /* Readability veil over the full-bleed art — darker top/bottom, a touch of
      dark in the middle so the centered glow-text stays legible, plus an edge
      vignette. */
@@ -4230,13 +4137,6 @@ body.hit-pause .ai-hand * {
   overflow: auto;
 }
 .mp-panel { max-width: 480px; }
-.mp-tabs {
-  display: flex; gap: 0;
-  margin: 18px 0 22px;
-  border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.30));
-  border-radius: 4px;
-  overflow: hidden;
-}
 .mp-tab {
   flex: 1;
   padding: 10px 16px;
@@ -4250,18 +4150,6 @@ body.hit-pause .ai-hand * {
   transition: background 0.15s var(--ease-snap), color 0.15s var(--ease-snap);
 }
 .mp-tab:hover { color: var(--text-hi, #f5fbff); background: rgba(var(--theme-rgb, 79,195,247),0.08); }
-.mp-pane {
-  display: flex; flex-direction: column; align-items: center;
-  gap: 14px;
-  padding: 18px 12px 6px;
-}
-.mp-pane-status { gap: 18px; padding-top: 10px; }
-.mp-explainer {
-  font-size: 13px; line-height: 1.5;
-  color: color-mix(in srgb, var(--theme-accent, rgb(79,195,247)) 25%, #c6d0db);
-  text-align: center;
-}
-.mp-explainer b { color: var(--text-hi, #f5fbff); font-weight: 700; }
 .mp-cta {
   /* Same Tron-style cta as the green Start Match button. */
   padding: 10px 28px;
@@ -4296,48 +4184,11 @@ body.hit-pause .ai-hand * {
   box-shadow: 0 0 10px rgba(231,76,60,0.45);
   color: #ffb5ad;
 }
-.mp-mode-divider {
-  font-size: 11px; color: #4a5866; letter-spacing: 2px;
-  text-transform: uppercase; margin: 16px 0 8px; text-align: center;
-}
-.mp-2v2-btn {
-  align-self: center;
-  min-width: 180px;
-}
-.mp-mode-sub {
-  font-size: 11px; color: #7a8691; text-align: center; margin-top: 4px;
-}
 .mp-hint {
   font-size: 11px; line-height: 1.5;
   color: #7a8691;
   text-align: center;
   letter-spacing: 0.5px;
-}
-.mp-code-input {
-  width: 220px;
-  padding: 16px 20px;
-  background: rgba(0,0,0,0.85);
-  border: 1px solid var(--theme-accent-ring, rgba(79,195,247,0.55));
-  border-radius: 2px;
-  color: var(--text-hi, #f5fbff);
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 32px; font-weight: 700;
-  letter-spacing: 8px; text-transform: uppercase;
-  text-align: center;
-  outline: none;
-  transition: border-color 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap);
-}
-.mp-code-input:focus {
-  border-color: var(--theme-accent-bright, #4fc3f7);
-  box-shadow: 0 0 14px var(--theme-glow-outer, rgba(79,195,247,0.45));
-}
-.mp-name-row {
-  display: flex; flex-direction: column; align-items: center; gap: 6px;
-  width: 100%; padding-bottom: 4px;
-}
-.mp-name-label {
-  font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
-  color: color-mix(in srgb, var(--theme-accent, rgb(79,195,247)) 50%, #9ecfed);
 }
 .mp-name-input {
   width: 220px; padding: 10px 14px;
@@ -4403,35 +4254,6 @@ body.hit-pause .ai-hand * {
 @keyframes mp-loader-bounce {
   0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
   40%           { transform: scale(1.0); opacity: 1.0; }
-}
-.mp-transport-line {
-  margin-top: 18px;
-  padding-top: 14px;
-  border-top: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.18));
-  font-size: 10px; line-height: 1.5;
-  letter-spacing: 1px; text-transform: uppercase;
-  text-align: center;
-  color: #6a7580;
-}
-.mp-transport-line code {
-  background: rgba(0,0,0,0.65);
-  border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.18));
-  padding: 1px 6px;
-  border-radius: 2px;
-  color: color-mix(in srgb, var(--theme-accent, rgb(79,195,247)) 30%, #c6d0db);
-  font-family: 'Rajdhani', monospace;
-  text-transform: none;
-  letter-spacing: 0;
-  font-size: 10px;
-}
-.mp-transport-line a {
-  color: var(--theme-accent-bright, #4fc3f7);
-  text-decoration: none;
-  border-bottom: 1px dashed var(--theme-accent-bright, rgba(79,195,247,0.50));
-}
-.mp-transport-line a:hover {
-  color: var(--text-hi, #f5fbff);
-  border-bottom-color: #f5fbff;
 }
 @container (max-width: 520px) {
   .mp-panel { padding: 40px 20px 24px; }
@@ -5273,87 +5095,12 @@ body.hit-pause .ai-hand * {
 }
 
 /* ---- Drafted tag row — unified black-hole spec ---- */
-.drafted-list {
-  margin-top: 18px;
-  font-family: 'Rajdhani', sans-serif;
-  /* --text-faint is #6a7580, a flat grey. Nothing paints with it here today
-     (the label is neon and every chip carries its own tier colour) but a grey
-     inherited colour is a grey waiting for the next child that forgets to set
-     one. Tinted so it cannot become one. */
-  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 55%, #ffffff); font-size: 11px;
-  letter-spacing: 2px; text-transform: uppercase;
-}
-.drafted-list strong {
-  color: #7fd0ff; margin-right: 8px;
-  font-weight: 700; letter-spacing: 2px;
-  text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247),0.45);
-}
 
 /* ---- Drafted tag rarity tiers ----
    Per-tag color mirrors the rarity-pip palette so the drafted list reads the
    same rarity signal as the in-game card chrome. Cards use the
    green/cyan/silver/gold tier palette. Tricks keep the purple/silver/gold
    ladder HERE only — the pips that used to state it on the tile are gone. */
-
-/* Cards: cost 0-3 → green common */
-.drafted-tag.cost-0,  .drafted-tag.cost-1,
-.drafted-tag.cost-2,  .drafted-tag.cost-3 {
-  color: #7ee8a5;
-  border-color: rgba(46,204,113,0.95);
-  box-shadow: 0 0 8px rgba(46,204,113,0.35), 0 0 16px rgba(46,204,113,0.15);
-  text-shadow: 0 0 4px rgba(46,204,113,0.55);
-}
-/* Cards: cost 4-6 → cyan uncommon */
-.drafted-tag.cost-4,  .drafted-tag.cost-5,  .drafted-tag.cost-6 {
-  color: #7fd0ff;
-  border-color: rgba(79,195,247,0.95);
-  box-shadow: 0 0 8px rgba(79,195,247,0.35), 0 0 16px rgba(79,195,247,0.15);
-  text-shadow: 0 0 4px rgba(79,195,247,0.55);
-}
-/* Cards: cost 7-8 → silver rare */
-.drafted-tag.cost-7,  .drafted-tag.cost-8 {
-  color: var(--text-body, #e8eef6);
-  border-color: rgba(240,245,250,0.95);
-  box-shadow: 0 0 8px rgba(240,245,250,0.40), 0 0 16px rgba(240,245,250,0.18);
-  text-shadow: 0 0 4px rgba(240,245,250,0.55);
-}
-/* Cards: cost 9-10 → gold legendary */
-.drafted-tag.cost-9,  .drafted-tag.cost-10 {
-  color: #ffd77a;
-  border-color: rgba(var(--gold-rgb),0.95);
-  box-shadow: 0 0 8px rgba(var(--gold-rgb),0.40), 0 0 16px rgba(var(--gold-rgb),0.18);
-  text-shadow: 0 0 4px rgba(var(--gold-rgb),0.55);
-}
-
-/* Tricks: cost 0-3 → purple (default trick color, reassert for specificity) */
-.drafted-tag.drafted-tag-trick.cost-0,
-.drafted-tag.drafted-tag-trick.cost-1,
-.drafted-tag.drafted-tag-trick.cost-2,
-.drafted-tag.drafted-tag-trick.cost-3 {
-  color: #d7b3e6;
-  border-color: rgba(155,89,182,0.95);
-  box-shadow: 0 0 8px rgba(155,89,182,0.35), 0 0 16px rgba(155,89,182,0.15);
-  text-shadow: 0 0 4px rgba(155,89,182,0.55);
-}
-/* Tricks: cost 4 → silver */
-.drafted-tag.drafted-tag-trick.cost-4 {
-  color: var(--text-body, #e8eef6);
-  border-color: rgba(240,245,250,0.95);
-  box-shadow: 0 0 8px rgba(240,245,250,0.40), 0 0 16px rgba(240,245,250,0.18);
-  text-shadow: 0 0 4px rgba(240,245,250,0.55);
-}
-/* Tricks: cost 5+ → gold */
-.drafted-tag.drafted-tag-trick.cost-5,
-.drafted-tag.drafted-tag-trick.cost-6,
-.drafted-tag.drafted-tag-trick.cost-7,
-.drafted-tag.drafted-tag-trick.cost-8,
-.drafted-tag.drafted-tag-trick.cost-9,
-.drafted-tag.drafted-tag-trick.cost-10 {
-  color: #ffd77a;
-  border-color: rgba(var(--gold-rgb),0.95);
-  box-shadow: 0 0 8px rgba(var(--gold-rgb),0.40), 0 0 16px rgba(var(--gold-rgb),0.18);
-  text-shadow: 0 0 4px rgba(var(--gold-rgb),0.55);
-}
 
 /* ---- AI HAND (condensed) ---- */
 .ai-hand-section {

@@ -585,19 +585,6 @@ body.in-match .cheat-help-toggle { display: flex; }
   filter: drop-shadow(0 0 7px rgba(231,76,60,0.85));
 }
 
-/* Eyebrow-tag utility — tiny uppercase brand strip that can sit above
-   any hero heading. Applied inline via <div class="hud-eyebrow">...</div>
-   when a screen wants the same "CARD LANE BATTLE" treatment. */
-.hud-eyebrow {
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 10px; font-weight: 700;
-  letter-spacing: 5px; text-transform: uppercase;
-  text-align: center;
-  opacity: 0.82;
-  margin-bottom: 8px;
-  text-indent: 5px;
-}
-
 /* Hairline divider with a neon-diamond tap — reusable separator for
    any panel that has a heading and a body section. */
 .hud-divider {
@@ -618,18 +605,6 @@ body.in-match .cheat-help-toggle { display: flex; }
   transform: translate(-50%, -50%) rotate(45deg);
   background: var(--theme-accent-bright, #4fc3f7);
   box-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247),1), 0 0 14px rgba(var(--theme-rgb, 79,195,247),0.65);
-}
-/* Red variant — for the dead pile divider so it matches the panel. */
-.hud-divider.hud-divider-red {
-  background: linear-gradient(90deg,
-    transparent 0%,
-    rgba(231,76,60,0.55) 20%,
-    rgba(231,76,60,0.55) 80%,
-    transparent 100%);
-}
-.hud-divider.hud-divider-red::after {
-  background: #ff8a7a;
-  box-shadow: 0 0 6px rgba(231,76,60,1), 0 0 14px rgba(231,76,60,0.65);
 }
 
 /* Unify hero titles across pre-match screens — same 40px Rajdhani
@@ -1261,8 +1236,7 @@ body, :root {
     drop-shadow(0 0 14px var(--theme-accent-edge)) !important;
 }
 .mm-title,
-.mm-subtitle,
-.hud-eyebrow {
+.mm-subtitle {
   color: var(--theme-accent-bright);
   text-shadow: 0 0 6px var(--theme-glow-outer);
 }
@@ -1429,7 +1403,6 @@ body.theme-purple, :root.theme-purple { --theme-r: 176; --theme-g: 97; --theme-b
 .hud-count-tricks b {
   color: #d7b3e6 !important;
 }
-.drafted-list-trick strong { color: #d7b3e6 !important; }
 
 /* ============================================================
    PLAYER-SIDE THEMING — the selected neon colour drives the
@@ -1769,9 +1742,7 @@ body {
 /* Hide the wordy definition prose — the chips convey the key
    numbers; tooltips still surface the detail on hover for anyone
    who wants the full methodology. */
-.stats-def-body,
-.stats-legend-body,
-.stats-methodology {
+.stats-def-body {
   display: none;
 }
 
@@ -2289,17 +2260,6 @@ body.round-first-ai .hud-pill-main {
   text-shadow:
     0 0 4px var(--theme-accent-bright),
     0 0 8px var(--theme-glow-outer);
-}
-
-/* Drafted-list sidebar — "CARDS:" / "TRICKS:" labels pick up theme.
-   The drafted-tag entries themselves keep their rarity-tier colour
-   (that's the user's explicit request: chip = rarity, label = theme). */
-.drafted-list strong,
-.drafted-list-trick strong {
-  color: color-mix(in srgb, var(--theme-accent) 35%, white) !important;
-  text-shadow:
-    0 0 6px var(--theme-accent-bright),
-    0 0 12px var(--theme-glow-outer) !important;
 }
 
 /* Trick-draft panel CHROME — every previously-white or hardcoded-purple
@@ -2984,29 +2944,6 @@ body.round-transition .board-section::before {
 }
 /* Combat phase — also themed now (was gold-locked). */
 
-/* Round recap numbers — theme the two side variants so "You" reads
-   in the player theme and "Enemy" reads in the enemy theme. Labels
-   keep neutral grey so the numbers pop. */
-.recap-val { color: var(--text-body, #f5fbff) !important; }
-.recap-val.recap-ally {
-  color: color-mix(in srgb, var(--player-accent) 35%, white) !important;
-  text-shadow: 0 0 6px var(--player-glow-outer), 0 0 12px var(--player-glow-inner) !important;
-}
-.recap-val.recap-enemy {
-  /* Full-saturation board red — was color-mixed with white (35/65) which
-     washed it out to a salmon pink that didn't match anything else on
-     the board. Text-shadow carries the neon halo; the text itself
-     should just be the enemy accent. */
-  color: rgb(var(--enemy-r), var(--enemy-g), var(--enemy-b)) !important;
-  text-shadow: 0 0 6px var(--enemy-glow-outer), 0 0 12px var(--enemy-glow-inner) !important;
-}
-.recap-row {
-  border-bottom-color: var(--theme-accent-dim) !important;
-}
-.recap-label {
-  color: color-mix(in srgb, var(--theme-accent) 25%, #b8c2cc) !important;
-}
-
 /* ============================================================
    POLISH PASS 3 — items #1-#11 from the agreed shortlist.
    ============================================================ */
@@ -3599,39 +3536,10 @@ body.kill-flash-ai::after {
     justify-content: center;
   padding: 24px;
 }
-.ci-backdrop {
-  position: absolute; inset: 0;
-  background: rgba(0, 0, 0, 0.78);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  animation: ciFadeIn 200ms ease-out;
-}
-@keyframes ciFadeIn {
-  0%   { opacity: 0; }
-  100% { opacity: 1; }
-}
-.ci-panel {
-  position: relative;
-  max-width: 420px; width: 100%;
-  padding: 34px 22px 22px;
-  background:
-    linear-gradient(180deg, var(--theme-wash-05, rgba(79,195,247,0.06)) 0%, rgba(0,0,0,0) 44%),
-    #000;
-  border: 1px solid var(--theme-accent-bright, #4fc3f7);
-  border-radius: 4px;
-  box-shadow:
-    0 0 30px var(--theme-glow-outer, rgba(79,195,247,0.55)),
-    0 0 72px var(--theme-glow-inner, rgba(79,195,247,0.25)),
-    inset 0 0 0 1px var(--theme-wash-08, rgba(79,195,247,0.08));
-  animation: ciPanelIn var(--panel-in-dur) var(--ease-out-soft) both;
-  font-family: 'Rajdhani', sans-serif;
-  color: var(--text-hi, #f5fbff);
-}
 @keyframes ciPanelIn {
   0%   { opacity: 0; transform: translateY(10px) scale(0.96); }
   100% { opacity: 1; transform: translateY(0)    scale(1); }
 }
-.ci-panel .card-cost { --cost-size: 28px; }
 .ci-name {
   font-size: 20px; font-weight: 700;
   letter-spacing: 3px; text-transform: uppercase;
@@ -3639,35 +3547,6 @@ body.kill-flash-ai::after {
   text-shadow:
     0 0 8px var(--theme-accent-bright, rgba(79,195,247,0.85)),
     0 0 18px var(--theme-glow-outer, rgba(79,195,247,0.40));
-}
-.ci-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
-.ci-badges .status-badge { font-size: 10px; padding: 2px 8px; letter-spacing: 0.8px; }
-.ci-stats {
-  display: inline-flex; gap: 4px;
-  font-size: 22px; font-weight: 700;
-  margin-bottom: 14px;
-  letter-spacing: 1px;
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-}
-.ci-atk   { color: #7ee8a5; text-shadow: 0 0 6px rgba(46,204,113,0.95), 0 0 14px rgba(46,204,113,0.50); }
-.ci-hp    { color: #f1948a; text-shadow: 0 0 6px rgba(231,76,60,1),   0 0 14px rgba(231,76,60,0.60); }
-.ci-slash { color: var(--text-faint, #6a7580); }
-.ci-desc {
-  font-family: 'Inter', system-ui, sans-serif;
-  font-size: 13px; line-height: 1.55; letter-spacing: 0.2px;
-  color: var(--text-dim, #d4ecff);
-  padding: 10px 12px;
-  background: var(--theme-wash-05, rgba(79,195,247,0.05));
-  border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.25));
-  border-radius: 4px;
-}
-.ci-trick-portrait {
-  width: 100%; height: 280px;
-  background-size: cover; background-position: center top;
-  border-radius: 4px;
-  margin-bottom: 12px;
-  border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.20));
 }
 
 /* TRICK INSPECT — no bespoke box any more. The modal now carries BOTH
@@ -3747,7 +3626,6 @@ input, textarea, select, [contenteditable="true"] { cursor: text !important; }
    cursor instead. Third layer on top of the JS pointerType gate. */
 @media (pointer: coarse), (hover: none), (max-width: 640px) {
   .custom-cursor,
-  .cursor-trail,
   #tron-cursor-trail { display: none !important; }
   html, body,
   *, *::before, *::after { cursor: auto !important; }
@@ -3825,15 +3703,6 @@ input, textarea, select, [contenteditable="true"] { cursor: text !important; }
   0%   { scale: 1;     }
   50%  { scale: 1.538; }
   100% { scale: 1;     }
-}
-
-/* Trail dots — disabled per user feedback: "get rid of the little tail
-   of gas behind the cursor its destracting. i just want the tron disc
-   lines." The 10 trail elements still get spawned by ui.js, but they
-   never paint. The Tron-disc SVG line trail (#tron-cursor-trail) is
-   the only motion cue now. */
-.cursor-trail {
-  display: none !important;
 }
 
 /* ---- #6 Typewriter letter stagger on phase banner ----
@@ -5398,15 +5267,6 @@ input:focus-visible,
   transition: transform 150ms var(--ease-out-soft), box-shadow 200ms var(--ease-snap);
 }
 
-/* Health-text count-down roll — when HP changes we scale briefly
-   to call attention, layered under the existing hp-shake. */
-@keyframes hpTextRoll {
-  0%, 100% { transform: scale(1); }
-  30%      { transform: scale(1.2); filter: brightness(1.4); }
-  60%      { transform: scale(0.95); }
-}
-.health-text span.hp-text-roll { animation: hpTextRoll 340ms var(--ease-out-soft); }
-
 /* Focus-visible key navigation hint — subtle underline beneath the
    currently-focused menu option or settings row, making tab-through
    feel deliberate. */
@@ -5430,32 +5290,6 @@ input:focus-visible,
   animation: draftCardEnter 360ms var(--ease-out-soft) both;
 }
 .draft-card:nth-of-type(2) { animation-delay: 80ms; }
-
-/* Hand card play — when a card leaves your hand to land on the
-   board, it scales up briefly as it exits. Replaces the instant
-   disappear that made plays feel abrupt. */
-@keyframes handCardExit {
-  0%   { opacity: 1; transform: scale(1); }
-  50%  { opacity: 0.6; transform: scale(1.15); filter: brightness(1.4); }
-  100% { opacity: 0; transform: scale(0.85); filter: brightness(0.6); }
-}
-.hand-card-wrapper.hand-card-exit {
-  animation: handCardExit 280ms cubic-bezier(0.4, 0, 0.6, 1) forwards;
-  pointer-events: none;
-}
-
-/* Round-summary row fade-in stagger — each row rises in one after
-   another instead of all at once, like a proper scoreboard reveal. */
-.round-summary-panel .recap-row {
-  animation: modalPanelRise var(--panel-in-dur) var(--ease-out-soft) both;
-}
-.round-summary-panel .recap-row:nth-child(1) { animation-delay: 80ms; }
-.round-summary-panel .recap-row:nth-child(2) { animation-delay: 140ms; }
-.round-summary-panel .recap-row:nth-child(3) { animation-delay: 200ms; }
-.round-summary-panel .recap-row:nth-child(4) { animation-delay: 260ms; }
-.round-summary-panel .recap-row:nth-child(5) { animation-delay: 320ms; }
-.round-summary-panel .recap-row:nth-child(6) { animation-delay: 380ms; }
-.round-summary-panel .recap-row:nth-child(7) { animation-delay: 440ms; }
 
 /* Game-over stats row stagger — same treatment. */
 .game-over-stats .go-stat-row {
@@ -6197,18 +6031,13 @@ input:focus-visible,
   box-shadow: 0 0 10px var(--theme-glow-outer) !important;
 }
 .stats-hist-title,
-.stats-flag-title,
-.stats-hist-run-label {
+.stats-flag-title {
   color: color-mix(in srgb, var(--theme-accent) 35%, white);
   text-shadow: 0 0 6px var(--theme-glow-outer);
 }
 .stats-hist-run {
   border-color: var(--theme-accent-edge) !important;
   background: linear-gradient(180deg, var(--theme-wash-05) 0%, rgba(0,0,0,0) 45%), #000000;
-}
-.stats-hist-run.stats-hist-run-active {
-  border-color: var(--theme-accent-bright) !important;
-  box-shadow: 0 0 10px var(--theme-glow-outer), 0 0 20px var(--theme-glow-inner) !important;
 }
 
 /* ============================================================

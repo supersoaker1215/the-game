@@ -695,9 +695,7 @@
    as-is — they're the character of the cards and shouldn't be cut.
    ──────────────────────────────────────────────────────────────────── */
 @media (pointer: coarse) {
-  .hud-strip,
-.game-hud,
-.player-bar,
+  .player-bar,
 .ai-bar,
 #game-area > div[class*="hud"],
 #game-area > div[class*="bar"] {
@@ -1684,8 +1682,7 @@
    SELECTION ON THE PLAYFIELD). The class itself stays as a state hook — the
    rules below only reach the two cursor-trail nodes, which is cheap. */
 /* No mouse cursor trail while dragging a card by finger. */
-body.mobile-card-dragging #tron-cursor-trail,
-body.mobile-card-dragging .cursor-trail { display: none !important; }
+body.mobile-card-dragging #tron-cursor-trail { display: none !important; }
 
 /* When the magnify is open on a hand card, freeze the WRAPPER's
    :hover transform AND the inner card's :hover transform. The
@@ -2877,9 +2874,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
 .game-over-stats .go-card-ally { color: #7fd0ff; }
 .game-over-stats .go-card-enemy { color: #ff9a8c; }
 @media (max-width: 600px) {
-  .sotm-body { flex-direction: column; align-items: center; gap: 12px; }
   .sotm-card { width: 90%; max-width: 220px; }
-  .sotm-stats { width: 100%; }
 }
 
 /* Stat-number chip — small tron readout with a vertical 2px team-colored
@@ -3630,7 +3625,6 @@ body.turn-combat .board .lane.lane-active {
      was looking, and it holds two of the three sliders — so this was the
      other half of "hit or miss". */
   .settings-row input[type="range"] { touch-action: pan-y; }
-  .settings-title { font-size: 18px; letter-spacing: 3px; margin-bottom: 8px; }
   .settings-group { margin-bottom: 10px; }
   .settings-group-title {
     font-size: 10px;
@@ -3654,12 +3648,8 @@ body.turn-combat .board .lane.lane-active {
   }
   .mh-title { font-size: 20px; letter-spacing: 3px; }
   .mh-sub   { font-size: 11px; }
-  .mp-tabs { gap: 6px; margin: 10px 0 12px; }
   .mp-tab { padding: 6px 8px; font-size: 11px; }
-  .mp-pane { gap: 10px; padding: 4px 0; }
-  .mp-explainer { font-size: 12px; line-height: 1.4; }
   .mp-cta { font-size: 12px; padding: 8px 12px; min-height: 38px; }
-  .mp-code-input { font-size: 22px; height: 44px; letter-spacing: 6px; }
   .mp-code-display { font-size: 32px; letter-spacing: 8px; padding: 10px; }
   .mp-status-label { font-size: 14px; letter-spacing: 2px; }
   .mp-pairing-line { font-size: 12px; }
@@ -3722,9 +3712,6 @@ body.turn-combat .board .lane.lane-active {
     border-radius: 0;
   }
   .stats-title { font-size: 18px; letter-spacing: 2px; }
-  .stats-sub { font-size: 11px; }
-  .stats-toolbar { flex-wrap: wrap; gap: 6px; }
-  .stats-tab { font-size: 11px; padding: 6px 8px; }
   .stats-table { font-size: 11px; }
   .stats-table th, .stats-table td { padding: 6px 4px; font-size: 11px; }
   .stats-table .stats-cost { width: 18px; height: 18px; line-height: 17px; font-size: 10px; }
@@ -3760,14 +3747,8 @@ body.turn-combat .board .lane.lane-active {
   }
   .game-over-title { font-size: 28px; letter-spacing: 5px; }
   /* Star of the Match — squeeze on mobile */
-  .sotm-panel { padding: 10px 12px 12px; }
   .sotm-banner { padding-bottom: 6px; gap: 6px; }
-  .sotm-title { font-size: 11px; letter-spacing: 2px; }
-  .sotm-side-tag { font-size: 9px; padding: 1px 6px; }
   .sotm-card { width: 130px; padding: 8px 6px 18px; }
-  .sotm-headline-value { font-size: 20px; }
-  .sotm-headline-label { font-size: 9px; }
-  .sotm-substat b { font-size: 13px; }
   .go-stat-row { padding: 4px 6px; font-size: 11px; }
   .go-stat-label { font-size: 10px; }
   .go-stat-value { font-size: 12px; }
@@ -3781,7 +3762,6 @@ body.turn-combat .board .lane.lane-active {
     max-height: calc(100vh - 24px);
     overflow-y: auto;
   }
-  .rs-title { font-size: 18px; letter-spacing: 2px; }
 
   /* ---- CHEAT SHEET ---- */
   .cheat-sheet-overlay { padding: 6px; }
@@ -3793,8 +3773,6 @@ body.turn-combat .board .lane.lane-active {
     overflow-y: auto;
   }
   .cheat-sheet-title { font-size: 18px; letter-spacing: 2px; }
-  .cs-section h3 { font-size: 13px; letter-spacing: 1.5px; }
-  .cs-row { font-size: 11px; gap: 6px; }
 
   /* ---- CHOICE TRAY (multi-target prompts) ---- */
   .choice-tray-panel { padding: 10px 12px 12px; max-width: calc(100vw - 16px); }
@@ -4255,127 +4233,9 @@ body.turn-combat .board .lane.lane-active {
   text-align: center;
   text-shadow: 0 0 12px rgba(var(--theme-rgb, 79,195,247),0.45);
 }
-.recap-row {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 8px 0;
-  border-bottom: 1px solid rgba(var(--theme-rgb, 79,195,247),0.10);
-}
-.recap-row:last-child { border-bottom: none; }
-.recap-label { color: var(--text-mute, #b8c2cc); font-size: 12px; letter-spacing: 0.5px; }
-.recap-val   {  font-weight: 600; font-size: 13px; }
-.recap-val.recap-ally  { color: #7fd0ff; }
 
 /* ---- Round-recap timeline strip ---- */
-.recap-timeline {
-  margin-bottom: 14px;
-  padding-bottom: 12px;
-  border-bottom: 1px dashed rgba(var(--theme-rgb, 79,195,247), 0.22);
-}
-.recap-timeline-label {
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 10px; font-weight: 700;
-  letter-spacing: 3px; text-transform: uppercase;
-  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 30%, #9ecfed);
-  margin-bottom: 8px;
-}
-.recap-timeline-rail {
-  display: flex; flex-wrap: wrap; gap: 6px;
-  max-height: 96px; overflow-y: auto;
-}
-.recap-tl-pill {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 4px 10px 4px 8px;
-  background: rgba(0,0,0,0.65);
-  border: 1px solid;
-  border-radius: 12px;
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 11px; font-weight: 700;
-  letter-spacing: 0.5px;
-  cursor: default;
-  animation: recapPillIn 380ms var(--ease-out-soft) both;
-}
-@keyframes recapPillIn {
-  0%   { opacity: 0; transform: translateY(6px) scale(0.92); }
-  100% { opacity: 1; transform: none; }
-}
-/* Stagger so pills pop in sequentially — reads as a mini timeline. */
-.recap-tl-pill:nth-child(2) { animation-delay: 40ms; }
-.recap-tl-pill:nth-child(3) { animation-delay: 80ms; }
-.recap-tl-pill:nth-child(4) { animation-delay: 120ms; }
-.recap-tl-pill:nth-child(5) { animation-delay: 160ms; }
-.recap-tl-pill:nth-child(6) { animation-delay: 200ms; }
-.recap-tl-pill:nth-child(n+7) { animation-delay: 240ms; }
-.recap-tl-icon {
-  font-size: 13px; line-height: 1;
-  filter: drop-shadow(0 0 3px currentColor);
-}
 /* Color by side — same palette as the recap rows. */
-
-
-/* Type-specific accents — kill pills get a subtle red inner glow,
-   trick pills get a purple sheen so the two event types read distinct
-   within the same side. */
-.recap-tl-pill.recap-tl-kill {
-  background: linear-gradient(120deg, rgba(231,76,60,0.08), rgba(0,0,0,0.75));
-}
-.recap-tl-pill.recap-tl-trick {
-  background: linear-gradient(120deg, rgba(155,89,182,0.10), rgba(0,0,0,0.75));
-}
-/* Rarity-tier neon highlighting on each pill — matches the cost-class
-   palette used throughout the game (codex, draft, deck builder, hand
-   cards). The `tl-player` / `tl-ai` side coloring above set a base
-   border tone; these per-cost overrides take precedence so a pill
-   for a legendary kill (cost 9-10) reads gold regardless of side, an
-   uncommon cyan, etc. User spec: "the cards on the timeline in round
-   recap are not neon highlighted, they should be." */
-.recap-tl-pill.cost-0, .recap-tl-pill.cost-1,
-.recap-tl-pill.cost-2, .recap-tl-pill.cost-3 {
-  /* Common — green */
-  color: #7ee8a5;
-  border-color: rgba(46, 204, 113, 0.85);
-  box-shadow: 0 0 8px rgba(46, 204, 113, 0.30), 0 0 18px rgba(46, 204, 113, 0.12);
-  text-shadow: 0 0 4px rgba(46, 204, 113, 0.55);
-}
-.recap-tl-pill.cost-4, .recap-tl-pill.cost-5, .recap-tl-pill.cost-6 {
-  /* Uncommon — cyan */
-  color: #7fd0ff;
-  border-color: rgba(79,195,247, 0.90);
-  box-shadow: 0 0 8px rgba(79,195,247, 0.35), 0 0 18px rgba(79,195,247, 0.15);
-  text-shadow: 0 0 4px rgba(79,195,247, 0.55);
-}
-.recap-tl-pill.cost-7, .recap-tl-pill.cost-8 {
-  /* Rare — silver */
-  color: var(--text-body, #e8eef6);
-  border-color: rgba(220, 230, 240, 0.90);
-  box-shadow: 0 0 8px rgba(220, 230, 240, 0.40), 0 0 18px rgba(220, 230, 240, 0.18);
-  text-shadow: 0 0 4px rgba(220, 230, 240, 0.55);
-}
-.recap-tl-pill.cost-9, .recap-tl-pill.cost-10 {
-  /* Legendary — gold */
-  color: #ffd77a;
-  border-color: rgba(var(--gold-rgb), 0.95);
-  box-shadow: 0 0 8px rgba(var(--gold-rgb), 0.45), 0 0 20px rgba(var(--gold-rgb), 0.20);
-  text-shadow: 0 0 4px rgba(var(--gold-rgb), 0.55);
-}
-/* Trick events stay purple regardless of cost — tricks are ALL
-   purple-themed in the game's visual language; the cost coloring
-   above is for character-card kills. Override with higher specificity. */
-.recap-tl-pill.recap-tl-trick.cost-0, .recap-tl-pill.recap-tl-trick.cost-1,
-.recap-tl-pill.recap-tl-trick.cost-2, .recap-tl-pill.recap-tl-trick.cost-3,
-.recap-tl-pill.recap-tl-trick.cost-4, .recap-tl-pill.recap-tl-trick.cost-5,
-.recap-tl-pill.recap-tl-trick.cost-6, .recap-tl-pill.recap-tl-trick.cost-7,
-.recap-tl-pill.recap-tl-trick.cost-8, .recap-tl-pill.recap-tl-trick.cost-9,
-.recap-tl-pill.recap-tl-trick.cost-10 {
-  color: #d7b3e6;
-  border-color: rgba(155, 89, 182, 0.90);
-  box-shadow: 0 0 8px rgba(155, 89, 182, 0.40), 0 0 18px rgba(155, 89, 182, 0.18);
-  text-shadow: 0 0 4px rgba(155, 89, 182, 0.55);
-}
-.recap-timeline-rail::-webkit-scrollbar { height: 6px; }
-.recap-timeline-rail::-webkit-scrollbar-thumb {
-  background: rgba(var(--theme-rgb, 79,195,247), 0.35);
-  border-radius: 2px;
-}
 
 /* ============================================================
    DRAW ANIMATION — ghost cards fly from the HUD deck counter to
@@ -4955,31 +4815,6 @@ body.turn-combat .board .lane.lane-active {
 .settings-quit-btn:active {
   transform: scale(0.97);
   filter: brightness(0.92);
-}
-/* Backup row — compact export/import buttons, sit between the
-   Gameplay settings group and the Save/Cancel footer. Theme-
-   tinted to match other meta actions. */
-.settings-backup-row {
-  display: flex; gap: 8px; justify-content: center;
-  margin-top: 14px; padding-top: 14px;
-  border-top: 1px dashed var(--theme-accent-edge, rgba(79,195,247,0.25));
-}
-.settings-backup-btn {
-  padding: 6px 14px;
-  background: #000;
-  border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.45));
-  color: color-mix(in srgb, var(--theme-accent, rgb(79,195,247)) 40%, white);
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 10px; font-weight: 700;
-  letter-spacing: 2px; text-transform: uppercase;
-  border-radius: 2px;
-  cursor: pointer;
-  transition: all 0.15s var(--ease-snap);
-}
-.settings-backup-btn:hover {
-  border-color: var(--theme-accent-bright, rgba(79,195,247,0.9));
-  color: var(--text-hi, #f5fbff);
-  box-shadow: 0 0 10px var(--theme-glow-outer, rgba(79,195,247,0.45));
 }
 
 /* Combat log — typographic polish */

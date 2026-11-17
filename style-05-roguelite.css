@@ -115,21 +115,6 @@
   border: 1px solid var(--tier-color);
   border-radius: 4px;
 }
-.rl-deck-rarity {
-  font-size: 10px; letter-spacing: 1.5px;
-  color: var(--tier-name);
-  font-family: 'Rajdhani', sans-serif;
-  font-weight: 700;
-}
-.rl-etch-pip {
-  display: inline-block;
-  padding: 2px 6px;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.20);
-  border-radius: 8px;
-  font-size: 10px; letter-spacing: 0.5px;
-  color: rgba(220,225,235,0.85);
-}
 
 /* ----- Deck / Trick viewer modal ----- */
 .rl-modal {
@@ -266,10 +251,6 @@
   color: var(--text-dim, #cfd6df);
   position: relative;
 }
-.rl-card-tile-header {
-  display: flex; align-items: center; gap: 6px;
-  margin-bottom: 4px;
-}
 .rl-card-cost {
   display: inline-block;
   width: 18px; height: 18px;
@@ -286,29 +267,12 @@
   font-weight: 700; letter-spacing: 1px;
   color: var(--tier-name);
 }
-.rl-card-stats {
-  font-size: 10px;
-  color: rgba(220,225,235,0.65);
-  letter-spacing: 0.5px;
-}
-.rl-card-desc {
-  font-size: 10px; line-height: 1.35;
-  color: rgba(220,225,235,0.75);
-  margin-bottom: 4px;
-}
-.rl-card-etches {
-  display: flex; flex-wrap: wrap; gap: 3px;
-  margin-top: 4px;
-}
-.rl-card-tile-trick { border-style: dashed; }
 
 /* Mobile */
 @container (max-width: 520px) {
   .rl-panel { padding: 18px 14px; }
   .rl-title { font-size: 22px; letter-spacing: 4px; }
-  .rl-boon-grid { grid-template-columns: 1fr; }
   .rl-rewards-grid { grid-template-columns: 1fr; }
-  .rl-end-stats { grid-template-columns: 1fr 1fr; }
   .rl-deck-grid { grid-template-columns: 1fr 1fr; }
   .rl-deck-grid-tricks { grid-template-columns: 1fr; }
   .rl-map-svg-wrap { padding: 6px; max-height: 50vh; }
@@ -405,7 +369,6 @@ button:focus-visible, .btn:focus-visible {
 .encyc-panel,
 .settings-panel,
 .mm-panel,
-.deckbuilder-panel,
 .stats-panel {
   animation: tron-modal-in var(--panel-in-dur) var(--ease-out-soft) both;
 }
@@ -434,7 +397,6 @@ button:focus-visible, .btn:focus-visible {
 .classic-overlay-closing .encyc-panel,
 .classic-overlay-closing .settings-panel,
 .classic-overlay-closing .stats-panel,
-.classic-overlay-closing .deckbuilder-panel,
 .classic-overlay-closing .mm-panel {
   animation: tron-modal-out 220ms cubic-bezier(0.4, 0, 0.6, 1) forwards !important;
 }
@@ -782,7 +744,6 @@ button:disabled, button[disabled] {
 }
 .gal-crop-card { width: 113px; }   /* 3:4 in-game card art */
 .gal-crop-menu { width: 74px; }    /* tall menu-hero slice */
-.gal-crop-area .gal-slider { width: 100%; font-size: 10px; gap: 6px; }
 .gal-crop-area .gal-reset { align-self: center; text-align: center; }
 /* Label = a bare caption on the art, no chip box. */
 .gal-tag {
@@ -816,8 +777,6 @@ button:disabled, button[disabled] {
 .gal-del:hover { background: none; color: #fff; transform: scale(1.25);
   text-shadow: 0 0 12px rgba(231,76,60,0.9), 0 0 20px rgba(231,76,60,0.5); }
 .gal-del-off { background: none; border: none; color: #56616c; cursor: not-allowed; }
-.gal-slider { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #7d90a2; }
-.gal-slider input[type=range] { flex: 1; accent-color: rgb(var(--theme-rgb,79,195,247)); }
 .gal-thumb-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .gal-reset { padding: 2px 6px; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
   color: #7d90a2; }
@@ -827,7 +786,6 @@ button:disabled, button[disabled] {
 .gal-zbtn { width: 24px; height: 20px; font-size: 16px; line-height: 1; padding: 0; }
 .gal-zbtn:hover { background: none; color: #fff; transform: scale(1.25);
   text-shadow: 0 0 10px rgba(var(--theme-rgb,79,195,247),0.85); }
-.gal-zoom-val { font-size: 10px; color: #7d90a2; min-width: 34px; text-align: center; }
 .gal-save {
   padding: 4px 8px; font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
   color: #8ef2ad;
@@ -1116,20 +1074,6 @@ button:disabled, button[disabled] {
 body {
   position: relative;
 }
-body > .scanline-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 2;
-  pointer-events: none;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent 0,
-    transparent 2px,
-    rgba(255,255,255,0.012) 2px,
-    rgba(255,255,255,0.012) 3px
-  );
-  mix-blend-mode: overlay;
-}
 
 /* ---- Make sure roguelite + main content sits above the body::before grid.
         DO NOT override `position` here — every overlay sets its own
@@ -1208,7 +1152,6 @@ body > .scanline-overlay {
         rule targets panels that previously lacked the brackets. */
 .settings-panel,
 .stats-panel,
-.deckbuilder-panel,
 .tutorial-panel,
 .md-panel {
   position: relative;
@@ -1217,8 +1160,6 @@ body > .scanline-overlay {
 .settings-panel::after,
 .stats-panel::before,
 .stats-panel::after,
-.deckbuilder-panel::before,
-.deckbuilder-panel::after,
 .tutorial-panel::before,
 .tutorial-panel::after,
 .md-panel::before,
@@ -1230,7 +1171,6 @@ body > .scanline-overlay {
 }
 .settings-panel::before,
 .stats-panel::before,
-.deckbuilder-panel::before,
 .tutorial-panel::before,
 .md-panel::before {
   top: -1px; left: -1px;
@@ -1240,7 +1180,6 @@ body > .scanline-overlay {
 }
 .settings-panel::after,
 .stats-panel::after,
-.deckbuilder-panel::after,
 .tutorial-panel::after,
 .md-panel::after {
   bottom: -1px; right: -1px;
@@ -1273,8 +1212,6 @@ body > .scanline-overlay {
 .settings-panel h2,
 .stats-panel h1,
 .stats-panel h2,
-.deckbuilder-panel h1,
-.deckbuilder-panel h2,
 .tutorial-panel h1,
 .tutorial-panel h2,
 .md-panel h1,
@@ -1312,9 +1249,7 @@ body > .scanline-overlay {
 
 /* ---- Tab/button-group harmony — applies to .db-tab, .encyc-tab,
         .stats-tab, etc. unified hover + active state. */
-.db-tab,
-.encyc-tab,
-.stats-tab {
+.db-tab {
   font-family: 'Rajdhani', sans-serif;
   font-size: 11px; font-weight: 700;
   letter-spacing: 3px; text-transform: uppercase;
@@ -1326,19 +1261,13 @@ body > .scanline-overlay {
   cursor: pointer;
   transition: border-color 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap), color 0.2s var(--ease-snap), background 0.2s var(--ease-snap);
 }
-.db-tab:hover,
-.encyc-tab:hover,
-.stats-tab:hover {
+.db-tab:hover {
   border-color: var(--theme-accent-bright, rgba(79,195,247,0.95));
   color: var(--theme-accent-bright, #d4ecff);
   box-shadow: 0 0 10px var(--theme-glow-outer, rgba(79,195,247,0.40));
 }
 .db-tab.db-filter-active,
-.encyc-tab.db-filter-active,
-.stats-tab.db-filter-active,
-.db-tab.active,
-.encyc-tab.active,
-.stats-tab.active {
+.db-tab.active {
   background: var(--theme-wash-08, rgba(79,195,247,0.10));
   border-color: var(--theme-accent-bright, rgba(79,195,247,1));
   color: var(--text-hi, #ffffff);
@@ -2274,8 +2203,6 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 
 /* Multiplayer tabs + form inputs — theme-aware borders. */
-.mp-tabs,
-.mp-code-input,
 .mp-code-display {
   border-color: rgba(var(--theme-rgb, 79,195,247), 0.45) !important;
 }
@@ -2287,7 +2214,6 @@ input[type="number"]::-webkit-outer-spin-button {
     0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.45),
     inset 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.10) !important;
 }
-.mp-code-input:focus,
 .mp-code-display:focus:not(:focus-visible) {
   outline: none !important;
   border-color: rgba(var(--theme-rgb, 79,195,247), 1) !important;
@@ -2704,10 +2630,6 @@ input[type="number"]::-webkit-outer-spin-button {
     0 0 5px rgba(var(--theme-rgb, 79,195,247), 1),
     0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.55);
 }
-.hud-eyebrow {
-  color: rgb(var(--theme-rgb, 79,195,247)) !important;
-  text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.45) !important;
-}
 /* General HUD divider (not the cyan-specific one). */
 .hud-divider:not(.hud-divider-cyan) {
   background: linear-gradient(90deg,
@@ -2885,8 +2807,7 @@ body.turn-player .hud-phase {
   pointer-events: none;
   transition: opacity 0.3s var(--ease-snap);
 }
-.lane[data-active="true"]::before,
-.state-combat .lane._activeLane::before {
+.lane[data-active="true"]::before {
   opacity: 0.35;
 }
 
@@ -2962,25 +2883,6 @@ body.turn-player .hud-phase {
    sweeps across the surface where the new fill ends. Builds on
    the existing .hp-pulse class (already wired via UI). New rule
    adds the leading-edge spike behavior. */
-.health-bar.hp-cycle::before {
-  content: "";
-  position: absolute;
-  top: 0; bottom: 0;
-  width: 3px;
-  background: rgba(255,255,255,0.95);
-  box-shadow:
-    0 0 8px  rgba(var(--theme-rgb, 79,195,247), 0.85),
-    0 0 16px rgba(var(--theme-rgb, 79,195,247), 0.55);
-  left: 0;
-  animation: hpLightCycle 480ms var(--ease-out-soft) forwards;
-  pointer-events: none;
-  z-index: 4;
-}
-@keyframes hpLightCycle {
-  0%   { left: 0%;   opacity: 0; }
-  20%  { opacity: 1; }
-  100% { left: 100%; opacity: 0; }
-}
 
 /* ---- #17 Identity-disc arc behind hover-magnified card ----
    When the magnify popup spawns, an arc of light traces around
@@ -3135,70 +3037,6 @@ body > .grid-bg {
      I'd rather just this not be in the game at all." */
   border: none;
   box-shadow: none;
-}
-
-/* Grid floor + haze are removed — they were the source of the
-   "stuff behind the lanes" problem. The base styles below now
-   no-op them in case any leftover DOM sneaks through. */
-.board-section .grid-floor { display: none !important; }
-
-/* Tron grid floor — fills the board-section, then rotateX(60deg)
-   stands it up on its bottom edge so it lays nearly horizontal
-   in 3D space. Combined with the parent's rotateX(12deg) and
-   #game-area's perspective, the grid lines recede to a vanishing
-   point behind the enemy lanes — exactly the Tron POV.
-   Painted with two repeating-linear-gradients (one per axis). */
-.board-section .grid-floor {
-  position: absolute;
-  /* Extend BELOW the board so the floor stretches "into the
-     distance" past the back wall. Negative top + bigger height
-     = floor that exits both edges of the visible board, with
-     the perspective transform converging the lines. */
-  left: -50%; right: -50%;
-  top: 50%;
-  height: 1500px;
-  pointer-events: none;
-  transform: rotateX(70deg);
-  transform-origin: top center;
-  background:
-    /* Vertical lines aligned to the LANE WIDTH (134px). The
-       earlier 40px spacing fought visually with the lanes —
-       two competing line systems made the back of the playfield
-       look noisy. With the grid stride matching lane stride,
-       the floor reads as a literal extension of the lane
-       boundaries running off into the distance. */
-    repeating-linear-gradient(90deg,
-      transparent 0,
-      transparent 133px,
-      rgba(var(--theme-rgb, 46, 204, 113), 0.45) 133px,
-      rgba(var(--theme-rgb, 46, 204, 113), 0.45) 134px),
-    /* Horizontal lines (perpendicular to viewer, recede with
-       perspective). Slightly tighter (90px) so the receding
-       lines paint a solid ground texture. */
-    repeating-linear-gradient(0deg,
-      transparent 0,
-      transparent 89px,
-      rgba(var(--theme-rgb, 46, 204, 113), 0.30) 89px,
-      rgba(var(--theme-rgb, 46, 204, 113), 0.30) 90px),
-    /* Subtle theme glow underwash so even the empty cells
-       between lines pick up a hint of color */
-    radial-gradient(ellipse at center top,
-      rgba(var(--theme-rgb, 46, 204, 113), 0.10) 0%,
-      transparent 60%);
-  /* Fade the floor to black at the far horizon so the lines
-     vanish into shadow rather than a hard tile-edge — that's
-     the Tron "more grid beyond, lost in the dark" cue. */
-  -webkit-mask-image: linear-gradient(180deg,
-    rgba(0,0,0,1) 0%,
-    rgba(0,0,0,0.75) 25%,
-    rgba(0,0,0,0.35) 60%,
-    transparent 100%);
-          mask-image: linear-gradient(180deg,
-    rgba(0,0,0,1) 0%,
-    rgba(0,0,0,0.75) 25%,
-    rgba(0,0,0,0.35) 60%,
-    transparent 100%);
-  z-index: 0;
 }
 
 /* Atmospheric haze. Applied as an overlay on the board-section
@@ -4367,18 +4205,6 @@ body.combat-anticipate::after  { content: none !important; }
     /* TL vertical */   linear-gradient(rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.6), rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.6)) top left / 1px 5px no-repeat,
     /* TR horizontal */ linear-gradient(rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.6), rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.6)) top right / 5px 1px no-repeat,
     /* TR vertical */   linear-gradient(rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.6), rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.6)) top right / 1px 5px no-repeat;
-}
-.card-data-divider .cdd-label {
-  /* Center label — small monospace, dark background masks the line. */
-  position: relative;
-  z-index: 1;
-  background: #000;
-  padding: 0 4px;
-  font-family: var(--font-mono);
-  font-size: 8px;
-  font-weight: 500;
-  letter-spacing: 0.18em;
-  color: rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75);
 }
 
 /* ----------------------------------------------------------------
@@ -5608,7 +5434,7 @@ body.round-tick .board::after {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .spino-sail, .wetlands-break, .spino-wake, .lane-fx-stage { display: none; }
+  .spino-sail, .wetlands-break, .lane-fx-stage { display: none; }
 }
 
 /* Environment cards in hand — no stat orbs, distinct border so they
@@ -5817,21 +5643,6 @@ body.round-tick .board::after {
   18%  { opacity: 1; transform: rotate(var(--sig-ang, 0deg)) scaleX(1);    filter: brightness(1.6); }
   70%  { opacity: 1; transform: rotate(var(--sig-ang, 0deg)) scaleX(1);    filter: brightness(1); }
   100% { opacity: 0; transform: rotate(var(--sig-ang, 0deg)) scaleX(1);    filter: brightness(1); }
-}
-.sig-beam-impact {
-  position: fixed;
-  width: 12px; height: 12px;
-  margin: -6px 0 0 -6px;
-  border-radius: 50%;
-  background: radial-gradient(circle, #fff 0%, var(--sig-c, #ff2d2d) 45%, transparent 70%);
-  pointer-events: none;
-  opacity: 0;
-  animation: sigBeamImpact 460ms ease-out 90ms forwards;
-}
-@keyframes sigBeamImpact {
-  0%   { opacity: 0; transform: scale(0.2); }
-  30%  { opacity: 1; transform: scale(3.4); }
-  100% { opacity: 0; transform: scale(5.2); }
 }
 /* Darkseid's eyes flare when the beam fires */
 .card.fx-eye-glow { animation: sigEyeGlow 500ms ease-out; }

@@ -149,12 +149,6 @@
    positioned on the cards." No override needed; the base rule already
    pins them to the bottom corners with the same chrome the board
    uses. */
-/* Traits / keyword badges intentionally inherit the base
-   `.card-abilities.status-badges { justify-content: center }` rule
-   so the codex badges render exactly like the board / hand cards.
-   User spec: "make them look like the board cards." */
-.enc-item { cursor: default; }
-.enc-item:hover { transform: none !important; }
 
 /* Hand-card style inside the codex — inherits all the rarity border
    / stat orb / name banner chrome from .card.hand-card so the codex
@@ -562,10 +556,8 @@ body {
   box-sizing: border-box;
 }
 .player-hand-container,
-.hand-area,
 #player-hand-area,
-.game-over-overlay .game-over-actions,
-.hud-strip {
+.game-over-overlay .game-over-actions {
   padding-bottom: max(8px, env(safe-area-inset-bottom));
   padding-top:    max(4px, env(safe-area-inset-top));
 }
@@ -1632,36 +1624,6 @@ body.combat-anticipate .board {
    GAME-OVER OVERLAY TOGGLE — let the player dismiss the result
    screen to look at the final board, then bring it back.
    ============================================================ */
-.game-over-toggle {
-  position: absolute;
-  top: 18px; right: 22px;
-  width: 36px; height: 36px;
-  border-radius: 50%;
-  background: rgba(0,0,0,0.75);
-  border: 1px solid var(--theme-accent, rgba(79,195,247,0.65));
-  color: var(--text-hi, #f5fbff);
-  font-size: 22px; font-weight: 500;
-  line-height: 1;
-  cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  z-index: 10;
-  transition: border-color 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap), transform 0.12s var(--ease-snap);
-  box-shadow:
-    0 0 8px rgba(var(--theme-rgb, 79,195,247),0.30),
-    0 0 18px rgba(var(--theme-rgb, 79,195,247),0.12);
-  font-family: 'Rajdhani', sans-serif;
-}
-.game-over-toggle:hover {
-  border-color: rgba(var(--theme-rgb, 79,195,247),1);
-  box-shadow:
-    0 0 14px rgba(var(--theme-rgb, 79,195,247),0.65),
-    0 0 30px rgba(var(--theme-rgb, 79,195,247),0.28);
-  transform: scale(1.05);
-}
-.game-over-toggle-glyph {
-  display: block;
-  margin-top: -2px; /* visually center the × glyph */
-}
 /* Floating "Show Result" button — visible only while the overlay is
    collapsed via the toggle. Pinned bottom-right of the viewport. */
 .game-over-restore {
@@ -2972,9 +2934,9 @@ html {
 #draw-pile-count,
 #trick-pile-count,
 .draft-hud-counter em,
-.mh-hp-player, .mh-hp-ai,
+.mh-hp-player,
+.mh-hp-ai,
 .draft-hud-counter,
-.curve-bucket-count,
 .db-deck-cost,
 .db-deck-count {
   font-feature-settings: "tnum" 1, "kern" 1;
@@ -4093,10 +4055,6 @@ body.round-tick .board-cursor-light { opacity: 0; }
 }
 
 /* Boon picker */
-.rl-boon-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
-  margin-top: 12px;
-}
 .rl-boon-card {
   background: #000;
   border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.40));
@@ -4120,7 +4078,6 @@ body.round-tick .board-cursor-light { opacity: 0; }
   margin-bottom: 6px;
   text-shadow: 0 0 6px var(--theme-glow-outer);
 }
-.rl-boon-desc { font-size: 13px; line-height: 1.4; color: var(--text-dim, #cfd6df); }
 
 /* Map HUD + node track */
 .rl-hud {
@@ -4129,12 +4086,6 @@ body.round-tick .board-cursor-light { opacity: 0; }
   font-family: 'Rajdhani', sans-serif;
   font-size: 14px; letter-spacing: 1px; text-transform: uppercase;
   flex-wrap: wrap;
-}
-.rl-hud-stat { color: rgba(220,225,235,0.85); }
-.rl-hud-stat b {
-  color: var(--theme-accent-bright, #b9f5cb);
-  margin-right: 6px;
-  text-shadow: 0 0 6px var(--theme-glow-outer);
 }
 
 /* New Tron-flavored HUD pills — one row of glyph + label + value with
@@ -4456,23 +4407,6 @@ body.round-tick .board-cursor-light { opacity: 0; }
     drop-shadow(0 0 30px var(--theme-glow-inner, rgba(79,195,247,0.30)));
 }
 
-/* Layout helpers for the pick screens. mm-options is a single column
-   by default (.mm-options is in .rl-panel which is centered) — so
-   .rl-mm-options-centered just enforces a max-width to kill empty
-   left/right space. .rl-mm-options-2col arranges the boon picks as
-   a 2x2 grid (user spec: "2 buttons left, 2 buttons right"). */
-.rl-mm-options-centered {
-  max-width: 520px;
-  margin-left: auto; margin-right: auto;
-}
-.rl-mm-options-2col {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-  max-width: 800px;
-  margin-left: auto; margin-right: auto;
-}
-
 /* Relic cards inside YOUR RELICS modal — full Tron chrome with
    beveled corner brackets, neon halo, and theme-driven accent.
    User direction: "needs to look way more Tron, kinda like a
@@ -4675,13 +4609,6 @@ body.round-tick .board-cursor-light { opacity: 0; }
 /* Codex card XP progress strip — sits just above the bottom edge of
    the card. Thin neon bar with a centered "X/Y XP" label. Capped
    legendary cards show MAX in gold. */
-.rl-card-xp {
-  position: absolute;
-  left: 6px; right: 6px; bottom: 4px;
-  display: flex; flex-direction: column; gap: 2px;
-  pointer-events: none;
-  font-family: 'Rajdhani', sans-serif;
-}
 .rl-card-xp-bar {
   height: 3px;
   background: rgba(0,0,0,0.55);
@@ -4689,29 +4616,6 @@ body.round-tick .board-cursor-light { opacity: 0; }
   border-radius: 2px;
   overflow: hidden;
 }
-.rl-card-xp-fill {
-  height: 100%;
-  background: linear-gradient(90deg, rgba(120,200,255,0.85), rgba(180,230,255,0.95));
-  box-shadow: 0 0 6px rgba(120,200,255,0.65);
-}
-.rl-card-xp-label {
-  text-align: center;
-  font-size: 8px; letter-spacing: 0.5px;
-  color: rgba(180,210,235,0.85);
-  line-height: 1;
-}
-.rl-card-xp-cap {
-  text-align: center;
-  font-size: 9px; letter-spacing: 1.5px;
-  color: rgba(255,215,140,0.95);
-  text-shadow: 0 0 5px rgba(255,200,100,0.55);
-  font-weight: 700;
-}
-/* When a card is shown in the rewards / shop / pickers, the XP bar
-   should hide (no progression context yet for unowned cards). Add a
-   parent flag the renderer can toggle. */
-.rl-reward-slot .rl-card-xp,
-.rl-shop-item .rl-card-xp { display: none; }
 
 /* Event narrative modal */
 .rl-event-flavor {
@@ -4728,7 +4632,6 @@ body.round-tick .board-cursor-light { opacity: 0; }
 }
 /* Daily Run option on the Ascension screen — gold accent so it reads as a
    distinct seeded mode, set apart from the difficulty choices. */
-.rl-asc-daily-divider { margin-top: 16px; opacity: 0.72; font-size: 12px; }
 .rl-event-choice.rl-asc-daily { border-color: rgba(var(--gold-rgb),0.55); }
 .rl-event-choice.rl-asc-daily:hover { border-color: rgba(var(--gold-rgb),0.9); box-shadow: 0 0 14px rgba(var(--gold-rgb),0.22); }
 .rl-event-choice.rl-asc-daily .rl-levelup-bucket { color: #ffd77a; }
@@ -6002,62 +5905,6 @@ body.round-tick .board-cursor-light { opacity: 0; }
     0 0 18px rgba(255,150,140,0.65),
     0 0 36px rgba(255,120,120,0.25);
 }
-.rl-map-track {
-  display: flex; align-items: center; justify-content: center;
-  gap: 4px; flex-wrap: wrap;
-  padding: 18px 0 24px;
-}
-.rl-node {
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  width: 78px; padding: 12px 6px;
-  background: #000;
-  border: 1px solid rgba(255,255,255,0.20);
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: 'Rajdhani', sans-serif;
-  color: var(--text-dim, #cfd6df);
-  transition: border-color 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap), transform 0.15s var(--ease-snap);
-}
-.rl-node-icon { font-size: 22px; line-height: 1; }
-.rl-node-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; }
-.rl-node-link {
-  width: 30px; height: 1px;
-  background: rgba(255,255,255,0.20);
-}
-.rl-node-current {
-  border-color: var(--theme-accent-bright, rgba(79,195,247,0.95));
-  box-shadow: 0 0 12px var(--theme-glow-outer, rgba(79,195,247,0.50));
-  color: var(--theme-accent-bright, #b9f5cb);
-}
-.rl-node-current:hover { transform: translateY(-2px); }
-.rl-node-done {
-  border-color: rgba(46,204,113,0.55);
-  color: rgba(46,204,113,0.65);
-  cursor: default;
-  opacity: 0.55;
-}
-.rl-node-locked {
-  cursor: not-allowed;
-  opacity: 0.30;
-}
-
-.rl-deck-peek {
-  margin-top: 8px;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 4px;
-  padding: 8px 12px;
-}
-.rl-deck-peek summary {
-  cursor: pointer;
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
-  color: rgba(220,225,235,0.75);
-}
-.rl-deck-list {
-  margin-top: 10px;
-  display: flex; flex-wrap: wrap; gap: 4px;
-}
 .rl-deck-card {
   display: inline-block;
   padding: 3px 8px;
@@ -6099,8 +5946,6 @@ body.round-tick .board-cursor-light { opacity: 0; }
   color: #b9f5cb;
   margin-bottom: 4px;
 }
-.rl-reward-stats { font-size: 11px; opacity: 0.65; margin-bottom: 8px; letter-spacing: 1px; }
-.rl-reward-desc { font-size: 11px; line-height: 1.35; color: var(--text-dim, #cfd6df); }
 .rl-rewards-skip { text-align: center; }
 /* Subtle hover-tip nudge under the Victory subtitle so first-time
    players know etch badges are interactive (cursor:help + brighten
@@ -6185,12 +6030,6 @@ body.round-tick .board-cursor-light { opacity: 0; }
   font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
   color: rgba(220,225,235,0.65);
 }
-.rl-end-relic-desc {
-  font-family: 'Inter', sans-serif;
-  font-size: 12px;
-  color: rgba(200,210,225,0.75);
-  margin-top: 4px;
-}
 .rl-end-deck {
   display: flex; flex-wrap: wrap; gap: 4px;
   margin: 10px 0 18px;
@@ -6242,13 +6081,6 @@ body.round-tick .board-cursor-light { opacity: 0; }
   font-size: 12px; letter-spacing: 3px; text-transform: uppercase;
   color: rgba(255,225,150,0.75);
   margin: 6px 0 0;
-}
-.rl-map-legend {
-  display: flex; justify-content: center; gap: 14px; flex-wrap: wrap;
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;
-  color: rgba(220,225,235,0.55);
-  margin-top: 4px;
 }
 .rl-legend-icon {
   display: inline-block;
@@ -6383,10 +6215,6 @@ body.round-tick .board-cursor-light { opacity: 0; }
    the legend doubles as a color key. User feedback: "the icons at the
    bottom kinda is flat right now. I'd like that to look a little
    bit better." */
-.rl-map-legend-tron {
-  gap: 8px;
-  padding: 10px 0 6px;
-}
 .rl-legend-pill {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 6px 12px;
@@ -6409,21 +6237,6 @@ body.round-tick .board-cursor-light { opacity: 0; }
 .rl-legend-elite  { color: rgba(220,180,255,0.95); border-color: rgba(220,180,255,0.45); }
 .rl-legend-treasure { color: rgba(255,225,150,0.95); border-color: rgba(255,225,150,0.55); }
 .rl-legend-boss   { color: rgba(255,150,150,0.95); border-color: rgba(255,150,150,0.55); }
-.rl-hud-deckbtn {
-  background: transparent;
-  border: 1px solid rgba(255,255,255,0.20);
-  color: rgba(220,225,235,0.85);
-  padding: 4px 10px;
-  border-radius: 2px;
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;
-  cursor: pointer;
-  transition: border-color 0.15s var(--ease-snap), color 0.15s var(--ease-snap);
-}
-.rl-hud-deckbtn:hover {
-  border-color: rgba(46,204,113,0.85);
-  color: #b9f5cb;
-}
 
 /* ----- Rarity tier styling (cards in rewards / deck viewer) ----- */
 .rl-tier-common    { --tier-color: rgba(46,204,113,0.95);  --tier-name: #5be39a; }

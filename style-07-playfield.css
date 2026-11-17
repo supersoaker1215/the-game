@@ -322,13 +322,6 @@ body.hand-text-always .trick-cards .trick-card .status-badges,
    number alone doesn't (how close to dead), so it stays. */
 
 /* ---- 5. Map legend --------------------------------------------- */
-.rl-map-legend .rl-legend-pill {
-  background: none !important;
-  border: none !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  padding: 4px 8px;
-}
 
 /* ---- 6. Panels: one rim, not a bloom ---------------------------
    .rl-panel and .rl-modal-panel stacked two and three outer glows,
@@ -510,12 +503,6 @@ body.hand-text-always .trick-cards .trick-card .status-badges,
   text-shadow: 0 0 12px var(--rlc), 0 0 22px color-mix(in srgb, var(--rlc) 45%, transparent);
 }
 .rl-hud .rl-hud-pill.rl-hud-btn:hover .rl-hud-label { color: #fff; }
-
-/* The map legend is the same problem one row down — seven node types
-   that all have a meaning already encoded in their own colour. Let the
-   word take the glyph's colour instead of printing grey next to it. */
-.rl-map-legend .rl-legend-pill { color: currentColor; }
-.rl-map-legend .rl-legend-pill span { color: inherit; }
 
 /* ============================================================
    IN-MATCH HUD CLUSTER — LOG + HINT + SETTINGS (2026-08-10)
@@ -1426,10 +1413,6 @@ body.low-fx .badge-asleep { animation: none; }
 .mm-section.mm-tier-1 .mm-option-label { font-size: 19px; letter-spacing: 3.4px; }
 .mm-section.mm-tier-1 .mm-option-sub   { font-size: 11px; }
 
-/* TIER 2 — LIBRARY. Player-facing reference; a step down, still full-voice. */
-.mm-section.mm-tier-2 .mm-option-label { font-size: 15px; letter-spacing: 2.8px; opacity: 0.88; }
-.mm-section.mm-tier-2 .mm-option-sub   { font-size: 10px; opacity: 0.85; }
-
 
 /* SOLO MATCH LEADS ITS OWN TIER. One clear first move, so the eye lands
    before it starts reading. A hair above its siblings — enough to rank,
@@ -1630,28 +1613,6 @@ body.low-fx .badge-asleep { animation: none; }
    Boxless, per the house rule — a rule above and glow text, no container.
    Colour carries the answer so it reads before the sentence does: theme accent
    when it is you, warm amber when it is not. */
-.draft-first {
-  display: flex; align-items: baseline; justify-content: center; gap: 8px;
-  margin: 6px 0 2px; padding-top: 6px;
-  border-top: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.16);
-}
-.draft-first-label {
-  font: 700 9px/1 'Rajdhani', sans-serif; letter-spacing: 3px;
-  text-transform: uppercase; opacity: 0.6;
-  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 60%, white);
-}
-.draft-first-who {
-  font: 700 13px/1 'Rajdhani', sans-serif; letter-spacing: 2.4px;
-  text-transform: uppercase;
-}
-.draft-first.is-mine .draft-first-who {
-  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 30%, #e8f5ff);
-  text-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.55);
-}
-.draft-first.is-theirs .draft-first-who {
-  color: #ffcf8a;
-  text-shadow: 0 0 10px rgba(255, 176, 92, 0.45);
-}
 
 /* ============================================================
    KILLER MOTH — THE LANE LIST IS THE WHOLE BADGE (2026-08-18)
@@ -2898,11 +2859,6 @@ body:not(.ambient-motion) .board-section .crt-scanlines { animation: none !impor
 .card-portrait > * {
   filter: brightness(calc(1 / var(--art-grade, 1)));
 }
-/* THE SWITCH. Resetting the variable disables the grade everywhere in one
-   declaration — the alternative, a rule that re-sets `filter`, is exactly the
-   mistake above: it would replace the tints and status treatments rather than
-   sit alongside them. */
-body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 
 
 /* ============================================================
@@ -3002,8 +2958,6 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
       linear-gradient(to bottom, transparent 0%, #000 11%, #000 86%, transparent 100%);
             mask-composite: intersect;
   }
-  /* Subject sits right of centre again, since it occupies the right column. */
-  .mm-mw3 .mm-hero-img { background-position: 62% 26%; }
 
   /* ---- The text column takes its own left axis ---- */
   .mm-mw3 .mm-header { align-items: flex-start; }
@@ -3590,8 +3544,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 /* The one-line description is dead weight on a screen this size — the label
    already says what the row does. Kept in the DOM for the submenus, which
    genuinely need it, and hidden only on the main list. */
-.mm-panel .mm-tier-1 .mm-option-sub,
-.mm-panel .mm-tier-2 .mm-option-sub { display: none; }
+.mm-panel .mm-tier-1 .mm-option-sub { display: none; }
 .mm-panel .mm-option-text { flex: 1 1 auto; min-width: 0; }
 .mm-panel .mm-option-meta {
   margin-left: auto;
@@ -6234,7 +6187,6 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    Both now key on the SIDE, not the seat — in 2v2 a teammate opening is your
    side opening — and both take their colours from --enemy-rgb / --theme-rgb
    rather than a hex, so a theme change carries them. */
-.draft-first.is-theirs .draft-first-who,
 .draft-panel .draft-hud .draft-hud-sub.draft-first-player.is-theirs {
   /* 62%, not the 34% the ally side uses. Red sits far lower in luminance than
      cyan, so the same mix that reads as bright neon on the player's colour
@@ -6245,7 +6197,6 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
     0 0 8px  rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.85),
     0 0 18px rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.45) !important;
 }
-.draft-first.is-mine .draft-first-who,
 .draft-panel .draft-hud .draft-hud-sub.draft-first-player.is-mine {
   color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 30%, #e8f5ff) !important;
   text-shadow:

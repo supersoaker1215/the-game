@@ -116,8 +116,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sig-bolt, .sig-beam, .sig-beam-impact, .sig-void-ring, .sig-devour-ghost,
-  .sig-spark, .sig-flash, .sig-shock {
+  .sig-bolt,
+  .sig-beam,
+  .sig-void-ring,
+  .sig-devour-ghost,
+  .sig-spark,
+  .sig-flash,
+  .sig-shock {
     animation: none !important;
     opacity: 0 !important;
   }
@@ -763,58 +768,16 @@ body.dragging-trick .tut-callout { pointer-events: none; }
   background: rgba(244,67,54,.08); border: 1px solid rgba(244,67,54,.3);
   border-radius: 4px; padding: 8px 12px; margin-bottom: 8px;
 }
-.setup2v2-online-form {
-  display: flex; flex-direction: column; gap: 6px; width: 100%;
-}
-.setup2v2-online-divider {
-  text-align: center; color: #4a6070; font-size: 0.75rem; margin: 10px 0;
-  letter-spacing: .06em;
-}
-.setup2v2-online-join-row {
-  display: flex; gap: 8px; align-items: center;
-}
-.setup2v2-input-code { flex: 1; font-size: 1.25rem; }
 /* Room code display */
 .setup2v2-room-code-wrap {
   display: flex; flex-direction: column; align-items: center;
   gap: 4px; margin: 8px 0 14px;
 }
-.setup2v2-room-code-label {
-  font-size: 0.6875rem; letter-spacing: .12em; color: #4a6070; text-transform: uppercase;
-}
-.setup2v2-room-code {
-  font-size: 2.5625rem; font-weight: 700; letter-spacing: .22em;
-  color: var(--theme-accent-bright, #4fc3f7); text-shadow: 0 0 14px rgba(var(--theme-rgb, 79,195,247),.5);
-  font-family: 'Courier New', monospace;
-}
-.setup2v2-room-code-sub { font-size: .75rem; color: #4a6070; }
 /* Lobby player list */
 .setup2v2-lobby-players {
   display: flex; flex-direction: column; gap: 6px; width: 100%; margin: 12px 0 0;
 }
-.setup2v2-lobby-player {
-  display: flex; align-items: center; gap: 10px;
-  background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.06);
-  border-radius: 8px; padding: 8px 12px;
-  transition: border-color .2s var(--ease-snap);
-}
-.setup2v2-lobby-player.setup2v2-lp-joined {
-  border-color: rgba(var(--theme-rgb, 79,195,247),.3);
-  background: rgba(var(--theme-rgb, 79,195,247),.05);
-}
-.setup2v2-lp-slot {
-  font-size: 0.75rem; font-weight: 700; letter-spacing: .06em;
-  border-radius: 4px; padding: 2px 8px; min-width: 28px; text-align: center;
-}
-.setup2v2-lp-a { background: rgba(var(--theme-rgb, 79,195,247),.15); color: var(--theme-accent-bright, #4fc3f7); }
-.setup2v2-lp-b { background: rgba(244,67,54,.15); color: #f44336; }
 .setup2v2-lp-name { flex: 1; font-size: 0.9375rem; color: var(--text-dim, #cfe2ef); }
-.setup2v2-lp-team { font-size: 0.6875rem; color: #4a6070; letter-spacing: .06em; }
-.setup2v2-lp-check { color: var(--theme-accent-bright, #4fc3f7); font-size: 1rem; min-width: 16px; text-align: center; }
-.setup2v2-lobby-wait {
-  text-align: center; color: #4a6070; font-size: 0.8125rem; margin-top: 14px;
-  letter-spacing: .04em;
-}
 
 /* --- Team Setup Screen --- */
 
@@ -1549,8 +1512,6 @@ body.dragging-trick .tut-callout { pointer-events: none; }
    stats on actual cards) are deliberately untouched.
    ============================================================ */
 .gal-note,
-.gal-slider,
-.gal-zoom-val,
 .gal-reset,
 .gal-card-count,
 .gal-fname,
@@ -1687,12 +1648,10 @@ body.turn-ai::before,
 body.turn-player::after,
 body.turn-combat::before,
 body.turn-combat::after,
-/* Board-wide sheens + floating motes. */
-  .board::before,
+.board::before,
 .board-section::before,
 .board-mote,
-/* Per-card idle loops — every board card was animating forever. */
-  .card.vibe-alien:not(.card-enter):not(.card-exit),
+.card.vibe-alien:not(.card-enter):not(.card-exit),
 .card.vibe-cosmic:not(.card-enter):not(.card-exit),
 .card.vibe-magnetic:not(.card-enter):not(.card-exit),
 .card.vibe-phase:not(.card-enter):not(.card-exit),
@@ -1701,30 +1660,24 @@ body.turn-combat::after,
 .card.vibe-symbiote:not(.card-enter):not(.card-exit),
 .card.vibe-titan:not(.card-enter):not(.card-exit),
 .tron-perimeter::after,
-/* HUD / chrome breathing. */
-  .hud-pill-main,
+.hud-pill-main,
 .hud-round #round-num,
 .hud-count b,
 .tron-fx-breathe,
 .lane-number,
 .empty-hand::before,
-/* Menu idle loops (particles + slow hero zoom). */
-  .mm-particle,
-.mm-mw3 .mm-hero-img {
+.mm-particle {
     animation: none !important;
   }
   .mm-particle, .board-mote { display: none; }
   /* Always-on backdrop blur = constant GPU compositing over the whole
      viewport. The surfaces keep their dark rgba backgrounds, so nothing
      goes transparent — they just stop live-blurring what's behind them. */
-  .hud-strip,
-.game-hud,
-.player-bar,
+  .player-bar,
 .ai-bar,
 #game-area > div[class*="hud"],
 #game-area > div[class*="bar"],
 .card-inspect-backdrop,
-.ci-backdrop,
 .rl-modal-backdrop,
 .app-modal-overlay,
 .multiplayer-overlay,
@@ -3659,7 +3612,6 @@ body.low-fx .game-particle { transform: none !important; }
    Every one of these repaints on mousemove, which is precisely when the
    flicker was reported. */
 body.low-fx .custom-cursor,
-body.low-fx .cursor-trail,
 body.low-fx #tron-cursor-trail,
 body.low-fx .mm-particle,
 body.low-fx .board-mote {
@@ -3729,8 +3681,7 @@ body.low-fx .hud-pill-main,
 body.low-fx .hud-round #round-num,
 body.low-fx .hud-count b,
 body.low-fx .lane-number,
-body.low-fx .empty-hand::before,
-body.low-fx .mm-mw3 .mm-hero-img {
+body.low-fx .empty-hand::before {
   animation: none !important;
 }
 
@@ -3865,15 +3816,6 @@ body.low-fx .card-portrait {
   margin-top: 16px;
 }
 .mp-deck-pick-waiting .mp-deck-hint { text-align: center; }
-/* "Share this code" line between the code and the deck picker. */
-.mp-share-hint {
-  margin-top: 8px;
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 12px;
-  letter-spacing: 0.4px;
-  color: rgba(170, 195, 215, 0.7);
-  text-align: center;
-}
 
 /* ---- Shared deck-build lobby: ready-check row ----------------------
    Both players build at once; each readies up when their deck is legal and
@@ -4064,7 +4006,6 @@ body.low-fx .card-portrait {
 .peek-toggle,
 .encyc-close,
 .card-inspect-close,
-.game-over-toggle,
 .viewport-toggle {
   /* The pseudo positions against the control, so it must not be static.
      Only .encyc-close was (the rest are already fixed/absolute). */
@@ -4073,13 +4014,12 @@ body.low-fx .card-portrait {
 /* Re-assert the ones that were already fixed/absolute — `position: relative`
    above must not clobber their placement. */
 .viewport-toggle { position: fixed; }
-.ci-close, .peek-toggle, .card-inspect-close, .game-over-toggle { position: absolute; }
+.ci-close, .peek-toggle, .card-inspect-close { position: absolute; }
 
 .ci-close::after,
 .peek-toggle::after,
 .encyc-close::after,
 .card-inspect-close::after,
-.game-over-toggle::after,
 .viewport-toggle::after {
   content: '';
   position: absolute;
@@ -6241,38 +6181,9 @@ body.low-fx .card-hollow-purple::after { animation: none !important; }
    mmHeroDrift itself is left untouched; nothing else references it now, but
    redefining a shared keyframe to suit one caller is how the next surface
    inherits a surprise. */
-/* A PAN, NOT A BREATH. User: "i just want the art to move around the screen,
-   thats all, nothing fancy" — said after rejecting both a bigger zoom and a
-   layered ember/light-pass treatment. So: the picture itself travels, and
-   nothing is added on top of it.
-   FOUR POINTS, NOT TWO. A two-keyframe alternate can only slide up one line and
-   back down it, which reads as a pendulum. Four points let it wander — left,
-   down, right, home — so at no moment is the next position the one it just
-   came from. It ends where it starts, so `infinite` loops seamlessly with no
-   `alternate` and no visible turn-around.
-   THE SCALE IS THE TRAVEL BUDGET. scale(1.08) leaves 4% of overscan on each
-   side, and the path never asks for more than 2.6% — so the art can move this
-   much without the edge of the image ever entering the frame. Raising the
-   travel means raising the scale first; that is the constraint to respect, not
-   the numbers themselves. */
-@keyframes mmHeroPan {
-  0%   { transform: scale(1.08) translate(0,     -1.5%); }
-  25%  { transform: scale(1.08) translate(-2.6%, -2.6%); }
-  50%  { transform: scale(1.08) translate(-1.2%,  0.6%); }
-  75%  { transform: scale(1.08) translate(2.2%,  -0.6%); }
-  100% { transform: scale(1.08) translate(0,     -1.5%); }
-}
-.mm-mw3 .mm-hero-img {
-  animation: mmHeroPan 60s ease-in-out infinite;
-  transform: scale(1.08) translate(0, -1.5%);
-}
 /* Reduced motion and the low-FX/battery path keep it pinned — the existing
    rules at 2292 and 36543 already target this element; this is the explicit
    partner for the new keyframe so neither can drift apart from the other. */
-@media (prefers-reduced-motion: reduce) {
-  .mm-mw3 .mm-hero-img { animation: none; transform: scale(1.08) translate(0, -1.5%); }
-}
-body.low-fx .mm-mw3 .mm-hero-img { animation: none; }
 
 /* ============================================================
    MENU TYPE SCALE — the caps were sized for a 560px column

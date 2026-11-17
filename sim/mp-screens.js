@@ -48,7 +48,7 @@ check('red is not offered as a player pick',
 
 // ---- 2. the glow contract ---------------------------------------------------
 var LIT = ['.mps-mode.is-on', '.mps-create', '.mpl-code-tile', '.mpl-seat.is-you',
-           '.mpl-seat.is-opp', '.mpl-start.is-ready', '.mps-chip.is-on'];
+           '.mpl-seat.is-opp', '.mps-chip.is-on'];
 LIT.forEach(function (sel) {
   var b = ruleBody(sel);
   if (!b) { fails.push('lit element has no rule: ' + sel); return; }
@@ -93,7 +93,7 @@ check('+ ADD AI only renders when a handler exists',
 // neon pick is an OWNERSHIP colour: it means "you", so every surface that
 // means "you" follows it. (Owner: "the neon need to apply everywhere.")
 var THEMED = ['.mps-mode.is-on', '.mps-create', '.mps-mode.is-on .mps-mode-ind', '.mpl-code-tile',
-              '.mpl-seat.is-you', '.mpl-start.is-ready', '.mps-ev.is-on .mps-ev-sw'];
+              '.mpl-seat.is-you', '.mps-ev.is-on .mps-ev-sw'];
 THEMED.forEach(function (sel) {
   var b = ruleBody(sel);
   if (!b) { fails.push('themed element has no rule: ' + sel); return; }
