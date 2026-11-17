@@ -148,7 +148,7 @@ var r1 = row('slot9MC Ballyhoo');
 // `is-arriving` is added at creation, then the same pass writes
 // `el.className = def.cls`, which wipes it before anything paints: the
 // entrance start state never renders (ui.js _renderEventRail).
-knownBug('a new row arrives with the entrance class', !!r1 && r1.classList.contains('is-arriving'),
+check('a new row arrives with the entrance class', !!r1 && r1.classList.contains('is-arriving'),
          'className is "' + (r1 && r1.className) + '" straight after the render that created it');
 flushRaf(); flushRaf();
 check('…and none is left on after it has painted', !!r1 && !r1.classList.contains('is-arriving'));

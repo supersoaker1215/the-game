@@ -15013,7 +15013,10 @@ const UI = {
         listEl.appendChild(el);
         requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('is-arriving')));
       }
-      if (el.className !== def.cls) el.className = def.cls;
+      // The class rewrite must carry `is-arriving` through, or it erases the
+      // entrance in the same render that created the row.
+      const cls = el.classList.contains('is-arriving') ? def.cls + ' is-arriving' : def.cls;
+      if (el.className !== cls) el.className = cls;
       if (el.style.getPropertyValue('--ev-rgb') !== def.rgb) el.style.setProperty('--ev-rgb', def.rgb);
       if (def.door) {
         if (!el.hasAttribute('role')) { el.setAttribute('role', 'button'); el.setAttribute('tabindex', '0'); }
