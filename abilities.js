@@ -6004,7 +6004,13 @@ const CARD_ABILITIES = {
         }
         const pickNext = () => {
           if (purgedCount >= purgeCap) return;
-          const remaining = eligible.filter(i => !G.state.lanes[i].destroyed);
+          // Re-check every prompt: destroying a lane runs death triggers that can
+          // empty a side of another lane, and a lane is only purgeable while both
+          // sides are occupied (sim/darkseid-purge.js).
+          const remaining = eligible.filter(i => {
+            const L = G.state.lanes[i];
+            return !L.destroyed && L[self.owner] && L[opp];
+          });
           if (!remaining.length) return;
           const choices = remaining.map(i => {
             const p = G.state.lanes[i][self.owner];

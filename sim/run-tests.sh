@@ -344,6 +344,14 @@ run_suite sim/idle-loops.js
 echo "=== status-oneshots.js (status cards still lunge/flash/knock back — loops yield to one-shots) ==="
 run_suite sim/status-oneshots.js
 
+echo ""
+echo "=== apocalypse-summon.js (Apocalypse raises a random 1-4 cost card) ==="
+run_suite sim/apocalypse-summon.js
+
+echo ""
+echo "=== darkseid-purge.js (the purge re-checks lanes between prompts) ==="
+run_suite sim/darkseid-purge.js
+
 echo "=== sjw-ai.js (the AI sees Sung Jin-Woo at his real X/X) ==="
 run_suite sim/sjw-ai.js
 
