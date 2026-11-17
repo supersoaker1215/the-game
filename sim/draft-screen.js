@@ -1,15 +1,18 @@
 // ============================================================
-// DRAFT — the owner's six changes, pinned.
+// DRAFT SCREEN — header, card face and layout rules.
 //
 //   jsc sim/draft-screen.js
 //
 // Each case names the thing that was wrong, because several of these are
-// choices a later pass would happily undo as a "consistency" fix.
+// choices a later pass would happily undo as a "consistency" fix. The header
+// is checked by rendering the real draft (UI.renderDraft); the card face and
+// layout rules are cascade facts, so they are checked as stylesheet text.
 // ============================================================
 
-var CSS = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join(''));
-var BARE = CSS.replace(/\/\*[\s\S]*?\*\//g, function (c) { return c.replace(/[^\n]/g, ' '); });
-var UI  = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
+var __SIM_ROOT_OVERRIDE = '.';
+load('./sim/shim-dom.js');
+var CSSTEXT = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join(''));
+var BARE = CSSTEXT.replace(/\/\*[\s\S]*?\*\//g, function (c) { return c.replace(/[^\n]/g, ' '); });
 
 var pass = 0, fails = [];
 function check(name, cond, detail) { if (cond) pass++; else fails.push(name + (detail ? ' — ' + detail : '')); }
@@ -39,15 +42,31 @@ function ruleBody(sel) {
 }
 
 // ---- 1 · one header, progress as a five-segment tick -----------------------
-check('the header is one row, not three stacked bars',
-      /class="dh-left"/.test(UI) && /class="dh-progress"/.test(UI) && /class="dh-actions"/.test(UI));
+Game.init();
+Game.startMatch('classic');
+function draftAt(phase, round) {
+  Game.state.draft.phase = phase; Game.state.draft.round = round;
+  UI.renderDraft(Game.state);
+  return UI.draftEl;
+}
+var dEl = draftAt('cards', 3);
+var hud = dEl.querySelector('.draft-hud');
+check('the header is one row of three parts, not three stacked bars',
+      !!hud && hud.children.map(function (c) { return c.className; }).join('|') === 'dh-left|dh-progress|dh-actions',
+      hud && hud.children.map(function (c) { return c.className; }).join('|'));
 check('the old stacked rows are gone',
-      !/class="draft-hud-row"/.test(UI.slice(UI.indexOf('renderDraft(s) {'))) &&
-      !/class="draft-first /.test(UI.slice(UI.indexOf('renderDraft(s) {'))),
-      'renderDraft still emits draft-hud-row / draft-first');
-check('pick progress is a segmented tick', /class="dh-tick"/.test(UI) && /dh-seg/.test(UI));
+      dEl.querySelectorAll('.draft-hud-row').length === 0 && dEl.querySelectorAll('.draft-first').length === 0);
+var segs = dEl.querySelectorAll('.dh-tick .dh-seg');
+check('pick progress is a five-segment tick', segs.length === 5, segs.length);
+check('…filled up to the current pick, which is marked now',
+      segs.map(function (x) { return x.classList.contains('is-done') ? 1 : 0; }).join('') === '11100' &&
+      segs.filter(function (x) { return x.classList.contains('is-now'); }).length === 1 &&
+      segs[2].classList.contains('is-now'));
+check('…and it is labelled for assistive tech',
+      (dEl.querySelector('.dh-tick') || { getAttribute: function () {} }).getAttribute('aria-label') === 'Pick 3 of 5');
 check('the numbered round pips are not used by the draft header',
-      !/draft-hud-pips/.test(UI.slice(UI.indexOf('renderDraft(s) {'), UI.indexOf('renderDraft(s) {') + 4000)));
+      dEl.querySelectorAll('.draft-hud-pips').length === 0 && dEl.querySelectorAll('.draft-pip').length === 0);
+check('the trick phase has a two-segment tick', draftAt('tricks', 1).querySelectorAll('.dh-tick .dh-seg').length === 2);
 
 // ---- 2 · body neutral, trigger labels keep the accent ----------------------
 var body = ruleBody('.draft-card .card-desc,\n.draft-card .card-desc .cd-row,\n.draft-card .card-desc .cd-eff');

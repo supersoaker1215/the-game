@@ -1,16 +1,15 @@
 // ============================================================
-// THE PRESENTATION DIRECTOR + THE VOICE CHANNEL
-//   spec: docs/superpowers/specs/2026-11-10-presentation-director-design.md
+// THE PRESENTATION DIRECTOR + THE VOICE CHANNEL + THE MIXER
 //
 //   jsc sim/fx-director.js
 //
-// Owner: "sometimes voicelines, or animations are missed entirely … should
-// there be a separate engine that handles animation?"
-// Measured first: the 60-event cap was not dropping events (~15 a round, max
-// batch 10). The miss was the dispatcher playing a whole burst in ONE frame,
-// and two foreground audio cues simply overlapping.
-// The shim runs setTimeout synchronously, which would hide all pacing, so this
-// installs its own timer queue and asserts WHEN each event plays.
+// The director (UI._fxDirect) paces a burst of FX events one beat at a time,
+// sized to the animations each beat starts, and the engine's lane loop waits
+// for it. The voice channel keeps two foreground cues from overlapping, and the
+// mixer routes samples onto music/sfx/voice buses. The shim runs setTimeout
+// synchronously, which would hide all pacing, so this installs its own timer
+// queue and asserts WHEN each event plays; Web Audio runs against a fake
+// context.
 // ============================================================
 var __SIM_ROOT_OVERRIDE = '.';
 load('./sim/shim-dom.js');
@@ -84,9 +83,20 @@ check('two announcements in a burst: the first now, the second later; combat is 
 while (tick()) {}
 check('…and the second announcement does play', PLAYED.indexOf('trickReveal:t2') >= 0);
 
-// 8. showDamageFloats routes through the director
-check('the dispatcher reads the stream and hands it to the director',
-      /showDamageFloats\(\)\s*\{\s*const events = Game\.flushDmg\(\);\s*if \(events\.length\) this\._fxDirect\(events\);/.test((read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'))));
+// 8. showDamageFloats routes the engine's stream through the director
+(function () {
+  var realFlush = Game.flushDmg, realDirect = UI._fxDirect, handed = [];
+  UI._fxDirect = function (evs) { handed.push(evs); };
+  var batch = [{ type: 'hit', cardId: 3, amount: 2 }];
+  Game.flushDmg = function () { return batch; };
+  UI.showDamageFloats();
+  check('the dispatcher hands the flushed stream to the director', handed.length === 1 && handed[0] === batch, handed.length);
+  handed = [];
+  Game.flushDmg = function () { return []; };
+  UI.showDamageFloats();
+  check('…and an empty flush does not wake it', handed.length === 0, handed.length);
+  Game.flushDmg = realFlush; UI._fxDirect = realDirect;
+})();
 
 // ---- STEP 1: a beat lasts as long as its animations ---------------------------
 reset();
@@ -125,7 +135,25 @@ check('with nothing playing, the lane gap is exactly the speed setting', Game._l
 reset(); FAKE_ANIMS = [];
 for (var k = 0; k < 6; k++) UI._fxDirect([{ type: 'hit', attackerId: 50 + k, len: 2400 }]);
 check('…and the director\'s share of the wait is capped at 2.5s (the existing audio-tail wait keeps its own rules)', Game._laneGapMs() <= Math.max(Game.COMBAT_LANE_DELAY, 2500), Game._laneGapMs());
-check('the lane scheduler uses it', /this\._schedule\(\(\) => resolveLane\(i \+ 1\), this\._laneGapMs\(\)\)/.test(read('game.js')));
+// The engine's lane loop really waits _laneGapMs between lanes: run a real
+// combat with two occupied lanes and record what each schedule asked for.
+(function () {
+  var realSched = Game._schedule, realGap = Game._laneGapMs, asked = [];
+  Game.init();
+  function plain(owner) {
+    var c = Game.createCardInstance({ name: 'Plain ' + owner, cost: 1, attack: 1, health: 9 }, owner);
+    c.attack = 1; c.currentHealth = 9; c.maxHealth = 9; return c;
+  }
+  Game.state.lanes[0].player = plain('player');
+  Game.state.lanes[2].ai = plain('ai');
+  Game._laneGapMs = function () { return 1234; };
+  Game._schedule = function (fn, ms) { asked.push(ms); fn(); return 0; };
+  try { Game.resolveCombat(); } catch (e) { asked.push('threw ' + e); }
+  Game._schedule = realSched; Game._laneGapMs = realGap;
+  var gaps = asked.filter(function (ms) { return ms === 1234; }).length;
+  check('the lane scheduler waits _laneGapMs after each fought lane', gaps === 2, asked.join(','));
+})();
+TIMERS = [];
 delete document.getAnimations;
 UI._fxPlayOne = function (ev) { PLAYED.push(ev.type + (ev.tag ? ':' + ev.tag : '')); };
 
@@ -155,16 +183,83 @@ check('…and pulls everything else down to 35% of its own level', full > 0 && M
 var a5 = S._playSample('audio/x/three.mp3', { category: 'play', noFade: true });
 check('a card play during a voice line plays under it, never cutting it', a5 && a5._voiceUnder === true && !a4.paused);
 
-// ---- STEP 3: the mixer (Web Audio can't run headless — assert its wiring) ----
-var SRC = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
-check('samples are routed into the mixer just before they play', /this\._route\(pick, this\._MIX_BUS_OF\[cat\] \|\| 'sfx'\);\s*try \{\s*pick\.volume = 0;/.test(SRC));
-check('three buses: music, sfx, voice', /\['music', 'sfx', 'voice'\]\.forEach\(b => \{ mix\[b\] = ctx\.createGain\(\)/.test(SRC));
-check('a routed element\'s volume drives its GainNode (so every existing fade works, iOS included)',
-      /Object\.defineProperty\(el, 'volume', \{[\s\S]{0,120}get\(\) \{ return g\.gain\.value; \}/.test(SRC));
-check('it only routes a RUNNING context (a suspended one would play silence)', /this\._ctx\.state === 'running'/.test(SRC));
-check('a failed route leaves that element on the native path', /el\._mixFailed = true;/.test(SRC));
-check('music joins the music bus, including once the context wakes', /this\._route\(a, 'music'\)/.test(SRC) && /resume\(\)\.then\(\(\) => \{ if \(this\._music\) this\._route\(this\._music, 'music'\)/.test(SRC));
-check('a voice line ducks the music bus', /this\._mixDuck\('music', this\._VOICE_UNDER_GAIN, 150\)/.test(SRC));
+// ---- STEP 3: the mixer, against a fake Web Audio context -------------------
+function Gain() { this.gain = { value: 1 }; this.connect = function (n) { this.to = n; return n; }; }
+function fakeContext(state) {
+  return { state: state, destination: { dest: true }, currentTime: 0,
+    createGain: function () { return new Gain(); },
+    createMediaElementSource: function () { return { connect: function (n) { this.to = n; return n; } }; },
+    resume: function () { var ctx = this; ctx.state = 'running'; return { then: function (f) { f(); return { catch: function () {} }; }, catch: function () {} }; } };
+}
+if (typeof HTMLMediaElement === 'undefined') this.HTMLMediaElement = function () {};
+(function () {
+  var savedCtx = S._ctx, savedMix = S._mix, savedRoute = S._route, savedDuck = S._mixDuck;
+  // samples are routed, on the bus their category owns, BEFORE they play
+  var log = [];
+  S._route = function (el, bus) { log.push('route:' + bus); return false; };
+  var realPlay = FakeAudio.prototype.play;
+  FakeAudio.prototype.play = function () { log.push('play'); return realPlay.call(this); };
+  S._voiceNow = null; S._activeNonHover = new Set();
+  S._playSample('audio/x/route-a.mp3', { category: 'play', noFade: true });
+  check('a card-play sample is routed to the voice bus before it plays',
+        log.indexOf('route:voice') >= 0 && log.indexOf('route:voice') < log.indexOf('play'), log.join(','));
+  log = [];
+  S._playSample('audio/x/route-b.mp3', { category: 'effect', noFade: true });
+  check('an effect sample is routed to the sfx bus before it plays',
+        log.indexOf('route:sfx') >= 0 && log.indexOf('route:sfx') < log.indexOf('play'), log.join(','));
+  FakeAudio.prototype.play = realPlay;
+  S._route = savedRoute;
+
+  // three buses, each into one output on the destination
+  S._ctx = fakeContext('running'); S._mix = null;
+  S._mixBus('sfx');
+  var mix = S._mix;
+  check('three buses: music, sfx, voice', !!mix && !!mix.music && !!mix.sfx && !!mix.voice && mix.music !== mix.sfx && mix.sfx !== mix.voice);
+  check('…all feeding one output on the destination',
+        !!mix && mix.music.to === mix.out && mix.sfx.to === mix.out && mix.voice.to === mix.out && mix.out.to === S._ctx.destination);
+
+  // a failed route leaves that element native, and is not retried
+  var proto = HTMLMediaElement.prototype;
+  Object.defineProperty(proto, 'volume', { configurable: true, get: function () { return 1; }, set: function () {} });
+  S._ctx = fakeContext('running'); S._mix = null;
+  var tries = 0;
+  S._ctx.createMediaElementSource = function () { tries++; throw new Error('already sourced'); };
+  var bad = Object.create(proto);
+  check('a failed route reports false', S._route(bad, 'sfx') === false);
+  check('…and marks the element so it stays on the native path', bad._mixFailed === true && !bad._mixGain);
+  S._route(bad, 'sfx');
+  check('…without retrying it', tries === 1, tries);
+
+  // music joins the music bus, including once a suspended context wakes
+  S._ctx = fakeContext('suspended'); S._mix = null;
+  var routed = [];
+  S._route = function (el, bus) { routed.push(bus + ':' + (el === S._music)); return true; };
+  var savedMusic = S._music, savedArmed = S._armed, listeners = {};
+  var realWAL = window.addEventListener;
+  window.addEventListener = function (t, fn) { listeners[t] = fn; };
+  S._music = new FakeAudio(); S._armed = false;
+  S.arm();
+  window.addEventListener = realWAL;
+  check('arming waits for a gesture', routed.length === 0, routed.join());
+  if (listeners.pointerdown) listeners.pointerdown();
+  check('the first gesture wakes the context and routes the music to its bus',
+        S._ctx.state === 'running' && routed.indexOf('music:true') >= 0, routed.join());
+  S._music = savedMusic; S._armed = savedArmed; S._route = savedRoute;
+
+  // a voice line ducks the music bus (only when the mixer is live)
+  var ducks = [];
+  S._ctx = fakeContext('running'); S._mix = null; S._mixBus('sfx');
+  S._mixDuck = function (bus, level, ms) { ducks.push(bus + '@' + level); };
+  S._voiceNow = null; S._activeNonHover = new Set();
+  S._playSample('audio/x/duck-v.mp3', { category: 'voiceLine', noFade: true });
+  check('a voice line ducks the music bus', ducks[0] === 'music@' + S._VOICE_UNDER_GAIN, ducks.join());
+  ducks = [];
+  S._voiceNow = null;
+  S._playSample('audio/x/duck-p.mp3', { category: 'effect', noFade: true });
+  check('…an ordinary effect does not', ducks.length === 0, ducks.join());
+  S._mixDuck = savedDuck;
+  S._ctx = savedCtx; S._mix = savedMix;
+})();
 // and the routing itself, against a fake context
 (function () {
   var made = [];
@@ -185,6 +280,7 @@ check('a voice line ducks the music bus', /this\._mixDuck\('music', this\._VOICE
   check('…the native volume is pinned at 1', nativeVol.v === 1, nativeVol.v);
   el.volume = 0.2;
   check('…and writing el.volume now moves the gain node, not the element', Math.abs(el._mixGain.gain.value - 0.2) < 1e-9 && nativeVol.v === 1);
+  check('…and reading el.volume reports the gain, so fades see where they are', Math.abs(el.volume - 0.2) < 1e-9, el.volume);
   check('…which feeds the voice bus', el._mixGain.to === S._mix.voice);
   fakeCtx.state = 'suspended';
   var el2 = Object.create(proto);

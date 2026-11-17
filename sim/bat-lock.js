@@ -3,42 +3,25 @@
 //
 //   jsc sim/bat-lock.js
 //
-// Owner: "can you put a bat symbol over the highest cost cards that cant be
-// played in the opponents hand?"
+// Batman locks the opponent's highest-cost AFFORDABLE card, and the hand marks
+// it with a bat silhouette so a locked card reads differently from a card you
+// merely cannot pay for. Guarded here, by rendering the real hand
+// (UI.renderPlayerHand):
 //
-// Batman locks the opponent's highest-cost AFFORDABLE card. Before this, the
-// locked card and a card you simply could not pay for rendered identically —
-// both `.unplayable`, both grey — and the only thing that told them apart was
-// an `el.title`, which needs a hover and a fine pointer. On a phone the rule
-// had no representation on screen at all.
-//
-// Three traps this pins, each of which cost a real measurement:
-//
-//   1. THE BRANCH. `batBlocked` was computed inside the `!hasPending` arm of
-//      the hand renderer, so the instant anybody opened a prompt the marker's
-//      input went away and the card fell back to looking merely expensive.
-//      The affordability light is documented as "always-on" for exactly this
-//      reason; the lock is the same kind of truth about the same card.
-//
-//   2. THE FILTER. `.card.unplayable` carries `filter: grayscale(.95)
-//      brightness(.6)`, and `filter` applies to the element AND its
-//      descendants as one group. A marker parented inside `.card` would be
-//      greyed and dimmed by the very rule it exists to explain. It has to be
-//      a SIBLING, which is why the mark hangs on `.hand-card-wrapper`.
-//
-//   3. THE ANIMATION FILL. The entrance was first written as
-//      `.bat-lock { animation: batLockStamp ... both }`, whose keyframes end
-//      `to { opacity: 1 }`. `fill-mode: both` keeps applying that after the
-//      animation finishes, and animation values outrank every normal
-//      declaration — so it silently ate the flip-dim rule below it no matter
-//      how specific that rule was. Measured in-browser: opacity stayed 1 on a
-//      flipped card with the animation on `.bat-lock`, and drops to 0.16 with
-//      it on the inner `<svg>`. Same keyframes, different element, opposite
-//      outcome. Nothing about the source LOOKS different.
+//   1. THE BRANCH. The lock is a fact about the card, so it shows whether or
+//      not a prompt is open; computed inside the `!hasPending` arm it vanished
+//      whenever anybody opened one.
+//   2. THE FILTER. `.card.unplayable` greys the card AND its descendants as one
+//      group, so the mark must be a sibling on `.hand-card-wrapper`, never a
+//      child of `.card`.
+//   3. THE ANIMATION FILL. An opacity-touching entrance with fill-mode `both`
+//      on `.bat-lock` itself outranks the flip-dim rule; it lives on the inner
+//      <svg>. That is a cascade fact, so it is checked as stylesheet text (the
+//      shim has no cascade).
 // ============================================================
 
 var __SIM_ROOT_OVERRIDE = '.';
-load('./sim/shim.js');
+load('./sim/shim-dom.js');
 
 var __cases = [], __passed = 0, __failed = 0, __failures = [];
 function t(name, fn) { __cases.push({ name: name, fn: fn }); }
@@ -98,44 +81,70 @@ t('BL-4 nothing is marked when you cannot afford anything', function () {
   eq('no marks', blockedNames(hand).length, 0);
 });
 
-// ---- 2. the marker is wired where the truth is, not where one branch is ----
-t('BL-5 the hand renderer asks for the lock OUTSIDE the playability branch', function () {
-  var ui = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
-  var decl  = ui.indexOf("const batBlocked = Game.isCardBatmanBlocked('player', card)");
-  var branch = ui.indexOf('} else if (!hasPending) {');
-  eq('the lock is computed', decl > 0, true);
-  eq('and computed BEFORE the branch that used to own it', decl < branch, true);
-  // Exactly one place decides this. A second copy is how the two branches
-  // drifted apart in the first place.
-  eq('only one site computes it',
-     (ui.match(/const batBlocked = Game\.isCardBatmanBlocked/g) || []).length, 1);
+// ---- 2. the marker, as the real hand renderer draws it ----------------------
+// Renders the player's hand through UI.renderPlayerHand and reads the tree.
+function renderHand(costs, currency, opts) {
+  opts = opts || {};
+  if (!opts.keep) {
+    Game.init();
+    UI._handWrappers = null;
+    if (UI.playerHand) UI.playerHand.innerHTML = '';
+    Game.state.player.hand = costs.map(function (c, i) {
+      return Game.createCardInstance({ name: 'Lock Test ' + i, cost: c, attack: 1, health: 1 }, 'player');
+    });
+  }
+  Game.state.round = 3;
+  if (currency != null) armLock(currency);
+  UI.renderPlayerHand(Game.state);
+  return UI.playerHand.querySelectorAll('.hand-card-wrapper');
+}
+function markOf(wrap) { return wrap.children.filter(function (c) { return c.classList.contains('bat-lock'); })[0] || null; }
+function cardOf(wrap) { return wrap.children.filter(function (c) { return c.classList.contains('card'); })[0] || null; }
+function marked(wraps) {
+  return wraps.filter(function (w) { return !!markOf(w); }).map(function (w) { return +(cardOf(w).className.match(/cost-(\d+)/) || [])[1]; });
+}
+
+t('BL-5 the hand shows the lock on exactly the locked cards', function () {
+  var wraps = renderHand([2, 5, 10], 5);
+  eq('three wrappers', wraps.length, 3);
+  eq('the 5 is marked', JSON.stringify(marked(wraps)), '[5]');
+  eq('the card carries the locked class', cardOf(wraps[1]).classList.contains('batman-locked'), true);
+  eq('an unlocked card does not', cardOf(wraps[0]).classList.contains('batman-locked'), false);
 });
 
-t('BL-6 the marker is applied unconditionally, once per hand card', function () {
-  var ui = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
-  eq('the helper exists', /_applyBatLock\(wrap, el, on\)/.test(ui), true);
-  eq('and is called with the live answer',
-     (ui.match(/this\._applyBatLock\(wrap, el, batBlocked\)/g) || []).length, 1);
-  // Idempotence is the contract: called every render, from every branch.
-  // Absent + locked builds it, present + locked leaves it (so the one-shot
-  // entrance plays once per lock), present + unlocked removes it.
-  var body = ui.slice(ui.indexOf('_applyBatLock(wrap, el, on) {'));
-  body = body.slice(0, body.indexOf('\n  },'));
-  eq('it removes the mark when the lock lifts', /if \(!on\) \{ if \(mark\) mark\.remove\(\); return; \}/.test(body), true);
-  eq('it does not rebuild an existing mark', /if \(mark\) return;/.test(body), true);
+t('BL-6 the lock survives an open prompt (it is not owned by the playability branch)', function () {
+  var wraps = renderHand([2, 5, 10], 5);
+  Game.state.pendingCardChoice = { owner: 'ai', cards: [], prompt: 'someone else is choosing' };
+  wraps = renderHand(null, null, { keep: true });
+  eq('still marked while a prompt is up', JSON.stringify(marked(wraps)), '[5]');
+  Game.state.pendingCardChoice = null;
 });
 
-t('BL-7 the mark hangs on the WRAPPER — inside .card the grayscale filter eats it', function () {
-  var ui = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
-  var body = ui.slice(ui.indexOf('_applyBatLock(wrap, el, on) {'));
-  body = body.slice(0, body.indexOf('\n  },'));
-  eq('appended to the wrapper', /wrap\.appendChild\(mark\)/.test(body), true);
-  eq('never appended to the card', /el\.appendChild\(mark\)/.test(body), false);
+t('BL-7 re-renders keep the same mark, and lifting the lock removes it', function () {
+  var wraps = renderHand([2, 5, 10], 5);
+  var first = markOf(wraps[1]);
+  wraps = renderHand(null, null, { keep: true });
+  eq('the mark is not rebuilt on a re-render (the entrance plays once)', markOf(wraps[1]) === first, true);
+  eq('and there is exactly one', wraps[1].children.filter(function (c) { return c.classList.contains('bat-lock'); }).length, 1);
+  Game.state.player.batmanBlocked = 0; Game.state.player.batmanBlockedUntil = 0;
+  wraps = renderHand(null, null, { keep: true });
+  eq('the mark is gone once the lock lifts', JSON.stringify(marked(wraps)), '[]');
+  eq('and so is the locked class', cardOf(wraps[1]).classList.contains('batman-locked'), false);
+});
+
+t('BL-8 the mark hangs on the WRAPPER — inside .card the grayscale filter eats it', function () {
+  var wraps = renderHand([2, 5, 10], 5);
+  var mark = markOf(wraps[1]);
+  eq('the mark exists', !!mark, true);
+  eq('its parent is the wrapper', !!mark && mark.parentNode === wraps[1], true);
+  eq('nothing .bat-lock lives inside any card', UI.playerHand.querySelectorAll('.card .bat-lock').length, 0);
+  eq('it sits after the card, so it paints over it', wraps[1].children.indexOf(mark) > wraps[1].children.indexOf(cardOf(wraps[1])), true);
+  eq('it is decoration, hidden from assistive tech', !!mark && mark.getAttribute('aria-hidden'), 'true');
   // And the greying rule this is dodging really does still exist — if it is
   // ever dropped, this test should be revisited rather than silently kept.
   var css = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join(''));
   eq('.card.unplayable still applies a group filter',
-     /\.card\.unplayable[^{]*\{[^}]*filter:[^;]*grayscale/.test(css), true);   // any surviving .card.unplayable rule (the dead duplicate one-liner was merged away 2026-11-12)
+     /\.card\.unplayable[^{]*\{[^}]*filter:[^;]*grayscale/.test(css), true);
 });
 
 // ---- 3. the CSS traps ------------------------------------------------------
@@ -147,7 +156,7 @@ function bareCss() {
   });
 }
 
-t('BL-8 no rule selects .bat-lock as a DESCENDANT of .card', function () {
+t('BL-12 no rule selects .bat-lock as a DESCENDANT of .card', function () {
   var css = bareCss();
   var offenders = [];
   css.replace(/([^{}]+)\{[^{}]*\}/g, function (whole, sel) {
@@ -169,7 +178,7 @@ t('BL-8 no rule selects .bat-lock as a DESCENDANT of .card', function () {
   eq('descendant-of-card selectors', JSON.stringify(offenders), '[]');
 });
 
-t('BL-9 the entrance animation is not parked on .bat-lock itself', function () {
+t('BL-13 the entrance animation is not parked on .bat-lock itself', function () {
   var css = bareCss();
   // `fill-mode: both`/`forwards` keeps applying the keyframes' end values, and
   // animation values beat every normal declaration — so an opacity-touching
@@ -194,7 +203,7 @@ t('BL-9 the entrance animation is not parked on .bat-lock itself', function () {
      /\.bat-lock\s*>\s*svg\s*\{[^}]*animation:\s*batLockStamp/.test(css), true);
 });
 
-t('BL-10 a flipped card can still be READ — the mark drops back, it does not cover the text', function () {
+t('BL-14 a flipped card can still be READ — the mark drops back, it does not cover the text', function () {
   var css = bareCss();
   var m = css.match(/\.hand-card-wrapper:has\(>\s*\.card\.face-flipped\)\s*>\s*\.bat-lock\s*\{([^}]*)\}/);
   eq('the flip-dim rule exists', !!m, true);
@@ -204,21 +213,21 @@ t('BL-10 a flipped card can still be READ — the mark drops back, it does not c
   }
 });
 
-t('BL-11 the mark cannot swallow a click meant for the card', function () {
+t('BL-15 the mark cannot swallow a click meant for the card', function () {
   var css = bareCss();
   var m = css.match(/\.hand-card-wrapper\s*>\s*\.bat-lock\s*\{([^}]*)\}/);
   eq('base rule exists', !!m, true);
   if (m) eq('pointer-events off', /pointer-events:\s*none/.test(m[1]), true);
 });
 
-t('BL-12 the colour is one knob, and it is not a side colour', function () {
+t('BL-16 the colour is one knob, and it is not a side colour', function () {
   var css = bareCss();
   eq('token declared', /--bat-lock-ink:\s*#/.test(css), true);
   var m = css.match(/\.hand-card-wrapper\s*>\s*\.bat-lock\s+path\s*\{([^}]*)\}/);
   eq('the mark reads the token', !!m && /fill:\s*var\(--bat-lock-ink\)/.test(m[1]), true);
 });
 
-t('BL-13 the mark is a SILHOUETTE, and the traced outline survives its own rim', function () {
+t('BL-17 the mark is a SILHOUETTE, and the traced outline survives its own rim', function () {
   var css = bareCss();
   var m = css.match(/\.hand-card-wrapper\s*>\s*\.bat-lock\s+path\s*\{([^}]*)\}/);
   eq('rule found', !!m, true);
@@ -234,26 +243,24 @@ t('BL-13 the mark is a SILHOUETTE, and the traced outline survives its own rim',
   }
 });
 
-t('BL-14 the viewBox matches the coordinate space the path is drawn in', function () {
-  var ui = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
-  var vb = ui.match(/_BAT_LOCK_VIEWBOX:\s*'0 0 ([\d.]+) ([\d.]+)'/);
-  eq('viewBox declared', !!vb, true);
-  if (!vb) return;
-  var w = +vb[1], h = +vb[2];
-  // Pull every coordinate out of the path and check it lands inside the box.
+t('BL-18 the viewBox the mark ships matches the coordinate space its path is drawn in', function () {
+  var wraps = renderHand([2, 5, 10], 5);
+  var mark = markOf(wraps[1]);
+  var svg = mark && mark.querySelector('svg'), path = mark && mark.querySelector('path');
+  eq('the mark carries an svg and a path', !!(svg && path), true);
+  if (!svg || !path) return;
+  var vb = (svg.getAttribute('viewBox') || '').split(/\s+/).map(Number);
+  eq('viewBox is "0 0 w h"', vb.length === 4 && vb[0] === 0 && vb[1] === 0 && vb[2] > 0 && vb[3] > 0, true);
+  var w = vb[2], h = vb[3];
   // A path authored at one scale and shown through another viewBox does not
-  // error — it silently crops or floats, which is exactly the kind of failure
-  // that looks like "the shape is just wrong".
-  var body = ui.slice(ui.indexOf('_BAT_LOCK_PATH:'));
-  body = body.slice(0, body.indexOf('\n  _applyBatLock'));
-  var nums = (body.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
+  // error — it silently crops or floats, which looks like "the shape is wrong".
+  var nums = (path.getAttribute('d').match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
   var xs = [], ys = [];
   for (var i = 0; i + 1 < nums.length; i += 2) { xs.push(nums[i]); ys.push(nums[i + 1]); }
   var maxX = Math.max.apply(null, xs), maxY = Math.max.apply(null, ys);
   var minX = Math.min.apply(null, xs), minY = Math.min.apply(null, ys);
   eq('no coordinate escapes the box left/top', minX >= -1 && minY >= -1, true);
   eq('no coordinate escapes the box right/bottom', maxX <= w + 1 && maxY <= h + 1, true);
-  // And it should actually FILL the box, or the mark renders smaller than asked.
   eq('the path fills its box', maxX > w * 0.95 && maxY > h * 0.95, true);
 });
 

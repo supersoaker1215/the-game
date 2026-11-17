@@ -3,17 +3,15 @@
 //
 //   jsc sim/event-slot.js
 //
-// Owner: "each event should only last 3 turns, same with enviroments, events
-// shouldnt overlap, event 0,3,6,9,12 are all their own separate little movie,
-// the shadowman needs to go into the event section on the right, same with MC,
-// the events all follow the same path."
+// Every event (MC Ballyhoo, the Shadow Man, a habitat, Cog Invasion, a VP
+// arrival) starts through one door: it waits for the event slot, claims it for
+// three rounds, and only starts inside its own scheduled window. The slot is a
+// round-derived duration; _eventInProgress() is only a millisecond lock while a
+// reveal plays. These cases drive the real runners and the round seam and
+// assert what started, what held the slot, and what waited.
 //
-// Every event ALREADY gated on _eventInProgress() and retried next round,
-// which is the right shape — but that guard is a MILLISECOND presentation lock
-// (a few seconds while a reveal plays). It stopped two events colliding on
-// screen and did nothing about two being ACTIVE across rounds. So Ballyhoo
-// could land on top of a habitat still running, and an environment (4 rounds)
-// outlived the 3-round window by one.
+// The rail and lane renderers that READ the slot are run in sim/event-rail.js
+// (they need the DOM harness; this suite stays on the engine-only shim).
 // ============================================================
 
 var __SIM_ROOT_OVERRIDE = '.';
@@ -28,8 +26,46 @@ function eq(label, actual, expected) {
     __caseMsgs.push(label + ': expected ' + JSON.stringify(expected) + ' got ' + JSON.stringify(actual));
   }
 }
-var SRC = read('game.js');
-var UISRC = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
+
+// ---- the four one-shot runners, each with its scheduled-state fixture -------
+// fire(r, hold, appearAt) -> { started, slot } after running that runner on
+// round r, with the slot optionally held by another event first.
+var RUNNERS = {
+  'MC Ballyhoo': {
+    label: 'MC Ballyhoo', kind: 'boon',
+    setup: function (at) { return (Game.state._ballyhoo = { shows: true, appearAt: at, fired: false }); },
+    run: function (r) { Game._maybeBallyhoo(r); },
+    started: function (o) { return o.fired; },
+  },
+  'The Shadow Man': {
+    label: 'The Shadow Man', kind: 'modifier',
+    setup: function (at) { return (Game.state._shadow = { shows: true, appearAt: at, appeared: false }); },
+    run: function (r) { Game._maybeShadowMan(r); },
+    started: function (o) { return o.appeared; },
+  },
+  'a habitat': {
+    label: 'Open Water', kind: 'hazard',
+    setup: function (at) { var h = { name: 'Open Water', shows: true, appearAt: at, fired: false }; Game.state._habitats = [h]; return h; },
+    run: function (r) { Game._maybeHabitatEvent(r); },
+    started: function (o) { return o.fired; },
+  },
+  'Cog Invasion': {
+    label: 'Cog Invasion', kind: 'hazard',
+    setup: function (at) { return (Game.state._cogEvent = { shows: true, appearAt: at, fired: false }); },
+    run: function (r) { Game._maybeCogEvent(r); },
+    started: function (o) { return o.fired; },
+  },
+};
+function fire(R, r, hold, appearAt) {
+  Game.init();
+  Game.state.mode = { deck: 'classic', players: '1v1' };
+  Game.state.round = r;
+  if (hold) Game._eventSlotClaim(hold.start, 'Another Event', 'hazard');
+  var o = R.setup(appearAt == null ? r : appearAt);
+  R.run(r);
+  var sl = Game.state._eventSlot;
+  return { started: !!R.started(o), slot: sl ? sl.name : null, kind: sl ? sl.kind : null, start: sl ? sl.start : null };
+}
 
 t('ES-1 an event is three rounds, and so is an environment', function () {
   eq('_EVENT_LEN', Game._EVENT_LEN, 3);
@@ -66,37 +102,44 @@ t('ES-4 the slot survives a missed round seam', function () {
 });
 
 t('ES-5 EVERY one-shot event goes through the same door', function () {
-  // The point of "all events follow the same path": one gate, one claim.
-  eq('Ballyhoo gates on the slot',  /if \(!this\._eventSlotOpen\(roundNow\)\) return;[\s\S]{0,120}b\.fired = true;/.test(SRC), true);
-  eq('Ballyhoo claims it',          /_eventSlotClaim\(roundNow, 'MC Ballyhoo'/.test(SRC), true);
-  eq('Shadow Man gates on the slot',/if \(!this\._eventSlotOpen\(r\)\) return;/.test(SRC), true);
-  eq('Shadow Man claims it',        /_eventSlotClaim\(r, 'The Shadow Man'/.test(SRC), true);
-  eq('a habitat gates on the slot', /a habitat waits its turn behind the live slot[\s\S]{0,200}_eventSlotOpen/.test(SRC), true);
-  eq('a habitat claims it',         /_eventSlotClaim\(roundNow, name, 'hazard'\)/.test(SRC), true);
-  eq('Cog Invasion gates on the slot', /if \(!this\._eventSlotOpen\(r\)\) return;\s*\n\s*ev\.fired = true;/.test(SRC), true);
-  eq('Cog Invasion claims it',      /_eventSlotClaim\(r, 'Cog Invasion', 'hazard'\)/.test(SRC), true);
-  // And the ms lock is no longer any event's overlap rule.
-  eq('no event still gates on the millisecond lock alone',
-     /(?:b\.fired|sh\.appeared|h\.fired)[\s\S]{0,80}if \(this\._eventInProgress\(\)\) return;/.test(SRC), false);
+  // One gate, one claim: each runner, on its due round, starts only when the
+  // slot is free, and claims it under its own name and kind when it does.
+  Object.keys(RUNNERS).forEach(function (k) {
+    var R = RUNNERS[k];
+    var open = fire(R, 6, null);
+    eq(k + ' starts when the slot is open', open.started, true);
+    eq(k + ' claims the slot by name', open.slot, R.label);
+    eq(k + ' claims it as ' + R.kind, open.kind, R.kind);
+    eq(k + ' claims it from this round', open.start, 6);
+    var held = fire(R, 7, { start: 6 }, 7);
+    eq(k + ' waits while another event holds the slot', held.started, false);
+    eq(k + ' leaves the other event in the slot', held.slot, 'Another Event');
+  });
 });
 
 t('ES-6 a VP ARRIVAL claims a slot; its waves deliberately do not', function () {
   // A wave is the boss acting, not a new event starting. A VP sends one every
   // three rounds for as long as it lives, so claiming per wave would hold the
-  // slot for the rest of the match and silently delete Ballyhoo, the Shadow Man
-  // and every habitat from any game an invasion turned up in.
-  eq('the arrival claims', /_eventSlotClaim\(round, vp\.name \+ ' arrives', 'boss'\)/.test(SRC), true);
-  var spawn = SRC.slice(SRC.indexOf('_cogSpawnCog(vp, round) {'));
-  spawn = spawn.slice(0, spawn.indexOf('\n  },'));
-  eq('a wave does not claim', /_eventSlotClaim/.test(spawn), false);
-});
-
-t('ES-7 the rail reads the slot, so Ballyhoo and the Shadow Man have a row', function () {
-  eq('the rail asks the slot', /Game\.eventSlotNow\(\)/.test(UISRC), true);
-  eq('and pushes it as a row', /id: 'slot' \+ slot\.start \+ slot\.name/.test(UISRC), true);
-  // It must read the ONE door, not each event's private state — that is what
-  // keeps a new event type from needing its own rail branch.
-  eq('it does not read ballyhoo state directly', /_eventRailModel[\s\S]{0,3000}s\._ballyhoo/.test(UISRC), false);
+  // slot for the rest of the match and silently delete every other event.
+  Game.init();
+  Game.state.round = 3;
+  Game._cogInit();
+  var realRng = Game.rng;
+  Game.rng = function () { return 0; };                 // the arrival roll succeeds
+  try {
+    Game._cogTick(3);
+    var sl = Game.state._eventSlot;
+    eq('the arrival claims', !!sl && / arrives$/.test(sl.name), true);
+    eq('as a boss', sl && sl.kind, 'boss');
+    var c = Game.state._cog;
+    var key = Object.keys(c.vps).filter(function (k) { return c.vps[k].active; })[0];
+    eq('one VP is out', !!key, true);
+    Game.state.round = 6;
+    Game._cogTick(6);
+    eq('a wave went out on round 6', key && c.vps[key].lastSpawnRound, 6);
+    eq('a wave does not claim the slot', Game.state._eventSlot && Game.state._eventSlot.start, 3);
+    eq('so round 6 is free for the next event', Game._eventSlotOpen(6), true);
+  } finally { Game.rng = realRng; }
 });
 
 t('ES-8 eventSlotNow counts down and names the event', function () {
@@ -142,29 +185,20 @@ t('ES-10 with nothing drawn it says WHEN, not WHAT', function () {
 
 t('ES-11 a Cog VP arrival is never predicted', function () {
   // It is a 12.5% roll every round — there is no round on which it is "due",
-  // so there is no honest countdown to it.
-  var src = read('game.js');
-  var fn = src.slice(src.indexOf('eventUpNext() {'));
-  fn = fn.slice(0, fn.indexOf('\n  },'));
-  eq('_cog is not consulted', /_cog\b/.test(fn), false);
-});
-
-t('ES-12 the rail keeps the row at zero — the seam', function () {
-  // At inRounds 0 the event is due but has not claimed the slot yet. Dropping
-  // the row there made it vanish for exactly the moment it was arriving.
-  var ui = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
-  eq('rendered at zero', /if \(upNext && upNext\.inRounds >= 0\)/.test(ui), true);
-  eq('and reads "now"', /upNext\.inRounds > 0 \? 'in ' \+ upNext\.inRounds : 'now'/.test(ui), true);
-});
-
-t('ES-13 rail rows are reused, or nothing can transition', function () {
-  var ui = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
-  // innerHTML on the whole rail replaces every node, and a brand-new element
-  // has nothing to transition FROM — the promotion would pop.
-  eq('rows are keyed', /data-ev-id/.test(ui), true);
-  eq('and reused rather than rebuilt', /if \(el\.dataset\.h !== def\.html\)/.test(ui), true);
-  // The entrance must land at CREATION only, never on a re-render.
-  eq('entrance is one-shot', /el\.classList\.add\('is-arriving'\)/.test(ui), true);
+  // so there is no honest countdown to it. An active Cog engine with VPs
+  // waiting to roll must not change what the rail is told is coming.
+  Game.init();
+  Game.state.mode = { deck: 'classic', players: '1v1' };
+  Game.state.round = 4;
+  Game.state._habitats = [{ name: 'Wetlands', shows: true, appearAt: 6, fired: false }];
+  var without = JSON.stringify(Game.eventUpNext());
+  Game._cogInit();
+  Game.state._cog.active = true;
+  var withCog = JSON.stringify(Game.eventUpNext());
+  eq('the answer is the same with the VP engine running', withCog, without);
+  Game.state._habitats = [];
+  Game.state._eventsUsed = Game.matchEventPool().slice();
+  eq('and with nothing drawn, a waiting VP is still no promise', Game.eventUpNext(), null);
 });
 
 t('ES-14 the schedule is the hand-off — 3, 6, 9, 12, 15', function () {
@@ -254,11 +288,14 @@ t('ES-16 an event that never found an opening is SPENT, not queued', function ()
   eq('nor on round 2',               Game._eventWindowOpen(1, 2), false);
   eq('an early appearAt is pulled up to round 3', Game._eventWindowOpen(1, 3), true);
   eq('and still ends with round 3\'s window',      Game._eventWindowOpen(1, 6), false);
-  // EVERY runner asks — a single one keeping its own arithmetic is how the
-  // Ballyhoo round-3 floor survived the schedule going in.
-  ['b\\.appearAt', 'sh\\.appearAt', 'h\\.appearAt', 'ev\\.appearAt'].forEach(function (a) {
-    eq(a + ' goes through _eventWindowOpen',
-       new RegExp('_eventWindowOpen\\([^)]*' + a).test(SRC), true);
+  // EVERY runner asks — a single one keeping its own arithmetic is how a
+  // round-3 floor survived the schedule going in.
+  Object.keys(RUNNERS).forEach(function (k) {
+    var R = RUNNERS[k];
+    eq(k + ' still starts inside its window', fire(R, 8, null, 6).started, true);
+    eq(k + ' is spent once the next event is due', fire(R, 9, null, 6).started, false);
+    eq(k + ' never starts before its round', fire(R, 5, null, 6).started, false);
+    eq(k + ' never starts on round 1', fire(R, 1, null, 1).started, false);
   });
 });
 
@@ -377,14 +414,33 @@ t('ES-Q3 an event\'s environments leave with the event', function () {
 
 t('ES-Q4 the sweep runs in BOTH modes, before the habitat looks for room', function () {
   // A habitat due the very round its predecessor expires must find the lanes
-  // already clear, or it waits a round for nothing.
-  var calls = SRC.match(/_expireEventEnvironments\(/g) || [];
-  eq('called from 1v1 and 2v2 round starts, plus its own definition',
-     calls.length >= 3, true);
-  eq('1v1 clears before the runner',
-     /_expireEventEnvironments\(this\.state\.round\);\s*\n\s*this\._maybeHabitatEvent\(this\.state\.round\)/.test(SRC), true);
-  eq('2v2 clears before the runner',
-     /_expireEventEnvironments\(tt\.round\);\s*\n\s*this\._maybeHabitatEvent\(tt\.round\)/.test(SRC), true);
+  // already clear, or it waits a round for nothing. Watch the round seam.
+  var seq = [];
+  var realX = Game._expireEventEnvironments, realH = Game._maybeHabitatEvent;
+  Game._expireEventEnvironments = function (r) { seq.push('expire:' + r); return realX.apply(this, arguments); };
+  Game._maybeHabitatEvent = function (r) { seq.push('habitat:' + r); return realH.apply(this, arguments); };
+  try {
+    Game.init();
+    Game.startMatch('classic');
+    Game.state.player.isHuman = false; Game.state.ai.isHuman = false;
+    Game.state.round = 6;
+    seq = [];
+    Game.startRound();
+    var r1 = Game.state.round;
+    eq('1v1: the sweep runs, then the habitat runner, on the same round',
+       seq.filter(function (x) { return /^(expire|habitat):/.test(x); }).slice(0, 2).join(','),
+       'expire:' + r1 + ',habitat:' + r1);
+
+    Game.init();
+    Game.start2v2Match({ names: { p1: 'A1', p2: 'A2', p3: 'B1', p4: 'B2' } });
+    seq = [];
+    Game.start2v2Round();
+    var r2 = Game.state.twoVTwo.round;
+    eq('2v2: the sweep runs, then the habitat runner, on the same round',
+       seq.slice(0, 2).join(','), 'expire:' + r2 + ',habitat:' + r2);
+  } finally {
+    Game._expireEventEnvironments = realX; Game._maybeHabitatEvent = realH;
+  }
 });
 
 t('ES-Q5 the rail does not promise an event that cannot come', function () {
@@ -535,26 +591,6 @@ t('ES-FL2 nothing can seat a one-lane event except this path', function () {
     eq(name + ' has a definition', !!d, true);
     eq(name + ' is spawn-only', !!(d && d._spawnOnly), true);
   });
-});
-
-t('ES-FL3 the lane renderer reads the flag, not the card name', function () {
-  // The sim has no DOM, so this asserts the SHIPPED source: the half-picker
-  // branches on the instance flag and paints one full-lane box, the countdown
-  // loop drops the duplicate, and the art builder frames a full-lane
-  // environment for the lane instead of for a card face.
-  var half = UISRC.slice(UISRC.indexOf('const paintHalf = (where, env)'));
-  half = half.slice(0, half.indexOf("paintHalf('bottom'") + 140);
-  eq('half-picker branches on the flag', half.indexOf('_fullLane') !== -1, true);
-  eq('a full-lane box is painted',       half.indexOf("paintHalf('full'") !== -1, true);
-
-  var pip = UISRC.slice(UISRC.indexOf("['ai', 'player'].forEach(side => {"));
-  pip = pip.slice(0, pip.indexOf('glyph-env') + 200);
-  eq('one clock per full-lane environment', pip.indexOf('_fullLane') !== -1, true);
-
-  var art = UISRC.slice(UISRC.indexOf('_envArtBackground(env) {'));
-  art = art.slice(0, art.indexOf('no-repeat`'));
-  eq('a full-lane environment is framed for the lane',
-     art.indexOf("env._fullLane ? 'cover'") !== -1, true);
 });
 
 __cases.forEach(function (c) {

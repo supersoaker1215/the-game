@@ -1,26 +1,29 @@
 // ============================================================
-// MULTIPLAYER — SET UP + LOBBY, to the owner's spec sheet.
+// MULTIPLAYER — SET UP + LOBBY.
 //
 //   jsc sim/mp-screens.js
 //
-// The spec has two rules that are easy to break by accident later, because
-// breaking them looks like a reasonable local choice:
+// Two style rules that are easy to break by accident, because breaking them
+// looks like a reasonable local choice (checked as stylesheet text — the shim
+// has no cascade):
 //
 //   1. RED IS THE OPPONENT'S. Never a rarity, never a player pick, and never
 //      "empty" — an open seat painted red says a person is sitting in it.
 //   2. GLOW IS DROP-SHADOW WITH A 1px WHITE CORE. box-shadow traces the
 //      bounding box, which on a chamfered panel paints a lit square corner
-//      where the panel has none; and without the white core a tube reads as a
+//      where the panel has none; without the white core a tube reads as a
 //      coloured border rather than as something lit.
 //
-// Plus the structural fixes: one random-events row (there were two), three
-// modes rather than two crossed axes, and Active Deck belonging to the one
-// mode that has decks instead of sitting at screen level.
+// And the structure, checked by rendering the real screens
+// (UI._mpSubmenuHTML) and pressing Create Room: three modes, one
+// random-events row, Active Deck only inside the one mode that has decks, one
+// Create button routed by mode, and no dead + ADD AI button.
 // ============================================================
 
-var CSS = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join(''));
-var BARE = CSS.replace(/\/\*[\s\S]*?\*\//g, function (c) { return c.replace(/[^\n]/g, ' '); });
-var UI  = (read('ui-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join('\n'));
+var __SIM_ROOT_OVERRIDE = '.';
+load('./sim/shim-dom.js');
+var CSSTEXT = (read('style-parts.txt').trim().split('\n').map(function (f) { return read(f); }).join(''));
+var BARE = CSSTEXT.replace(/\/\*[\s\S]*?\*\//g, function (c) { return c.replace(/[^\n]/g, ' '); });
 
 var pass = 0, fails = [];
 function check(name, cond, detail) { if (cond) pass++; else fails.push(name + (detail ? ' — ' + detail : '')); }
@@ -60,20 +63,61 @@ LIT.forEach(function (sel) {
         'no white core — the tube will read as a coloured border');
 });
 
-// ---- 3. structure -----------------------------------------------------------
-check('three modes, declared once',
-      /_MP_MODES:\s*\[/.test(UI) &&
-      /id:\s*'2v2'/.test(UI) && /id:\s*'1v1'/.test(UI) && /id:\s*'1v1deck'/.test(UI));
+// ---- 3. structure, as rendered ---------------------------------------------
+function screen(state, mode) {
+  UI._mpState = state;
+  UI._mpLobby = {};
+  if (mode) UI._mpSetupMode = mode;
+  var h = document.createElement('div');
+  h.innerHTML = UI._mpSubmenuHTML();
+  return h;
+}
+var IDLE = function () { return { tab: 'create', code: null, status: 'idle', you: null, opponent: null }; };
+var setup = screen(IDLE(), '2v2');
+check('three modes, in order',
+      setup.querySelectorAll('.mps-mode').map(function (e) { return e.id; }).join() === 'mps-mode-2v2,mps-mode-1v1,mps-mode-1v1deck',
+      setup.querySelectorAll('.mps-mode').map(function (e) { return e.id; }).join());
+check('…exactly one of them chosen', setup.querySelectorAll('.mps-mode.is-on').length === 1 &&
+      setup.querySelector('#mps-mode-2v2').getAttribute('aria-checked') === 'true');
 check('the random-events row exists exactly once on the set-up screen',
-      (UI.match(/class="mps-ev\$\{/g) || []).length === 1,
-      'found ' + (UI.match(/class="mps-ev\$\{/g) || []).length + ' — it used to be printed twice');
-check('the old duplicated toggle is gone from the multiplayer screen',
-      !/_mmEventToggle\('twoVTwo'[^)]*\)\s*\}\s*<\/div>\s*<div class="mp-rule"/.test(UI));
-check('Active Deck is nested in the custom-decks mode, not screen level',
-      /mps-deck/.test(UI) && !/class="mp-foot"/.test(UI),
-      'a screen-level deck footer still exists');
-check('Create Room routes by mode (one button, three destinations)',
-      /_mpCreateFromSetup\(\)\s*\{[\s\S]{0,400}goTo2v2OnlineLobby[\s\S]{0,200}_mpCreateRoom/.test(UI));
+      setup.querySelectorAll('.mps-ev').length === 1, setup.querySelectorAll('.mps-ev').length);
+check('no second events toggle hides anywhere else on the screen',
+      setup.querySelectorAll('input[type="checkbox"]').length === 1, setup.querySelectorAll('input[type="checkbox"]').length);
+check('Active Deck is not shown for a draft mode', setup.querySelectorAll('.mps-deck').length === 0);
+check('there is no screen-level deck footer', setup.querySelectorAll('.mp-foot').length === 0);
+var deckMode = screen(IDLE(), '1v1deck');
+var modesEl = deckMode.querySelector('.mps-modes');
+var kids = modesEl ? modesEl.children : [];
+var deckAt = kids.map(function (k) { return k.classList.contains('mps-deck'); }).indexOf(true);
+check('Active Deck appears for Custom Decks', deckAt >= 0);
+check('…nested directly under that mode, inside the mode list',
+      deckAt > 0 && kids[deckAt - 1].id === 'mps-mode-1v1deck', kids.map(function (k) { return k.id || k.className; }).join(' | '));
+check('…and only once', deckMode.querySelectorAll('.mps-deck').length === 1);
+
+// One Create button, three destinations.
+(function () {
+  var calls = [];
+  var keep = { lobby: Game.goTo2v2OnlineLobby, create: (typeof twov2OnlineCreate !== 'undefined') ? twov2OnlineCreate : undefined, room: UI._mpCreateRoom };
+  Game.goTo2v2OnlineLobby = function () { calls.push('2v2-lobby'); };
+  twov2OnlineCreate = function () { calls.push('2v2-create'); };
+  UI._mpCreateRoom = function (kind) { calls.push('room:' + kind); };
+  try {
+    [['2v2', '2v2-lobby,2v2-create'], ['1v1', 'room:classic'], ['1v1deck', 'room:deck']].forEach(function (p) {
+      calls = [];
+      UI._mpSetupMode = p[0];
+      UI._mpCreateFromSetup();
+      check('Create Room in ' + p[0] + ' goes to ' + p[1], calls.join() === p[1], calls.join());
+    });
+    UI._mpSetupMode = 'nonsense';
+    calls = [];
+    UI._mpCreateFromSetup();
+    check('an unknown mode falls back to 2v2', calls.join() === '2v2-lobby,2v2-create', calls.join());
+  } finally {
+    Game.goTo2v2OnlineLobby = keep.lobby; twov2OnlineCreate = keep.create; UI._mpCreateRoom = keep.room;
+  }
+})();
+var createBtn = screen(IDLE(), '1v1').querySelector('#mps-create');
+check('the Create button is wired to the router', !!createBtn && /UI\._mpCreateFromSetup\(\)/.test(createBtn.getAttribute('onclick') || ''));
 
 // ---- 4. the code closes when the room fills ---------------------------------
 var closed = ruleBody('.mpl-code-tiles.is-closed .mpl-code-tile');
@@ -82,9 +126,13 @@ check('a full room stops the code glowing',
       closed ? closed.replace(/\s+/g, ' ').trim().slice(0, 70) : 'rule missing');
 
 // ---- 5. no dead controls ----------------------------------------------------
-check('+ ADD AI only renders when a handler exists',
-      /opts\.addAi\s*\?\s*`<button[^`]*mpl-addai/.test(UI),
-      'the button is rendered unconditionally — nothing in the engine fills an online seat');
+// Nothing in the engine fills an online seat with a bot, so the open seat must
+// not offer one.
+var lobby = screen({ status: 'waiting', code: 'abcd', mode: 'classic' });
+check('the lobby shows the code as four tiles', lobby.querySelectorAll('.mpl-code-tile').map(function (t) { return t.textContent; }).join('') === 'ABCD');
+check('the lobby has an open seat', lobby.querySelectorAll('.mpl-seat.is-open').length === 1);
+check('+ ADD AI is not rendered without a handler', lobby.querySelectorAll('.mpl-addai').length === 0);
+check('the host seat is yours, not the opponent\'s', lobby.querySelectorAll('.mpl-seat.is-you').length === 1 && lobby.querySelectorAll('.mpl-seat.is-opp').length === 0);
 
 // ---- 6. the player's neon drives the whole screen ---------------------------
 // Everything lit here was first written against --own-cyan, so picking purple

@@ -308,6 +308,18 @@ load('./sim/shim.js');
     return el;
   };
 
+  // Node-level siblings (text nodes included), as in a browser. Without these
+  // `rail.firstChild` was undefined, so a renderer that builds its skeleton
+  // once (`if (!rail.firstChild) rail.innerHTML = …`) rebuilt it on every
+  // render here and no keyed row could ever be reused.
+  Object.defineProperty(El.prototype, 'firstChild', { get: function () { return this.childNodes[0] || null; } });
+  Object.defineProperty(El.prototype, 'lastChild', { get: function () { return this.childNodes[this.childNodes.length - 1] || null; } });
+  Object.defineProperty(El.prototype, 'nextSibling', {
+    get: function () { var p = this.parentNode; if (!p) return null; var i = p.childNodes.indexOf(this); return p.childNodes[i + 1] || null; }
+  });
+  Object.defineProperty(El.prototype, 'previousSibling', {
+    get: function () { var p = this.parentNode; if (!p) return null; var i = p.childNodes.indexOf(this); return i > 0 ? p.childNodes[i - 1] : null; }
+  });
   Object.defineProperty(El.prototype, 'firstElementChild', {
     get: function () {
       for (var i = 0; i < this.childNodes.length; i++) if (this.childNodes[i].tagName !== '#TEXT') return this.childNodes[i];
@@ -392,7 +404,7 @@ load('./sim/shim.js');
           if (raw === undefined) ok = cur != null;
           else if (cur == null) ok = false;
           else {
-            var v = String(raw).replace(/^["']|["']$/g, '');
+            var v = String(raw).replace(/^["']|["']$/g, '').replace(/\\(.)/g, '$1');
             cur = String(cur);
             ok = op === ''  ? cur === v
                : op === '*' ? cur.indexOf(v) >= 0
@@ -414,8 +426,32 @@ load('./sim/shim.js');
   // all, made NOTHING match, so a removal silently did nothing and looked like
   // an engine bug. Sibling combinators and pseudo-classes are still out: those
   // are cascade questions and belong in a browser fixture.
+  // Whitespace and '>' split compounds only OUTSIDE [..], quotes and a
+  // backslash escape: ui.js looks rows up by `[data-ev-id="${CSS.escape(id)}"]`,
+  // and an id with a space ("slot9MC Ballyhoo") escapes to `MC\ Ballyhoo`.
+  // Splitting that on the space matched nothing, so every keyed row looked new
+  // on every render here while the browser reused it.
+  function __tokens(one) {
+    var toks = [], cur = '', depth = 0, quote = null;
+    for (var i = 0; i < one.length; i++) {
+      var ch = one.charAt(i);
+      if (ch === '\\' && i + 1 < one.length) { cur += ch + one.charAt(++i); continue; }
+      if (quote) { cur += ch; if (ch === quote) quote = null; continue; }
+      if (depth && (ch === '"' || ch === "'")) { quote = ch; cur += ch; continue; }
+      if (ch === '[') depth++;
+      if (ch === ']' && depth) depth--;
+      if (!depth && (/\s/.test(ch) || ch === '>')) {
+        if (cur) { toks.push(cur); cur = ''; }
+        if (ch === '>') toks.push('>');
+        continue;
+      }
+      cur += ch;
+    }
+    if (cur) toks.push(cur);
+    return toks;
+  }
   function __chain(one) {
-    var toks = one.trim().replace(/\s*>\s*/g, ' > ').split(/\s+/).filter(Boolean);
+    var toks = __tokens(one.trim());
     var out = [];
     for (var i = 0; i < toks.length; i++) {
       if (toks[i] === '>') { out.push({ combinator: '>' }); continue; }
