@@ -491,7 +491,7 @@
    hit-flash, knockback, landing, enter/exit) — `animation` is one property, so
    a loop that wins the cascade swallows the one-shot whole. :where() keeps the
    specificity exactly where it was. Pinned by sim/status-oneshots.js. */
-.card.status-critical:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)) { animation: critical-pulse 0.7s ease-in-out infinite alternate; }
+.card.status-critical:where(:not(.combat-attacker, .combat-target, .combat-splash-hit, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)) { animation: critical-pulse 0.7s ease-in-out infinite alternate; }
 @keyframes critical-pulse {
   from { box-shadow: 0 0 10px rgba(255,105,180,0.8), 0 0 20px rgba(255,20,147,0.4) !important; }
   to   { box-shadow: 0 0 22px rgba(255,105,180,1.0), 0 0 44px rgba(255,20,147,0.7) !important; }
@@ -511,7 +511,7 @@
     0 0 14px rgba(255,105,180,0.55),
     0 0 28px rgba(155,89,182,0.28) !important;
 }
-.card.status-crazy:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)) {
+.card.status-crazy:where(:not(.combat-attacker, .combat-target, .combat-splash-hit, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)) {
   animation: cardCrazyWobble 3.4s ease-in-out infinite,
              cardCrazyGlitch 1.1s steps(3, end) infinite;
 }

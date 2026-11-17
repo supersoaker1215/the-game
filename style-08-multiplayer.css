@@ -5117,7 +5117,7 @@ body.fx-lean .card.vibe-magnetic:not(.card-enter):not(.card-exit):where(:not(.co
    wobble is worth keeping — it is compositor-only, and it is the whole read of
    the card — so it is restored here and only the glitch stays off. Reduced,
    which is stricter, leaves both stopped. */
-body.fx-lean:not(.low-fx) .card.status-crazy:not(:where(.card-slot > *)):where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)) {
+body.fx-lean:not(.low-fx) .card.status-crazy:not(:where(.card-slot > *)):where(:not(.combat-attacker, .combat-target, .combat-splash-hit, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)) {
   animation: cardCrazyWobble 3.4s ease-in-out infinite !important;
 }
 
@@ -6306,13 +6306,11 @@ html, body { touch-action: manipulation; }
 @media (prefers-reduced-motion: reduce) {
   #signature-fx-layer .fx-moth-dust, #signature-fx-layer .fx-sonic-streak { animation: none; opacity: 0; }
 }
-
 #signature-fx-layer .fx-sonic-streak.fx-jet-streak {
   height: 8px; margin-top: -4px;
   background: linear-gradient(90deg, rgba(255,90,20,0) 0%, rgba(255,120,30,.6) 30%, #ffd38a 85%, rgba(255,240,200,0) 100%);
   box-shadow: 0 0 16px 4px rgba(255,140,40,.55), 0 0 34px 10px rgba(255,80,20,.3);
 }
-
 /* Ground crack, dust wave, HUD sweep, violet energy orb (2026-11-11). */
 #signature-fx-layer .fx-crack { position: fixed; pointer-events: none; overflow: visible; }
 #signature-fx-layer .fx-crack path {
@@ -6341,7 +6339,6 @@ html, body { touch-action: manipulation; }
 @media (prefers-reduced-motion: reduce) {
   #signature-fx-layer .fx-crack path, #signature-fx-layer .fx-dust-wave, #signature-fx-layer .fx-hud-sweep { animation: none; opacity: 0; }
 }
-
 /* Jump entrance + Deadpool swap card (2026-11-11). */
 #signature-fx-layer .fx-jump-flash {
   position: fixed; inset: 0; pointer-events: none;

@@ -13,6 +13,7 @@ art-originals/
 # Local design prototype — not shipped
 proto-metal.html
 proto-*.html
+proto-assets/
 
 # Proof sheet from sim/tools/card-art-accent.py --sheet. A 2MB render of every
 # painting with its proposed border around it: useful to LOOK at when the

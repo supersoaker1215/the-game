@@ -1742,10 +1742,10 @@ input[type="number"]::-webkit-outer-spin-button {
   0%, 100% { filter: brightness(1) saturate(1); }
   50%      { filter: brightness(1.18) saturate(1.15); }
 }
-.card.status-stunned:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)),
-.card.status-frozen:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)),
-.card.status-feared:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)),
-.card.status-mind-ctrl:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)) {
+.card.status-stunned:where(:not(.combat-attacker, .combat-target, .combat-splash-hit, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)),
+.card.status-frozen:where(:not(.combat-attacker, .combat-target, .combat-splash-hit, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)),
+.card.status-feared:where(:not(.combat-attacker, .combat-target, .combat-splash-hit, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)),
+.card.status-mind-ctrl:where(:not(.combat-attacker, .combat-target, .combat-splash-hit, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)) {
   animation: statusGlowPulse 1.6s ease-in-out infinite;
 }
 
@@ -5194,7 +5194,7 @@ body.round-tick .board::after {
   0%,100% { box-shadow: 0 0 8px  rgba(255,110,0,0.62), 0 0 18px rgba(255,60,0,0.26); }
   50%     { box-shadow: 0 0 18px rgba(255,165,0,0.90), 0 0 32px rgba(255,85,0,0.50); }
 }
-.card.status-burning:where(:not(.combat-attacker, .combat-target, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)) {
+.card.status-burning:where(:not(.combat-attacker, .combat-target, .combat-splash-hit, .hit-flash, .card-knockback, .card-landing, .card-enter, .card-exit)) {
   animation: statusBurningPulse 1.8s ease-in-out infinite !important;
 }
 
