@@ -370,7 +370,7 @@ check('the title screen centres with !important (the base overlay left-pins with
   var dre = /(?:animation(?:-name)?|--[\w-]+)\s*:\s*([^;{}]+)/g, dm;
   while ((dm = dre.exec(BARE))) (dm[1].match(/[A-Za-z_][\w-]*/g) || []).forEach(function (t) { cssUse[t] = true; });
   var jsText = '';
-  ['ui.js', 'fx.js', 'audio.js', 'ui-2v2.js', 'ui-menu.js', 'menu-scene.js', 'game.js', 'abilities.js', 'tricks.js', 'ai.js', 'roguelite.js', 'multiplayer.js',
+  ['ui.js', 'fx.js', 'audio.js', 'ui-2v2.js', 'ui-menu.js', 'ui-hand.js', 'ui-board.js', 'ui-draft.js', 'menu-scene.js', 'game.js', 'abilities.js', 'tricks.js', 'ai.js', 'roguelite.js', 'multiplayer.js',
    'voice.js', 'tutorial.js', 'tournament.js', 'index.html'].forEach(function (f) {
     try { jsText += '\n' + read(f); } catch (e) {}
   });

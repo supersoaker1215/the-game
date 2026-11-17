@@ -599,7 +599,7 @@ if (typeof performance === 'undefined') this.performance = { now: function () { 
 // THE REAL ui.js. Its auto-start is skipped under __HEADLESS_SIM (see the tail
 // of that file), so loading it defines UI without going at a browser.
 load('./fx.js');   // the effects library — must precede ui.js (it declares UI_FX, which ui.js merges in)
-load('./audio.js'); load('./ui-2v2.js'); load('./ui-menu.js');   // the other split-out UI parts — also before ui.js
+load('./audio.js'); load('./ui-2v2.js'); load('./ui-menu.js'); load('./ui-hand.js'); load('./ui-board.js'); load('./ui-draft.js');   // the other split-out UI parts — also before ui.js
 load('./ui.js');
 
 // …and then the element cache it would have built. init() also wires listeners,

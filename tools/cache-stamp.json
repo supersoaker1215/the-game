@@ -99,13 +99,25 @@
     "v": 2,
     "hash": "7891ea01"
   },
+  "ui-hand.js": {
+    "v": 1,
+    "hash": "0adfd360"
+  },
+  "ui-board.js": {
+    "v": 1,
+    "hash": "f10b7838"
+  },
+  "ui-draft.js": {
+    "v": 1,
+    "hash": "0a784d71"
+  },
   "menu-scene.js": {
     "v": 2,
     "hash": "10d54608"
   },
   "ui.js": {
-    "v": 1730,
-    "hash": "cbc43709"
+    "v": 1731,
+    "hash": "9a770ac5"
   },
   "board-v2.js": {
     "v": 33,

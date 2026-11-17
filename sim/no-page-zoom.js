@@ -16,7 +16,10 @@ var CSS = (read('style-parts.txt').trim().split('\n').map(function (f) { return 
 var pass = 0, fails = [];
 function check(name, cond, detail) { if (cond) pass++; else fails.push(name + (detail ? ' — ' + detail : '')); }
 check('no double-tap zoom anywhere (root touch-action)', /html, body \{ touch-action: manipulation; \}/.test(CSS));
-var fn = SRC.slice(SRC.indexOf('  installNoPageZoom() {'), SRC.indexOf('  installMobileCardDrag() {'));
+// The member itself, from the loaded UI — not a text slice between it and
+// whatever member happens to follow it in the source (the parts live in
+// separate files).
+var fn = String(UI.installNoPageZoom);
 check('pinch blocked: Safari gesture events', /'gesturestart', 'gesturechange', 'gestureend'/.test(fn) && /passive: false/.test(fn));
 check('pinch blocked: only multi-touch moves (drag stays free)', /e\.touches && e\.touches\.length > 1/.test(fn));
 check('installed at boot with the other input handlers', /this\.installMobileCardDrag\(\);\s*this\.installNoPageZoom\(\);/.test(SRC));
