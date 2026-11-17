@@ -4347,7 +4347,7 @@ body.theme-purple .board-section {
      .card-slot's perspective inside #game-area's perspective. See the
      BLANK-CARD block at the bottom of this file. */
   transform-origin: center;
-  transition: transform 240ms var(--ease-out-soft);
+  transition: transform 240ms var(--ease-out-soft), translate 240ms var(--ease-out-soft);
 }
 .card.enemy-card:where(:not(.inspect-card)):hover {
   transform-style: preserve-3d;
@@ -4411,6 +4411,40 @@ body.theme-purple .board-section {
 @media (prefers-reduced-motion: reduce) {
   .card.ally-card:hover,
   .card.enemy-card:hover { transform: none !important; }
+}
+
+/* LIGHT UNDER THE CARD. The board is pure black, so a dark drop shadow has
+   nothing to darken; depth comes from each card lighting the lane beneath it
+   in its side's colour. On ::after because ::before belongs to
+   .target-highlight, and it stands down for .playable / .target-highlight,
+   which own both pseudos. The slot is already a stacking context (relative,
+   z-index 1), so z-index -1 sits above the slot's own background and under
+   the card. */
+.board .player-slot { --pool-rgb: var(--theme-rgb); }
+.board .ai-slot { --pool-rgb: var(--own-opponent); }
+.board .card-slot:not(.playable):not(.target-highlight):has(> .card)::after {
+  content: '';
+  position: absolute;
+  inset: -6% -30% -22%;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(ellipse 50% 46% at 50% 62%,
+    rgba(var(--pool-rgb), 0.42) 0%,
+    rgba(var(--pool-rgb), 0.18) 48%,
+    rgba(var(--pool-rgb), 0) 78%);
+  transition: transform 240ms var(--ease-out-soft), opacity 240ms var(--ease-out-soft);
+}
+/* Hover lifts the card off the floor: it rises, and its light spreads and
+   fades. `translate` composes with the hover's scale/tilt transform. */
+@media (hover: hover) {
+  .board .card.ally-card:hover,
+  .board .card.enemy-card:hover { translate: 0 -6px; }
+  .board .card-slot:has(> .card:hover)::after { transform: scale(1.18); opacity: 0.6; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .board .card.ally-card:hover,
+  .board .card.enemy-card:hover { translate: none; }
+  .board .card-slot::after { transition: none; }
 }
 
 /* ---- #8 Card hover content parallax (Tron-flare wave 2) ----
