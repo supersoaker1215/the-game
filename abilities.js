@@ -4947,10 +4947,10 @@ const CARD_ABILITIES = {
   "Apocalypse": {
     onPlay(G, self, lane) {
       // A HORSEMAN ARRIVES FIRST — pulled from the shared summon deck, so the
-      // body is a real 1-cost card with its own abilities. Same exclusions as
+      // body is a real 1-4 cost card with its own abilities. Same exclusions as
       // Bat Signal / Mother Box (no discard-effect cards, no 0-ATK bodies).
       const horseman = G.drawFromSummonDeck(c =>
-        !c.isDiscardEffect && (c.cost || 0) === 1 && (c.attack || 0) > 0);
+        !c.isDiscardEffect && (c.cost || 0) >= 1 && (c.cost || 0) <= 4 && (c.attack || 0) > 0);
       if (horseman) {
         G.summonCardChoice(self.owner, horseman.name, horseman.cost, horseman.attack,
                            horseman.health, horseman.abilities || [], null, null, horseman);

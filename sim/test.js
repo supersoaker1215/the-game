@@ -5092,7 +5092,7 @@ test('Freddy only wakes on TWO or more wasted energy', function () {
     'the card text states the threshold');
 });
 
-test('Apocalypse raises a 1-cost body on play', function () {
+test('Apocalypse raises a 1-4 cost body on play', function () {
   var G = freshGame();
   var ap = place(G, 'Apocalypse', 'player', 0);
   // The gate under test is the FILTER handed to the summon deck.
@@ -5102,10 +5102,12 @@ test('Apocalypse raises a 1-cost body on play', function () {
   assert(!!seen, 'a pull was attempted');
   var probe = function (cost, atk) { return seen({ name: 'x', cost: cost, attack: atk, health: 2, isDiscardEffect: false }); };
   assertEq(probe(1, 2), true, 'a 1-cost with ATK qualifies');
-  assertEq(probe(2, 2), false, 'a 2-cost does not');
+  assertEq(probe(2, 2), true, 'so does a 2-cost');
+  assertEq(probe(4, 3), true, 'and a 4-cost');
+  assertEq(probe(5, 3), false, 'but not a 5-cost');
   assertEq(probe(0, 2), false, 'nor a 0-cost');
-  assertEq(probe(1, 0), false, 'nor a 1-cost that cannot fight');
-  assertEq(cardByName('Apocalypse').desc.indexOf('random 1-cost') > -1, true, 'the text says so');
+  assertEq(probe(3, 0), false, 'nor a body that cannot fight');
+  assertEq(cardByName('Apocalypse').desc.indexOf('random 1-4 cost') > -1, true, 'the text says so');
 });
 
 test('Doomsday rises Untrickable as well as Immune', function () {
