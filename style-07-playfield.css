@@ -1136,7 +1136,7 @@ body.in-match .lane {
    board (owner). */
 .log-drawer-toggle, .cheat-help-toggle, .settings-cog {
   position: fixed;
-  z-index: 600 !important;
+  z-index: 600;
 }
 
 /* Asleep — Freddy Krueger's hand-lock. Indigo, distinct from Freeze's cyan and
@@ -3857,7 +3857,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   background: linear-gradient(135deg,
     rgba(var(--frame-rgb), 0.18) 0%,
     rgba(4,6,10,0.88) 34%,
-    rgba(4,6,10,0.92) 100%) !important;
+    rgba(4,6,10,0.92) 100%);
   clip-path: polygon(
     26.9% 3.85%, 84.6% 3.85%, 3.85% 84.6%, 3.85% 26.9%);
   filter: none;
@@ -4021,7 +4021,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   text-shadow: 0 0 1px rgba(255,255,255,0.7), 0 0 8px rgba(var(--cf-rgb), 0.8);
   z-index: 7;
 }
-.card .card-cost::before, .card .card-cost::after { display: none !important; }
+.card .card-cost::before, .card .card-cost::after { display: none; }
 /* the card's own clip goes — the design's wrapper is unclipped so the glow
    spills, and the chamfer lives on the frame and band layers instead */
 /* board tile takes the 250-wide column of the ladder */
@@ -4230,8 +4230,8 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    shim with nothing painted. .cf-edge is the frame. */
 .card::before {
   border: 0 !important;
-  clip-path: none !important;
-  background: none !important;
+  clip-path: none;
+  background: none;
   box-shadow: none !important;
   filter: none !important;
 }
@@ -4300,14 +4300,14 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card.card .card-cost {
   top: var(--cf-inset) !important;
   left: var(--cf-inset) !important;
-  width: var(--band-mid) !important;
-  height: var(--band-mid) !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  padding: 0 !important;
-  text-indent: 0 !important;
-  line-height: 1 !important;
+  width: var(--band-mid);
+  height: var(--band-mid);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  text-indent: 0;
+  line-height: 1;
 }
 
 /* ============================================================
@@ -4481,7 +4481,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   filter:
     drop-shadow(0 0 calc(var(--card-w) * 0.0036) rgba(var(--frame-core-rgb), 0.85))
     drop-shadow(0 0 calc(var(--card-w) * 0.0236) rgba(var(--cf-rgb), 0.50))
-    drop-shadow(0 0 calc(var(--card-w) * 0.0873) rgba(var(--cf-rgb), 0.20)) !important;
+    drop-shadow(0 0 calc(var(--card-w) * 0.0873) rgba(var(--cf-rgb), 0.20));
 }
 /* "A near-white line inside the stroke is what sells neon at read size, but it
    needs a 2px stroke to sit in." — the design's own note on why the core
@@ -4511,18 +4511,18 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card.card.enc-card   .card-cost,
 .card-inspect-modal .card.card .card-cost,
 .fp-trick-preview   .card.card .card-cost {
-  font-size: calc(var(--card-w) * 0.0582) !important;
+  font-size: calc(var(--card-w) * 0.0582);
 }
 .card.card.draft-card .stat-circle,
 .card.card.enc-card   .stat-circle {
-  font-size: calc(var(--card-w) * 0.0691) !important;
+  font-size: calc(var(--card-w) * 0.0691);
 }
 /* the name takes the frame colour, and at read size it is the loudest thing
    on the card: 54/550 with .02em tracking */
 .card.card.draft-card .card-name-overlay .cn-text,
 .card.card.enc-card   .card-name-overlay .cn-text {
-  font-size: calc(var(--card-w) * 0.0982 * var(--cn-fit, 1)) !important;
-  letter-spacing: 0.02em !important;
+  font-size: calc(var(--card-w) * 0.0982 * var(--cn-fit, 1));
+  letter-spacing: 0.02em;
 }
 
 /* Owner: the cursor ring reads blue over a purple trick — "if anything it
@@ -4642,23 +4642,23 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card.card.draft-card .card-name-overlay .cn-text,
 .card.card.enc-card   .card-name-overlay .cn-text,
 .card-inspect-modal .card.card .card-name-overlay .cn-text {
-  font-family: 'Chakra Petch', 'Rajdhani', sans-serif !important;
-  font-weight: 700 !important;
-  font-size: calc(var(--card-w) * 0.0982 * var(--cn-fit, 1)) !important;
-  letter-spacing: 0.02em !important;
-  white-space: nowrap !important;
-  text-align: center !important;
-  color: rgba(var(--cf-rgb), 1) !important;
-  text-shadow: 0 0 1px rgba(255,255,255,0.8), 0 0 calc(var(--card-w) * 0.0327) rgba(var(--cf-rgb), 0.28) !important;
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: calc(var(--card-w) * 0.0982 * var(--cn-fit, 1));
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  text-align: center;
+  color: rgba(var(--cf-rgb), 1);
+  text-shadow: 0 0 1px rgba(255,255,255,0.8), 0 0 calc(var(--card-w) * 0.0327) rgba(var(--cf-rgb), 0.28);
 }
 /* keyword chips — centred, 1px border at half the alpha of their own colour */
 .card.card.draft-card .status-badges,
 .card.card.enc-card   .status-badges {
-  display: flex !important;
+  display: flex;
   flex-wrap: wrap;
-  justify-content: center !important;
-  gap: calc(var(--card-w) * 0.0291) !important;
-  margin-top: calc(var(--card-w) * 0.0436) !important;
+  justify-content: center;
+  gap: calc(var(--card-w) * 0.0291);
+  margin-top: calc(var(--card-w) * 0.0436);
 }
 /* Owner: "the evade 1 needs to match the same color as the border."
    It was #ffefa0 — a cream lifted straight off the handoff, whose card is gold.
@@ -4674,26 +4674,26 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card.card.draft-card .status-badge,
 .card.card.enc-card   .status-badge,
 .card-inspect-modal .card.card .status-badge {
-  display: inline-flex !important;
+  display: inline-flex;
   align-items: center;
   gap: calc(var(--card-w) * 0.0164);
-  font-family: var(--font-mono) !important;
-  font-size: calc(var(--card-w) * 0.0218) !important;
-  font-weight: 700 !important;
-  color: rgba(var(--cf-rgb), 1) !important;
-  opacity: 1 !important;
+  font-family: var(--font-mono);
+  font-size: calc(var(--card-w) * 0.0218);
+  font-weight: 700;
+  color: rgba(var(--cf-rgb), 1);
+  opacity: 1;
 }
 /* the rules block sits under a gold divider that fades out at 20% / 80% */
 .card.card.draft-card .card-desc,
 .card.card.enc-card   .card-desc {
-  margin-top: calc(var(--card-w) * 0.0582) !important;
-  padding-top: calc(var(--card-w) * 0.0436) !important;
-  border-top: 1px solid transparent !important;
+  margin-top: calc(var(--card-w) * 0.0582);
+  padding-top: calc(var(--card-w) * 0.0436);
+  border-top: 1px solid transparent;
   border-image: linear-gradient(90deg,
     rgba(var(--cf-rgb), 0) 0%,
     rgba(var(--cf-rgb), 0.45) 20%,
     rgba(var(--cf-rgb), 0.45) 80%,
-    rgba(var(--cf-rgb), 0) 100%) 1 !important;
+    rgba(var(--cf-rgb), 0) 100%) 1;
   font-size: calc(var(--card-w) * 0.0345) !important;
   line-height: 1.55 !important;
   text-wrap: pretty;
@@ -4704,10 +4704,10 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   display: block;
   font-size: calc(var(--card-w) * 0.0218) !important;
   font-weight: 700 !important;
-  letter-spacing: 0.30em !important;
-  text-align: left !important;
+  letter-spacing: 0.30em;
+  text-align: left;
   margin-bottom: calc(var(--card-w) * 0.0218);
-  text-shadow: none !important;
+  text-shadow: none;
 }
 /* inline keyword highlights stay the cool blue against the gold copy */
 .card.card.draft-card .card-desc .kw,
@@ -4787,20 +4787,20 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
     var(--chamfer) 0,
     var(--band-box) 0,
     0 var(--band-box),
-    0 var(--chamfer)) !important;
+    0 var(--chamfer));
 }
 /* the text column, bracket to bracket */
 .card.card.draft-card .card-desc,
 .card.card.enc-card   .card-desc {
-  margin-left:  calc(var(--cf-inset) + var(--card-w) * 0.10) !important;
-  margin-right: calc(var(--cf-inset) + var(--card-w) * 0.10) !important;
-  text-align: left !important;
-  color: rgba(var(--cf-rgb), 1) !important;
-  text-shadow: 0 0 5px rgba(var(--cf-rgb), 0.30) !important;
+  margin-left:  calc(var(--cf-inset) + var(--card-w) * 0.10);
+  margin-right: calc(var(--cf-inset) + var(--card-w) * 0.10);
+  text-align: left;
+  color: rgba(var(--cf-rgb), 1);
+  text-shadow: 0 0 5px rgba(var(--cf-rgb), 0.30);
 }
 .card.card.draft-card .card-desc b,
 .card.card.enc-card   .card-desc b {
-  color: rgba(var(--cf-rgb), 0.85) !important;
+  color: rgba(var(--cf-rgb), 0.85);
 }
 /* (The "give back every keyword's own colour" rule that stood here was dead:
    `color: inherit` with no !important could never beat the `color: #ffefa0
@@ -4844,7 +4844,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
     var(--chamfer) 0,
     var(--band-out) 0,
     0 var(--band-out),
-    0 var(--chamfer)) !important;
+    0 var(--chamfer));
 }
 
 /* ============================================================
@@ -4862,7 +4862,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    a sibling after .cf-band. Its coordinates are unchanged: .cf-frame and
    .cf-band share an origin — both start at --cf-inset — so the same left/top
    expressions land in the same place. */
-.card .cf-band, .trick-card .cf-band { z-index: 6 !important; }
+.card .cf-band, .trick-card .cf-band { z-index: 6; }
 .card .cf-band-diag, .trick-card .cf-band-diag {
   position: absolute;
   top:  calc(var(--cf-inset) + var(--band-out) / 2 - var(--cf-stroke) / 2);
@@ -4895,15 +4895,15 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card-inspect-modal .card.card .card-desc {
   font-size: 11px !important;
   line-height: 1.5 !important;
-  margin-left:  calc(var(--cf-inset) + var(--card-w) * 0.045) !important;
-  margin-right: calc(var(--cf-inset) + var(--card-w) * 0.045) !important;
+  margin-left:  calc(var(--cf-inset) + var(--card-w) * 0.045);
+  margin-right: calc(var(--cf-inset) + var(--card-w) * 0.045);
   text-align: left !important;
 }
 .card.card.draft-card .card-desc b,
 .card.card.enc-card   .card-desc b,
 .card-inspect-modal .card.card .card-desc b {
   font-size: 9px !important;
-  letter-spacing: 0.18em !important;
+  letter-spacing: 0.18em;
   margin-bottom: 4px;
 }
 /* the ribbon's diagonal is the frame's stroke — same width, same colour,
@@ -4930,12 +4930,12 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card.card.draft-card .card-desc .cd-row,
 .card.card.enc-card   .card-desc .cd-row,
 .card-inspect-modal .card.card .card-desc .cd-row {
-  text-align: left !important;
+  text-align: left;
 }
 .card.card.draft-card .card-desc .cd-eff,
 .card.card.enc-card   .card-desc .cd-eff,
 .card-inspect-modal .card.card .card-desc .cd-eff {
-  text-align: left !important;
+  text-align: left;
   display: block;
 }
 .card .cf-cut-tl, .trick-card .cf-cut-tl {
@@ -5149,12 +5149,12 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .dead-pile-card .status-badge,
 .choice-card .status-badge,
 .card-inspect-modal .status-badge {
-  color: rgba(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250)), 1) !important;
-  border: 1px solid currentColor !important;
-  border-radius: 0 !important;
-  background: none !important;
-  box-shadow: none !important;
-  opacity: 1 !important;
+  color: rgba(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250)), 1);
+  border: 1px solid currentColor;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  opacity: 1;
 }
 
 /* The name-fit floor's escape hatch — see UI.fitCardNames. A name that cannot
@@ -5391,7 +5391,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card-inspect-modal .card.card,
 .draft-card.trick-draft, .trick-card.trick-draft,
 .rl-pick-cardslot .card.card {
-  display: flex !important;
+  display: flex;
   flex-direction: column !important;
 }
 .card.card.draft-card .card-portrait,
@@ -5401,7 +5401,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .draft-card.trick-draft .card-portrait,
 .card-inspect-modal .trick-card .card-portrait,
 .rl-pick-cardslot .card.card .card-portrait {
-  aspect-ratio: 360 / 472 !important;
+  aspect-ratio: 360 / 472;
   height: auto !important;
 }
 /* everything under the art keeps its own height and stays put */
@@ -5414,7 +5414,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card-inspect-modal .card.card .card-desc,
 .draft-card.trick-draft .trick-desc,
 .trick-card.trick-draft .trick-desc,
-.rl-pick-cardslot .card.card .card-desc { flex: 0 0 auto !important; }
+.rl-pick-cardslot .card.card .card-desc { flex: 0 0 auto; }
 .card.card.draft-card, .card.card.enc-card,
 .card-inspect-modal .card.card,
 .draft-card.trick-draft, .trick-card.trick-draft {
@@ -5564,21 +5564,21 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    in one place instead of being unpicked across three. */
 .mm-panel .mm-lb-rail,
 .mm-lb-rail {
-  position: static !important;
-  left: auto !important; right: auto !important; top: auto !important; bottom: auto !important;
-  transform: none !important;
-  width: 100% !important;
-  max-width: none !important;
-  max-height: none !important;
-  margin: 14px 0 0 !important;
-  padding: 0 !important;
-  background: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  overflow: visible !important;
+  position: static;
+  left: auto; right: auto; top: auto; bottom: auto;
+  transform: none;
+  width: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 14px 0 0;
+  padding: 0;
+  background: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
   cursor: default;
 }
 
@@ -5659,7 +5659,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   padding: 3px 4px; font-family: var(--font-mono); font-size: 9px;
 }
 @media (max-width: 900px) {
-  .mm-lb-rail { position: static !important; inset: auto !important; width: 100% !important; }
+  .mm-lb-rail { position: static; inset: auto; width: 100%; }
 }
 
 /* BIGGER READOUTS. Owner: "the damage and health squares need to be larger."
@@ -5699,21 +5699,21 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .trick-card .cf-cut,
 .card .cf-cut-tl,
 .trick-card .cf-cut-tl {
-  height: calc(var(--cf-stroke) + var(--cf-core, 0px)) !important;
+  height: calc(var(--cf-stroke) + var(--cf-core, 0px));
 }
 .card .cf-cut-tl,
 .trick-card .cf-cut-tl {
   background: linear-gradient(to top,
     rgb(var(--cf-rgb)) 0, rgb(var(--cf-rgb)) var(--cf-stroke),
     rgba(var(--frame-core-rgb), 0.9) var(--cf-stroke),
-    rgba(var(--frame-core-rgb), 0.9) 100%) !important;
+    rgba(var(--frame-core-rgb), 0.9) 100%);
 }
 .card .cf-cut-br,
 .trick-card .cf-cut-br {
   background: linear-gradient(to bottom,
     rgb(var(--cf-rgb)) 0, rgb(var(--cf-rgb)) var(--cf-stroke),
     rgba(var(--frame-core-rgb), 0.9) var(--cf-stroke),
-    rgba(var(--frame-core-rgb), 0.9) 100%) !important;
+    rgba(var(--frame-core-rgb), 0.9) 100%);
 }
 
 /* ============================================================
@@ -5748,9 +5748,9 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
      rules, which the text fit then had to crush. The floor is what was missing
      all along — with one, shrinking is safe, and the art gives ground to a
      wordy card down to a 0.95 window and no further. */
-  flex: 1 1 auto !important;
-  min-height: calc(var(--card-w) * 0.95) !important;
-  background-position: var(--portrait-pos, center 20%), 0% 0% !important;
+  flex: 1 1 auto;
+  min-height: calc(var(--card-w) * 0.95);
+  background-position: var(--portrait-pos, center 20%), 0% 0%;
 }
 /* the rules column is what gives, and its own fit routine takes care of the
    copy once the box is smaller */
@@ -5792,14 +5792,14 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
      to give. What makes it stable this time is that the basis is the HEIGHT,
      not the content: scaling the copy no longer changes what flex is dividing
      up, so the fit routine and the layout stop chasing each other. */
-  min-height: 0 !important;
+  min-height: 0;
   /* Scrollable, not clipped. Three cards in the set — Art the Clown, Anakin,
      Trigon — carry both two rows of keyword chips and a wall of rules, and even
      at the fit's floor their copy is taller than the box the column can spare.
      A clipped rule is a card you cannot play correctly, so the tail stays
      reachable instead of being cut off. The other 154 never scroll. */
-  overflow-x: hidden !important;
-  overflow-y: auto !important;
+  overflow-x: hidden;
+  overflow-y: auto;
   scrollbar-width: thin;
 }
 
@@ -5835,7 +5835,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .draft-card.trick-draft, .trick-card.trick-draft,
 .rl-pick-cardslot .card.card {
   padding-bottom: calc(var(--stat-bottom) + var(--stat-h) * 1.1547
-                       + var(--card-w) * 0.03) !important;
+                       + var(--card-w) * 0.03);
 }
 
 /* ============================================================
@@ -5901,12 +5901,12 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .trick-card.enc-trick   .card-name-overlay,
 .card-inspect-modal .trick-card .card-name-overlay,
 .rl-pick-cardslot .card.card .card-name-overlay {
-  display: flex !important;
+  display: flex;
   align-items: center;
   justify-content: center;
   gap: calc(var(--card-w) * 0.045);
-  padding-left:  calc(var(--card-w) * 0.055) !important;
-  padding-right: calc(var(--card-w) * 0.055) !important;
+  padding-left:  calc(var(--card-w) * 0.055);
+  padding-right: calc(var(--card-w) * 0.055);
 }
 .card.card.draft-card .card-name-overlay::before,
 .card.card.draft-card .card-name-overlay::after,
@@ -5969,9 +5969,9 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
      --cn-fit to 0.2 on a live element: a hand card's name went 13px -> 2.6px, a
      draft card's and a tray trick's did not move at all. Default 1, so a name
      that never needed fitting is unchanged. */
-  font-size: calc(var(--card-w) * 0.0982 * var(--cn-fit, 1)) !important;
+  font-size: calc(var(--card-w) * 0.0982 * var(--cn-fit, 1));
   white-space: normal !important;
-  line-height: 1.02 !important;
+  line-height: 1.02;
   text-wrap: balance;
   /* two rows and no more: a third would push the art out of the card */
   display: -webkit-box;
@@ -6055,7 +6055,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
     calc(100% - var(--cf-inset) - var(--cf-border)) calc(100% - var(--cf-inset) - var(--cf-border) - var(--chamfer)),
     calc(100% - var(--cf-inset) - var(--cf-border) - var(--chamfer)) calc(100% - var(--cf-inset) - var(--cf-border)),
     calc(var(--cf-inset) + var(--cf-border)) calc(100% - var(--cf-inset) - var(--cf-border)),
-    calc(var(--cf-inset) + var(--cf-border)) calc(var(--cf-inset) + var(--cf-border) + var(--chamfer))) !important;
+    calc(var(--cf-inset) + var(--cf-border)) calc(var(--cf-inset) + var(--cf-border) + var(--chamfer)));
 }
 /* the ring. --cf-k is the inner chamfer's shortening: offsetting a 45 degree
    cut inward by one stroke moves its endpoints along the edges by (sqrt2 - 1)
@@ -6063,8 +6063,8 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    fanning away from it. */
 .card .cf-edge, .trick-card .cf-edge {
   --cf-k: calc(var(--chamfer) - 0.4142 * var(--cf-stroke));
-  border: 0 !important;
-  background: rgb(var(--cf-rgb)) !important;
+  border: 0;
+  background: rgb(var(--cf-rgb));
   box-shadow: none !important;
   clip-path: polygon(
     /* outer, clockwise from the top end of the top-left cut */
@@ -6083,7 +6083,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
     calc(100% - var(--cf-stroke)) calc(100% - var(--cf-stroke) - var(--cf-k)),
     calc(100% - var(--cf-stroke)) var(--cf-stroke),
     calc(var(--cf-stroke) + var(--cf-k)) var(--cf-stroke),
-    var(--chamfer) 0) !important;
+    var(--chamfer) 0);
 }
 /* the near-white core, the same ring one stroke further in — a second
    continuous object rather than a highlight painted onto the first, because an
@@ -6117,7 +6117,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 /* both stitched-on cut strokes retire — the ring draws its own corners */
 .card .cf-cut, .trick-card .cf-cut,
 .card .cf-cut-tl, .trick-card .cf-cut-tl,
-.card .cf-cut-br, .trick-card .cf-cut-br { display: none !important; }
+.card .cf-cut-br, .trick-card .cf-cut-br { display: none; }
 
 /* THE RIBBON SITS ON THE CUT CORNER. Its plate starts at the chamfer, so the
    cut is the plate's own outer edge and the ring draws it — the ribbon adds
@@ -6160,7 +6160,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    design note that asked for "a near-white line inside the stroke" was written
    about a 550px card. At this size the card wears one line, and one line is
    what the owner has now said twice. */
-.card .cf-edge::after, .trick-card .cf-edge::after { display: none !important; }
+.card .cf-edge::after, .trick-card .cf-edge::after { display: none; }
 
 /* ============================================================
    THE RULES READ AT ONE SIZE (2026-08-26)
@@ -6194,9 +6194,9 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card-inspect-modal .card.card .status-badges,
 .draft-card.trick-draft .status-badges,
 .rl-pick-cardslot .card.card .status-badges {
-  gap: calc(var(--card-w) * 0.018) !important;
-  margin-top: calc(var(--card-w) * 0.022) !important;
-  row-gap: calc(var(--card-w) * 0.014) !important;
+  gap: calc(var(--card-w) * 0.018);
+  margin-top: calc(var(--card-w) * 0.022);
+  row-gap: calc(var(--card-w) * 0.014);
 }
 
 /* The last two marks in that corner. `.cf-frame::after` is a decorative inner
@@ -6208,15 +6208,15 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    Dropped rather than re-layered. It is ornament, it never survived a single
    size change without needing a new number, and the card already carries a
    continuous line around its edge — which is the line that was asked for. */
-.card .cf-frame::after, .trick-card .cf-frame::after { display: none !important; }
+.card .cf-frame::after, .trick-card .cf-frame::after { display: none; }
 
 /* The ribbon's diagonal loses its white half too. It was the last piece still
    carrying the two-tone treatment from when the frame had a core — the owner
    circled it as "the white line" for the third time. One line, one colour,
    everywhere on the card. */
 .card .cf-band-diag, .trick-card .cf-band-diag {
-  height: var(--cf-stroke) !important;
-  background: rgb(var(--cf-rgb)) !important;
+  height: var(--cf-stroke);
+  background: rgb(var(--cf-rgb));
 }
 
 /* ============================================================
@@ -6308,9 +6308,9 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .draft-card.trick-draft .trick-desc,
 .trick-card.trick-draft .trick-desc,
 .rl-pick-cardslot .card.card .card-desc {
-  flex: 0 0 auto !important;
+  flex: 0 0 auto;
   height: auto !important;
-  max-height: var(--read-desc-h) !important;
+  max-height: var(--read-desc-h);
   /* And most of the 56px was not the box at all — it was a 38px BOTTOM PADDING
      on the rules block, from `.card.draft-card .card-desc`, written when the
      stat readouts still sat in this element's flow and it had to keep the copy

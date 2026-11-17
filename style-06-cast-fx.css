@@ -1482,7 +1482,7 @@ body.dragging-trick .tut-callout { pointer-events: none; }
 .draft-quit-btn > .tron-sweep,
 .draft-mulligan-btn > .tron-sweep,
 .draft-settings-btn > .tron-sweep,
-.game-over-btn > .tron-sweep { display: none !important; }
+.game-over-btn > .tron-sweep { display: none; }
 
 /* ============================================================
    GLOBAL RULE — NO BOXES IN THE DRAFT ACTION ROW.
@@ -1582,7 +1582,7 @@ body.dragging-trick .tut-callout { pointer-events: none; }
 }
 /* Empty states — italic notices tint with the theme too. */
 .md-empty, .stats-empty {
-  color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 42%, #c7d9e8) !important;
+  color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 42%, #c7d9e8);
 }
 /* Search placeholders glow faintly instead of defaulting to browser grey. */
 .gallery-audit-panel .aa-search::placeholder,
@@ -6560,7 +6560,7 @@ body.low-fx .mm-mw3 .mm-hero-img { animation: none; }
    glow. The one difference is that an SVG arrow cannot take text-shadow, so the
    glow is drop-shadow instead — same look, correct property. */
 #btn-undo {
-  background: none !important;
+  background: none;
   border: 0 !important;
   box-shadow: none !important;
   outline: none !important;
@@ -6596,7 +6596,7 @@ body.low-fx .mm-mw3 .mm-hero-img { animation: none; }
 
    What survives is the menu's language: the word, its text-shadow, and any
    corner reticle. */
-.tron-sweep { display: none !important; }
+.tron-sweep { display: none; }
 /* Cards keep their animation (they have their own shimmer work); they only
    lose the outline. Everything else loses both, so no no-op loop is left
    running for an outline that no longer paints. */
@@ -6616,7 +6616,7 @@ body.low-fx .mm-mw3 .mm-hero-img { animation: none; }
    stray highlight on an empty ring. Off on both the ring and the diamond: what
    is wanted is the ring, not a lens flare on it. */
 .block-circle.tron-perimeter::after,
-.energy-text.tron-perimeter::after { content: none !important; }
+.energy-text.tron-perimeter::after { content: none; }
 
 /* The diamond's fill was one flat pass of silver, which is what made it read
    as unfinished — a solid shape with a hard diagonal edge and nothing

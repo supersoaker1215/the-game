@@ -435,7 +435,7 @@ summary:focus-visible,
 .trick-desc b .kw,
 .dead-pile-card .card-desc b .kw,
 .choice-tray .card-desc b .kw {
-  color: inherit !important;
+  color: inherit;
   text-shadow: inherit;
 }
 
@@ -1127,8 +1127,8 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gol
    LATER in this sheet, so at equal specificity it wins on order however many
    !importants this rule carries. Doubling takes it to (0,2,1) and settles it. */
 .block-circle.block-circle::before {
-  content: "" !important;
-  display: block !important;
+  content: "";
+  display: block;
   /* 2px, not 4 — "thin line". The inset is uniform while the polygon is
      proportional, so the band is a touch wider toward the point, which is how a
      drawn shield's edge behaves anyway. */
@@ -2137,7 +2137,7 @@ body.hit-pause .ai-hand * {
    over the menu-black, matching the left side. Faded at the outer edges. */
 /* Grid overlay removed per user request — the hero + neon seam carry the
    right zone; the ruled grid read as busy/distracting. */
-.mm-mw3 .mm-tron-grid { display: none !important; }
+.mm-mw3 .mm-tron-grid { display: none; }
 /* The hero's mirrored REFLECTION — spills left off the seam onto the grid,
    blurred + dimmed so it reads as a reflection, not a second portrait. The
    container is flipped, so the mask (opaque→transparent L→R) ends up strongest
@@ -2193,10 +2193,10 @@ body.hit-pause .ai-hand * {
   margin: 0 0 0 clamp(34px, 7vw, 120px); padding: 0;
   /* !important to beat the Neon Theme block's themed panel box (it uses
      !important on background/border/box-shadow). MW3 wants no box. */
-  background: none !important; border: none !important; border-radius: 0;
+  background: none; border: none !important; border-radius: 0;
   box-shadow: none !important;
 }
-.mm-mw3 .mm-panel::before, .mm-mw3 .mm-panel::after { display: none !important; }
+.mm-mw3 .mm-panel::before, .mm-mw3 .mm-panel::after { display: none; }
 /* Wordmark — top-left, aligned with the menu list below it. Viewport-scaled
    (user: "make the play/library/... all bigger with the game title") so big
    windows get a properly big menu instead of small text in a wide frame. */
@@ -2228,8 +2228,8 @@ body.hit-pause .ai-hand * {
 .mm-mw3 .mm-grid.mm-grid-section { gap: 1px;  }
 .mm-mw3 .mm-option {
   /* !important to strip the themed tile box (Neon Theme block uses it). */
-  background: none !important; border: none !important; border-radius: 0;
-  box-shadow: none !important;
+  background: none; border: none; border-radius: 0;
+  box-shadow: none;
   padding: 10px 10px 10px 16px; gap: 14px;
 }
 .mm-mw3 .mm-option::before { top: 16%; bottom: 16%; width: 2px; opacity: 0; }
@@ -2276,7 +2276,7 @@ body.hit-pause .ai-hand * {
    (background:none) + overflow:visible (needed for the letter-scale), the
    parked bands became visible as gray tiles floating at the screen's left
    edge — the intermittent "gray boxes" artifact. Boxless menu = no sweep. */
-.mm-mw3 .mm-option .tron-sweep { display: none !important; }
+.mm-mw3 .mm-option .tron-sweep { display: none; }
 /* Belt-and-suspenders box kill — authored LAST so it wins the cascade over the
    themed `.mm-option:hover` wash/box-shadow/border block (Neon Theme, later in
    the file but lower specificity). The ONLY hover chrome is the letter
@@ -4943,7 +4943,7 @@ body.hit-pause .ai-hand * {
 .draft-card.trick-draft .card-portrait { border-radius: 3px 3px 0 0; }
 .draft-card,
 .draft-card.cost-0, .draft-card.cost-1, .draft-card.cost-2, .draft-card.cost-3 {
-  background: #000 !important;
+  background: #000;
   border: 1px solid rgba(46,204,113,0.95) !important;
   box-shadow:
     0 0 12px rgba(46,204,113,0.45),
@@ -4953,7 +4953,7 @@ body.hit-pause .ai-hand * {
 }
 .draft-card.cost-4, .draft-card.cost-5, .draft-card.cost-6 {
   border-color: rgba(79,195,247,0.95) !important;
-  background: #000 !important;
+  background: #000;
   box-shadow:
     0 0 12px rgba(79,195,247,0.45),
     0 0 24px rgba(79,195,247,0.18),
@@ -4962,7 +4962,7 @@ body.hit-pause .ai-hand * {
 }
 .draft-card.cost-7, .draft-card.cost-8 {
   border-color: rgba(240,245,250,0.95) !important;
-  background: #000 !important;
+  background: #000;
   box-shadow:
     0 0 12px rgba(240,245,250,0.45),
     0 0 24px rgba(240,245,250,0.18),
@@ -4971,7 +4971,7 @@ body.hit-pause .ai-hand * {
 }
 .draft-card.cost-9, .draft-card.cost-10 {
   border-color: rgba(var(--gold-rgb),0.95) !important;
-  background: #000 !important;
+  background: #000;
   box-shadow:
     0 0 12px rgba(var(--gold-rgb),0.45),
     0 0 24px rgba(var(--gold-rgb),0.18),

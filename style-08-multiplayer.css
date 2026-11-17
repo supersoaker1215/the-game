@@ -2306,11 +2306,11 @@ body.in-match:not(.board-v2) .board {
 }
 
 .card .cf-edge, .trick-card .cf-edge {
-  background: color-mix(in srgb, #fff var(--cf-core-white), rgb(var(--cf-rgb))) !important;
+  background: color-mix(in srgb, #fff var(--cf-core-white), rgb(var(--cf-rgb)));
 }
 @supports (color: oklch(from red l c h)) {
   .card .cf-edge, .trick-card .cf-edge {
-    background: oklch(from rgb(var(--cf-rgb)) calc(l + var(--cf-core-lift)) c h) !important;
+    background: oklch(from rgb(var(--cf-rgb)) calc(l + var(--cf-core-lift)) c h);
   }
 }
 
@@ -2854,7 +2854,7 @@ body.in-match:not(.board-v2) .board {
 .mm-mw3 .mm-heropick    { max-height: clamp(26px, 5vh, 58px); }
 /* !important because the rule this overrides is itself !important (a
    positioning reset that also happens to hard-code a 14px margin). */
-.mm-mw3 .mm-lb-rail     { margin: var(--mm-vr-sm) 0 0 !important; }
+.mm-mw3 .mm-lb-rail     { margin: var(--mm-vr-sm) 0 0; }
 
 /* ---- and the container's own padding, which was the real scrollbar ---------
    The panel measured 717 in a 720 viewport and the overlay STILL scrolled by
@@ -3134,10 +3134,10 @@ body.in-match:not(.board-v2) .board {
    of the art. The spec's left panel is 620px, flush left, with the art taking
    the remaining width behind a left-to-right scrim. */
 .mm-section.mp-section {
-  max-width: 620px !important;
+  max-width: 620px;
   width: 100%;
-  margin-left: 0 !important;
-  margin-right: auto !important;
+  margin-left: 0;
+  margin-right: auto;
   display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0;
 }
 /* The name field is an underline, not a box. The generic input styling gives
@@ -3145,11 +3145,11 @@ body.in-match:not(.board-v2) .board {
    as a form control competing with the mode blocks below it. */
 .mps .mps-name,
 .mm-section.mp-section .mps-name {
-  border: 0 !important;
-  border-bottom: 2px solid rgb(var(--theme-rgb)) !important;
-  background: none !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
+  border: 0;
+  border-bottom: 2px solid rgb(var(--theme-rgb));
+  background: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 /* ---- the multiplayer screen owns the whole column -------------------------
@@ -3163,7 +3163,7 @@ body.in-match:not(.board-v2) .board {
    Scoped with :has(.mps) so nothing here can leak back into the main menu. */
 .mm-panel:has(.mps) { align-self: stretch; display: flex; flex-direction: column; }
 .mm-panel:has(.mps) .mm-botbar,
-.mm-panel:has(.mps) .mm-lb-rail { display: none !important; }
+.mm-panel:has(.mps) .mm-lb-rail { display: none; }
 
 /* ============================================================
    MULTIPLAYER — LOBBY                    (ui.js `_mpRender`, status 'waiting')
@@ -3457,13 +3457,13 @@ body.in-match:not(.board-v2) .board {
    only one of them.) */
 .draft-card .card-desc,
 .draft-card .card-desc .cd-row,
-.draft-card .card-desc .cd-eff { color: #ffffff !important; }
+.draft-card .card-desc .cd-eff { color: #ffffff; }
 .draft-card .card-desc .cd-trig {
-  color: rgb(var(--portrait-frame-rgb, var(--own-green))) !important;
+  color: rgb(var(--portrait-frame-rgb, var(--own-green)));
 }
 /* the inline stat deltas keep their sign colours, but health stops being red */
 /* (superseded by the red rule at the foot of this file — kept in step) */
-.draft-card .card-desc .stat-num-hp { color: #ff6b6b !important; }
+.draft-card .card-desc .stat-num-hp { color: #ff6b6b; }
 
 /* ---- 4 · attack is GREEN, health is RED, so the two stats read apart --------
    Owner reversed the earlier "both pips take the frame colour" call: on the
@@ -3471,15 +3471,15 @@ body.in-match:not(.board-v2) .board {
    health at a glance. Attack takes the on-board green pip, health the on-board
    red pip — the same colours the hand and board already use — so "everyone
    knows what's health and what's attack." (Owner.) */
-.draft-card .stat-atk::before { background: #3dff9e !important; }
-.draft-card .stat-hp::before  { background: #ff6b6b !important; }
+.draft-card .stat-atk::before { background: #3dff9e; }
+.draft-card .stat-hp::before  { background: #ff6b6b; }
 .draft-card .stat-hp {
   text-shadow: 0 1px 2px rgba(0,0,0,1), 0 0 3px rgba(0,0,0,0.95),
-               0 0 8px rgba(255,107,107,0.85) !important;
+               0 0 8px rgba(255,107,107,0.85);
 }
 .draft-card .stat-atk {
   text-shadow: 0 1px 2px rgba(0,0,0,1), 0 0 3px rgba(0,0,0,0.95),
-               0 0 8px rgba(61,255,158,0.85) !important;
+               0 0 8px rgba(61,255,158,0.85);
 }
 
 /* ---- 3 · the card shrinks and loses the dead gap --------------------------
@@ -3516,17 +3516,17 @@ body.in-match:not(.board-v2) .board {
    THE CODEX IS THE DRAFT CARD block at the end of this file). */
 .card.card.draft-card .card-portrait,
 .card.card.enc-card .card-portrait {
-  flex: 0 0 328px !important;
+  flex: 0 0 328px;
   height: 328px !important;
-  min-height: 0 !important;
-  max-height: 328px !important;
-  aspect-ratio: auto !important;
-  margin-bottom: 0 !important;
+  min-height: 0;
+  max-height: 328px;
+  aspect-ratio: auto;
+  margin-bottom: 0;
 }
-.draft-card .status-badges { margin: 6px 0 0 !important; }
+.draft-card .status-badges { margin: 6px 0 0; }
 .draft-card .card-desc {
-  margin-top: 8px !important;
-  padding-top: 0 !important;
+  margin-top: 8px;
+  padding-top: 0;
   flex: 1 1 auto;
 }
 
@@ -4091,9 +4091,9 @@ body.in-match:not(.board-v2) .board {
    attack and health, and stripping the colour off the second one made the pair
    unreadable as a pair. Same red the HP readout uses. */
 .card.card.card .card-desc .stat-num-hp,
-.trick-card.trick-card.trick-card .trick-desc .stat-num-hp { color: #ff6b6b !important; }
+.trick-card.trick-card.trick-card .trick-desc .stat-num-hp { color: #ff6b6b; }
 .card.card.card .card-desc .stat-num-atk,
-.trick-card.trick-card.trick-card .trick-desc .stat-num-atk { color: #3dff9e !important; }
+.trick-card.trick-card.trick-card .trick-desc .stat-num-atk { color: #3dff9e; }
 /* The scanline wash behind the rules block took the frame colour too, which is
    the same tint one layer down. Neutral, and fainter. */
 .card.card.card .card-desc {
@@ -4170,7 +4170,7 @@ body.in-match:not(.board-v2) .board {
 .card .cf-band, .trick-card .cf-band,
 .card.card .cf-band, .card.card.draft-card .cf-band,
 .card.card.enc-card .cf-band, .trick-card.trick-card .cf-band {
-  z-index: 9 !important;
+  z-index: 9;
   /* THE CHAMFER LINE STAYS. I took it out for one commit — the banner ran to
      (0,0) and its own edge covered it — reading "make it look like its
      wrapping around the card" as "a ribbon hides the outline it lies on".
@@ -4183,7 +4183,7 @@ body.in-match:not(.board-v2) .board {
     calc(var(--chamfer) + var(--cf-stroke) * var(--sqrt2)) 0px,
     calc(var(--band-out)) 0px,
     0px calc(var(--band-out)),
-    0px calc(var(--chamfer) + var(--cf-stroke) * var(--sqrt2))) !important;
+    0px calc(var(--chamfer) + var(--cf-stroke) * var(--sqrt2)));
 }
 .card .cf-band-diag,
 .trick-card .cf-band-diag { z-index: 10; }
@@ -4201,7 +4201,7 @@ body.in-match:not(.board-v2) .board {
    being cut away, which is the thing the first attempt got backwards.
    The cost digit stays above everything, or it goes under the plate. */
 .card .cf-frame,
-.trick-card .cf-frame { z-index: 11 !important; }
+.trick-card .cf-frame { z-index: 11; }
 .card .card-cost,
 .trick-card .card-cost { z-index: 12; }
 
@@ -4522,11 +4522,11 @@ body.low-fx .card-glow-host { filter: none !important; }
 .trick-card .stat-atk::before, .trick-card .stat-hp::before {
   border: 0 !important;
   border-radius: 0 !important;
-  background: rgb(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250))) !important;
-  -webkit-mask: none !important;
-          mask: none !important;
-  -webkit-clip-path: var(--stat-hex) !important;
-          clip-path: var(--stat-hex) !important;
+  background: rgb(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250)));
+  -webkit-mask: none;
+          mask: none;
+  -webkit-clip-path: var(--stat-hex);
+          clip-path: var(--stat-hex);
 }
 /* ---- 1b · ATK / HP labels, on the READING surfaces only ------------------
    The owner's detail rule: hand and board show fewer things, not smaller
@@ -4575,26 +4575,26 @@ body.low-fx .card-glow-host { filter: none !important; }
 .card.card.draft-card .status-badges,
 .card.card.enc-card .status-badges,
 .card-inspect-modal .card.card .status-badges {
-  justify-content: center !important;
-  gap: calc(var(--card-w) * 0.018) !important;
+  justify-content: center;
+  gap: calc(var(--card-w) * 0.018);
 }
 .card.card.draft-card .status-badge,
 .card.card.enc-card .status-badge,
 .card-inspect-modal .card.card .status-badge {
-  background: none !important;
-  border: 0 !important;
-  border-radius: 0 !important;
+  background: none;
+  border: 0;
+  border-radius: 0;
   padding: calc(var(--card-w) * 0.012) calc(var(--card-w) * 0.030) !important;
-  letter-spacing: 0.16em !important;
-  text-transform: uppercase !important;
-  box-shadow: none !important;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  box-shadow: none;
 }
 
 /* ---- 3 · the rules divider runs the full width --------------------------- */
 .card.card.draft-card .card-desc,
 .card.card.enc-card .card-desc,
 .card-inspect-modal .card.card .card-desc {
-  border-top: 1px solid rgb(40, 45, 51) !important;
+  border-top: 1px solid rgb(40, 45, 51);
   padding-top: calc(var(--card-w) * 0.030) !important;
 }
 
@@ -4633,7 +4633,7 @@ body.low-fx .card-glow-host { filter: none !important; }
      painting showing through, the art supplies both and a second gradient on
      top of it only muddies the tint. Still the card's own colour — the same
      value the frame, the glow, the name and the stat marks all read. */
-  background: rgba(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250)), 0.45) !important;
+  background: rgba(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250)), 0.45);
 }
 
 
@@ -4933,13 +4933,13 @@ body.low-fx .card-glow-host { filter: none !important; }
      note above, kept for the history) is no longer needed to achieve it.
      The ring is a real border rather than an evenodd inner loop, for the same
      reason: one uniform stroke, no miters to solve. */
-  -webkit-clip-path: none !important;
-  clip-path: none !important;
+  -webkit-clip-path: none;
+  clip-path: none;
   inset: 6.699% 0 !important;
-  background: transparent !important;
+  background: transparent;
   border: var(--cf-stroke) solid rgb(var(--cf-rgb)) !important;
   border-radius: 50% !important;
-  box-sizing: border-box !important;
+  box-sizing: border-box;
 }
 .card .stat-hp, .trick-card .stat-hp, .card.card .stat-hp,
 .card.card.draft-card .stat-hp, .card.card.enc-card .stat-hp,
@@ -4948,7 +4948,7 @@ body.low-fx .card-glow-host { filter: none !important; }
      clip-path above needs, and an explicit 0 with the same weight is what
      stops a future "nudge the shield digit" edit from quietly reintroducing
      the 8.22px split. The digits are level BECAUSE neither box has padding. */
-  padding-bottom: 0 !important;
+  padding-bottom: 0;
 }
 
 /* ============================================================
@@ -5303,7 +5303,7 @@ body.fx-lean:not(.low-fx) .card.status-crazy:not(:where(.card-slot > *)):where(:
    still. SELECTORS RESOLVED FROM THE SHEET, not guessed — the grid lives on
    body::before and the scanline roll on body.crt-on::after, so the obvious
    `.tron-grid` / `.crt-scanlines` spellings would both have been inert. */
-body.fx-lean::before { animation: none !important; }
+body.fx-lean::before { animation: none; }
 body.fx-lean.crt-on::after { animation: none !important; }
 body.fx-lean .board-section .crt-scanlines { animation: none !important; }
 
@@ -5314,8 +5314,8 @@ body.fx-lean .board-section .crt-scanlines { animation: none !important; }
    anything. The URGENT ones — low health, lethal, a live prompt — are NOT here:
    those are signals and they stay at every tier. */
 body.fx-lean .hud-pill-main { animation: none !important; }
-body.fx-lean .hud-count b { animation: none !important; }
-body.fx-lean .hud-round #round-num { animation: none !important; }
+body.fx-lean .hud-count b { animation: none; }
+body.fx-lean .hud-round #round-num { animation: none; }
 body.fx-lean .lane .lane-sep.lane-active .lane-number { animation: none !important; }
 
 /* ---- 4. THE BLOCK METER'S BRINK HUM -------------------------------------
@@ -5409,8 +5409,8 @@ body.fx-lean .card-taunt { box-shadow: 0 0 14px rgba(255,190,60,0.55), 0 0 26px 
 /* ---- the rows: bigger, wider-tracked, no icon, hung off the rail ---------- */
 .mm-four .mm-option {
   position: relative;
-  padding: clamp(8px, 1.3vh, 16px) 10px clamp(8px, 1.3vh, 16px) clamp(18px, 1.6vw, 28px) !important;  /* beats .mm-mw3 .mm-option's --mm-opt-pad */
-  gap: 0 !important;
+  padding: clamp(8px, 1.3vh, 16px) 10px clamp(8px, 1.3vh, 16px) clamp(18px, 1.6vw, 28px);  /* beats .mm-mw3 .mm-option's --mm-opt-pad */
+  gap: 0;
   width: fit-content; max-width: 100%;
 }
 .mm-four .mm-grid-section { display: flex; flex-direction: column; gap: var(--mm-row-gap); position: relative; }
@@ -5419,8 +5419,8 @@ body.fx-lean .card-taunt { box-shadow: 0 0 14px rgba(255,190,60,0.55), 0 0 26px 
   content: ''; position: absolute; left: 0; top: 4px; bottom: 4px; width: 1px;
   background: rgba(var(--theme-rgb, 79,195,247), 0.22);
 }
-.mm-four .mm-option-icon:empty { display: none !important; }
-.mm-four .mm-option-icon:not(:empty) { display: none !important; }   /* no icons in four-row mode; the segment is the mark */
+.mm-four .mm-option-icon:empty { display: none; }
+.mm-four .mm-option-icon:not(:empty) { display: none; }   /* no icons in four-row mode; the segment is the mark */
 .mm-four .mm-option-label {
   font-size: clamp(22px, 2.75vw, 54px) !important;    /* beats L40176 / L2651 clamp(18px, …) */
   letter-spacing: 0.18em !important;                   /* beats L23519's 0.12em */
@@ -5458,9 +5458,9 @@ body.fx-lean .card-taunt { box-shadow: 0 0 14px rgba(255,190,60,0.55), 0 0 26px 
 /* ---- the lockup: the wordmark grows. No rule under it — the owner removed
    both the thick bar and this thin line (2026-11-09). ------------------------- */
 .mm-four .mm-title {
-  font-size: clamp(34px, min(5.6vw, 8vh), 92px) !important;   /* beats L50310 */
-  letter-spacing: 0.22em !important;
-  margin-bottom: clamp(18px, 3vh, 40px) !important;
+  font-size: clamp(34px, min(5.6vw, 8vh), 92px);   /* beats L50310 */
+  letter-spacing: 0.22em;
+  margin-bottom: clamp(18px, 3vh, 40px);
 }
 /* ---- the hero leans toward the row you are on ---------------------------- */
 .mm-four .mm-hero {
@@ -5529,7 +5529,7 @@ body.fx-lean .card-taunt { box-shadow: 0 0 14px rgba(255,190,60,0.55), 0 0 26px 
 .mm-section.mp-section .mps-tron .mps-name {
   width: min(260px, 52vw); flex: 0 1 auto;
   font-family: 'Rajdhani', sans-serif; font-size: 22px; font-weight: 600; letter-spacing: 0.08em;
-  border-bottom: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55) !important;
+  border-bottom: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);
 }
 .mm-section.mp-section .mps-tron .mps-name:focus { border-bottom-color: rgb(var(--theme-rgb, 79,195,247)) !important; }
 .mps-tron .mps-chips { gap: 10px; }
@@ -6101,20 +6101,20 @@ body:not(.ai-thinking) .ai-thinking-ring circle {
    trick drop-zone highlight (body.dragging-trick …) still wins while you drag.
    Classic skin only — board-v2 draws its own bars. */
 .turn-hud:where(body:not(.board-v2) *) {
-  border-bottom-color: transparent !important;
+  border-bottom-color: transparent;
 }
 .info-bar.ai-bar:where(body:not(.board-v2) *),
 .info-bar.player-bar:where(body:not(.board-v2) *) {
-  border-top-color: transparent !important;
-  border-bottom-color: transparent !important;
+  border-top-color: transparent;
+  border-bottom-color: transparent;
   /* the same two lines were ALSO drawn as inset shadows (0 ±1px, 74%) */
-  box-shadow: none !important;
+  box-shadow: none;
 }
 /* …and the hand row's own top rule (cyan 28%) sat 0px under your bar,
    reading as a sixth full-width line once the bar's went. */
 .player-hand-section:where(body:not(.board-v2) *) {
-  border-top-color: transparent !important;
-  box-shadow: none !important;   /* it also drew it as a 0 -1px shadow (74%) */
+  border-top-color: transparent;
+  box-shadow: none;   /* it also drew it as a 0 -1px shadow (74%) */
 }
 .info-bar.ai-bar:where(body:not(.board-v2) *) {
   background:
@@ -6161,8 +6161,8 @@ body:not(.ai-thinking) .ai-thinking-ring circle {
   border-image: none !important;
 }
 .tricks-section:where(body:not(.board-v2) *) {
-  border-top-color: transparent !important;
-  box-shadow: none !important;
+  border-top-color: transparent;
+  box-shadow: none;
 }
 
 /* ============================================================

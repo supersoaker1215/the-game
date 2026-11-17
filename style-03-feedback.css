@@ -199,7 +199,7 @@
 
 /* Log drawer — slides off to the right when collapsed */
 .log-drawer {
-  position: fixed !important; top: 80px; right: 0; bottom: 80px;
+  position: fixed; top: 80px; right: 0; bottom: 80px;
   width: 320px;
   transition: transform 240ms var(--ease-snap);
   /* ABOVE THE GUTTER. Owner: "the log needs to go over the enciroment tab."
@@ -208,7 +208,7 @@
      — the column is a permanent fixture and the drawer is something you open on
      purpose, so the drawer wins. Still under the full-screen modals at 750,
      which must cover everything. */
-  z-index: 620 !important;
+  z-index: 620;
   display: flex; flex-direction: column;
   padding: 10px 10px 10px;
 }
@@ -232,15 +232,15 @@
      as "a bunch of green on the right of lane 6, like, in the
      edge" — the 20px blur on the leftward shadow reached into
      the visible area even though the drawer body was off-screen. */
-  box-shadow: none !important;
-  border-left: none !important;
+  box-shadow: none;
+  border-left: none;
 }
 .log-drawer .game-log {
   flex: 1 1 auto; overflow-y: auto; padding-right: 4px;
   max-height: none; min-height: 0; height: auto;
 }
 .log-drawer-toggle {
-  position: fixed !important;   z-index: 125 !important;
+  position: fixed;   z-index: 125;
   color: #7fd0ff;
   font-size: 16px; cursor: pointer;
 }
@@ -251,7 +251,7 @@
    same Tron chrome, so the two read as one control cluster in the top-right —
    was a dim floater at top:94px over the board. */
 .cheat-help-toggle {
-  position: fixed !important; top: 14px; right: 68px; z-index: 500 !important;
+  position: fixed; top: 14px; right: 68px; z-index: 500;
   width: 44px; height: 44px; border-radius: 50%;
   /* In-match only — body.in-match is toggled in UI.render with game-area. */
   display: none;
@@ -640,11 +640,11 @@ body.in-match .cheat-help-toggle { display: flex; }
 .stats-title {
   text-indent: 10px;
   line-height: 1;
-  color: color-mix(in srgb, var(--theme-accent) 25%, #f5fbff) !important;
+  color: color-mix(in srgb, var(--theme-accent) 25%, #f5fbff);
   text-shadow:
     0 0 10px var(--theme-accent-bright),
     0 0 26px var(--theme-glow-outer),
-    0 0 48px var(--theme-glow-inner) !important;
+    0 0 48px var(--theme-glow-inner);
 }
 
 /* Mode-select grid options — match the .mm-option accent-bar + lift
@@ -1016,7 +1016,7 @@ body.round-first-ai .hud-pill-main {
    gap) so the pill reads as a clean typographic row rather than
    a studded circuit.
    ============================================================ */
-.hud-divider { display: none !important; }
+.hud-divider { display: none; }
 .hud-pill-main { gap: 14px; padding: 6px 18px; }
 
 /* ============================================================
@@ -1182,7 +1182,7 @@ body, :root {
     inset 0 1px 0 var(--theme-accent-edge) !important;
   background:
     linear-gradient(180deg, var(--theme-wash-05) 0%, rgba(0,0,0,0) 40%),
-    #000 !important;
+    #000;
 }
 .mm-panel::before,
 .mode-panel::before,
@@ -1207,18 +1207,18 @@ body, :root {
 /* Menu option edges + hero tag + eyebrows all use theme accent. */
 .mm-option,
 .mode-option {
-  border-color: var(--theme-accent-ring) !important;
+  border-color: var(--theme-accent-ring);
   background:
     linear-gradient(90deg, var(--theme-wash-08) 0%, rgba(0,0,0,0) 55%),
-    #000 !important;
+    #000;
   box-shadow:
     0 0 10px var(--theme-glow-inner),
-    inset 0 0 0 1px var(--theme-wash-05) !important;
+    inset 0 0 0 1px var(--theme-wash-05);
 }
 .mm-option::before,
 .mode-option::before {
-  background: var(--theme-accent-edge) !important;
-  box-shadow: 0 0 6px var(--theme-accent-edge) !important;
+  background: var(--theme-accent-edge);
+  box-shadow: 0 0 6px var(--theme-accent-edge);
 }
 .mm-option:hover,
 .mode-option:hover {
@@ -1240,19 +1240,19 @@ body, :root {
    menu item reads as one coordinated colour rather than half-and-half. */
 .mm-option-label,
 .mode-option-label {
-  color: color-mix(in srgb, var(--theme-accent) 65%, white) !important;
-  text-shadow: 0 0 8px var(--theme-glow-outer) !important;
+  color: color-mix(in srgb, var(--theme-accent) 65%, white);
+  text-shadow: 0 0 8px var(--theme-glow-outer);
 }
 .mm-option-sub,
 .mode-option-sub {
   color: color-mix(in srgb, var(--theme-accent) 35%, #e8eef6) !important;
 }
-.mm-option-icon { color: color-mix(in srgb, var(--theme-accent) 55%, white) !important; }
+.mm-option-icon { color: color-mix(in srgb, var(--theme-accent) 55%, white); }
 .mm-svg {
-  color: color-mix(in srgb, var(--theme-accent) 55%, white) !important;
+  color: color-mix(in srgb, var(--theme-accent) 55%, white);
   filter:
     drop-shadow(0 0 4px var(--theme-glow-outer))
-    drop-shadow(0 0 10px var(--theme-glow-inner)) !important;
+    drop-shadow(0 0 10px var(--theme-glow-inner));
 }
 .mm-option:hover .mm-svg {
   color: color-mix(in srgb, var(--theme-accent) 30%, white) !important;
@@ -1263,15 +1263,15 @@ body, :root {
 .mm-title,
 .mm-subtitle,
 .hud-eyebrow {
-  color: var(--theme-accent-bright) !important;
-  text-shadow: 0 0 6px var(--theme-glow-outer) !important;
+  color: var(--theme-accent-bright);
+  text-shadow: 0 0 6px var(--theme-glow-outer);
 }
 .mm-title {
-  color: var(--text-hi, #f5fbff) !important;
+  color: var(--text-hi, #f5fbff);
   text-shadow:
     0 0 10px var(--theme-accent-bright),
     0 0 28px var(--theme-glow-outer),
-    0 0 48px var(--theme-glow-inner) !important;
+    0 0 48px var(--theme-glow-inner);
 }
 
 
@@ -1299,12 +1299,12 @@ body, :root {
     0 0 7px var(--theme-glow-outer),
     0 0 14px var(--theme-glow-inner),
     inset 0 0 0 1px var(--theme-accent-dim) !important;
-  text-shadow: 0 0 6px var(--theme-accent-bright) !important;
+  text-shadow: 0 0 6px var(--theme-accent-bright);
 }
 /* Settings panel h2 divider tracks theme. */
 .settings-panel h2::after,
 .round-summary-panel h2::after {
-  background: linear-gradient(90deg, transparent, var(--theme-accent-edge) 20%, var(--theme-accent-edge) 80%, transparent) !important;
+  background: linear-gradient(90deg, transparent, var(--theme-accent-edge) 20%, var(--theme-accent-edge) 80%, transparent);
 }
 /* Settings inputs — focus ring uses theme. */
 .settings-row select:focus,
@@ -1425,7 +1425,7 @@ body.theme-purple, :root.theme-purple { --theme-r: 176; --theme-g: 97; --theme-b
   border-color: rgba(155,89,182,0.90) !important;
   filter: drop-shadow(0 0 6px rgba(155,89,182,0.70)) !important;
 }
-.hud-count-tricks { color: #d7b3e6 !important; }
+.hud-count-tricks { color: #d7b3e6; }
 .hud-count-tricks b {
   color: #d7b3e6 !important;
 }
@@ -1504,17 +1504,17 @@ body {
   background:
     linear-gradient(180deg, var(--enemy-wash-08), transparent 50%),
     linear-gradient(180deg, #000000, #000000) !important;
-  border-top-color: var(--enemy-accent-bright) !important;
-  border-bottom-color: var(--enemy-accent-bright) !important;
+  border-top-color: var(--enemy-accent-bright);
+  border-bottom-color: var(--enemy-accent-bright);
   /* Its edge already read the ladder; the insets did not. Now both do. */
   box-shadow:
     inset 0 1px 0 rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), calc(0.22 + (1 - 0.22) * var(--neon-lift, 0))),
-    inset 0 -1px 0 rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), calc(0.22 + (1 - 0.22) * var(--neon-lift, 0))) !important;
+    inset 0 -1px 0 rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), calc(0.22 + (1 - 0.22) * var(--neon-lift, 0)));
 }
 /* Player health bar + fill */
 .ai-bar .health-bar {
-  border-color: var(--enemy-accent-bright) !important;
-  box-shadow: 0 0 6px var(--enemy-glow-outer), 0 0 14px var(--enemy-glow-inner) !important;
+  border-color: var(--enemy-accent-bright);
+  box-shadow: 0 0 6px var(--enemy-glow-outer), 0 0 14px var(--enemy-glow-inner);
 }
 /* Fill alpha raised from 0.08-0.20 to 0.50-0.92. At the old values a FULL bar
    was indistinguishable from an empty one on black, and the 100% rule hides the
@@ -1526,7 +1526,7 @@ body {
 .health-fill.player-hp {
   background: linear-gradient(90deg,
     rgba(var(--player-r), var(--player-g), var(--player-b), 0.50),
-    rgba(var(--player-r), var(--player-g), var(--player-b), 0.92)) !important;
+    rgba(var(--player-r), var(--player-g), var(--player-b), 0.92));
   box-shadow:
     inset -2px 0 0 0 rgba(var(--player-r), var(--player-g), var(--player-b), 1),
     2px 0 4px rgba(var(--player-r), var(--player-g), var(--player-b), 0.65),
@@ -1542,18 +1542,18 @@ body {
     4px 0 10px rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.32) !important;
 }
 .health-text.player-color {
-  color: color-mix(in srgb, var(--player-accent) 35%, white) !important;
+  color: color-mix(in srgb, var(--player-accent) 35%, white);
   text-shadow:
     0 0 3px var(--player-accent-bright),
     0 0 8px var(--player-glow-outer),
-    0 1px 2px rgba(0,0,0,0.8) !important;
+    0 1px 2px rgba(0,0,0,0.8);
 }
 .health-text.ai-color {
-  color: color-mix(in srgb, rgb(var(--enemy-r), var(--enemy-g), var(--enemy-b)) 35%, white) !important;
+  color: color-mix(in srgb, rgb(var(--enemy-r), var(--enemy-g), var(--enemy-b)) 35%, white);
   text-shadow:
     0 0 3px var(--enemy-accent-bright),
     0 0 8px var(--enemy-glow-outer),
-    0 1px 2px rgba(0,0,0,0.8) !important;
+    0 1px 2px rgba(0,0,0,0.8);
 }
 /* Block meter — player + AI sides follow their respective theme. */
 .player-bar .block-circle {
@@ -1562,11 +1562,11 @@ body {
      FIVE rules in this sheet setting box-shadow on the block circle, and one
      of the two that actually win because they carry !important. Removing it
      upstream did nothing; it has to come off here. */
-  box-shadow: none !important;
+  box-shadow: none;
 }
 .ai-bar .block-circle {
-  border-color: var(--enemy-accent-bright) !important;
-  box-shadow: none !important;
+  border-color: var(--enemy-accent-bright);
+  box-shadow: none;
 }
 /* Player ally cards — frame + gradient wash uses player theme. */
 .card.ally-card {
@@ -1650,11 +1650,11 @@ body {
    SETTINGS CONTROLS THEMED — dropdowns, checkboxes, Cancel.
    ============================================================ */
 .settings-row select {
-  background: #000 !important;
-  color: var(--text-body, #f5fbff) !important;
-  border: 1px solid var(--theme-accent-edge) !important;
+  background: #000;
+  color: var(--text-body, #f5fbff);
+  border: 1px solid var(--theme-accent-edge);
   border-radius: 4px;
-  padding: 6px 10px !important;
+  padding: 6px 10px;
   font-weight: 600;
 }
 .settings-row select option {
@@ -1664,12 +1664,12 @@ body {
 /* Use accent-color on checkboxes — it's the only cross-browser hook
    that tints the native checkbox fill without replacing it. */
 .settings-row input[type="checkbox"] {
-  accent-color: var(--theme-accent) !important;
+  accent-color: var(--theme-accent);
   width: 16px; height: 16px;
   cursor: pointer;
 }
 .settings-row label {
-  color: color-mix(in srgb, var(--theme-accent) 30%, #cfd6df) !important;
+  color: color-mix(in srgb, var(--theme-accent) 30%, #cfd6df);
 }
 /* Secondary button (Cancel) — outline-only theme, so it's clearly
    less-emphasis than the filled primary (Save) but still themed. */
@@ -1689,8 +1689,8 @@ body {
 /* Settings panel h2 — pick up theme colour. */
 .settings-panel h2,
 .round-summary-panel h2 {
-  color: color-mix(in srgb, var(--theme-accent) 40%, #f5fbff) !important;
-  text-shadow: 0 0 8px var(--theme-glow-outer) !important;
+  color: color-mix(in srgb, var(--theme-accent) 40%, #f5fbff);
+  text-shadow: 0 0 8px var(--theme-glow-outer);
 }
 
 /* ============================================================
@@ -1734,7 +1734,7 @@ body {
 .db-back {
   border-color: var(--theme-accent-edge) !important;
   color: color-mix(in srgb, var(--theme-accent) 50%, white) !important;
-  background: #000 !important;
+  background: #000;
 }
 .mode-back:hover,
 .md-back:hover,
@@ -1760,11 +1760,11 @@ body {
    chrome.
    ============================================================ */
 .stats-summary-label {
-  color: color-mix(in srgb, var(--theme-accent) 35%, #d4ecff) !important;
+  color: color-mix(in srgb, var(--theme-accent) 35%, #d4ecff);
 }
 .stats-summary-value {
-  color: color-mix(in srgb, var(--theme-accent) 30%, white) !important;
-  text-shadow: 0 0 6px var(--theme-glow-outer) !important;
+  color: color-mix(in srgb, var(--theme-accent) 30%, white);
+  text-shadow: 0 0 6px var(--theme-glow-outer);
 }
 /* Hide the wordy definition prose — the chips convey the key
    numbers; tooltips still surface the detail on hover for anyone
@@ -1772,7 +1772,7 @@ body {
 .stats-def-body,
 .stats-legend-body,
 .stats-methodology {
-  display: none !important;
+  display: none;
 }
 
 /* ============================================================
@@ -1795,26 +1795,26 @@ body {
   text-shadow: 0 0 6px var(--theme-glow-inner) !important;
 }
 .md-new-btn {
-  border-color: var(--theme-accent-bright) !important;
-  color: color-mix(in srgb, var(--theme-accent) 45%, white) !important;
-  box-shadow: 0 0 10px var(--theme-glow-inner) !important;
+  border-color: var(--theme-accent-bright);
+  color: color-mix(in srgb, var(--theme-accent) 45%, white);
+  box-shadow: 0 0 10px var(--theme-glow-inner);
 }
 .md-new-btn:hover {
   color: var(--text-hi, #f5fbff) !important;
   box-shadow: 0 0 14px var(--theme-glow-outer), 0 0 28px var(--theme-glow-inner) !important;
 }
 .md-title {
-  color: color-mix(in srgb, var(--theme-accent) 35%, #f5fbff) !important;
-  text-shadow: 0 0 10px var(--theme-glow-outer), 0 0 24px var(--theme-glow-inner) !important;
+  color: color-mix(in srgb, var(--theme-accent) 35%, #f5fbff);
+  text-shadow: 0 0 10px var(--theme-glow-outer), 0 0 24px var(--theme-glow-inner);
 }
 .md-subtitle,
 .stats-subtitle {
-  color: color-mix(in srgb, var(--theme-accent) 40%, #d4ecff) !important;
-  text-shadow: 0 0 6px var(--theme-glow-inner) !important;
+  color: color-mix(in srgb, var(--theme-accent) 40%, #d4ecff);
+  text-shadow: 0 0 6px var(--theme-glow-inner);
 }
 .stats-title {
-  color: color-mix(in srgb, var(--theme-accent) 35%, #f5fbff) !important;
-  text-shadow: 0 0 10px var(--theme-glow-outer), 0 0 24px var(--theme-glow-inner) !important;
+  color: color-mix(in srgb, var(--theme-accent) 35%, #f5fbff);
+  text-shadow: 0 0 10px var(--theme-glow-outer), 0 0 24px var(--theme-glow-inner);
 }
 
 /* ============================================================
@@ -1872,9 +1872,9 @@ body {
 /* ---- Dead-pile badges follow side theme ---- */
 .ai-bar .pile-badge.dead-pile,
 .info-bar.ai-bar .pile-badge.dead-pile {
-  color: color-mix(in srgb, rgb(var(--enemy-r), var(--enemy-g), var(--enemy-b)) 35%, white) !important;
-  border-color: var(--enemy-accent-bright) !important;
-  box-shadow: 0 0 8px var(--enemy-glow-outer), 0 0 16px var(--enemy-glow-inner) !important;
+  color: color-mix(in srgb, rgb(var(--enemy-r), var(--enemy-g), var(--enemy-b)) 35%, white);
+  border-color: var(--enemy-accent-bright);
+  box-shadow: 0 0 8px var(--enemy-glow-outer), 0 0 16px var(--enemy-glow-inner);
 }
 .ai-bar .pile-badge.dead-pile:hover,
 .info-bar.ai-bar .pile-badge.dead-pile:hover {
@@ -1895,12 +1895,12 @@ body {
 
 /* ---- Block meter value text follows side theme ---- */
 .player-bar .block-circle-value {
-  color: color-mix(in srgb, var(--player-accent) 35%, white) !important;
-  text-shadow: 0 0 6px var(--player-glow-outer) !important;
+  color: color-mix(in srgb, var(--player-accent) 35%, white);
+  text-shadow: 0 0 6px var(--player-glow-outer);
 }
 .ai-bar .block-circle-value {
-  color: color-mix(in srgb, rgb(var(--enemy-r), var(--enemy-g), var(--enemy-b)) 35%, white) !important;
-  text-shadow: 0 0 6px var(--enemy-glow-outer) !important;
+  color: color-mix(in srgb, rgb(var(--enemy-r), var(--enemy-g), var(--enemy-b)) 35%, white);
+  text-shadow: 0 0 6px var(--enemy-glow-outer);
 }
 
 /* ---- HUD pill content follows theme ---- */
@@ -1980,17 +1980,17 @@ body.round-first-ai .hud-pill-main {
   box-shadow: 0 0 7px var(--theme-glow-outer), 0 0 14px var(--theme-glow-inner) !important;
 }
 .hud-count-deck {
-  color: color-mix(in srgb, var(--theme-accent) 35%, #d4ecff) !important;
+  color: color-mix(in srgb, var(--theme-accent) 35%, #d4ecff);
 }
 .hud-count-deck b {
   box-shadow:
     0 0 5px var(--theme-glow-outer),
     0 0 10px var(--theme-glow-inner),
     inset 0 0 5px var(--theme-wash-08) !important;
-  text-shadow: 0 0 6px var(--theme-accent-bright), 0 0 10px var(--theme-glow-outer) !important;
+  text-shadow: 0 0 6px var(--theme-accent-bright), 0 0 10px var(--theme-glow-outer);
 }
 .hud-count-tricks {
-  color: color-mix(in srgb, var(--theme-accent) 35%, #d4ecff) !important;
+  color: color-mix(in srgb, var(--theme-accent) 35%, #d4ecff);
 }
 .hud-count-tricks b {
   color: color-mix(in srgb, var(--theme-accent) 30%, white) !important;
@@ -1999,7 +1999,7 @@ body.round-first-ai .hud-pill-main {
     0 0 5px var(--theme-glow-outer),
     0 0 10px var(--theme-glow-inner),
     inset 0 0 5px var(--theme-wash-08) !important;
-  text-shadow: 0 0 6px var(--theme-accent-bright), 0 0 10px var(--theme-glow-outer) !important;
+  text-shadow: 0 0 6px var(--theme-accent-bright), 0 0 10px var(--theme-glow-outer);
 }
 
 /* ============================================================
@@ -2244,7 +2244,7 @@ body.round-first-ai .hud-pill-main {
    --player-accent, enemy side uses --enemy-accent, so the skull
    flips with the theme instead of being baked red / blue. */
 .pile-icon.icon-dead {
-  background-image: none !important;
+  background-image: none;
   /* Mask: same skull silhouette as the original SVG, as a mask-image.
      Background colour paints the shape. */
   -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M8 1.5c-3 0-5.5 2.3-5.5 5.2 0 1.6 0.8 3 2 3.9v2.1c0 0.6 0.5 1 1 1h5c0.5 0 1-0.4 1-1v-2.1c1.2-0.9 2-2.3 2-3.9 0-2.9-2.5-5.2-5.5-5.2z'/></svg>");
@@ -2258,10 +2258,10 @@ body.round-first-ai .hud-pill-main {
 }
 /* Default (enemy) — enemy accent colour. */
 .ai-bar .pile-icon.icon-dead {
-  background-color: var(--enemy-accent-bright) !important;
+  background-color: var(--enemy-accent-bright);
 }
 .player-bar .pile-icon.icon-dead {
-  background-color: var(--player-accent-bright) !important;
+  background-color: var(--player-accent-bright);
 }
 
 /* Rarity pips (1-pip common + 2-pip uncommon) follow theme;
@@ -2285,10 +2285,10 @@ body.round-first-ai .hud-pill-main {
 .cost-6 .card-trick-passive,
 .cost-7 .card-trick-passive, .cost-8 .card-trick-passive,
 .cost-9 .card-trick-passive, .cost-10 .card-trick-passive {
-  color: color-mix(in srgb, var(--theme-accent) 30%, white) !important;
+  color: color-mix(in srgb, var(--theme-accent) 30%, white);
   text-shadow:
     0 0 4px var(--theme-accent-bright),
-    0 0 8px var(--theme-glow-outer) !important;
+    0 0 8px var(--theme-glow-outer);
 }
 
 /* Drafted-list sidebar — "CARDS:" / "TRICKS:" labels pick up theme.
@@ -2475,24 +2475,24 @@ body.round-first-ai .hud-pill-main {
    lane 1 / lane 6 and read as disconnected chrome). ::before is
    repurposed below as the round-start sweep overlay; only ::after
    is hidden here. */
-.board-section::after { display: none !important; }
+.board-section::after { display: none; }
 /* Also drop the heavy inset banner-bleed on the board-section —
    the banner borders themselves already carry that glow, and the
    inset was painting the extra "left of lane 1" white/red artifact
    the user flagged. */
 .board-section {
-  padding: 0 !important;
+  padding: 0;
 }
 
 /* Tricks section — use a full-width theme-accent line above the
    tricks row instead of the muted grey-cyan hybrid it had. */
 .tricks-section {
   padding-top: 12px !important;
-  border-top: 1px solid var(--theme-accent-edge) !important;
-  box-shadow: 0 -1px 0 var(--theme-glow-inner) !important;
+  border-top: 1px solid var(--theme-accent-edge);
+  box-shadow: 0 -1px 0 var(--theme-glow-inner);
 }
 .player-hand-section {
-  border-top: 1px solid var(--theme-accent-edge) !important;
+  border-top: 1px solid var(--theme-accent-edge);
 }
 
 /* ============================================================
@@ -2518,8 +2518,8 @@ body.round-first-ai .hud-pill-main {
 .draft-card.cost-4 .card-trick-passive,
 .draft-card.cost-5 .card-trick-passive,
 .draft-card.cost-6 .card-trick-passive {
-  color: #7fd0ff !important;
-  text-shadow: 0 0 4px rgba(79,195,247,0.70), 0 0 8px rgba(79,195,247,0.35) !important;
+  color: #7fd0ff;
+  text-shadow: 0 0 4px rgba(79,195,247,0.70), 0 0 8px rgba(79,195,247,0.35);
 }
 .card.hand-card.cost-7 .card-trick-passive,
 .card.hand-card.cost-8 .card-trick-passive,
@@ -2532,8 +2532,8 @@ body.round-first-ai .hud-pill-main {
 .card.hand-card.cost-10 .card-trick-passive,
 .draft-card.cost-9 .card-trick-passive,
 .draft-card.cost-10 .card-trick-passive {
-  color: #ffe066 !important;
-  text-shadow: 0 0 4px rgba(var(--gold-rgb),0.70), 0 0 8px rgba(var(--gold-rgb),0.35) !important;
+  color: #ffe066;
+  text-shadow: 0 0 4px rgba(var(--gold-rgb),0.70), 0 0 8px rgba(var(--gold-rgb),0.35);
 }
 /* Board — theme on both sides. */
 .card.ally-card .card-trick-passive {
@@ -2578,7 +2578,7 @@ body.round-first-ai .hud-pill-main {
 }
 .card .card-desc b {
   font-size: 9px !important;
-  letter-spacing: 1px !important;
+  letter-spacing: 1px;
 }
 /* Stat circles — tighter numerals, slightly bolder, better tabular alignment. */
 .stat-circle {
@@ -2588,8 +2588,8 @@ body.round-first-ai .hud-pill-main {
   letter-spacing: 0;
 }
 .card-cost {
-  font-weight: 700 !important;
-  letter-spacing: 0 !important;
+  font-weight: 700;
+  letter-spacing: 0;
 }
 
 /* ---- #3 Unified microinteractions ---- */
@@ -2908,7 +2908,7 @@ body.round-transition .board-section::before {
   mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48' fill='none' stroke='black' stroke-width='1.4' stroke-linejoin='round'><path d='M6 40h36'/><rect x='10' y='28' width='5' height='10'/><rect x='20' y='18' width='5' height='20'/><rect x='30' y='12' width='5' height='26'/></svg>");
 }
 .md-empty, .stats-empty {
-  color: color-mix(in srgb, var(--theme-accent) 30%, #7a8691) !important;
+  color: color-mix(in srgb, var(--theme-accent) 30%, #7a8691);
 }
 
 /* ---- #10 Keyword badge chip shape ---- */
@@ -2924,7 +2924,7 @@ body.round-transition .board-section::before {
     100% calc(100% - 3px), calc(100% - 3px) 100%,
     0 100%, 0 3px
   );
-  border-radius: 0 !important;
+  border-radius: 0;
 }
 /* Keyword pills inside the card body also get the cut-corner shape
    when they're inline (.kw-pill) — scoped so inline keyword text
@@ -2973,14 +2973,14 @@ body.round-transition .board-section::before {
    ally = player theme, enemy = enemy theme.
    ============================================================ */
 .phase-banner-text {
-  color: color-mix(in srgb, var(--theme-accent) 25%, white) !important;
-  border-color: var(--theme-accent-bright) !important;
+  color: color-mix(in srgb, var(--theme-accent) 25%, white);
+  border-color: var(--theme-accent-bright);
   box-shadow:
     0 0 12px var(--theme-glow-outer),
-    0 0 24px var(--theme-glow-inner) !important;
+    0 0 24px var(--theme-glow-inner);
   text-shadow:
     0 0 8px var(--theme-accent-bright),
-    0 0 16px var(--theme-glow-outer) !important;
+    0 0 16px var(--theme-glow-outer);
 }
 /* Combat phase — also themed now (was gold-locked). */
 
@@ -4239,7 +4239,7 @@ body.theme-purple .board-section {
    Replaced by a stationary breathing glow on the ring border —
    lives on .block-circle's own border-color/box-shadow. (That pulse was
    later disabled too, below, and its keyframe deleted 2026-11-10.) */
-.block-circle::before { display: none !important; }
+.block-circle::before { display: none; }
 
 /* Stationary breath pulse — DISABLED per user feedback 2026-05-18:
    "Get rid of these running animations of the block meter and of
@@ -5343,7 +5343,7 @@ input:focus-visible,
   /* Pure black — the surrounding game-over-content is already #000 and the
      per-row hairlines carry the table structure, so this stats box needs no
      navy fill/wash of its own (was rgba(6,10,18,0.5) + a theme wash). */
-  background: transparent !important;
+  background: transparent;
 }
 
 /* ============================================================
@@ -5574,11 +5574,11 @@ input:focus-visible,
 /* Hand + tricks section borders — the thin cyan line at the top of
    each was --tron-glow; theme instead. */
 .player-hand-section {
-  border-top-color: var(--theme-accent-dim) !important;
-  box-shadow: 0 -1px 0 var(--theme-glow-inner) !important;
+  border-top-color: var(--theme-accent-dim);
+  box-shadow: 0 -1px 0 var(--theme-glow-inner);
 }
 .tricks-section {
-  border-top-color: var(--theme-accent-dim) !important;
+  border-top-color: var(--theme-accent-dim);
 }
 
 /* ============================================================
@@ -5587,13 +5587,13 @@ input:focus-visible,
 .log-drawer-toggle {
   /* Moved into the HUD area: anchor top-centre next to the pill,
      not the top-right corner by the settings cog. */
-  top: 8px !important;
-  right: auto !important;
-  left: calc(50% + 300px) !important;
-  transform: translateX(0) !important;
+  top: 8px;
+  right: auto;
+  left: calc(50% + 300px);
+  transform: translateX(0);
   width: 30px; height: 30px;
   border-radius: 4px;
-  background: #000 !important;
+  background: #000;
   border: 1px solid var(--theme-accent-edge) !important;
   /* Tap target handled globally — see the 44px hit-target block. */
   color: color-mix(in srgb, var(--theme-accent) 40%, white) !important;
@@ -5620,31 +5620,31 @@ input:focus-visible,
    cog. Move it to the left side where there's clear space. */
 @media (max-width: 700px) {
   .log-drawer-toggle {
-    left: 10px !important;
-    right: auto !important;
+    left: 10px;
+    right: auto;
     /* `position: fixed` resolves against the VIEWPORT, not the padded body
        box — so `body { padding-top: env(safe-area-inset-top) }` (the site-wide
        safe-area recipe) does not move this button. At a bare `top: 8px` it
        sits under the iPhone status bar / Dynamic Island, which is exactly
        what the user's screenshot shows. Fixed elements have to carry the
        inset themselves. Resolves to 8px on hardware with no inset. */
-    top: calc(8px + env(safe-area-inset-top)) !important;
+    top: calc(8px + env(safe-area-inset-top));
   }
 }
 .log-drawer {
   background:
     linear-gradient(180deg, var(--theme-wash-05) 0%, rgba(0,0,0,0) 30%),
-    rgba(4,8,12,0.96) !important;
-  border-left: 1px solid var(--theme-accent-edge) !important;
-  box-shadow: -4px 0 20px var(--theme-glow-inner), inset 0 0 0 1px var(--theme-wash-08) !important;
+    rgba(4,8,12,0.96);
+  border-left: 1px solid var(--theme-accent-edge);
+  box-shadow: -4px 0 20px var(--theme-glow-inner), inset 0 0 0 1px var(--theme-wash-08);
 }
 .log-drawer .section-label {
-  color: color-mix(in srgb, var(--theme-accent) 35%, white) !important;
-  border-bottom-color: var(--theme-accent-dim) !important;
-  text-shadow: 0 0 6px var(--theme-glow-outer) !important;
+  color: color-mix(in srgb, var(--theme-accent) 35%, white);
+  border-bottom-color: var(--theme-accent-dim);
+  text-shadow: 0 0 6px var(--theme-glow-outer);
 }
 .log-close {
-  color: color-mix(in srgb, var(--theme-accent) 40%, white) !important;
+  color: color-mix(in srgb, var(--theme-accent) 40%, white);
 }
 .log-close:hover { color: var(--text-hi, #f5fbff) !important; }
 
@@ -6173,9 +6173,9 @@ input:focus-visible,
    ============================================================ */
 .stats-source-btn,
 .stats-view-btn {
-  border-color: var(--theme-accent-edge) !important;
-  color: color-mix(in srgb, var(--theme-accent) 35%, #d4ecff) !important;
-  background: #000 !important;
+  border-color: var(--theme-accent-edge);
+  color: color-mix(in srgb, var(--theme-accent) 35%, #d4ecff);
+  background: #000;
 }
 .stats-source-btn:hover,
 .stats-view-btn:hover {
@@ -6184,12 +6184,12 @@ input:focus-visible,
 }
 .stats-source-active,
 .stats-view-active {
-  box-shadow: 0 0 10px var(--theme-glow-outer), 0 0 20px var(--theme-glow-inner) !important;
+  box-shadow: 0 0 10px var(--theme-glow-outer), 0 0 20px var(--theme-glow-inner);
 }
 .stats-export-btn, .stats-reload-btn {
-  border-color: var(--theme-accent-edge) !important;
-  color: color-mix(in srgb, var(--theme-accent) 40%, white) !important;
-  background: #000 !important;
+  border-color: var(--theme-accent-edge);
+  color: color-mix(in srgb, var(--theme-accent) 40%, white);
+  background: #000;
 }
 .stats-export-btn:hover, .stats-reload-btn:hover {
   border-color: var(--theme-accent-bright) !important;
@@ -6199,12 +6199,12 @@ input:focus-visible,
 .stats-hist-title,
 .stats-flag-title,
 .stats-hist-run-label {
-  color: color-mix(in srgb, var(--theme-accent) 35%, white) !important;
-  text-shadow: 0 0 6px var(--theme-glow-outer) !important;
+  color: color-mix(in srgb, var(--theme-accent) 35%, white);
+  text-shadow: 0 0 6px var(--theme-glow-outer);
 }
 .stats-hist-run {
   border-color: var(--theme-accent-edge) !important;
-  background: linear-gradient(180deg, var(--theme-wash-05) 0%, rgba(0,0,0,0) 45%), #000000 !important;
+  background: linear-gradient(180deg, var(--theme-wash-05) 0%, rgba(0,0,0,0) 45%), #000000;
 }
 .stats-hist-run.stats-hist-run-active {
   border-color: var(--theme-accent-bright) !important;

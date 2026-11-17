@@ -171,7 +171,7 @@
      bold + kw read as one highlight tier. */
   font-size: 10px;
   text-transform: uppercase;
-  color: rgba(var(--portrait-frame-rgb, 79,195,247), 1) !important;
+  color: rgba(var(--portrait-frame-rgb, 79,195,247), 1);
   text-shadow:
     0 0 4px rgba(var(--portrait-frame-rgb, 79,195,247), 0.70),
     0 0 8px rgba(var(--portrait-frame-rgb, 79,195,247), 0.30);
@@ -701,8 +701,8 @@
 .ai-bar,
 #game-area > div[class*="hud"],
 #game-area > div[class*="bar"] {
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     background-color: rgba(0,0,0,0.95) !important;
   }
   /* Ability badges: bump font size and padding on touch screens so
@@ -1625,7 +1625,7 @@
 /* Hover magnify — full-size readable card that follows the cursor after a
    short hover delay. Scales the cloned card up 1.6x. Compositor-cheap. */
 .hover-magnify {
-  position: fixed !important;
+  position: fixed;
   z-index: 1200;
   pointer-events: none;
   transform-origin: 0 0;
@@ -1648,7 +1648,7 @@
 .hover-magnify * {
   animation: none !important;
   transition: none !important;
-  pointer-events: none !important;
+  pointer-events: none;
 }
 
 /* ── Mobile drag-and-drop (installMobileCardDrag) ── */
@@ -3999,14 +3999,14 @@ body.turn-combat .board .lane.lane-active {
 
 /* Keyword tooltip — fixed, lightweight. Shown via JS on hover. */
 .kw-tooltip {
-  position: fixed !important;
+  position: fixed;
   /* z-index sits ABOVE the card inspect backdrop (1500) so clicking a
      keyword pill inside the inspect popup shows the definition
      tooltip on top of the modal instead of being hidden behind it.
      User direction: "I would like you to be able to click on, like,
      'destroy', and it has a definition of what destroy is, with a
      little popout box… you can do it here [inside the inspect]." */
-  z-index: 10000 !important;
+  z-index: 10000;
   max-width: 240px;
   padding: 8px 12px;
   /* Pure #000, like every other panel interior in the game — this was
@@ -4495,7 +4495,7 @@ body.turn-combat .board .lane.lane-active {
    palette, same chrome as the energy / HP bar / block meter on the
    player bar). Persistent top-right pip across every screen. */
 .settings-cog {
-  position: fixed !important; top: 14px; right: 14px; z-index: 500 !important;
+  position: fixed; top: 14px; right: 14px; z-index: 500;
   /* 44px = the WCAG / Apple HIG minimum touch target. Was 42px.
      (2026-06 a11y polish.) */
   width: 44px; height: 44px; border-radius: 50%;
@@ -4562,7 +4562,7 @@ body.turn-combat .board .lane.lane-active {
     0 0 16px rgba(var(--theme-rgb, 79,195,247),0.65);
 }
 .settings-overlay {
-  position: fixed !important; inset: 0; background: rgba(0,0,0,0.7);
+  position: fixed; inset: 0; background: rgba(0,0,0,0.7);
   z-index: 450 !important; display: flex; justify-content: center;
   /* Scroll the WHOLE overlay when the panel is taller than the window, and
      pin the panel to the top (align-items:flex-start) so its top is always

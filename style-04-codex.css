@@ -3529,11 +3529,11 @@ html {
 body:not(.round-first-player):not(.round-first-ai) .hud-round #round-num {
   box-shadow: none !important;
   text-shadow: none !important;
-  filter: none !important;
+  filter: none;
 }
 body:not(.round-first-player):not(.round-first-ai) .hud-round #round-num::before {
   box-shadow: inset 0 0 0 1px rgba(255,255,255,0.16) !important;
-  filter: none !important;
+  filter: none;
 }
 
 /* ============================================================
@@ -3750,7 +3750,7 @@ body.round-tick .board-cursor-light { opacity: 0; }
 .deck-viewer-panel::before,    .deck-viewer-panel::after,
 .replay-panel::before,         .replay-panel::after {
   content: none !important;
-  display: none !important;
+  display: none;
 }
 
 /* ============================================================

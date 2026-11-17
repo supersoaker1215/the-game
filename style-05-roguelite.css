@@ -1191,7 +1191,7 @@ body > .scanline-overlay {
      .match-history-panel/.my-decks-panel/.deckbuilder-panel/.multiplayer-panel
      names carried this !important black but no element ever had them, so the
      real panels fell through to a 5% theme-wash. */
-  background: #000 !important;
+  background: #000;
   border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.55)) !important;
   border-radius: 4px !important;
   box-shadow:
@@ -1263,7 +1263,7 @@ body > .scanline-overlay {
 .mode-select-overlay {
   backdrop-filter: blur(6px) saturate(0.85);
   -webkit-backdrop-filter: blur(6px) saturate(0.85);
-  background: rgba(2,4,8,0.78) !important;
+  background: rgba(2,4,8,0.78);
 }
 
 /* ---- Title harmony — every overlay's primary heading uses the SAME
@@ -1280,14 +1280,14 @@ body > .scanline-overlay {
 .md-panel h1,
 .md-panel h2,
 .rl-title {
-  font-family: 'Rajdhani', sans-serif !important;
-  font-weight: 700 !important;
-  letter-spacing: 6px !important;
-  text-transform: uppercase !important;
-  color: var(--text-hi, #ffffff) !important;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  color: var(--text-hi, #ffffff);
   text-shadow:
     0 0 10px var(--theme-glow-outer, rgba(79,195,247,0.85)),
-    0 0 28px var(--theme-glow-inner, rgba(79,195,247,0.45)) !important;
+    0 0 28px var(--theme-glow-inner, rgba(79,195,247,0.45));
 }
 
 /* ---- Subtitle / tag harmony — the small-caps tag line above titles. */
@@ -1295,11 +1295,11 @@ body > .scanline-overlay {
 .encyc-sub,
 .rl-subtitle,
 .mm-subtitle {
-  font-family: 'Rajdhani', sans-serif !important;
-  font-size: 11px !important;
-  letter-spacing: 4px !important;
-  text-transform: uppercase !important;
-  color: color-mix(in srgb, var(--theme-accent, rgb(79,195,247)) 45%, #94a8c0) !important;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--theme-accent, rgb(79,195,247)) 45%, #94a8c0);
 }
 
 /* ---- Section divider — any list/section in any overlay can use
@@ -1840,7 +1840,7 @@ input[type="number"]::-webkit-outer-spin-button {
   background:
     linear-gradient(180deg, rgba(var(--theme-rgb, 79,195,247),0.05) 0%, transparent 45%),
     repeating-linear-gradient(0deg, transparent 0 2px, rgba(var(--theme-rgb, 79,195,247),0.025) 2px 3px),
-    #000000 !important;
+    #000000;
 }
 
 /* ---- Tutorial panel scanline + noise ---- */
@@ -1848,7 +1848,7 @@ input[type="number"]::-webkit-outer-spin-button {
   background:
     repeating-linear-gradient(0deg, rgba(var(--theme-rgb, 79,195,247),0.022) 0 2px, transparent 2px 4px),
     linear-gradient(180deg, rgba(var(--theme-rgb, 79,195,247),0.06) 0%, rgba(0,0,0,0) 38%),
-    #000 !important;
+    #000;
 }
 
 /* ---- Card grid (deck builder) inner gradient ----
@@ -1956,7 +1956,7 @@ input[type="number"]::-webkit-outer-spin-button {
    tints (the colored overlay variants) override this in their
    own scoped rules. */
 .game-over-content {
-  border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.55) !important;
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.55);
   box-shadow:
     0 0 32px rgba(var(--theme-rgb, 79,195,247),0.30),
     0 0 72px rgba(var(--theme-rgb, 79,195,247),0.14),
@@ -1976,16 +1976,16 @@ input[type="number"]::-webkit-outer-spin-button {
    to 32px to match the .settings-panel h2 reference + .rl-modal-title. */
 .md-title,
 .stats-title {
-  font-size: 32px !important;
-  letter-spacing: 8px !important;
+  font-size: 32px;
+  letter-spacing: 8px;
 }
 
 /* Backdrop blur on the dead-pile peek popover — was a flat dark
    panel without focus separation. Settings overlay has blur 4px;
    this matches it. Subtle so combat readability stays. */
 .dead-peek {
-  backdrop-filter: blur(4px) !important;
-  -webkit-backdrop-filter: blur(4px) !important;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
 /* ============================================================
@@ -2009,7 +2009,7 @@ input[type="number"]::-webkit-outer-spin-button {
   background:
     linear-gradient(180deg, rgba(var(--theme-rgb, 79,195,247),0.04) 0%, transparent 50%),
     repeating-linear-gradient(0deg, transparent 0 2px, rgba(var(--theme-rgb, 79,195,247),0.020) 2px 3px),
-    rgba(0,0,0,0.6) !important;
+    rgba(0,0,0,0.6);
 }
 
 /* Phase banner — appears between rounds + during state transitions.
@@ -2020,7 +2020,7 @@ input[type="number"]::-webkit-outer-spin-button {
   background:
     linear-gradient(180deg, rgba(var(--theme-rgb, 79,195,247),0.05) 0%, transparent 45%),
     repeating-linear-gradient(0deg, transparent 0 2px, rgba(var(--theme-rgb, 79,195,247),0.025) 2px 3px),
-    #000000 !important;
+    #000000;
 }
 
 /* Board outer wrapper — base is pure black so the strips of
@@ -2041,7 +2041,7 @@ input[type="number"]::-webkit-outer-spin-button {
   background:
     linear-gradient(180deg, rgba(var(--theme-rgb, 79,195,247),0.05) 0%, transparent 45%),
     repeating-linear-gradient(0deg, transparent 0 2px, rgba(var(--theme-rgb, 79,195,247),0.025) 2px 3px),
-    #000000 !important;
+    #000000;
 }
 
 /* Main menu options (the big button list) — subtle scanline so
@@ -2113,8 +2113,8 @@ input[type="number"]::-webkit-outer-spin-button {
    text crowded against the icon. Move icon further left + add
    breathing room in the input. */
 .db-search-icon {
-  left: 12px !important;
-  font-size: 12px !important;
+  left: 12px;
+  font-size: 12px;
 }
 .db-search {
   padding-left: 36px !important;
@@ -2143,7 +2143,7 @@ input[type="number"]::-webkit-outer-spin-button {
   border-color: rgba(var(--theme-rgb, 79,195,247), 0.95) !important;
   /* The LAST of the five, and therefore the one that was actually painting the
      halo. Off here too. */
-  box-shadow: none !important;
+  box-shadow: none;
 }
 .player-bar .block-circle.full,
 .player-side .block-circle.full {
@@ -2247,8 +2247,8 @@ input[type="number"]::-webkit-outer-spin-button {
 
 /* Multiplayer overlay — backdrop blur for focus separation. */
 .multiplayer-overlay {
-  backdrop-filter: blur(4px) !important;
-  -webkit-backdrop-filter: blur(4px) !important;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 /* Multiplayer lobby sits in the LEFT column with the menu hero kept CLEAR on
    the right — matching the in-shell Solo Match submenu feel (the menu stays
@@ -2258,17 +2258,17 @@ input[type="number"]::-webkit-outer-spin-button {
    is crisp. Desktop/landscape only; narrow screens keep the centered card. */
 @media (min-width: 760px) {
   .multiplayer-overlay {
-    justify-content: flex-start !important;
-    align-items: center !important;
-    padding-left: clamp(34px, 7vw, 120px) !important;
-    padding-right: 24px !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
+    justify-content: flex-start;
+    align-items: center;
+    padding-left: clamp(34px, 7vw, 120px);
+    padding-right: 24px;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     background: linear-gradient(90deg,
       rgba(4,6,10,0.97) 0%,
       rgba(4,6,10,0.93) 36%,
       rgba(4,6,10,0.55) 60%,
-      rgba(4,6,10,0.00) 84%) !important;
+      rgba(4,6,10,0.00) 84%);
   }
   .multiplayer-overlay .mp-panel { margin: 0 !important; }
 }
@@ -2370,7 +2370,7 @@ input[type="number"]::-webkit-outer-spin-button {
 
 /* Deck builder cost chip — theme-aware base border (was hardcoded white). */
 .db-cost-chip {
-  border-color: rgba(var(--theme-rgb, 79,195,247), 0.30) !important;
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.30);
 }
 .db-cost-chip:hover {
   border-color: rgba(var(--theme-rgb, 79,195,247), 0.70) !important;
@@ -2394,17 +2394,17 @@ input[type="number"]::-webkit-outer-spin-button {
    section titles to the settings-group-title pattern (11px /
    2.5px letter-spacing / theme color / glow). */
 .tutorial-section-title {
-  font-family: 'Rajdhani', sans-serif !important;
-  font-size: 11px !important;
-  letter-spacing: 2.5px !important;
-  text-transform: uppercase !important;
-  color: rgba(var(--theme-rgb, 79,195,247), 1) !important;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: rgba(var(--theme-rgb, 79,195,247), 1);
   text-shadow:
     0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.55),
-    0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.25) !important;
-  border-bottom: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55) !important;
-  padding-bottom: 4px !important;
-  margin-bottom: 10px !important;
+    0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.25);
+  border-bottom: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);
+  padding-bottom: 4px;
+  margin-bottom: 10px;
 }
 
 /* ============================================================
@@ -2425,10 +2425,10 @@ input[type="number"]::-webkit-outer-spin-button {
    to theme. Covers summary chips, source buttons, view tabs,
    AI weights panel, table headers, sim run history. */
 .stats-summary-chip {
-  border-color: rgba(var(--theme-rgb, 79,195,247), 0.55) !important;
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.55);
   box-shadow:
     0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.25),
-    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.08) !important;
+    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.08);
 }
 .stats-summary-label,
 .stats-subtitle,
@@ -2437,12 +2437,12 @@ input[type="number"]::-webkit-outer-spin-button {
 .ai-weight-group-title,
 .ai-weights-caret,
 .stats-hist-count {
-  color: rgba(var(--theme-rgb, 79,195,247), 0.70) !important;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.70);
 }
 .stats-source-btn,
 .stats-view-btn,
 .stats-export-btn {
-  border-color: rgba(var(--theme-rgb, 79,195,247), 0.45) !important;
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.45);
 }
 .stats-source-btn:hover,
 .stats-view-btn:hover {
@@ -2451,15 +2451,15 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 .stats-source-active,
 .stats-view-active {
-  background: rgba(var(--theme-rgb, 79,195,247), 0.15) !important;
-  border-color: rgba(var(--theme-rgb, 79,195,247), 1) !important;
-  color: rgba(var(--theme-rgb, 79,195,247), 1) !important;
+  background: rgba(var(--theme-rgb, 79,195,247), 0.15);
+  border-color: rgba(var(--theme-rgb, 79,195,247), 1);
+  color: rgba(var(--theme-rgb, 79,195,247), 1);
 }
 .ai-weights-panel {
-  border-color: rgba(var(--theme-rgb, 79,195,247), 0.35) !important;
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.35);
 }
 .ai-weights-toggle {
-  color: rgba(var(--theme-rgb, 79,195,247), 0.80) !important;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.80);
 }
 .ai-weights-body {
   border-top-color: rgba(var(--theme-rgb, 79,195,247), 0.20) !important;
@@ -2477,7 +2477,7 @@ input[type="number"]::-webkit-outer-spin-button {
   color: rgba(var(--theme-rgb, 79,195,247), 0.88) !important;
 }
 .stats-export-btn {
-  color: rgba(var(--theme-rgb, 79,195,247), 0.80) !important;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.80);
 }
 .stats-table th {
   color: rgba(var(--theme-rgb, 79,195,247), 0.70) !important;
@@ -2574,11 +2574,11 @@ input[type="number"]::-webkit-outer-spin-button {
   background:
     linear-gradient(0deg, rgba(var(--theme-rgb, 79,195,247), 0.08), transparent 50%),
     linear-gradient(180deg, #000000, #000000) !important;
-  border-top-color: var(--theme-accent-bright) !important;
-  border-bottom-color: var(--theme-accent-bright) !important;
+  border-top-color: var(--theme-accent-bright);
+  border-bottom-color: var(--theme-accent-bright);
   box-shadow:
     inset 0 1px 0 rgba(var(--theme-rgb, 79,195,247), calc(0.22 + (1 - 0.22) * var(--neon-lift, 0))),
-    inset 0 -1px 0 rgba(var(--theme-rgb, 79,195,247), calc(0.22 + (1 - 0.22) * var(--neon-lift, 0))) !important;
+    inset 0 -1px 0 rgba(var(--theme-rgb, 79,195,247), calc(0.22 + (1 - 0.22) * var(--neon-lift, 0)));
   /* No `filter` — see the note on .info-bar.ai-bar (~line 1103). The
      turn-focus rules own this property; a standalone halo here only paints in
      the no-turn-class phases and reads as a combat-only glow. */
@@ -2586,17 +2586,17 @@ input[type="number"]::-webkit-outer-spin-button {
 
 /* Player HP bar — was using --player-accent-bright. Theme it. */
 .player-bar .health-bar {
-  border-color: rgba(var(--theme-rgb, 79,195,247), 0.95) !important;
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.95);
   box-shadow:
     0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.45),
-    0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.20) !important;
+    0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.20);
 }
 
 /* Block circle's progress ring (the conic gradient inside the circle)
    — was colored via --player-accent-bright. This is the real source
    of the "inside is blue" report — not the .block-fill bar. */
 .player-bar .block-circle::before {
-  color: rgb(var(--theme-rgb, 79,195,247)) !important;
+  color: rgb(var(--theme-rgb, 79,195,247));
 }
 
 /* Main menu options — were hardcoded blue gradient + border + glow
@@ -2606,15 +2606,15 @@ input[type="number"]::-webkit-outer-spin-button {
   background:
     linear-gradient(90deg, rgba(var(--theme-rgb, 79,195,247),0.06) 0%, rgba(0,0,0,0) 55%),
     repeating-linear-gradient(0deg, transparent 0 2px, rgba(var(--theme-rgb, 79,195,247),0.015) 2px 3px),
-    #000000 !important;
-  border-color: rgba(var(--theme-rgb, 79,195,247), 0.55) !important;
+    #000000;
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.55);
   box-shadow:
     0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.18),
-    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.05) !important;
+    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.05);
 }
 .mm-option::before {
-  background: rgba(var(--theme-rgb, 79,195,247), 0.60) !important;
-  box-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.55) !important;
+  background: rgba(var(--theme-rgb, 79,195,247), 0.60);
+  box-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.55);
 }
 .mm-option:hover {
   border-color: rgba(var(--theme-rgb, 79,195,247), 1) !important;
@@ -2699,10 +2699,10 @@ input[type="number"]::-webkit-outer-spin-button {
    These are pure UI chrome (not player vs AI signaling), so
    they should follow the theme picker. */
 .hud-divider.hud-divider-cyan {
-  background: rgb(var(--theme-rgb, 79,195,247)) !important;
+  background: rgb(var(--theme-rgb, 79,195,247));
   box-shadow:
     0 0 5px rgba(var(--theme-rgb, 79,195,247), 1),
-    0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.55) !important;
+    0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.55);
 }
 .hud-eyebrow {
   color: rgb(var(--theme-rgb, 79,195,247)) !important;
@@ -2714,13 +2714,13 @@ input[type="number"]::-webkit-outer-spin-button {
     transparent 0%,
     rgba(var(--theme-rgb, 79,195,247), 0.55) 30%,
     rgba(var(--theme-rgb, 79,195,247), 0.55) 70%,
-    transparent 100%) !important;
+    transparent 100%);
 }
 .hud-divider:not(.hud-divider-cyan)::after {
-  background: rgb(var(--theme-rgb, 79,195,247)) !important;
+  background: rgb(var(--theme-rgb, 79,195,247));
   box-shadow:
     0 0 6px rgba(var(--theme-rgb, 79,195,247), 1),
-    0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.65) !important;
+    0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.65);
 }
 .hud-count-deck b {
   color: rgb(var(--theme-rgb, 79,195,247)) !important;
@@ -2788,7 +2788,7 @@ body.turn-player .hud-phase {
   text-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.50), 0 1px 3px rgba(0,0,0,0.95) !important;
 }
 .draft-card .card-desc {
-  text-shadow: 0 0 4px rgba(var(--theme-rgb, 79,195,247), 0.25) !important;
+  text-shadow: 0 0 4px rgba(var(--theme-rgb, 79,195,247), 0.25);
 }
 
 /* ============================================================
@@ -3119,7 +3119,7 @@ body > .grid-bg {
      safely allow vertical escape. Side-margin black is preserved
      because nothing inside the section paints into the side
      margins anymore. */
-  overflow: visible !important;
+  overflow: visible;
   position: relative;
   /* Pure black backdrop — the bezel rectangle the user
      called "distracting" is gone. The arena now reads as a
@@ -3129,12 +3129,12 @@ body > .grid-bg {
     radial-gradient(circle at 12px 12px,
       rgba(var(--theme-rgb, 46, 204, 113), 0.08) 0.5px,
       transparent 1.5px) 0 0 / 24px 24px,
-    #000000 !important;
+    #000000;
   /* No border, no box-shadow — bezel removed per user feedback:
      "this little rectangle around the board is kinda distracting.
      I'd rather just this not be in the game at all." */
-  border: none !important;
-  box-shadow: none !important;
+  border: none;
+  box-shadow: none;
 }
 
 /* Grid floor + haze are removed — they were the source of the
@@ -4845,8 +4845,8 @@ body.round-tick .board::after {
   /* Same reason: .btn-secondary sets border-color with !important. The base ID
      rule's `border: 0` already zeroes the width so colour alone can't draw, but
      pinning both here means no future variant class can reintroduce an edge. */
-  background: transparent !important;
-  border: 0 !important;
+  background: transparent;
+  border: 0;
   /* And the word itself. .btn-secondary repaints colour + text-shadow with
      !important too, which left 'End Tricks' a washed blue-white against 'End
      Turn's clean theme cyan. One button, one look, in every phase. */
