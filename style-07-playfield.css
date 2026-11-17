@@ -832,7 +832,7 @@ body.on-main-menu #clb-build-badge { display: block; }
    the card right on every screen under 700px).
    Fallback is the authored 140px, so nothing moves if the script has not run. */
 body.in-match .card-slot > .card {
-  width: var(--board-card-w, 140px) !important;
+  width: var(--board-card-w, 140px);
   /* AND --card-w FOLLOWS IT. This is the bug behind "these need to be the same
      size in hand and on board". The fit pass sets the board card's WIDTH from
      --board-card-w and always has, but --card-w — the variable every design
@@ -5169,8 +5169,8 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card.card .card-name-overlay .cn-text.cn-wrap,
 .card .card-name-overlay .cn-text.cn-wrap,
 .trick-card .card-name-overlay .cn-text.cn-wrap {
-  white-space: normal !important;
-  line-height: 1.05 !important;
+  white-space: normal;
+  line-height: 1.05;
 }
 
 /* ============================================================

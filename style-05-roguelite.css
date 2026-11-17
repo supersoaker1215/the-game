@@ -2776,7 +2776,7 @@ body.turn-player .hud-phase {
 
 /* Ally card edge tint — was hardcoded blue, should use player. */
 .card.ally-card {
-  --card-edge: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.85) !important;
+  --card-edge: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.85);
 }
 
 /* Draft card chrome — outer border ghost, name + desc text-shadow.

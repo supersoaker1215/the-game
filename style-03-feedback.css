@@ -1571,8 +1571,8 @@ body {
 /* Player ally cards — frame + gradient wash uses player theme. */
 .card.ally-card {
   border-color: var(--player-accent-bright) !important;
-  background-color: #000 !important;
-  background-image: linear-gradient(180deg, var(--player-wash-08) 0%, rgba(0,0,0,0) 55%) !important;
+  background-color: #000;
+  background-image: linear-gradient(180deg, var(--player-wash-08) 0%, rgba(0,0,0,0) 55%);
   box-shadow:
     inset 0 0 0 1px rgba(var(--player-r), var(--player-g), var(--player-b), 0.14),
     0 0 8px rgba(var(--player-r), var(--player-g), var(--player-b), 0.28),
@@ -1614,14 +1614,14 @@ body {
     transparent,
     rgba(var(--player-r), var(--player-g), var(--player-b), 0.95) 30%,
     rgba(var(--player-r), var(--player-g), var(--player-b), 0.95) 70%,
-    transparent) !important;
+    transparent);
   box-shadow:
     0 0 8px rgba(var(--player-r), var(--player-g), var(--player-b), 0.32),
-    0 0 16px rgba(var(--player-r), var(--player-g), var(--player-b), 0.12) !important;
+    0 0 16px rgba(var(--player-r), var(--player-g), var(--player-b), 0.12);
 }
 .lane.occ-player .lane-number {
   border-color: var(--player-accent-bright) !important;
-  color: color-mix(in srgb, var(--player-accent) 35%, white) !important;
+  color: color-mix(in srgb, var(--player-accent) 35%, white);
   box-shadow:
     0 0 8px rgba(var(--player-r), var(--player-g), var(--player-b), 0.32),
     0 0 16px rgba(var(--player-r), var(--player-g), var(--player-b), 0.12) !important;
@@ -1631,14 +1631,14 @@ body {
     transparent,
     rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.95) 30%,
     rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.95) 70%,
-    transparent) !important;
+    transparent);
   box-shadow:
     0 0 8px rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.32),
-    0 0 16px rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.12) !important;
+    0 0 16px rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.12);
 }
 .lane.occ-ai .lane-number {
   border-color: var(--enemy-accent-bright) !important;
-  color: color-mix(in srgb, rgb(var(--enemy-r), var(--enemy-g), var(--enemy-b)) 35%, white) !important;
+  color: color-mix(in srgb, rgb(var(--enemy-r), var(--enemy-g), var(--enemy-b)) 35%, white);
   box-shadow:
     0 0 8px rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.32),
     0 0 16px rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.12) !important;
@@ -2189,7 +2189,7 @@ body.round-first-ai .hud-pill-main {
     transparent 0%,
     var(--contest-pop, rgb(255, 60, 200)) 8%,
     var(--contest-pop, rgb(255, 60, 200)) 92%,
-    transparent 100%) !important;
+    transparent 100%);
   box-shadow:
     0 0 14px var(--contest-pop, rgb(255, 60, 200)),
     0 0 32px var(--contest-pop-soft, rgba(255, 60, 200, 0.55)),
@@ -2359,10 +2359,10 @@ body.round-first-ai .hud-pill-main {
         rgb(var(--player-r), var(--player-g), var(--player-b))) 3%,
       var(--player-accent-bright) 9%,
       var(--player-accent-bright) 100%
-    ) 1 !important;
+    ) 1;
   box-shadow:
     0 0 12px var(--player-glow-outer),
-    0 0 24px var(--player-glow-inner) !important;
+    0 0 24px var(--player-glow-inner);
 }
 /* Contested — real gradient, blended middle, no hardcoded purple. */
 /* CONTESTED LANE BORDER — smooth red top half → trick-purple middle
@@ -2537,10 +2537,10 @@ body.round-first-ai .hud-pill-main {
 }
 /* Board — theme on both sides. */
 .card.ally-card .card-trick-passive {
-  color: color-mix(in srgb, var(--player-accent) 35%, white) !important;
+  color: color-mix(in srgb, var(--player-accent) 35%, white);
   text-shadow:
     0 0 4px var(--player-accent-bright),
-    0 0 8px var(--player-glow-outer) !important;
+    0 0 8px var(--player-glow-outer);
 }
 .card.enemy-card .card-trick-passive {
   color: color-mix(in srgb, rgb(var(--enemy-r), var(--enemy-g), var(--enemy-b)) 35%, white) !important;
@@ -4032,7 +4032,7 @@ body::before {
    ============================================================ */
 .game-over-overlay.victory .game-over-content,
 .game-over-overlay.defeat .game-over-content {
-  border-color: var(--theme-accent-bright) !important;
+  border-color: var(--theme-accent-bright);
   box-shadow:
     0 0 16px var(--theme-glow-outer),
     0 0 32px var(--theme-glow-inner),
@@ -4043,7 +4043,7 @@ body::before {
 }
 .game-over-overlay.victory .game-over-title,
 .game-over-overlay.defeat .game-over-title {
-  color: color-mix(in srgb, var(--theme-accent) 30%, #f5fbff) !important;
+  color: color-mix(in srgb, var(--theme-accent) 30%, #f5fbff);
   text-shadow:
     0 0 14px var(--theme-accent-bright),
     0 0 28px var(--theme-glow-outer),
@@ -4053,8 +4053,8 @@ body::before {
 .game-over-overlay.victory .game-over-content::after,
 .game-over-overlay.defeat .game-over-content::before,
 .game-over-overlay.defeat .game-over-content::after {
-  border-color: var(--theme-accent-bright) !important;
-  filter: drop-shadow(0 0 8px var(--theme-glow-outer)) !important;
+  border-color: var(--theme-accent-bright);
+  filter: drop-shadow(0 0 8px var(--theme-glow-outer));
 }
 
 /* ============================================================
@@ -5321,17 +5321,17 @@ input:focus-visible,
 .game-over-stats .go-stat-head .go-col-you,
 .game-over-stats .go-col-you,
 .game-over-stats .go-card-ally {
-  color: color-mix(in srgb, var(--player-accent) 35%, white) !important;
-  text-shadow: 0 0 4px var(--player-glow-outer), 0 0 10px var(--player-glow-inner) !important;
+  color: color-mix(in srgb, var(--player-accent) 35%, white);
+  text-shadow: 0 0 4px var(--player-glow-outer), 0 0 10px var(--player-glow-inner);
 }
 .game-over-stats .go-col-you.go-stat-hi {
-  text-shadow: 0 0 6px var(--player-accent-bright), 0 0 14px var(--player-glow-outer) !important;
+  text-shadow: 0 0 6px var(--player-accent-bright), 0 0 14px var(--player-glow-outer);
 }
 .game-over-stats .go-stat-head .go-col-opp,
 .game-over-stats .go-col-opp,
 .game-over-stats .go-card-enemy {
-  color: color-mix(in srgb, rgb(var(--enemy-r), var(--enemy-g), var(--enemy-b)) 35%, white) !important;
-  text-shadow: 0 0 4px var(--enemy-glow-outer), 0 0 10px var(--enemy-glow-inner) !important;
+  color: color-mix(in srgb, rgb(var(--enemy-r), var(--enemy-g), var(--enemy-b)) 35%, white);
+  text-shadow: 0 0 4px var(--enemy-glow-outer), 0 0 10px var(--enemy-glow-inner);
 }
 .game-over-stats .go-col-opp.go-stat-hi {
   text-shadow: 0 0 6px var(--enemy-accent-bright), 0 0 14px var(--enemy-glow-outer) !important;

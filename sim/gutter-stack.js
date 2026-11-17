@@ -121,8 +121,8 @@ t('GS-2 the docked scoreboard drops its own min-width', function () {
   // one-line priority rule further down — and lastRuleFor would read the latter.
   var w = ruleWith('#right-col > .shadow-tracker', 'width:');
   eq('the dock rule exists', !!w, true);
-  eq('it sizes to the column', /[^-]width:\s*100%\s*!important/.test(w), true);
-  eq('AND releases the authored min-width', /min-width:\s*0\s*!important/.test(w), true);
+  eq('it sizes to the column', /[^-]width:\s*100%(\s*!important)?/.test(w), true);
+  eq('AND releases the authored min-width', /min-width:\s*0(\s*!important)?/.test(w), true);
   eq('the authored min-width is still there to be released',
      /min-width:\s*calc\(208px\s*\*\s*var\(--sh-scale/.test(CSS), true);
 });
@@ -168,7 +168,7 @@ t('GS-4 the reveal and the decision panel dock into that same column', function 
      /panel\.parentNode\s*!==\s*host/.test(slot), true);
   // Docked, it must not keep its own fixed anchor.
   var dock = ruleWith('#right-col > #classic-decision', 'position:');
-  eq('the docked panel is static', !!dock && /position:\s*static\s*!important/.test(dock), true);
+  eq('the docked panel is static', !!dock && /position:\s*static(\s*!important)?/.test(dock), true);
 });
 
 t('GS-5 the column carries the layer the panel used to hold', function () {
@@ -196,19 +196,19 @@ t('GS-7 the answer is always on screen', function () {
   // on the panel measures 100% of "as tall as my content" and caps nothing.
   var wrap = lastRuleFor('#classic-decision #block-trick-modal');
   eq('the docked modal wrapper is bounded',
-     !!wrap && /max-height:\s*100%\s*!important/.test(wrap) && /min-height:\s*0\s*!important/.test(wrap), true);
+     !!wrap && /max-height:\s*100%(\s*!important)?/.test(wrap) && /min-height:\s*0(\s*!important)?/.test(wrap), true);
   var slot = ruleWith('#classic-decision .cd-slot', 'flex:');
   eq('and so is the slot above it',
      !!slot && /flex:\s*1 1 auto/.test(slot) && /min-height:\s*0/.test(slot), true);
   var panel = ruleWith('#classic-decision .floating-prompt-panel', 'max-height');
-  eq('the panel caps at its slot', !!panel && /max-height:\s*100%\s*!important/.test(panel), true);
+  eq('the panel caps at its slot', !!panel && /max-height:\s*100%(\s*!important)?/.test(panel), true);
   var choices = ruleWith('#classic-decision .fp-choices', 'flex:');
   eq('the choices are pinned outside what scrolls',
-     !!choices && /flex:\s*0 0 auto\s*!important/.test(choices), true);
+     !!choices && /flex:\s*0 0 auto(\s*!important)?/.test(choices), true);
   var prev = ruleWith('#classic-decision .fp-trick-preview', 'min-height');
   eq('the card keeps a floor rather than collapsing to a sliver',
-     !!prev && /min-height:\s*min\(\d+px, 100%\)\s*!important/.test(prev), true);
-  eq('and it is the part that scrolls', /overflow-y:\s*auto\s*!important/.test(prev), true);
+     !!prev && /min-height:\s*min\(\d+px, 100%\)(\s*!important)?/.test(prev), true);
+  eq('and it is the part that scrolls', /overflow-y:\s*auto(\s*!important)?/.test(prev), true);
 });
 
 // ---- run ----------------------------------------------------

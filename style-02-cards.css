@@ -365,7 +365,7 @@
 .card-slot.player-slot .card-desc,
 .card-slot.ai-slot .card-active-text,
 .card-slot.player-slot .card-active-text {
-  display: none !important;
+  display: none;
 }
 /* Inspect-modal card forces desc back ON even if a future board
    selector tightens. Defensive — the modal lives outside .card-slot

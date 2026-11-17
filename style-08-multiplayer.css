@@ -3831,24 +3831,24 @@ body.in-match:not(.board-v2) .board {
    .board-section's stacking context. */
 #right-col > #classic-decision {
   order: -1;
-  position: static !important;
-  top: auto !important; right: auto !important; left: auto !important; bottom: auto !important;
-  width: 100% !important;
-  max-width: 100% !important;
+  position: static;
+  top: auto; right: auto; left: auto; bottom: auto;
+  width: 100%;
+  max-width: 100%;
   z-index: auto;
   /* flex/min-height are set together with the other three, below. */
 }
 #right-col > .trick-reveal {
   order: 0;
-  position: static !important;
-  inset: auto !important;
-  width: 100% !important;
-  height: auto !important;
+  position: static;
+  inset: auto;
+  width: 100%;
+  height: auto;
   flex: 0 0 auto;
-  padding: 0 !important;
+  padding: 0;
   gap: 6px;
-  align-items: center !important;
-  justify-content: flex-start !important;
+  align-items: center;
+  justify-content: flex-start;
   z-index: auto;
 }
 /* The card sized itself off the viewport (clamp(112px, 12.5vw, 200px)) because
@@ -3859,7 +3859,7 @@ body.in-match:not(.board-v2) .board {
    column, never wider than the 200px it was authored at, and its authored 5:7
    minimum height left alone. */
 #right-col > .trick-reveal .trick-reveal-card {
-  width: min(100%, 200px) !important;
+  width: min(100%, 200px);
 }
 #right-col > .trick-reveal .tr-label { flex: 0 0 auto; }
 /* WHO GIVES UP ROOM, AND IN WHAT ORDER. Four things want one 452px strip at
