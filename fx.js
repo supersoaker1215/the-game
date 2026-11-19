@@ -244,7 +244,6 @@ const UI_FX = {
   // exactly what follows the play that raised this. See _fxLaneStage.
   _fxEnterAndDie(ev) {
     if (!ev || ev.lane == null) return;
-    if (this._reducedMotion && this._reducedMotion()) return;
     const stage = this._fxLaneStage(ev.lane, 'enter-die-stage');
     if (!stage) return;
     let el = null;

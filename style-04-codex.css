@@ -1070,7 +1070,6 @@ body.combat-anticipate .board {
     animation: none !important;
   }
   /* Entrance flourishes: instant fade-in rather than squash+drop. */
-  .card.card-enter,
   .card.card-reveal-flip,
   .card-landing-ring,
   .lane-claim-wave,
@@ -1082,8 +1081,7 @@ body.combat-anticipate .board {
   .trick-burst,
   .block-spark,
   .strike-burst,
-  .armor-ring,
-  .hp-dmg-float {
+  .armor-ring {
     animation: none !important;
     transition: none !important;
   }

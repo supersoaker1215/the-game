@@ -23,13 +23,13 @@
        the stylesheet's folder, so a css/ subfolder sent every art request to
        css/audio/… (caught by the computed-style diff, 2026-11-12). -->
   <link rel="stylesheet" href="style-01-base.css?v=6">
-  <link rel="stylesheet" href="style-02-cards.css?v=10">
+  <link rel="stylesheet" href="style-02-cards.css?v=11">
   <link rel="stylesheet" href="style-03-feedback.css?v=9">
-  <link rel="stylesheet" href="style-04-codex.css?v=8">
-  <link rel="stylesheet" href="style-05-roguelite.css?v=9">
-  <link rel="stylesheet" href="style-06-cast-fx.css?v=9">
+  <link rel="stylesheet" href="style-04-codex.css?v=9">
+  <link rel="stylesheet" href="style-05-roguelite.css?v=10">
+  <link rel="stylesheet" href="style-06-cast-fx.css?v=10">
   <link rel="stylesheet" href="style-07-playfield.css?v=8">
-  <link rel="stylesheet" href="style-08-multiplayer.css?v=10">
+  <link rel="stylesheet" href="style-08-multiplayer.css?v=11">
   <!-- BOARD V2 — the redesign, off by default. Every rule inside is scoped to
        body.board-v2 so it is inert until BoardV2.set(true). -->
   <link rel="stylesheet" href="board-v2.css?v=108">
@@ -935,7 +935,7 @@
        shared). Loaded BEFORE leaderboard.js so the client sees it on boot. -->
   <script>window.CLB_STATS_URL = "https://card-lane-battle-stats.ryanvtagle.workers.dev";</script>
   <script src="leaderboard.js?v=6"></script>
-  <script src="fx.js?v=4"></script>
+  <script src="fx.js?v=5"></script>
   <script src="audio.js?v=2"></script>
   <script src="ui-2v2.js?v=2"></script>
   <script src="ui-menu.js?v=2"></script>
@@ -943,7 +943,7 @@
   <script src="ui-board.js?v=2"></script>
   <script src="ui-draft.js?v=1"></script>
   <script src="menu-scene.js?v=2"></script>
-  <script src="ui.js?v=1735"></script>
+  <script src="ui.js?v=1736"></script>
   <script src="board-v2.js?v=33"></script>
   <!-- Party voice chat. Loads after ui.js because it paints its own panel and
        reads Game/Multiplayer state; it asks for nothing until you press Join. -->

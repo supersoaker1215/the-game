@@ -1089,6 +1089,7 @@
   .card.card-enter {
     -webkit-mask-image: none; mask-image: none;
     animation: cardBuildInFade 0.32s ease-out forwards;
+    animation-duration: 0.32s !important;
   }
 }
 
@@ -4348,8 +4349,8 @@ body.turn-combat .board .lane.lane-active {
 }
 @media (prefers-reduced-motion: reduce) {
   .lane-recap {
-    animation: none !important;
-    opacity: 1 !important;
+    animation: rmFadeHold 1.9s linear forwards !important;
+    animation-duration: 1.9s !important;
     transform: translate(-50%, -50%) !important;
   }
 }

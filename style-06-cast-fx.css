@@ -448,6 +448,52 @@
 }
 
 /* ============================================================
+   REDUCED MOTION SHORTENS, IT DOES NOT DELETE
+   ============================================================
+   The catch-all above snaps every animation to its END frame, and an
+   effect that ends invisible (a damage number fading out, a death, a
+   face hit) is then never seen at all. Effects that carry game
+   information get an opacity-only fade instead: no travel, no scale,
+   no flash. A class selector's !important name and duration outrank
+   the universal one. Pure spectacle and ambient loops stay deleted. */
+@keyframes rmFadeIn   { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rmFadeOut  { from { opacity: 1; } to { opacity: 0; } }
+@keyframes rmFadeHold { 0% { opacity: 0; } 15% { opacity: 1; } 75% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .hp-dmg-float,
+  .dmg-float {
+    animation-name: rmFadeHold !important;
+    animation-duration: 0.9s !important;
+    animation-timing-function: linear !important;
+    animation-fill-mode: forwards !important;
+  }
+  .card-death-ghost {
+    animation-name: rmFadeOut !important;
+    animation-duration: 0.35s !important;
+    animation-timing-function: ease-in !important;
+    animation-fill-mode: forwards !important;
+  }
+  .face-dmg-vignette {
+    animation-name: rmFadeOut !important;
+    animation-duration: 0.45s !important;
+    animation-fill-mode: forwards !important;
+  }
+  .enter-die-stage .card.enter-die-card {
+    animation-name: rmFadeIn !important;
+    animation-duration: 0.2s !important;
+    animation-fill-mode: both !important;
+  }
+  .enter-die-stage .card.enter-die-card.enter-die-out {
+    animation-name: rmFadeOut !important;
+    animation-duration: 0.3s !important;
+    animation-fill-mode: forwards !important;
+  }
+  .env-reveal-stage.is-calm .env-reveal-name {
+    animation-duration: 1.05s !important;
+  }
+}
+
+/* ============================================================
    TUTORIAL OVERLAY
    ============================================================ */
 #tut-overlay {

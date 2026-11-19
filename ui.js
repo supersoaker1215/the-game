@@ -13305,7 +13305,6 @@ const UI = {
     btnA.classList.toggle('btn-nudge', nudge);
   },
   fxFaceDamage(side) {
-    if (this._reducedMotion && this._reducedMotion()) return;
     const v = document.createElement('div');
     v.className = `face-dmg-vignette face-dmg-${side === 'player' ? 'player' : 'ai'}`;
     document.body.appendChild(v);
@@ -17132,7 +17131,6 @@ const UI = {
   // ~2s, tethered to the lane. Skipped under reduced-motion.
   showLaneRecap(sum) {
     if (!sum || typeof sum.laneIdx !== 'number') return;
-    if (this._reducedMotion && this._reducedMotion()) return;
     // No meaningful change? Skip — if nothing happened in this lane
     // the overlay would just be noise.
     const pDmg = Math.max(0, sum.aAtkBefore > 0 ? (sum.pHpBefore - sum.pHpAfter) : 0);

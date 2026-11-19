@@ -4893,9 +4893,6 @@ body.low-fx .card-glow-host { filter: none !important; }
 .enter-die-stage .card.enter-die-card.enter-die-out {
   animation: enterDieOut 0.62s ease-in forwards;
 }
-@media (prefers-reduced-motion: reduce) {
-  .enter-die-stage { display: none; }
-}
 
 /* ============================================================
    THREE MOMENTS THAT USED TO HAPPEN IN SILENCE

@@ -4,32 +4,32 @@
     "hash": "892be081"
   },
   "style-02-cards.css": {
-    "v": 10,
-    "hash": "f7ef758e"
+    "v": 11,
+    "hash": "01a3a995"
   },
   "style-03-feedback.css": {
     "v": 9,
     "hash": "0916aaeb"
   },
   "style-04-codex.css": {
-    "v": 8,
-    "hash": "fdbfad62"
+    "v": 9,
+    "hash": "2dfd366b"
   },
   "style-05-roguelite.css": {
-    "v": 9,
-    "hash": "c49478a9"
+    "v": 10,
+    "hash": "846fc3b7"
   },
   "style-06-cast-fx.css": {
-    "v": 9,
-    "hash": "43ba0020"
+    "v": 10,
+    "hash": "855383cc"
   },
   "style-07-playfield.css": {
     "v": 8,
     "hash": "e02293d3"
   },
   "style-08-multiplayer.css": {
-    "v": 10,
-    "hash": "8e9f839c"
+    "v": 11,
+    "hash": "57d1320f"
   },
   "board-v2.css": {
     "v": 108,
@@ -84,8 +84,8 @@
     "hash": "9027111b"
   },
   "fx.js": {
-    "v": 4,
-    "hash": "8ff0fdfc"
+    "v": 5,
+    "hash": "88da4f70"
   },
   "audio.js": {
     "v": 2,
@@ -116,8 +116,8 @@
     "hash": "10d54608"
   },
   "ui.js": {
-    "v": 1735,
-    "hash": "b4c0576f"
+    "v": 1736,
+    "hash": "837def6f"
   },
   "board-v2.js": {
     "v": 33,

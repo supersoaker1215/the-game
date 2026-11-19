@@ -5434,7 +5434,7 @@ body.round-tick .board::after {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .spino-sail, .wetlands-break, .lane-fx-stage { display: none; }
+  .spino-sail, .wetlands-break, .lane-fx-stage:not(.env-reveal-stage):not(.enter-die-stage) { display: none; }
 }
 
 /* Environment cards in hand — no stat orbs, distinct border so they
