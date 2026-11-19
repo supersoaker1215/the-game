@@ -359,6 +359,8 @@ run_suite sim/reveal-fit.js
 echo ""
 echo "=== ai-fly.js (the opponent's played card flies in like yours) ==="
 run_suite sim/ai-fly.js
+echo "=== env-reveal.js (the location reveal outlives the render after it) ==="
+run_suite sim/env-reveal.js
 
 echo "=== sjw-ai.js (the AI sees Sung Jin-Woo at his real X/X) ==="
 run_suite sim/sjw-ai.js

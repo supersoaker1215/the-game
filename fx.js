@@ -4095,7 +4095,7 @@ const UI_FX = {
       return;
     }
     if (ev.type === 'envReveal') {
-      this.fxEnvReveal(ev.lane, ev.name);
+      this.fxEnvReveal(ev.lane, ev.name, this._fxDomSide ? this._fxDomSide(ev.owner) : ev.owner);
       return;
     }
     if (ev.type === 'enterAndDie') {

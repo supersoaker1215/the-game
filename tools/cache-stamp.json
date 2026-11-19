@@ -20,8 +20,8 @@
     "hash": "c49478a9"
   },
   "style-06-cast-fx.css": {
-    "v": 8,
-    "hash": "f6ad929e"
+    "v": 9,
+    "hash": "43ba0020"
   },
   "style-07-playfield.css": {
     "v": 8,
@@ -84,8 +84,8 @@
     "hash": "9027111b"
   },
   "fx.js": {
-    "v": 3,
-    "hash": "642a9f38"
+    "v": 4,
+    "hash": "8ff0fdfc"
   },
   "audio.js": {
     "v": 2,
@@ -116,8 +116,8 @@
     "hash": "10d54608"
   },
   "ui.js": {
-    "v": 1734,
-    "hash": "8aa08f35"
+    "v": 1735,
+    "hash": "b4c0576f"
   },
   "board-v2.js": {
     "v": 33,

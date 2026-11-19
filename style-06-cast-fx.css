@@ -3188,39 +3188,80 @@ body.clb-emote-open .viewport-toggle { display: none !important; }
 /* Taunt bubble carries a character NAME, not a big emoji — smaller type. */
 .emote-bubble.taunt-bubble { font-size: 13px; letter-spacing: 0.3px; }
 
-/* ---- Environment reveal (Snap location moment) ----------- */
-.env-reveal {
+/* ---- Environment reveal (the location moment) ------------- */
+/* Painted on the body-level lane stage (UI._fxLaneStage), coloured by the
+   side that played it. The stage is a size container so the name fits
+   the lane it sits over instead of spilling past it. */
+.env-reveal-stage {
+  --rv-rgb: var(--theme-rgb, 79, 195, 247);
+  container-type: inline-size;
+  z-index: 3;
+}
+.env-reveal-stage.is-opponent { --rv-rgb: var(--own-opponent, 255, 47, 69); }
+.env-reveal-flash {
   position: absolute; inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-  z-index: 12;
-  border-radius: inherit;
+  background: radial-gradient(ellipse 90% 60% at 50% 50%,
+    rgba(var(--rv-rgb), 0.42), rgba(var(--rv-rgb), 0.12) 55%, transparent 80%);
+  opacity: 0;
+  animation: envFlash 700ms ease-out forwards;
+}
+@keyframes envFlash {
+  0%   { opacity: 0; }
+  14%  { opacity: 1; }
+  100% { opacity: 0; }
 }
 .env-reveal-sweep {
   position: absolute; inset: 0;
   background: linear-gradient(180deg,
-    transparent 30%, rgba(46, 204, 113, 0.28) 50%, transparent 70%);
+    transparent 30%, rgba(var(--rv-rgb), 0.34) 50%, transparent 70%);
   transform: translateY(-100%);
   animation: envSweep 900ms ease-out forwards;
 }
 @keyframes envSweep { to { transform: translateY(100%); } }
+.env-reveal-edge {
+  position: absolute; inset: 0;
+  border-left: 2px solid rgba(var(--rv-rgb), 0.95);
+  border-right: 2px solid rgba(var(--rv-rgb), 0.95);
+  box-shadow: inset 0 0 18px rgba(var(--rv-rgb), 0.45);
+  transform: scaleY(0);
+  animation: envEdge 1.5s cubic-bezier(.2, .8, .2, 1) forwards;
+}
+@keyframes envEdge {
+  0%   { transform: scaleY(0); opacity: 1; }
+  22%  { transform: scaleY(1); opacity: 1; }
+  70%  { opacity: 0.8; }
+  100% { transform: scaleY(1); opacity: 0; }
+}
 .env-reveal-name {
-  position: absolute; left: 50%; top: 46%;
-  transform: translate(-50%, -50%) scale(0.8);
+  position: absolute; left: 4%; right: 4%; top: 50%;
+  transform: translateY(-50%) scale(0.8);
   font-family: 'Rajdhani', sans-serif; font-weight: 700;
-  font-size: 16px; letter-spacing: 3px; text-transform: uppercase;
-  color: var(--text-body, #d9ffe5);
-  text-shadow: 0 0 12px rgba(46, 204, 113, 0.95), 0 0 26px rgba(46, 204, 113, 0.5);
-  white-space: nowrap;
+  font-size: clamp(11px, 15cqi, 20px); line-height: 1.05;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  text-align: center; text-wrap: balance; overflow-wrap: anywhere;
+  color: #fff;
+  text-shadow: 0 0 10px rgba(var(--rv-rgb), 0.95), 0 0 24px rgba(var(--rv-rgb), 0.6);
   opacity: 0;
-  animation: envName 1.45s ease-out forwards;
+  animation: envName 1.55s ease-out forwards;
 }
 @keyframes envName {
-  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
-  16%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
-  24%  { transform: translate(-50%, -50%) scale(1); }
-  78%  { opacity: 1; }
-  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.96); }
+  0%   { opacity: 0; transform: translateY(-50%) scale(1.35); letter-spacing: 0.3em; }
+  16%  { opacity: 1; transform: translateY(-50%) scale(0.98); letter-spacing: 0.12em; }
+  24%  { transform: translateY(-50%) scale(1); }
+  80%  { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-50%) scale(1); }
+}
+/* Reduced motion: no flash, sweep or zoom; the name still appears and
+   fades so the information arrives. */
+.env-reveal-stage.is-calm .env-reveal-flash,
+.env-reveal-stage.is-calm .env-reveal-sweep,
+.env-reveal-stage.is-calm .env-reveal-edge { display: none; }
+.env-reveal-stage.is-calm .env-reveal-name { animation: envNameCalm 1.05s linear forwards; }
+@keyframes envNameCalm {
+  0%   { opacity: 0; transform: translateY(-50%); }
+  20%  { opacity: 1; transform: translateY(-50%); }
+  75%  { opacity: 1; transform: translateY(-50%); }
+  100% { opacity: 0; transform: translateY(-50%); }
 }
 
 /* ---- Done-button "nothing left to play" nudge ------------ */

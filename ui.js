@@ -13253,20 +13253,30 @@ const UI = {
   },
 
   // ===================== ENVIRONMENT REVEAL =====================
-  // Snap-location moment: when an environment lands in a lane, sweep the
-  // lane and stamp its name for a beat. Fired from the FX event stream
-  // ('envReveal' events) so it plays on every client.
-  fxEnvReveal(laneIdx, name) {
-    if (this._reducedMotion && this._reducedMotion()) return;
-    const laneEl = this.laneElAt(laneIdx);
-    if (!laneEl) return;
-    const old = laneEl.querySelector('.env-reveal');
-    if (old) old.remove();
-    const fx = document.createElement('div');
-    fx.className = 'env-reveal';
-    fx.innerHTML = `<i class="env-reveal-sweep" aria-hidden="true"></i><span class="env-reveal-name">${String(name).replace(/</g, '&lt;')}</span>`;
-    laneEl.appendChild(fx);
-    setTimeout(() => fx.remove(), 1500);
+  // The location moment: when an environment lands, its lane flashes in the
+  // colour of whoever played it and the name stamps across it for a beat.
+  // Fired from the FX event stream ('envReveal') so every client sees it.
+  //
+  // On the body-level lane stage, never inside the lane: renderBoard deletes
+  // every lane child, and a render is exactly what follows the play that
+  // raised this, so a lane-parented reveal died within a frame or two.
+  // Reduced motion keeps the name (it is information) as a plain fade.
+  fxEnvReveal(laneIdx, name, side) {
+    const prev = this._envRevealStages && this._envRevealStages[laneIdx];
+    if (prev) prev.remove();
+    const stage = this._fxLaneStage(laneIdx, 'env-reveal-stage' + (side === 'ai' ? ' is-opponent' : ''));
+    if (!stage) return;
+    (this._envRevealStages || (this._envRevealStages = {}))[laneIdx] = stage;
+    const calm = !!(this._reducedMotion && this._reducedMotion());
+    if (calm) stage.classList.add('is-calm');
+    stage.innerHTML = '<i class="env-reveal-flash" aria-hidden="true"></i>'
+      + '<i class="env-reveal-sweep" aria-hidden="true"></i>'
+      + '<i class="env-reveal-edge" aria-hidden="true"></i>'
+      + `<span class="env-reveal-name">${String(name).replace(/&/g, '&amp;').replace(/</g, '&lt;')}</span>`;
+    setTimeout(() => {
+      stage.remove();
+      if (this._envRevealStages[laneIdx] === stage) delete this._envRevealStages[laneIdx];
+    }, calm ? 1100 : 1600);
   },
 
   // ===================== DONE-BUTTON NUDGE =====================
