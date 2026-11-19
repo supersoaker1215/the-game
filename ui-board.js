@@ -1040,13 +1040,7 @@ const UI_BOARD = {
         const cardEl = aiCardEl;
         if (aiDisplayCard.id !== undefined) currentBoardIds.add(aiDisplayCard.id);
         if (!this._lastBoardCardIds.has(aiDisplayCard.id)) {
-          // Enemy cards use the same "build from grid" animation as ally cards
-          // (1.0s clip-path reveal from bottom up + scan line), so the play
-          // moment reads the same for both sides. Timeout = the 1.0s animation
-          // plus a small safety margin.
-          cardEl.dataset.enterAt = String(Date.now());   // swept if it ever gets stuck (see renderBoard)
-          cardEl.classList.add('card-enter');
-          setTimeout(() => cardEl.classList.remove('card-enter'), 1100);
+          const landFx = () => {
           // (h) landing dip + (k) claim wave + dust kick + ring ripple —
           // the ring is the Snap-style concentric pulse under the card.
           el.classList.add('lane-landed');
@@ -1067,6 +1061,21 @@ const UI_BOARD = {
           // canonical beat a player card gets, so the AI, an MP opponent and
           // the 2v2 enemy team all land with weight.
           this._landThump(el, aiDisplayCard.cost, 'ai', cardEl);
+          };
+          // A card the opponent PLAYED (it was in their hand last render) flies
+          // down from their card backs like a player's card does and lands on
+          // touchdown. Anything else that appears — a summon, a revive — has no
+          // hand to come from and builds up in place.
+          const fromHand = !aiDisplayCard.isFaceDown && this._lastAIHandIds
+            && this._lastAIHandIds.has(String(aiDisplayCard.id));
+          if (!(fromHand && this._flyFromEnemyHand(cardEl, landFx))) {
+            // "Build from grid" (1.0s clip-path reveal + scan line); the timeout
+            // is the animation plus a small safety margin.
+            cardEl.dataset.enterAt = String(Date.now());   // swept if it ever gets stuck (see renderBoard)
+            cardEl.classList.add('card-enter');
+            setTimeout(() => cardEl.classList.remove('card-enter'), 1100);
+            landFx();
+          }
         }
         // DEFAULT click handler — tap a board card to open the inspect popup.
         // The cc / lc branches below override this when the card is a valid
@@ -1395,6 +1404,9 @@ const UI_BOARD = {
       if (removed > 0) this.sfx.play('cardDestroy');
     }
     this._lastBoardCardIds = currentBoardIds;
+    // Which ids were in the opponent's hand as of this render: next render, a
+    // card that left that hand for the board was PLAYED and flies in.
+    this._lastAIHandIds = new Set(((Game.state && Game.state.ai && Game.state.ai.hand) || []).map(c => String(c.id)));
   },
 
   // THE LANE ELEMENT FOR A LANE INDEX. DOM order does not match lane numbering

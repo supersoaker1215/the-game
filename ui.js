@@ -3368,6 +3368,61 @@ const UI = {
     setTimeout(land, DUR + 90);   // fallback so the card can never stay hidden
   },
 
+  // The opponent's card leaves its row of card backs and arcs down into its
+  // lane — the same travel a player's card makes — and the landing effects
+  // fire on touchdown via onLand. Returns false (the caller keeps the in-place
+  // build) when there is no hand to fly from, or motion is reduced / low-fx.
+  _flyFromEnemyHand(realEl, onLand) {
+    if (!realEl || (this._reducedMotion && this._reducedMotion())) return false;
+    if (document.body && document.body.classList.contains('low-fx')) return false;
+    const backs = document.querySelectorAll('.ai-hand-mini .card-back');
+    const src = backs.length ? backs[backs.length - 1] : document.querySelector('.ai-hand-mini');
+    if (!src) return false;
+    const from = src.getBoundingClientRect(), to = realEl.getBoundingClientRect();
+    if (!from || !to || !from.width || !to.width) return false;
+    const dx = (from.left + from.width / 2) - (to.left + to.width / 2);
+    const dy = (from.top + from.height / 2) - (to.top + to.height / 2);
+    const s0 = Math.max(0.15, Math.min(1, from.width / to.width));
+    const ghost = realEl.cloneNode(true);
+    ghost.classList.add('card-flight-ghost', 'flight-ai');
+    ghost.classList.remove('card-enter', 'card-flying', 'card-landing', 'selected',
+      'card-selected', 'target-highlight', 'targetable', 'playable', 'unplayable');
+    ghost.removeAttribute('data-card-id');
+    ghost.onclick = null;
+    ghost.style.position = 'fixed';
+    ghost.style.margin = '0';
+    ghost.style.left = to.left + 'px';
+    ghost.style.top = to.top + 'px';
+    ghost.style.width = to.width + 'px';
+    ghost.style.height = to.height + 'px';
+    ghost.style.animation = 'none';
+    document.body.appendChild(ghost);
+    realEl.dataset.flyAt = String(Date.now());   // swept if it sticks (see renderBoard)
+    realEl.classList.add('card-flying');
+    realEl.classList.remove('card-enter');
+    const DUR = this._FLY_DUR_MS || 460;
+    const peak = Math.min(80, 30 + Math.abs(dx) * 0.10);
+    let done = false;
+    const land = () => {
+      if (done) return; done = true;
+      try { ghost.remove(); } catch (e) {}
+      realEl.classList.remove('card-flying');
+      if (realEl.dataset) delete realEl.dataset.flyAt;
+      try { if (onLand) onLand(); } catch (e) {}
+    };
+    try {
+      const a = ghost.animate([
+        { transform: `translate(${dx}px, ${dy}px) scale(${s0}) rotate(6deg)`, opacity: 0.7 },
+        { transform: `translate(${dx * 0.45}px, ${dy * 0.45 - peak}px) scale(${((s0 + 1.07) / 2).toFixed(3)}) rotate(2deg)`, opacity: 1, offset: 0.5 },
+        { transform: 'translate(0px, 0px) scale(1.05) rotate(0deg)', offset: 0.82 },
+        { transform: 'translate(0px, 0px) scale(1) rotate(0deg)' },
+      ], { duration: DUR, easing: 'cubic-bezier(0.33,0.85,0.31,1)', fill: 'forwards' });
+      a.onfinish = land;
+    } catch (e) { land(); return true; }
+    setTimeout(land, DUR + 90);   // fallback so the card can never stay hidden
+    return true;
+  },
+
   _spawnDeathGhost(rect, html, id) {
     const wrap = document.createElement('div');
     wrap.innerHTML = html;

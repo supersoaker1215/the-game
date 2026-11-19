@@ -1458,6 +1458,10 @@
   filter: brightness(1.25) drop-shadow(0 0 14px rgba(120,220,255,0.65));
   transition: filter 0.4s var(--ease-out-soft);
 }
+/* The opponent's card glows in the opponent's colour while it flies. */
+.card-flight-ghost.flight-ai {
+  filter: brightness(1.25) drop-shadow(0 0 14px rgba(var(--own-opponent, 255, 47, 69), 0.65));
+}
 /* Parabolic arc trajectory — the ghost rises through a midpoint
    (--fly-peak-y above the linear path) before descending into the
    lane. JS sets --fly-dx, --fly-dy, --fly-peak-y per spawn. The

@@ -356,6 +356,10 @@ echo ""
 echo "=== reveal-fit.js (a trick reveal never covers an open decision) ==="
 run_suite sim/reveal-fit.js
 
+echo ""
+echo "=== ai-fly.js (the opponent's played card flies in like yours) ==="
+run_suite sim/ai-fly.js
+
 echo "=== sjw-ai.js (the AI sees Sung Jin-Woo at his real X/X) ==="
 run_suite sim/sjw-ai.js
 
